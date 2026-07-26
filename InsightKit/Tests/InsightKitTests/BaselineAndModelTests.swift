@@ -163,6 +163,40 @@ final class InsightEngineTests: XCTestCase {
         XCTAssertTrue(result.unmetRequirements.contains { $0.kind == .hasDiabetes })
     }
 
+    /// Build a fully-grounded profile at a specific age.
+    private func profile(age years: Double) -> UserHealthProfile {
+        var p = fullProfile()
+        let now = Date()
+        let dob = now.addingTimeInterval(-years * 365.2425 * 24 * 3600)
+        p.set(.init(kind: .dateOfBirth, value: dob.timeIntervalSince1970, recordedAt: now))
+        return p
+    }
+
+    func testRiskOutsideValidatedAgeRangeIsLowConfidence() {
+        // Age 35 is below both models' validated range (40+).
+        let insight = CardiovascularRiskInsight(preferredEngine: .combined)
+        let result = insight.evaluate(samples: [], profile: profile(age: 35), now: Date())
+        XCTAssertNotNil(result.primaryValue)                 // still computed, indicatively
+        XCTAssertEqual(result.confidence, .low)
+        XCTAssertTrue(result.explanation.contains("40–79"))
+    }
+
+    func testOnlyASCVDUsedInSeventies() {
+        // At 75, SCORE2 (validated 40–69) is dropped; ASCVD (40–79) stands alone.
+        let p = profile(age: 75)
+        let now = Date()
+        let ascvd = CardiovascularRiskModel.ascvdRisk(.init(
+            age: 75, sex: .male, race: .whiteOrOther,
+            totalCholesterol: CardiovascularRiskModel.mgdL(fromMmolPerL: 5.5),
+            hdlCholesterol: CardiovascularRiskModel.mgdL(fromMmolPerL: 1.3),
+            systolicBP: 130, treatedForBP: false, isSmoker: false, hasDiabetes: false)) * 100
+        let insight = CardiovascularRiskInsight(preferredEngine: .combined)
+        let result = insight.evaluate(samples: [], profile: p, now: now)
+        XCTAssertEqual(result.primaryValue!, ascvd, accuracy: 0.01) // consensus == ASCVD alone
+        XCTAssertEqual(result.confidence, .high)
+        XCTAssertTrue(result.drivers.contains { $0.contains("SCORE2 not shown") })
+    }
+
     func testEngineReportsMissingGroundingWhenEmpty() {
         let engine = InsightEngine()
         let outstanding = engine.outstandingGrounding(profile: UserHealthProfile())

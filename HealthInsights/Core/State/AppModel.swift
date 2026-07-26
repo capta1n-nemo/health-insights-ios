@@ -115,4 +115,9 @@ final class AppModel {
     func series(_ metric: MetricType) -> [HealthMetricSample] {
         samples.samples(of: metric)
     }
+
+    /// Most recent value for a metric, if any (used by the vitals glance row).
+    func latest(_ metric: MetricType) -> Double? {
+        samples.latestValue(metric)
+    }
 }

@@ -70,13 +70,17 @@ public struct CardiovascularRiskInsight: InsightModel {
             return notYetResult(unmet: unmet)
         }
 
-        // Compute whichever models this engine uses.
-        var modelResults: [(name: String, pct: Double)] = []
+        // Compute whichever models this engine uses, tagging each with whether
+        // the person's age is inside that model's *validated* range. Applying an
+        // equation outside its derivation age band is extrapolation, so we track
+        // it and prefer the in-range models for the headline number.
+        //   SCORE2: validated 40–69 · ASCVD Pooled Cohort Equations: 40–79.
+        var modelResults: [(name: String, pct: Double, ageValid: Bool)] = []
         if preferredEngine != .ascvd {
             let s2 = CardiovascularRiskModel.score2Risk(.init(
                 age: age, sex: sex, isSmoker: profile.isSmoker, systolicBP: systolic,
                 totalCholesterol: totalChol, hdlCholesterol: hdl, region: profile.score2Region))
-            modelResults.append(("SCORE2", s2 * 100))
+            modelResults.append(("SCORE2", s2 * 100, (40...69).contains(age)))
         }
         if preferredEngine != .score2 {
             let ascvd = CardiovascularRiskModel.ascvdRisk(.init(
@@ -85,25 +89,35 @@ public struct CardiovascularRiskInsight: InsightModel {
                 hdlCholesterol: CardiovascularRiskModel.mgdL(fromMmolPerL: hdl),
                 systolicBP: systolic, treatedForBP: profile.onBPMedication,
                 isSmoker: profile.isSmoker, hasDiabetes: profile.hasDiabetes))
-            modelResults.append(("ASCVD", ascvd * 100))
+            modelResults.append(("ASCVD", ascvd * 100, (40...79).contains(age)))
         }
 
-        let pcts = modelResults.map(\.pct)
+        // Headline consensus uses only age-valid models; if none are valid (age
+        // outside 40–79) we fall back to all of them but drop confidence to low.
+        let validModels = modelResults.filter(\.ageValid)
+        let anyValid = !validModels.isEmpty
+        let usedModels = anyValid ? validModels : modelResults
+        let pcts = usedModels.map(\.pct)
         let consensus = pcts.reduce(0, +) / Double(pcts.count)
         let lo = pcts.min() ?? consensus
         let hi = pcts.max() ?? consensus
         let band = riskBand(pct: consensus)
 
         // High confidence when every mandatory input is present and fresh; a
-        // stale or missing mandatory input softens it. Optional inputs (region,
-        // ethnicity, BP-med) never reduce confidence.
+        // stale/missing mandatory input softens it; being outside every model's
+        // validated age range caps it at low regardless.
         let mandatoryUnsatisfied = statuses.contains { $0.0.isMandatory && $0.1 != .satisfied }
-        let confidence: InsightConfidence = mandatoryUnsatisfied ? .moderate : .high
+        let confidence: InsightConfidence = !anyValid ? .low
+            : (mandatoryUnsatisfied ? .moderate : .high)
 
         var drivers: [String] = []
-        for m in modelResults { drivers.append(String(format: "%@: %.1f%%", m.name, m.pct)) }
-        if modelResults.count > 1 {
+        for m in usedModels { drivers.append(String(format: "%@: %.1f%%", m.name, m.pct)) }
+        if usedModels.count > 1 {
             drivers.append(String(format: "Range across models: %.1f–%.1f%%", lo, hi))
+        }
+        // Surface any model dropped for being out of its validated age range.
+        for m in modelResults where !m.ageValid && anyValid {
+            drivers.append("\(m.name) not shown — outside its validated age range")
         }
         drivers.append("Age \(Int(age.rounded())), \(sex.displayName.lowercased())")
         drivers.append("Systolic BP \(Int(systolic.rounded())) mmHg")
@@ -111,13 +125,18 @@ public struct CardiovascularRiskInsight: InsightModel {
         if profile.isSmoker { drivers.append("Current smoker") }
         if profile.hasDiabetes { drivers.append("Diabetes") }
 
-        let explanation: String
-        if modelResults.count > 1 {
-            explanation = String(format: "Estimated %.1f%% chance of a heart attack or stroke in the next 10 years (%@). This is the consensus of two validated models — SCORE2 (%.1f%%) and ASCVD (%.1f%%) — shown as a range because they were built on different populations.",
-                                 consensus, band.label, modelResults[0].pct, modelResults[1].pct)
+        var explanation: String
+        if usedModels.count > 1 {
+            explanation = String(format: "Estimated %.1f%% chance of a heart attack or stroke in the next 10 years (%@). This is the consensus of two validated models — %@ (%.1f%%) and %@ (%.1f%%) — shown as a range because they were built on different populations.",
+                                 consensus, band.label,
+                                 usedModels[0].name, usedModels[0].pct,
+                                 usedModels[1].name, usedModels[1].pct)
         } else {
             explanation = String(format: "Estimated %.1f%% chance of a heart attack or stroke in the next 10 years (%@), computed with the %@ model from your age, sex, blood pressure, cholesterol and smoking status.",
-                                 consensus, band.label, modelResults[0].name)
+                                 consensus, band.label, usedModels[0].name)
+        }
+        if !anyValid {
+            explanation += " Note: these equations are validated for ages 40–79, so at your age this is indicative only — please discuss with a clinician."
         }
 
         return InsightResult(
