@@ -1,0 +1,278 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AAAA0000000000000000AA0B /* InsightKit in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA0C /* InsightKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AAAA0000000000000000AA07 /* HealthInsights.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HealthInsights.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAAA0000000000000000AA0E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AAAA0000000000000000AA0F /* HealthInsights.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HealthInsights.entitlements; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AAAA0000000000000000AA05 /* HealthInsights */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HealthInsights; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AAAA0000000000000000AA09 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA0000000000000000AA0B /* InsightKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AAAA0000000000000000AA02 = {
+			isa = PBXGroup;
+			children = (
+				AAAA0000000000000000AA05 /* HealthInsights */,
+				AAAA0000000000000000AA04 /* Support */,
+				AAAA0000000000000000AA03 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000AA03 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA0000000000000000AA07 /* HealthInsights.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AAAA0000000000000000AA04 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				AAAA0000000000000000AA0E /* Info.plist */,
+				AAAA0000000000000000AA0F /* HealthInsights.entitlements */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AAAA0000000000000000AA06 /* HealthInsights */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAA0000000000000000AA13 /* Build configuration list for PBXNativeTarget "HealthInsights" */;
+			buildPhases = (
+				AAAA0000000000000000AA08 /* Sources */,
+				AAAA0000000000000000AA09 /* Frameworks */,
+				AAAA0000000000000000AA0A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AAAA0000000000000000AA05 /* HealthInsights */,
+			);
+			name = HealthInsights;
+			packageProductDependencies = (
+				AAAA0000000000000000AA0C /* InsightKit */,
+			);
+			productName = HealthInsights;
+			productReference = AAAA0000000000000000AA07 /* HealthInsights.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AAAA0000000000000000AA01 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AAAA0000000000000000AA06 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = AAAA0000000000000000AA10 /* Build configuration list for PBXProject "HealthInsights" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AAAA0000000000000000AA02;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AAAA0000000000000000AA0D /* XCLocalSwiftPackageReference "InsightKit" */,
+			);
+			productRefGroup = AAAA0000000000000000AA03 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AAAA0000000000000000AA06 /* HealthInsights */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AAAA0000000000000000AA0A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AAAA0000000000000000AA08 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AAAA0000000000000000AA11 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		AAAA0000000000000000AA12 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AAAA0000000000000000AA14 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_ENTITLEMENTS = Support/HealthInsights.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Support/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.healthinsights.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AAAA0000000000000000AA15 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_ENTITLEMENTS = Support/HealthInsights.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Support/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.healthinsights.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AAAA0000000000000000AA10 /* Build configuration list for PBXProject "HealthInsights" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA0000000000000000AA11 /* Debug */,
+				AAAA0000000000000000AA12 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAAA0000000000000000AA13 /* Build configuration list for PBXNativeTarget "HealthInsights" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA0000000000000000AA14 /* Debug */,
+				AAAA0000000000000000AA15 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AAAA0000000000000000AA0D /* XCLocalSwiftPackageReference "InsightKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = InsightKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AAAA0000000000000000AA0C /* InsightKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = InsightKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AAAA0000000000000000AA01 /* Project object */;
+}

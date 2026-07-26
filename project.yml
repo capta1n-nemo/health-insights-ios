@@ -1,0 +1,39 @@
+# XcodeGen spec — the authoritative, reproducible way to (re)generate the Xcode
+# project. If the committed HealthInsights.xcodeproj ever gets out of sync or
+# won't open, install XcodeGen and regenerate:
+#
+#     brew install xcodegen
+#     cd ios && xcodegen generate
+#
+name: HealthInsights
+options:
+  bundleIdPrefix: com.healthinsights
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+
+packages:
+  InsightKit:
+    path: InsightKit
+
+targets:
+  HealthInsights:
+    type: application
+    platform: iOS
+    sources:
+      - path: HealthInsights
+    dependencies:
+      - package: InsightKit
+    info:
+      path: Support/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.healthinsights.app
+        PRODUCT_NAME: HealthInsights
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_ENTITLEMENTS: Support/HealthInsights.entitlements
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_EMIT_LOC_STRINGS: YES

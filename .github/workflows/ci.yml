@@ -1,0 +1,49 @@
+name: iOS CI
+
+# Verifies the Health Insights app on every push:
+#   1. Runs the pure-Swift InsightKit unit tests (clinical math, risk ensemble,
+#      Oura/Withings JSON parsers).
+#   2. Compiles the full SwiftUI/HealthKit/SwiftData app target for iOS.
+#
+# Runs on a macOS runner because the app target needs the iOS SDK.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: InsightKit unit tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Run swift test
+        working-directory: InsightKit
+        run: swift test --parallel
+
+  app-build:
+    name: Compile app target
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: xcodebuild -version
+      - name: Build HealthInsights (no signing)
+        run: |
+          xcodebuild build \
+            -project HealthInsights.xcodeproj \
+            -scheme HealthInsights \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""

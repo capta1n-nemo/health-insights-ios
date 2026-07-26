@@ -1,0 +1,22 @@
+# Cloudflare Workers config for the OAuth-only backend.
+#
+# Deploy (free tier is plenty — this handles only occasional token exchanges):
+#   npm i -g wrangler
+#   wrangler deploy
+#
+# Set the secrets (never commit these):
+#   wrangler secret put OURA_CLIENT_SECRET
+#   wrangler secret put WITHINGS_CLIENT_SECRET
+#
+# Public (non-secret) values can go under [vars] below.
+
+name = "health-insights-oauth"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+OURA_CLIENT_ID = "<your-oura-client-id>"
+WITHINGS_CLIENT_ID = "<your-withings-client-id>"
+ALLOWED_REDIRECT = "healthinsights://oauth"
+
+# OURA_CLIENT_SECRET and WITHINGS_CLIENT_SECRET are set via `wrangler secret put`.

@@ -1,0 +1,61 @@
+import Foundation
+
+/// Maps the Withings **Measure API** (`action=getmeas`) JSON into canonical
+/// samples. Pure and dependency-free for unit testing.
+///
+/// Withings encodes each measure as `real = value × 10^unit` with a numeric
+/// `type`. We map the types we understand and ignore the rest:
+///   1  → weight (kg)                6  → fat ratio (%)
+///   5  → fat-free (lean) mass (kg)  9  → diastolic BP (mmHg)
+///   10 → systolic BP (mmHg)
+public enum WithingsResponseParser {
+
+    private struct Response: Decodable {
+        let status: Int
+        let body: Body?
+    }
+    private struct Body: Decodable {
+        let measuregrps: [MeasureGroup]
+    }
+    private struct MeasureGroup: Decodable {
+        let date: Double                 // epoch seconds
+        let measures: [Measure]
+    }
+    private struct Measure: Decodable {
+        let value: Double
+        let type: Int
+        let unit: Int
+    }
+
+    enum WithingsError: Error { case apiStatus(Int) }
+
+    /// Parse a `getmeas` response into canonical samples.
+    public static func parseMeasures(_ data: Data) throws -> [HealthMetricSample] {
+        let response = try JSONDecoder().decode(Response.self, from: data)
+        guard response.status == 0 else { throw WithingsError.apiStatus(response.status) }
+        guard let groups = response.body?.measuregrps else { return [] }
+
+        var samples: [HealthMetricSample] = []
+        for group in groups {
+            let date = Date(timeIntervalSince1970: group.date)
+            for measure in group.measures {
+                guard let metric = metricType(for: measure.type) else { continue }
+                let real = measure.value * pow(10, Double(measure.unit))
+                samples.append(HealthMetricSample(type: metric, value: real,
+                                                  start: date, end: date, source: .withings))
+            }
+        }
+        return samples
+    }
+
+    static func metricType(for withingsType: Int) -> MetricType? {
+        switch withingsType {
+        case 1: return .bodyMass
+        case 5: return .leanBodyMass
+        case 6: return .bodyFatPercentage
+        case 9: return .bloodPressureDiastolic
+        case 10: return .bloodPressureSystolic
+        default: return nil
+        }
+    }
+}
