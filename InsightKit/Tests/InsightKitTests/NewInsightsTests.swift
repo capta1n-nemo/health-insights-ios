@@ -102,8 +102,9 @@ final class SubstanceAnalyzerTests: XCTestCase {
 
 final class BloodPressureBivariateTests: XCTestCase {
     func testBivariateFitRecoversKnownPlane() {
+        // x1 and x2 must be non-collinear or the normal equations are singular.
         let x1 = [50.0, 55, 60, 52, 58, 54]
-        let x2 = [60.0, 55, 50, 58, 52, 56]
+        let x2 = [60.0, 58, 52, 55, 50, 57]
         let y = zip(x1, x2).map { 100 + 0.5 * $0 - 0.3 * $1 }
         let fit = BloodPressureEstimator.bivariateFit(x1: x1, x2: x2, y: y)!
         XCTAssertEqual(fit.b1, 0.5, accuracy: 1e-6)
@@ -115,7 +116,7 @@ final class BloodPressureBivariateTests: XCTestCase {
     func testEstimatorUsesHRVWhenAvailable() {
         // systolic = 90 + 0.6*hr − 0.2*hrv exactly, 6 points with HRV.
         let hrs = [52.0, 58, 61, 55, 60, 54]
-        let hrvs = [70.0, 55, 48, 62, 50, 66]
+        let hrvs = [70.0, 55, 48, 66, 52, 60]   // not a linear function of hrs
         let points = zip(hrs, hrvs).enumerated().map { idx, pair -> BloodPressureEstimator.CalibrationPoint in
             let (hr, hrv) = pair
             let sys = 90 + 0.6 * hr - 0.2 * hrv
