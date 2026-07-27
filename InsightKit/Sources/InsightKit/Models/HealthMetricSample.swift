@@ -14,7 +14,10 @@ public struct MetricSource: Codable, Sendable, Hashable {
     public static let appleHealth = MetricSource(id: "apple_health", displayName: "Apple Health")
     public static let oura = MetricSource(id: "oura", displayName: "Oura")
     public static let withings = MetricSource(id: "withings", displayName: "Withings")
+    public static let whoop = MetricSource(id: "whoop", displayName: "Whoop")
+    public static let hume = MetricSource(id: "hume", displayName: "Hume")
     public static let manual = MetricSource(id: "manual", displayName: "Manual entry")
+    public static let document = MetricSource(id: "document", displayName: "Imported document")
 }
 
 /// A single normalised measurement. All values are stored in the canonical unit

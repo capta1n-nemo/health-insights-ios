@@ -339,6 +339,43 @@ final class WithingsProvider: OAuthIntegration {
     }
 }
 
+// MARK: - Whoop
+
+@MainActor
+final class WhoopProvider: OAuthIntegration {
+    init(credentials: ProviderCredentialStore, webFlow: OAuthWebFlow) {
+        super.init(
+            id: MetricSource.whoop.id,
+            displayName: "Whoop",
+            iconSystemName: "bolt.heart",
+            capabilities: .init(
+                metrics: [.restingHeartRate, .heartRateVariabilityRMSSD,
+                          .oxygenSaturation, .bodyTemperature, .dayStrain],
+                requiresBackend: false),
+            config: .init(
+                authorizeURL: URL(string: "https://api.prod.whoop.com/oauth/oauth2/auth")!,
+                tokenURL: URL(string: "https://api.prod.whoop.com/oauth/oauth2/token")!,
+                consoleURL: URL(string: "https://developer.whoop.com/")!,
+                redirectURI: "healthinsights://oauth/whoop",
+                scopes: ["read:recovery", "read:cycles", "read:sleep", "read:profile", "offline"],
+                usesPKCE: false),
+            credentials: credentials, webFlow: webFlow)
+    }
+
+    override func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
+        var out: [HealthMetricSample] = []
+        if let url = URL(string: "https://api.prod.whoop.com/developer/v2/recovery?limit=25") {
+            let data = try await getJSON(url, accessToken: accessToken)
+            out += (try? WhoopResponseParser.parseRecovery(data)) ?? []
+        }
+        if let url = URL(string: "https://api.prod.whoop.com/developer/v2/cycle?limit=25") {
+            let data = try await getJSON(url, accessToken: accessToken)
+            out += (try? WhoopResponseParser.parseCycles(data)) ?? []
+        }
+        return out
+    }
+}
+
 extension OAuthIntegration: Identifiable {}
 
 /// Base64URL without padding, for PKCE.

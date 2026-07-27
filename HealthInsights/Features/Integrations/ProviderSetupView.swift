@@ -152,6 +152,14 @@ struct ProviderSetupView: View {
                 "Paste them into the boxes below and tap Save & Connect.",
                 "Note: if Withings won't accept the address below, see the app's help — a small optional helper is available."
             ]
+        case "whoop":
+            return [
+                "Open the Whoop developer site above and sign in with your Whoop account.",
+                "Create a new app in the developer dashboard.",
+                "Set the Redirect URI to the address below (use the Copy button).",
+                "Copy your Client ID and Client Secret.",
+                "Paste them into the boxes below and tap Save & Connect."
+            ]
         default:
             return ["Enter your Client ID and Client Secret, then tap Save & Connect."]
         }

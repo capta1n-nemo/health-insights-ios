@@ -53,6 +53,7 @@ final class AppModel {
         let registry = IntegrationRegistry(integrations: [
             apple,
             OuraProvider(credentials: credentials, webFlow: webFlow),
+            WhoopProvider(credentials: credentials, webFlow: webFlow),
             WithingsProvider(credentials: credentials, webFlow: webFlow)
         ])
         return AppModel(dataStore: dataStore, healthService: healthService,

@@ -12,6 +12,7 @@ struct SettingsView: View {
             List {
                 integrationsSection
                 profileSection
+                importSection
                 intelligenceSection
                 aboutSection
             }
@@ -63,6 +64,18 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var importSection: some View {
+        Section {
+            NavigationLink {
+                ImportLabView()
+            } label: {
+                Label("Import blood test (photo)", systemImage: "doc.text.viewfinder")
+            }
+        } footer: {
+            Text("Read on-device — take or choose a photo of a pathology report and confirm the values. Nothing is uploaded.")
         }
     }
 
