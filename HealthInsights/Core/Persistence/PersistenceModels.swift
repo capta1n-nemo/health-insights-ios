@@ -57,3 +57,26 @@ final class IntegrationRecord {
         self.lastSync = lastSync
     }
 }
+
+/// A logged recreational/everyday substance-use event (private, on-device).
+@Model
+final class SubstanceEventRecord {
+    @Attribute(.unique) var id: UUID
+    var substanceRaw: String
+    var timestamp: Date
+    var units: Double?
+    var note: String?
+
+    init(id: UUID = UUID(), substanceRaw: String, timestamp: Date, units: Double? = nil, note: String? = nil) {
+        self.id = id
+        self.substanceRaw = substanceRaw
+        self.timestamp = timestamp
+        self.units = units
+        self.note = note
+    }
+
+    var event: SubstanceEvent? {
+        guard let substance = SubstanceClass(rawValue: substanceRaw) else { return nil }
+        return SubstanceEvent(id: id, substance: substance, timestamp: timestamp, units: units, note: note)
+    }
+}

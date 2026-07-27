@@ -5,6 +5,8 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     case cardiovascularRisk
     case heartHealth
     case bloodPressure
+    case readiness
+    case substanceImpact
 }
 
 /// How much confidence to attach to a computed insight, so the UI can be honest

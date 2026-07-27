@@ -10,7 +10,8 @@ final class DataStore {
     var context: ModelContext { container.mainContext }
 
     init(inMemory: Bool = false) {
-        let schema = Schema([GroundingRecord.self, ManualSampleRecord.self, IntegrationRecord.self])
+        let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
+                             IntegrationRecord.self, SubstanceEventRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -77,5 +78,30 @@ final class DataStore {
             context.insert(IntegrationRecord(integrationID: id, connected: connected, lastSync: lastSync))
         }
         try? context.save()
+    }
+
+    // MARK: - Substance events
+
+    func loadSubstanceEvents() -> [SubstanceEvent] {
+        let descriptor = FetchDescriptor<SubstanceEventRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        let records = (try? context.fetch(descriptor)) ?? []
+        return records.compactMap(\.event)
+    }
+
+    func addSubstanceEvent(_ event: SubstanceEvent) {
+        context.insert(SubstanceEventRecord(
+            id: event.id, substanceRaw: event.substance.rawValue,
+            timestamp: event.timestamp, units: event.units, note: event.note))
+        try? context.save()
+    }
+
+    func deleteSubstanceEvent(id: UUID) {
+        let descriptor = FetchDescriptor<SubstanceEventRecord>(
+            predicate: #Predicate { $0.id == id })
+        if let record = (try? context.fetch(descriptor))?.first {
+            context.delete(record)
+            try? context.save()
+        }
     }
 }

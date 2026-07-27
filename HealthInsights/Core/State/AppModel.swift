@@ -18,6 +18,7 @@ final class AppModel {
 
     // Rendered state
     private(set) var samples: [HealthMetricSample] = []
+    private(set) var substanceEvents: [SubstanceEvent] = []
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
@@ -81,14 +82,36 @@ final class AppModel {
         var merged = dataStore.loadManualSamples()
         let fromIntegrations = await registry.syncAllConnected()
         merged.append(contentsOf: fromIntegrations)
-        samples = merged
+        // Creative reconstruction: turn wearable skin-temperature *deviations*
+        // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
+        // be trended and fed to the insights.
+        samples = TemperatureReconstructor.withReconstructedTemperature(merged)
         profile = dataStore.loadProfile()
+        substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
         todaySummary = await summarizer.summarize(results: results)
     }
 
     private func recompute() {
-        results = engine.evaluateAll(samples: samples, profile: profile)
+        var out = engine.evaluateAll(samples: samples, profile: profile)
+        // Substance impact is data-shaped differently (needs the event log), so
+        // it's computed alongside the engine and appended to the card list.
+        out.append(SubstanceResponseAnalyzer.insightResult(events: substanceEvents, samples: samples))
+        results = out
+    }
+
+    // MARK: - Substances
+
+    func logSubstance(_ substance: SubstanceClass, at date: Date = Date(), units: Double? = nil, note: String? = nil) {
+        dataStore.addSubstanceEvent(.init(substance: substance, timestamp: date, units: units, note: note))
+        substanceEvents = dataStore.loadSubstanceEvents()
+        recompute()
+    }
+
+    func deleteSubstanceEvent(id: UUID) {
+        dataStore.deleteSubstanceEvent(id: id)
+        substanceEvents = dataStore.loadSubstanceEvents()
+        recompute()
     }
 
     func result(for id: InsightID) -> InsightResult? {

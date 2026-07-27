@@ -124,6 +124,8 @@ struct InsightDetailView: View {
         case .cardiovascularRisk: return .bloodPressureSystolic
         case .heartHealth: return .restingHeartRate
         case .bloodPressure: return .bloodPressureSystolic
+        case .readiness: return .heartRateVariabilityRMSSD
+        case .substanceImpact: return .restingHeartRate
         }
     }
 }

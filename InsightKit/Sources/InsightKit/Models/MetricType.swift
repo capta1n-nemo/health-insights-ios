@@ -15,6 +15,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case heartRateVariabilityRMSSD // ms (Oura reports rMSSD)
     case vo2Max                    // mL/(kg·min) — Apple "Cardio Fitness"
     case respiratoryRate           // breaths/min
+    case oxygenSaturation          // % SpO2 (Whoop, Hume, Apple Watch)
+    case dayStrain                 // 0–21 cumulative cardiovascular load (Whoop)
 
     // Blood pressure (measured, e.g. from a cuff synced into Health / Withings)
     case bloodPressureSystolic     // mmHg
@@ -30,7 +32,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case stepCount                 // count
     case activeEnergyBurned        // kcal
     case sleepDurationHours        // hours
-    case bodyTemperature           // °C (Oura nightly / skin temp deviation)
+    case bodyTemperature           // °C absolute (reconstructed or measured)
+    case skinTemperatureDeviation  // °C deviation from personal baseline (Oura/Whoop/Hume)
 
     /// Human-readable label for UI.
     public var displayName: String {
@@ -42,6 +45,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRateVariabilityRMSSD: return "HRV (rMSSD)"
         case .vo2Max: return "Cardio Fitness (VO₂max)"
         case .respiratoryRate: return "Respiratory Rate"
+        case .oxygenSaturation: return "Blood Oxygen"
+        case .dayStrain: return "Day Strain"
         case .bloodPressureSystolic: return "Systolic BP"
         case .bloodPressureDiastolic: return "Diastolic BP"
         case .bodyMass: return "Weight"
@@ -52,6 +57,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "Active Energy"
         case .sleepDurationHours: return "Sleep Duration"
         case .bodyTemperature: return "Body Temperature"
+        case .skinTemperatureDeviation: return "Skin Temp Deviation"
         }
     }
 
@@ -62,6 +68,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD: return "ms"
         case .vo2Max: return "mL/kg·min"
         case .respiratoryRate: return "br/min"
+        case .oxygenSaturation: return "%"
+        case .dayStrain: return ""
         case .bloodPressureSystolic, .bloodPressureDiastolic: return "mmHg"
         case .bodyMass, .leanBodyMass: return "kg"
         case .bodyFatPercentage: return "%"
@@ -69,7 +77,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .sleepDurationHours: return "h"
-        case .bodyTemperature: return "°C"
+        case .bodyTemperature, .skinTemperatureDeviation: return "°C"
         }
     }
 }

@@ -15,14 +15,16 @@ public enum BloodPressureEstimator {
     /// number at all.
     public static let minimumCalibrationPoints = 5
 
-    /// A cuff reading paired with a contemporaneous feature (resting HR).
+    /// A cuff reading paired with contemporaneous features (resting HR, and
+    /// optionally HRV, which correlates with vascular tone / BP).
     public struct CalibrationPoint: Sendable, Equatable {
         public let restingHR: Double
+        public let hrv: Double?
         public let systolic: Double
         public let diastolic: Double
         public let date: Date
-        public init(restingHR: Double, systolic: Double, diastolic: Double, date: Date) {
-            self.restingHR = restingHR; self.systolic = systolic
+        public init(restingHR: Double, hrv: Double? = nil, systolic: Double, diastolic: Double, date: Date) {
+            self.restingHR = restingHR; self.hrv = hrv; self.systolic = systolic
             self.diastolic = diastolic; self.date = date
         }
     }
@@ -61,29 +63,72 @@ public enum BloodPressureEstimator {
         return (slope, intercept, (ss / dof).squareRoot())
     }
 
-    /// Personalised estimate of current BP from resting HR, or nil if there is
-    /// not yet enough calibration data. When a feature has no personal
-    /// correlation the fit degrades gracefully toward the user's own mean.
-    public static func estimate(currentRestingHR: Double, calibration: [CalibrationPoint]) -> Estimate? {
+    /// Personalised estimate of current BP from resting HR (and HRV when
+    /// available), or nil if there isn't enough calibration data. With ≥6 points
+    /// that all carry HRV, it fits a two-feature model (resting HR + HRV);
+    /// otherwise it falls back to resting-HR-only, and finally to the user's own
+    /// mean. Always reports uncertainty.
+    public static func estimate(currentRestingHR: Double, currentHRV: Double? = nil,
+                                calibration: [CalibrationPoint]) -> Estimate? {
         guard calibration.count >= minimumCalibrationPoints else { return nil }
         let hr = calibration.map(\.restingHR)
         let sys = calibration.map(\.systolic)
         let dia = calibration.map(\.diastolic)
-
         let meanSys = sys.reduce(0, +) / Double(sys.count)
         let meanDia = dia.reduce(0, +) / Double(dia.count)
 
+        // Prefer the bivariate model when HRV is present everywhere and we have
+        // enough points to support two predictors.
+        let hrvs = calibration.compactMap(\.hrv)
+        if let currentHRV, hrvs.count == calibration.count, calibration.count >= 6,
+           let sFit = bivariateFit(x1: hr, x2: hrvs, y: sys),
+           let dFit = bivariateFit(x1: hr, x2: hrvs, y: dia) {
+            return Estimate(
+                systolic: sFit.a + sFit.b1 * currentRestingHR + sFit.b2 * currentHRV,
+                diastolic: dFit.a + dFit.b1 * currentRestingHR + dFit.b2 * currentHRV,
+                systolicUncertainty: sFit.residualSD, diastolicUncertainty: dFit.residualSD,
+                calibrationCount: calibration.count)
+        }
+
         let sFit = linearFit(x: hr, y: sys)
         let dFit = linearFit(x: hr, y: dia)
-
         let estSys = sFit.map { $0.intercept + $0.slope * currentRestingHR } ?? meanSys
         let estDia = dFit.map { $0.intercept + $0.slope * currentRestingHR } ?? meanDia
         let uSys = sFit?.residualSD ?? (Baseline.standardDeviation(sys) ?? 8)
         let uDia = dFit?.residualSD ?? (Baseline.standardDeviation(dia) ?? 6)
-
         return Estimate(systolic: estSys, diastolic: estDia,
                         systolicUncertainty: uSys, diastolicUncertainty: uDia,
                         calibrationCount: calibration.count)
+    }
+
+    /// Two-feature ordinary least squares y = a + b1·x1 + b2·x2 via the normal
+    /// equations, with a residual standard deviation. Returns nil if the system
+    /// is degenerate (e.g. collinear features).
+    static func bivariateFit(x1: [Double], x2: [Double], y: [Double])
+        -> (a: Double, b1: Double, b2: Double, residualSD: Double)? {
+        let n = x1.count
+        guard n == x2.count, n == y.count, n >= 3 else { return nil }
+        let nd = Double(n)
+        // Centre the predictors for numerical stability; recover intercept after.
+        let m1 = x1.reduce(0, +) / nd, m2 = x2.reduce(0, +) / nd, my = y.reduce(0, +) / nd
+        var s11 = 0.0, s22 = 0.0, s12 = 0.0, s1y = 0.0, s2y = 0.0
+        for i in 0..<n {
+            let a1 = x1[i] - m1, a2 = x2[i] - m2, ay = y[i] - my
+            s11 += a1 * a1; s22 += a2 * a2; s12 += a1 * a2
+            s1y += a1 * ay; s2y += a2 * ay
+        }
+        let det = s11 * s22 - s12 * s12
+        guard abs(det) > 1e-9 else { return nil }
+        let b1 = (s22 * s1y - s12 * s2y) / det
+        let b2 = (s11 * s2y - s12 * s1y) / det
+        let a = my - b1 * m1 - b2 * m2
+        var ss = 0.0
+        for i in 0..<n {
+            let pred = a + b1 * x1[i] + b2 * x2[i]
+            ss += (y[i] - pred) * (y[i] - pred)
+        }
+        let dof = max(1.0, nd - 3)
+        return (a, b1, b2, (ss / dof).squareRoot())
     }
 
     /// Build calibration points by pairing each systolic reading with the
@@ -93,17 +138,25 @@ public enum BloodPressureEstimator {
         let systolic = samples.samples(of: .bloodPressureSystolic)
         let diastolic = samples.samples(of: .bloodPressureDiastolic)
         let restingHR = samples.samples(of: .restingHeartRate)
+        let hrvSamples = samples.samples(of: .heartRateVariabilityRMSSD).isEmpty
+            ? samples.samples(of: .heartRateVariabilitySDNN)
+            : samples.samples(of: .heartRateVariabilityRMSSD)
         guard !systolic.isEmpty, !restingHR.isEmpty else { return [] }
+
+        func nearest(_ series: [HealthMetricSample], to date: Date) -> HealthMetricSample? {
+            guard let best = series.min(by: {
+                abs($0.start.timeIntervalSince(date)) < abs($1.start.timeIntervalSince(date))
+            }), abs(best.start.timeIntervalSince(date)) <= window else { return nil }
+            return best
+        }
 
         var points: [CalibrationPoint] = []
         for s in systolic {
-            guard let d = diastolic.min(by: {
-                abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
-            }), abs(d.start.timeIntervalSince(s.start)) <= window else { continue }
-            guard let hr = restingHR.min(by: {
-                abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
-            }), abs(hr.start.timeIntervalSince(s.start)) <= window else { continue }
-            points.append(.init(restingHR: hr.value, systolic: s.value, diastolic: d.value, date: s.start))
+            guard let d = nearest(diastolic, to: s.start),
+                  let hr = nearest(restingHR, to: s.start) else { continue }
+            let hrv = nearest(hrvSamples, to: s.start)?.value
+            points.append(.init(restingHR: hr.value, hrv: hrv,
+                                systolic: s.value, diastolic: d.value, date: s.start))
         }
         return points
     }
@@ -164,8 +217,10 @@ public struct BloodPressureInsight: InsightModel {
         // Experimental personalised estimate (clearly separated).
         if experimentalEstimateEnabled,
            let restHR = samples.meanValue(.restingHeartRate) {
+            let currentHRV = samples.latestValue(.heartRateVariabilityRMSSD)
+                ?? samples.latestValue(.heartRateVariabilitySDNN)
             let calibration = BloodPressureEstimator.buildCalibration(from: samples)
-            if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, calibration: calibration) {
+            if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
                 drivers.append(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d calibration readings",
                                       est.systolic, est.diastolic,
                                       est.systolicUncertainty, est.diastolicUncertainty,

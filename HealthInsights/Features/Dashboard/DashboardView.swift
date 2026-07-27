@@ -4,6 +4,7 @@ import InsightKit
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
     @State private var groundingKind: GroundingKind?
+    @State private var showSubstanceLog = false
 
     var body: some View {
         NavigationStack {
@@ -30,8 +31,20 @@ struct DashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Today")
             .refreshable { await model.refresh() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSubstanceLog = true
+                    } label: {
+                        Label("Log", systemImage: "plus.circle")
+                    }
+                }
+            }
             .sheet(item: $groundingKind) { kind in
                 GroundingEntryView(kind: kind)
+            }
+            .sheet(isPresented: $showSubstanceLog) {
+                SubstanceLogView()
             }
         }
     }
@@ -176,6 +189,8 @@ struct InsightCard: View {
         case .cardiovascularRisk: return "waveform.path.ecg"
         case .heartHealth: return "heart.fill"
         case .bloodPressure: return "gauge.medium"
+        case .readiness: return "bolt.heart"
+        case .substanceImpact: return "wineglass"
         }
     }
 }
