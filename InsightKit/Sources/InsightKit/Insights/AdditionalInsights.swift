@@ -1,0 +1,198 @@
+import Foundation
+
+// Shared helpers for the extra insights.
+private func notReady(_ id: InsightID, _ title: String, _ message: String) -> InsightResult {
+    InsightResult(id: id, title: title, primaryValue: nil, headline: "No data yet",
+                  score: nil, confidence: .low, explanation: message,
+                  drivers: [], unmetRequirements: [])
+}
+
+private func trendWord(recent: Double, baseline: Double, higherIsBetter: Bool) -> String {
+    let delta = recent - baseline
+    if abs(delta) < 0.5 { return "steady" }
+    let rising = delta > 0
+    let good = rising == higherIsBetter
+    return (rising ? "trending up" : "trending down") + (good ? " (good)" : "")
+}
+
+// MARK: - Sleep Quality (daily)
+
+/// Transparent sleep-quality score: duration vs need, night-to-night
+/// consistency, and respiratory stability against the personal baseline.
+public struct SleepQualityInsight: InsightModel {
+    public let id: InsightID = .sleepQuality
+    public let title = "Sleep Quality"
+    public init() {}
+    public var requirements: [GroundingRequirement] { [] }
+
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
+        let sleep = samples.samples(of: .sleepDurationHours)
+        guard let lastNight = sleep.last?.value else {
+            return notReady(id, title, "Connect a sleep source (Oura, Whoop or Apple Health) to see your sleep quality.")
+        }
+        let durationScore = Self.durationScore(lastNight)
+
+        let recent = Array(sleep.suffix(14).map(\.value))
+        let consistencyScore: Double = Baseline.standardDeviation(recent).map { max(0, 100 - $0 * 40) } ?? 60
+
+        let resp = samples.samples(of: .respiratoryRate).map(\.value)
+        let respScore: Double = {
+            guard resp.count >= 4, let dev = Baseline.deviation(latest: resp.last!, history: Array(resp.dropLast())) else { return 75 }
+            return max(0, 90 - min(60, abs(dev.zScore ?? 0) * 20))
+        }()
+
+        let score = durationScore * 0.6 + consistencyScore * 0.25 + respScore * 0.15
+        let band = Self.band(score)
+        var drivers = [String(format: "Last night: %.1f h", lastNight),
+                       "Consistency: \(Int(consistencyScore))/100"]
+        if !resp.isEmpty { drivers.append(String(format: "Respiratory rate: %.0f br/min", resp.last!)) }
+
+        let confidence: InsightConfidence = sleep.count >= 5 ? .high : .moderate
+        return InsightResult(
+            id: id, title: title, primaryValue: score, headline: band, score: score,
+            confidence: confidence,
+            explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing stability.",
+            drivers: drivers, unmetRequirements: [])
+    }
+
+    static func durationScore(_ h: Double) -> Double {
+        switch h {
+        case 7.5...9: return 100
+        case 7..<7.5, 9..<9.5: return 85
+        case 6..<7, 9.5..<10: return 65
+        case 5..<6: return 45
+        default: return 30
+        }
+    }
+    static func band(_ s: Double) -> String {
+        switch s { case 80...: return "Excellent"; case 65..<80: return "Good"
+        case 50..<65: return "Fair"; default: return "Poor" }
+    }
+}
+
+// MARK: - Cardio Fitness (trend)
+
+/// VO₂max as a fitness level for age/sex, plus its trend direction — the single
+/// strongest cardiovascular-longevity signal for younger users.
+public struct CardioFitnessInsight: InsightModel {
+    public let id: InsightID = .cardioFitness
+    public let title = "Cardio Fitness"
+    public init() {}
+    public var requirements: [GroundingRequirement] {
+        [.init(kind: .dateOfBirth, isMandatory: true, rationale: "Fitness levels are age-adjusted."),
+         .init(kind: .biologicalSex, isMandatory: true, rationale: "Fitness norms differ by sex.")]
+    }
+
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
+        let vo2Series = samples.samples(of: .vo2Max)
+        let unmet = unmetRequirements(profile: profile, now: now)
+        guard let vo2 = vo2Series.last?.value, let age = profile.age(asOf: now), let sex = profile.sex else {
+            return InsightResult(id: id, title: title, primaryValue: nil, headline: "Add details",
+                score: nil, confidence: .low,
+                explanation: "Add your age and sex, and record cardio fitness (VO₂max) via Apple Watch, to see your fitness level.",
+                drivers: [], unmetRequirements: unmet)
+        }
+        let score = HeartHealthScore.vo2Score(vo2, age: age, sex: sex)
+        let level = Self.level(score)
+        var drivers = [String(format: "VO₂max: %.0f mL/kg·min", vo2)]
+        if vo2Series.count >= 3 {
+            let older = Array(vo2Series.dropLast().map(\.value))
+            if let base = Baseline.mean(older) {
+                drivers.append("Trend: \(trendWord(recent: vo2, baseline: base, higherIsBetter: true))")
+            }
+        }
+        return InsightResult(
+            id: id, title: title, primaryValue: vo2, headline: level, score: score,
+            confidence: vo2Series.count >= 3 ? .high : .moderate,
+            explanation: "Your cardio fitness (VO₂max \(Int(vo2.rounded()))) is \(level.lowercased()) for your age and sex. Higher VO₂max is one of the strongest predictors of long-term heart health.",
+            drivers: drivers, unmetRequirements: unmet)
+    }
+    static func level(_ s: Double) -> String {
+        switch s { case 80...: return "Excellent"; case 60..<80: return "Good"
+        case 40..<60: return "Average"; default: return "Below average" }
+    }
+}
+
+// MARK: - Body Composition (trend)
+
+/// BMI from weight + height, plus weight and body-fat trends.
+public struct BodyCompositionInsight: InsightModel {
+    public let id: InsightID = .bodyComposition
+    public let title = "Body Composition"
+    public init() {}
+    public var requirements: [GroundingRequirement] { [] }
+
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
+        let weightSeries = samples.samples(of: .bodyMass)
+        guard let weight = weightSeries.last?.value else {
+            return notReady(id, title, "Connect a scale (Withings) or Apple Health to track weight, BMI and body fat.")
+        }
+        let height = samples.latestValue(.height)
+        var drivers: [String] = [String(format: "Weight: %.1f kg", weight)]
+        var headline = String(format: "%.1f kg", weight)
+        var primary = weight
+        var explanation = "Your latest weight is \(String(format: "%.1f", weight)) kg."
+
+        if let h = height, h > 0.5 {
+            let bmi = weight / (h * h)
+            let cat = Self.bmiCategory(bmi)
+            headline = String(format: "BMI %.1f", bmi)
+            primary = bmi
+            drivers.insert(String(format: "BMI: %.1f (%@)", bmi, cat), at: 0)
+            explanation = "Your BMI is \(String(format: "%.1f", bmi)) (\(cat)), from \(String(format: "%.1f", weight)) kg at \(String(format: "%.2f", h)) m."
+        } else {
+            drivers.append("Add your height to calculate BMI")
+        }
+        if let bodyFat = samples.latestValue(.bodyFatPercentage) {
+            drivers.append(String(format: "Body fat: %.1f%%", bodyFat))
+        }
+        if weightSeries.count >= 3, let base = Baseline.mean(Array(weightSeries.dropLast().map(\.value))) {
+            drivers.append("Weight \(trendWord(recent: weight, baseline: base, higherIsBetter: false))")
+        }
+        return InsightResult(
+            id: id, title: title, primaryValue: primary, headline: headline, score: nil,
+            confidence: height == nil ? .moderate : .high,
+            explanation: explanation, drivers: drivers, unmetRequirements: [])
+    }
+    static func bmiCategory(_ bmi: Double) -> String {
+        switch bmi { case ..<18.5: return "underweight"; case 18.5..<25: return "healthy"
+        case 25..<30: return "overweight"; default: return "obese" }
+    }
+}
+
+// MARK: - Resting Heart Rate Trend (trend)
+
+/// Where resting heart rate is heading vs the personal baseline — a sensitive
+/// early signal of fitness gains, or of strain/illness when it rises.
+public struct RestingHeartRateTrendInsight: InsightModel {
+    public let id: InsightID = .restingHeartRateTrend
+    public let title = "Resting Heart Rate"
+    public init() {}
+    public var requirements: [GroundingRequirement] { [] }
+
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
+        let series = samples.samples(of: .restingHeartRate).map(\.value)
+        guard let latest = series.last else {
+            return notReady(id, title, "Connect a wearable or Apple Health to track resting heart rate.")
+        }
+        guard series.count >= 4, let dev = Baseline.deviation(latest: latest, history: Array(series.dropLast())) else {
+            return InsightResult(id: id, title: title, primaryValue: latest,
+                headline: "\(Int(latest.rounded())) bpm", score: nil, confidence: .low,
+                explanation: "Latest resting heart rate is \(Int(latest.rounded())) bpm. A few more days of data will reveal your trend.",
+                drivers: ["Latest: \(Int(latest.rounded())) bpm"], unmetRequirements: [])
+        }
+        let direction: String
+        switch dev.direction {
+        case 1: direction = "elevated vs your baseline — often strain, poor sleep or illness"
+        case -1: direction = "below your baseline — usually a good sign of recovery/fitness"
+        default: direction = "in your normal range"
+        }
+        return InsightResult(
+            id: id, title: title, primaryValue: latest, headline: "\(Int(latest.rounded())) bpm",
+            score: nil, confidence: .high,
+            explanation: "Resting heart rate \(Int(latest.rounded())) bpm — \(direction).",
+            drivers: [String(format: "Baseline: %.0f bpm", dev.baseline),
+                      dev.zScore.map { String(format: "%.1f SD from baseline", $0) } ?? "Within range"],
+            unmetRequirements: [])
+    }
+}

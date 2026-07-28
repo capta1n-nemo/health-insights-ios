@@ -11,9 +11,13 @@ public struct InsightEngine: Sendable {
     public init(models: [any InsightModel]? = nil) {
         self.models = models ?? [
             ReadinessInsight(),
+            SleepQualityInsight(),
             HeartHealthInsight(),
+            CardioFitnessInsight(),
             CardiovascularRiskInsight(preferredEngine: .combined),
-            BloodPressureInsight()
+            BloodPressureInsight(),
+            RestingHeartRateTrendInsight(),
+            BodyCompositionInsight()
         ]
     }
 
