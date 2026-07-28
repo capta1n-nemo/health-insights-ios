@@ -107,7 +107,7 @@ final class WithingsParserTests: XCTestCase {
     func testUnknownTypesAreIgnored() throws {
         let j = """
         { "status": 0, "body": { "measuregrps": [
-          { "date": 1771200000, "measures": [ { "value": 700, "type": 88, "unit": -1 } ] }
+          { "date": 1771200000, "measures": [ { "value": 700, "type": 999, "unit": -1 } ] }
         ] } }
         """
         let samples = try WithingsResponseParser.parseMeasures(Data(j.utf8))
