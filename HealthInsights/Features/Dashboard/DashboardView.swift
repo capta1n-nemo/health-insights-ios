@@ -1,23 +1,31 @@
 import SwiftUI
 import InsightKit
 
-struct DashboardView: View {
+/// The Today tab: scoped to right now — last night's sleep/readiness, today's
+/// vitals, prompts, and the "daily" insight cards. Longer-horizon analysis lives
+/// on the Insights tab.
+struct TodayView: View {
     @Environment(AppModel.self) private var model
     @State private var groundingKind: GroundingKind?
     @State private var showSubstanceLog = false
+
+    private var dailyResults: [InsightResult] {
+        model.results.filter { $0.id.cadence == .daily && $0.primaryValue != nil }
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: Theme.spacing) {
                     summaryCard
+                    LastNightCard()
                     VitalsGlance()
                     if !model.outstandingGrounding.isEmpty {
                         GroundingPromptBanner(items: model.outstandingGrounding) { kind in
                             groundingKind = kind
                         }
                     }
-                    ForEach(model.results, id: \.id) { result in
+                    ForEach(dailyResults, id: \.id) { result in
                         NavigationLink {
                             InsightDetailView(insightID: result.id)
                         } label: {
@@ -74,6 +82,49 @@ struct DashboardView: View {
         case 12..<17: return "Good afternoon"
         case 17..<22: return "Good evening"
         default: return "Your snapshot"
+        }
+    }
+}
+
+/// Oura-style "last night" summary shown on Today: previous night's sleep and
+/// this morning's readiness. Only appears once there's something to show.
+struct LastNightCard: View {
+    @Environment(AppModel.self) private var model
+
+    private var sleepHours: Double? { model.latest(.sleepDurationHours) }
+    private var readiness: InsightResult? {
+        model.results.first { $0.id == .readiness && $0.score != nil }
+    }
+
+    var body: some View {
+        if sleepHours != nil || readiness != nil {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Last night", systemImage: "moon.stars.fill")
+                        .font(.headline)
+                    HStack(spacing: 22) {
+                        if let s = sleepHours {
+                            stat(value: String(format: "%.1f h", s), label: "Sleep",
+                                 icon: "bed.double.fill")
+                        }
+                        if let r = readiness, let score = r.score {
+                            stat(value: "\(Int(score.rounded()))", label: "Readiness · \(r.headline)",
+                                 icon: "bolt.heart.fill")
+                        }
+                        if let hrv = model.latest(.heartRateVariabilityRMSSD) ?? model.latest(.heartRateVariabilitySDNN) {
+                            stat(value: "\(Int(hrv.rounded())) ms", label: "HRV", icon: "waveform.path.ecg")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func stat(value: String, label: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Image(systemName: icon).foregroundStyle(Theme.accent).font(.callout)
+            Text(value).font(.title3.weight(.semibold))
+            Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
     }
 }

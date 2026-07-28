@@ -24,8 +24,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
 
     // Body composition (Withings scale, Health)
     case bodyMass                  // kg
-    case bodyFatPercentage         // fraction 0…1
+    case bodyFatPercentage         // %
     case leanBodyMass              // kg
+    case muscleMass                // kg
+    case boneMass                  // kg
+    case bodyWaterPercentage       // %
     case height                    // m
 
     // Activity & sleep
@@ -52,6 +55,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bodyMass: return "Weight"
         case .bodyFatPercentage: return "Body Fat"
         case .leanBodyMass: return "Lean Body Mass"
+        case .muscleMass: return "Muscle Mass"
+        case .boneMass: return "Bone Mass"
+        case .bodyWaterPercentage: return "Body Water"
         case .height: return "Height"
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
@@ -71,8 +77,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .oxygenSaturation: return "%"
         case .dayStrain: return ""
         case .bloodPressureSystolic, .bloodPressureDiastolic: return "mmHg"
-        case .bodyMass, .leanBodyMass: return "kg"
-        case .bodyFatPercentage: return "%"
+        case .bodyMass, .leanBodyMass, .muscleMass, .boneMass: return "kg"
+        case .bodyFatPercentage, .bodyWaterPercentage: return "%"
         case .height: return "m"
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"

@@ -7,8 +7,11 @@ struct RootView: View {
 
     var body: some View {
         TabView {
-            DashboardView()
-                .tabItem { Label("Today", systemImage: "heart.text.square.fill") }
+            TodayView()
+                .tabItem { Label("Today", systemImage: "sun.max.fill") }
+
+            VitalsView()
+                .tabItem { Label("Vitals", systemImage: "waveform.path.ecg") }
 
             InsightsListView()
                 .tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }

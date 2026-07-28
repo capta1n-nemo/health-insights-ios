@@ -7,6 +7,24 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     case bloodPressure
     case readiness
     case substanceImpact
+    case sleepQuality
+    case cardioFitness
+    case bodyComposition
+    case restingHeartRateTrend
+}
+
+/// Where an insight belongs in the app's navigation. `daily` insights answer
+/// "how am I *today*?" (shown on the Today tab); `trend` insights need analysis
+/// over time and live on the Insights tab.
+public enum InsightCadence: Sendable { case daily, trend }
+
+public extension InsightID {
+    var cadence: InsightCadence {
+        switch self {
+        case .readiness, .substanceImpact, .sleepQuality: return .daily
+        default: return .trend
+        }
+    }
 }
 
 /// How much confidence to attach to a computed insight, so the UI can be honest
