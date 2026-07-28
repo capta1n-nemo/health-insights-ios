@@ -90,8 +90,54 @@ final class AppModel {
     /// Log a dated cuff blood-pressure reading, then re-sync so it appears in
     /// the log, trends and calibration immediately.
     func logBloodPressure(systolic: Double, diastolic: Double, at date: Date) {
+        // Before saving the new truth, grade the previous estimate against it —
+        // this is the "predicted X, actual Y" signal for model improvement.
+        captureBloodPressureOutcome(actualSystolic: systolic, actualDiastolic: diastolic)
         dataStore.saveBloodPressureReading(systolic: systolic, diastolic: diastolic, at: date)
         Task { await refresh() }
+    }
+
+    private func captureBloodPressureOutcome(actualSystolic: Double, actualDiastolic: Double) {
+        guard let restHR = samples.meanValue(.restingHeartRate) else { return }
+        let calibration = BloodPressureEstimator.buildCalibration(from: samples)
+        guard let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, calibration: calibration) else { return }
+        let cohort = Cohort.from(profile: profile)
+        let version = InsightID.bloodPressure.modelVersion
+        dataStore.addPredictionOutcome(.init(insightID: .bloodPressure, metric: .bloodPressureSystolic,
+            predicted: est.systolic, actual: actualSystolic, modelVersion: version, cohort: cohort))
+        dataStore.addPredictionOutcome(.init(insightID: .bloodPressure, metric: .bloodPressureDiastolic,
+            predicted: est.diastolic, actual: actualDiastolic, modelVersion: version, cohort: cohort))
+    }
+
+    // MARK: - Feedback & model-improvement telemetry (on-device, opt-in, transmit-disabled)
+
+    /// Whether the user has opted in to sharing anonymised model-error metrics.
+    /// Off by default. Transmission is not implemented yet regardless — this only
+    /// governs whether the outbox would be eligible to send in future.
+    var telemetryOptIn: Bool {
+        get { UserDefaults.standard.bool(forKey: "telemetryOptIn") }
+        set { UserDefaults.standard.set(newValue, forKey: "telemetryOptIn") }
+    }
+
+    /// Record a discreet "was this accurate?" tap for an insight.
+    func recordFeedback(_ insightID: InsightID, accurate: Bool) {
+        dataStore.addFeedback(insightID: insightID, rating: accurate ? .accurate : .inaccurate,
+                              cohort: Cohort.from(profile: profile))
+    }
+
+    /// Exactly what *would* be sent if sharing were enabled — coarse cohort,
+    /// model version, and a DP-noised rounded error or a rating. Nothing is
+    /// transmitted; this is a local, inspectable preview.
+    func telemetryOutbox() -> [TelemetryEvent] {
+        var events: [TelemetryEvent] = []
+        for outcome in dataStore.loadPredictionOutcomes() {
+            events.append(Telemetry.event(from: outcome, u: Telemetry.stableUniform(outcome.id)))
+        }
+        for f in dataStore.loadFeedback() {
+            events.append(Telemetry.event(insightID: f.insight, cohort: f.cohort,
+                                          modelVersion: f.modelVersion, rating: f.rating, at: f.at))
+        }
+        return events
     }
 
     /// A source-split breakdown of a metric across all connected devices.

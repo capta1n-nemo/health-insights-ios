@@ -6,6 +6,7 @@ struct InsightDetailView: View {
     let insightID: InsightID
     @Environment(AppModel.self) private var model
     @State private var groundingKind: GroundingKind?
+    @State private var feedbackGiven = false
 
     private var result: InsightResult? { model.result(for: insightID) }
 
@@ -24,6 +25,7 @@ struct InsightDetailView: View {
                         bloodPressureLogLink
                     }
                     trendCard
+                    feedbackCard(result)
                     disclaimerCard
                 } else {
                     ContentUnavailableView("Not available", systemImage: "questionmark")
@@ -135,6 +137,49 @@ struct InsightDetailView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    // Discreet, only-in-detail feedback loop: rate accuracy and (optionally)
+    // enter the real value, which trains/refines the model over time.
+    @ViewBuilder private func feedbackCard(_ result: InsightResult) -> some View {
+        if result.primaryValue != nil {
+            Card {
+                if feedbackGiven {
+                    Label("Thanks — this helps improve the model over time.",
+                          systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(Theme.good)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Was this accurate?").font(.subheadline.weight(.semibold))
+                        HStack(spacing: 10) {
+                            Button {
+                                model.recordFeedback(insightID, accurate: true); feedbackGiven = true
+                            } label: { Label("Accurate", systemImage: "hand.thumbsup") }
+                            Button {
+                                model.recordFeedback(insightID, accurate: false); feedbackGiven = true
+                            } label: { Label("Not accurate", systemImage: "hand.thumbsdown") }
+                        }
+                        .font(.caption).buttonStyle(.bordered)
+
+                        if let kind = groundingPromptKind(result) {
+                            Button {
+                                groundingKind = kind
+                            } label: {
+                                Text("Have the real number? Enter it →")
+                                    .font(.caption).foregroundStyle(Theme.accent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Which "real value" to invite for this insight (its first unmet input, or a
+    /// cuff reading for blood pressure).
+    private func groundingPromptKind(_ result: InsightResult) -> GroundingKind? {
+        if let first = result.unmetRequirements.first { return first.kind }
+        return insightID == .bloodPressure ? .cuffSystolic : nil
     }
 
     private var disclaimerCard: some View {

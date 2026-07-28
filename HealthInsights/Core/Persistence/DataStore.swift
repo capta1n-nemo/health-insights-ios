@@ -11,7 +11,8 @@ final class DataStore {
 
     init(inMemory: Bool = false) {
         let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
-                             IntegrationRecord.self, SubstanceEventRecord.self])
+                             IntegrationRecord.self, SubstanceEventRecord.self,
+                             PredictionOutcomeRecord.self, FeedbackRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -128,6 +129,40 @@ final class DataStore {
         if let record = (try? context.fetch(descriptor))?.first {
             context.delete(record)
             try? context.save()
+        }
+    }
+
+    // MARK: - Feedback & prediction outcomes (model-improvement ledger)
+
+    func addPredictionOutcome(_ outcome: PredictionOutcome) {
+        context.insert(PredictionOutcomeRecord(
+            id: outcome.id, insightRaw: outcome.insightID.rawValue, metricRaw: outcome.metric.rawValue,
+            predicted: outcome.predicted, actual: outcome.actual, modelVersion: outcome.modelVersion,
+            cohort: outcome.cohort, recordedAt: outcome.recordedAt))
+        try? context.save()
+    }
+
+    func loadPredictionOutcomes() -> [PredictionOutcome] {
+        let descriptor = FetchDescriptor<PredictionOutcomeRecord>(
+            sortBy: [SortDescriptor(\.recordedAt, order: .reverse)])
+        return ((try? context.fetch(descriptor)) ?? []).compactMap(\.outcome)
+    }
+
+    func addFeedback(insightID: InsightID, rating: FeedbackRating, cohort: Cohort) {
+        context.insert(FeedbackRecord(
+            insightRaw: insightID.rawValue, ratingRaw: rating.rawValue,
+            modelVersion: insightID.modelVersion, cohort: cohort))
+        try? context.save()
+    }
+
+    func loadFeedback() -> [(insight: InsightID, rating: FeedbackRating, cohort: Cohort, modelVersion: String, at: Date)] {
+        let descriptor = FetchDescriptor<FeedbackRecord>(
+            sortBy: [SortDescriptor(\.recordedAt, order: .reverse)])
+        let records = (try? context.fetch(descriptor)) ?? []
+        return records.compactMap { r in
+            guard let id = InsightID(rawValue: r.insightRaw),
+                  let rating = FeedbackRating(rawValue: r.ratingRaw) else { return nil }
+            return (id, rating, r.cohort, r.modelVersion, r.recordedAt)
         }
     }
 }

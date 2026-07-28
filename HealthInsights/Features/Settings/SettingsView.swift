@@ -14,6 +14,7 @@ struct SettingsView: View {
                 profileSection
                 importSection
                 intelligenceSection
+                privacySection
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -99,6 +100,18 @@ struct SettingsView: View {
             } label: {
                 Label("About & medical disclaimer", systemImage: "info.circle")
             }
+        }
+    }
+
+    private var privacySection: some View {
+        Section {
+            NavigationLink {
+                TelemetryOutboxView()
+            } label: {
+                Label("Data & model improvement", systemImage: "lock.shield")
+            }
+        } footer: {
+            Text("See exactly what would ever leave your phone to make the models better. Off by default; nothing is sent in this build.")
         }
     }
 

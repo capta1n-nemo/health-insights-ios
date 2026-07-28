@@ -80,3 +80,63 @@ final class SubstanceEventRecord {
         return SubstanceEvent(id: id, substance: substance, timestamp: timestamp, units: units, note: note)
     }
 }
+
+/// A "the model predicted X, the truth was Y" pair, kept on device to power the
+/// feedback loop and (only if the user opts in) the anonymised model-improvement
+/// telemetry. Cohort fields are stored flat and are already coarse buckets.
+@Model
+final class PredictionOutcomeRecord {
+    @Attribute(.unique) var id: UUID
+    var insightRaw: String
+    var metricRaw: String
+    var predicted: Double
+    var actual: Double
+    var modelVersion: String
+    var sex: String
+    var ageBand: String
+    var ethnicity: String
+    var region: String
+    var recordedAt: Date
+
+    init(id: UUID = UUID(), insightRaw: String, metricRaw: String, predicted: Double,
+         actual: Double, modelVersion: String, cohort: Cohort, recordedAt: Date = Date()) {
+        self.id = id; self.insightRaw = insightRaw; self.metricRaw = metricRaw
+        self.predicted = predicted; self.actual = actual; self.modelVersion = modelVersion
+        self.sex = cohort.sex; self.ageBand = cohort.ageBand
+        self.ethnicity = cohort.ethnicity; self.region = cohort.region
+        self.recordedAt = recordedAt
+    }
+
+    var cohort: Cohort { Cohort(sex: sex, ageBand: ageBand, ethnicity: ethnicity, region: region) }
+
+    var outcome: PredictionOutcome? {
+        guard let insight = InsightID(rawValue: insightRaw), let metric = MetricType(rawValue: metricRaw) else { return nil }
+        return PredictionOutcome(id: id, insightID: insight, metric: metric, predicted: predicted,
+                                 actual: actual, modelVersion: modelVersion, cohort: cohort, recordedAt: recordedAt)
+    }
+}
+
+/// A qualitative "was this accurate?" tap for an insight.
+@Model
+final class FeedbackRecord {
+    @Attribute(.unique) var id: UUID
+    var insightRaw: String
+    var ratingRaw: String
+    var modelVersion: String
+    var sex: String
+    var ageBand: String
+    var ethnicity: String
+    var region: String
+    var recordedAt: Date
+
+    init(id: UUID = UUID(), insightRaw: String, ratingRaw: String, modelVersion: String,
+         cohort: Cohort, recordedAt: Date = Date()) {
+        self.id = id; self.insightRaw = insightRaw; self.ratingRaw = ratingRaw
+        self.modelVersion = modelVersion
+        self.sex = cohort.sex; self.ageBand = cohort.ageBand
+        self.ethnicity = cohort.ethnicity; self.region = cohort.region
+        self.recordedAt = recordedAt
+    }
+
+    var cohort: Cohort { Cohort(sex: sex, ageBand: ageBand, ethnicity: ethnicity, region: region) }
+}
