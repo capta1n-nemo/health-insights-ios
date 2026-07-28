@@ -91,9 +91,11 @@ final class HealthKitService {
                     guard s.quantity.`is`(compatibleWith: unit) else { return nil }
                     var value = s.quantity.doubleValue(for: unit)
                     if metric == .bodyFatPercentage { value *= 100 } // store as %
+                    // Preserve the underlying device (Apple Watch, Oura, iPhone…)
+                    // so the app can overlay and de-duplicate sources.
                     return HealthMetricSample(type: metric, value: value,
                                               start: s.startDate, end: s.endDate,
-                                              source: .appleHealth)
+                                              source: .appleHealthDevice(s.sourceRevision.source.name))
                 } ?? []
                 continuation.resume(returning: mapped)
             }

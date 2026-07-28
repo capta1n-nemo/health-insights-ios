@@ -17,7 +17,7 @@ struct SettingsView: View {
                 aboutSection
             }
             .navigationTitle("Settings")
-            .sheet(item: $groundingKind) { GroundingEntryView(kind: $0) }
+            .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
         }
     }
 

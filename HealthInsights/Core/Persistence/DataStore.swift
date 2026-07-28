@@ -55,6 +55,32 @@ final class DataStore {
         try? context.save()
     }
 
+    /// Log a full cuff blood-pressure reading at a chosen date. Stores the
+    /// systolic + diastolic as dated manual samples (so they trend and feed the
+    /// estimator's calibration), and refreshes the latest cuff grounding when
+    /// this is the newest reading.
+    func saveBloodPressureReading(systolic: Double, diastolic: Double, at date: Date) {
+        context.insert(ManualSampleRecord(metricRaw: MetricType.bloodPressureSystolic.rawValue,
+                                          value: systolic, date: date, sourceID: MetricSource.manual.id))
+        context.insert(ManualSampleRecord(metricRaw: MetricType.bloodPressureDiastolic.rawValue,
+                                          value: diastolic, date: date, sourceID: MetricSource.manual.id))
+        // Keep the profile's "latest cuff reading" in sync for the risk model.
+        let latestExisting = mostRecentGrounding(.cuffSystolic)?.recordedAt ?? .distantPast
+        if date >= latestExisting {
+            context.insert(GroundingRecord(kindRaw: GroundingKind.cuffSystolic.rawValue, value: systolic, recordedAt: date))
+            context.insert(GroundingRecord(kindRaw: GroundingKind.cuffDiastolic.rawValue, value: diastolic, recordedAt: date))
+        }
+        try? context.save()
+    }
+
+    private func mostRecentGrounding(_ kind: GroundingKind) -> GroundingRecord? {
+        let raw = kind.rawValue
+        let descriptor = FetchDescriptor<GroundingRecord>(
+            predicate: #Predicate { $0.kindRaw == raw },
+            sortBy: [SortDescriptor(\.recordedAt, order: .reverse)])
+        return (try? context.fetch(descriptor))?.first
+    }
+
     // MARK: - Manual samples
 
     func loadManualSamples() -> [HealthMetricSample] {

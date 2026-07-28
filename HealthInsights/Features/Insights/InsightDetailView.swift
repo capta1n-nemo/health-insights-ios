@@ -20,6 +20,9 @@ struct InsightDetailView: View {
                     if !result.drivers.isEmpty {
                         driversCard(result)
                     }
+                    if insightID == .bloodPressure {
+                        bloodPressureLogLink
+                    }
                     trendCard
                     disclaimerCard
                 } else {
@@ -31,7 +34,7 @@ struct InsightDetailView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(result?.title ?? "Insight")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $groundingKind) { GroundingEntryView(kind: $0) }
+        .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
     }
 
     private func headerCard(_ result: InsightResult) -> some View {
@@ -93,20 +96,45 @@ struct InsightDetailView: View {
 
     @ViewBuilder private var trendCard: some View {
         let metric = primaryMetric
-        let series = model.series(metric)
-        if series.count >= 2 {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("\(metric.displayName) trend").font(.headline)
-                    Chart(series) { s in
-                        LineMark(x: .value("Date", s.start), y: .value(metric.unit, s.value))
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Theme.accent)
+        let breakdown = model.breakdown(metric)
+        if !breakdown.sources.isEmpty {
+            NavigationLink {
+                MetricDetailView(metric: metric)
+            } label: {
+                Card {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(metric.displayName).font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        MultiSourceChart(breakdown: breakdown, window: 2 * 24 * 3600)
+                        SourceBreakdown(breakdown: breakdown)
                     }
-                    .frame(height: 160)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var bloodPressureLogLink: some View {
+        NavigationLink {
+            BloodPressureLogView()
+        } label: {
+            Card {
+                HStack {
+                    Image(systemName: "list.bullet.rectangle").foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("View & add readings").font(.subheadline.weight(.semibold))
+                        Text("Log cuff readings with dates — the estimate needs a few")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                 }
             }
         }
+        .buttonStyle(.plain)
     }
 
     private var disclaimerCard: some View {

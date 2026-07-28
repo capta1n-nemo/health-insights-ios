@@ -18,6 +18,30 @@ public struct MetricSource: Codable, Sendable, Hashable {
     public static let hume = MetricSource(id: "hume", displayName: "Hume")
     public static let manual = MetricSource(id: "manual", displayName: "Manual entry")
     public static let document = MetricSource(id: "document", displayName: "Imported document")
+
+    /// A specific device *within* Apple Health (e.g. "Apple Watch", "Oura",
+    /// "iPhone"). Apple Health mixes many devices; preserving the underlying
+    /// device name is what lets us overlay and de-duplicate sources.
+    public static func appleHealthDevice(_ name: String) -> MetricSource {
+        let slug = name.lowercased().replacingOccurrences(of: " ", with: "_")
+        return MetricSource(id: "apple_health/\(slug)", displayName: name)
+    }
+
+    /// A normalised device identity used to de-duplicate the same physical
+    /// device arriving through more than one path — e.g. Oura synced directly
+    /// via its API *and* mirrored into Apple Health both collapse to "oura".
+    public var deviceFamily: String {
+        let n = displayName.lowercased()
+        if n.contains("watch") { return "apple_watch" }
+        if n.contains("oura") { return "oura" }
+        if n.contains("whoop") { return "whoop" }
+        if n.contains("withings") { return "withings" }
+        if n.contains("hume") { return "hume" }
+        if n.contains("iphone") { return "iphone" }
+        if id == "manual" || n.contains("manual") { return "manual" }
+        if id.hasPrefix("apple_health") || n.contains("apple health") { return "apple_health" }
+        return id
+    }
 }
 
 /// A single normalised measurement. All values are stored in the canonical unit

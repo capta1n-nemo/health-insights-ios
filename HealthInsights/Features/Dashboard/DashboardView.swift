@@ -41,7 +41,7 @@ struct DashboardView: View {
                 }
             }
             .sheet(item: $groundingKind) { kind in
-                GroundingEntryView(kind: kind)
+                GroundingSheet(kind: kind)
             }
             .sheet(isPresented: $showSubstanceLog) {
                 SubstanceLogView()
@@ -118,20 +118,25 @@ struct VitalsGlance: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(items) { vital in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Image(systemName: vital.icon)
-                                .foregroundStyle(Theme.accent)
-                            Text(formatted(vital))
-                                .font(.title3.weight(.semibold))
-                                .contentTransition(.numericText())
-                            Text(vital.metric.displayName)
-                                .font(.caption2).foregroundStyle(.secondary)
-                                .lineLimit(1)
+                        NavigationLink {
+                            MetricDetailView(metric: vital.metric)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Image(systemName: vital.icon)
+                                    .foregroundStyle(Theme.accent)
+                                Text(formatted(vital))
+                                    .font(.title3.weight(.semibold))
+                                    .contentTransition(.numericText())
+                                Text(vital.metric.displayName)
+                                    .font(.caption2).foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(width: 108, alignment: .leading)
+                            .padding(12)
+                            .background(.ultraThinMaterial,
+                                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
-                        .frame(width: 108, alignment: .leading)
-                        .padding(12)
-                        .background(.ultraThinMaterial,
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 2)

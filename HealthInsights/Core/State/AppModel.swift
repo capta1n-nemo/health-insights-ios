@@ -68,6 +68,18 @@ final class AppModel {
         recompute()
     }
 
+    /// Log a dated cuff blood-pressure reading, then re-sync so it appears in
+    /// the log, trends and calibration immediately.
+    func logBloodPressure(systolic: Double, diastolic: Double, at date: Date) {
+        dataStore.saveBloodPressureReading(systolic: systolic, diastolic: diastolic, at: date)
+        Task { await refresh() }
+    }
+
+    /// A source-split breakdown of a metric across all connected devices.
+    func breakdown(_ metric: MetricType) -> MultiSourceBreakdown {
+        MultiSource.breakdown(metric, from: samples)
+    }
+
     var outstandingGrounding: [(requirement: GroundingRequirement, status: RequirementStatus)] {
         engine.outstandingGrounding(profile: profile)
     }
