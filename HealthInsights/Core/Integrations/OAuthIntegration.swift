@@ -22,12 +22,14 @@ enum IntegrationError: LocalizedError {
     case notConnected
     case http(Int)
     case tokenParse
+    case provider(String)
     var errorDescription: String? {
         switch self {
         case .missingCredentials: return "Add your API keys first."
         case .notConnected: return "Not connected."
-        case .http(let code): return "The provider returned an error (HTTP \(code))."
-        case .tokenParse: return "Couldn't read the provider's sign-in response."
+        case .http(let code): return "The provider returned an error (HTTP \(code)). Check your Client ID/Secret and redirect URL."
+        case .tokenParse: return "Couldn't read the provider's sign-in response. Double-check your Client Secret."
+        case .provider(let detail): return detail
         }
     }
 }
@@ -311,6 +313,7 @@ final class WithingsProvider: OAuthIntegration {
     override func parseTokenResponse(_ data: Data) throws -> OAuthTokens {
         struct Response: Decodable {
             let status: Int
+            let error: String?
             let body: Body?
             struct Body: Decodable {
                 let access_token: String
@@ -318,9 +321,13 @@ final class WithingsProvider: OAuthIntegration {
                 let expires_in: Double?
             }
         }
-        guard let r = try? JSONDecoder().decode(Response.self, from: data),
-              r.status == 0, let b = r.body else {
+        guard let r = try? JSONDecoder().decode(Response.self, from: data) else {
             throw IntegrationError.tokenParse
+        }
+        // Withings signals problems with a non-zero status inside an HTTP 200.
+        guard r.status == 0, let b = r.body else {
+            let detail = r.error ?? "Withings error status \(r.status)"
+            throw IntegrationError.provider("Withings didn't accept the sign-in (\(detail)). Check your Client ID/Secret and that the callback URL is registered.")
         }
         return OAuthTokens(accessToken: b.access_token, refreshToken: b.refresh_token,
                            expiresAt: b.expires_in.map { Date().addingTimeInterval($0) })

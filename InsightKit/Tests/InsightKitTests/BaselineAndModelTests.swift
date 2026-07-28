@@ -151,16 +151,27 @@ final class InsightEngineTests: XCTestCase {
         XCTAssertTrue(result.drivers.contains { $0.contains("Range across models") })
     }
 
-    func testCombinedRiskAsksForDiabetes() {
-        // Diabetes is mandatory for the ASCVD half; a profile without it should
-        // still compute but flag diabetes as an unmet requirement.
+    func testCombinedRiskComputesWithoutCholesterol() {
+        // Cholesterol is optional: without it, still compute (assuming an
+        // average) but at reduced confidence and with an explanatory driver.
+        var p = fullProfile()
+        p.inputs[.totalCholesterol] = nil
+        p.inputs[.hdlCholesterol] = nil
+        let insight = CardiovascularRiskInsight(preferredEngine: .combined)
+        let result = insight.evaluate(samples: [], profile: p, now: Date())
+        XCTAssertNotNil(result.primaryValue)               // still produced
+        XCTAssertEqual(result.confidence, .moderate)       // softened, not blocked
+        XCTAssertTrue(result.drivers.contains { $0.lowercased().contains("cholesterol assumed") })
+    }
+
+    func testFullCholesterolGivesHighConfidence() {
+        // With real cholesterol present (and in-range age), confidence is high
+        // even if optional inputs like diabetes are absent.
         var p = fullProfile()
         p.inputs[.hasDiabetes] = nil
         let insight = CardiovascularRiskInsight(preferredEngine: .combined)
         let result = insight.evaluate(samples: [], profile: p, now: Date())
-        XCTAssertNotNil(result.primaryValue)
-        XCTAssertEqual(result.confidence, .moderate)
-        XCTAssertTrue(result.unmetRequirements.contains { $0.kind == .hasDiabetes })
+        XCTAssertEqual(result.confidence, .high)
     }
 
     /// Build a fully-grounded profile at a specific age.

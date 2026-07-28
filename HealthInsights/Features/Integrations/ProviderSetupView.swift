@@ -137,28 +137,33 @@ struct ProviderSetupView: View {
         switch provider.id {
         case "oura":
             return [
-                "Open the Oura developer site above and sign in with your normal Oura account.",
-                "Choose \u{201C}Create New Application\u{201D}.",
-                "In the \u{201C}Redirect URIs\u{201D} box, paste the address below (use the Copy button).",
-                "Copy the Client ID and Client Secret shown on that page.",
-                "Paste them into the boxes below and tap Save & Connect."
+                "Tap the button above and sign in with your normal Oura account (the same one as the Oura app).",
+                "You'll land on the OAuth Applications page. Click \u{201C}Create New Application\u{201D}.",
+                "Give it any name (e.g. \u{201C}My Health Insights\u{201D}).",
+                "In \u{201C}Redirect URIs\u{201D}, paste the address below with the Copy button, then press Enter/Add so it's saved in the list.",
+                "Make sure the data scopes are ticked: Daily, Heart Rate, Personal, Session, Workout (tick all available).",
+                "Save the application. Copy the \u{201C}Client ID\u{201D} and \u{201C}Client Secret\u{201D} it shows.",
+                "Paste both below and tap Save & Connect."
             ]
         case "withings":
             return [
-                "Open the Withings developer site above and sign in (a free developer account is fine).",
-                "Create a new application.",
-                "Set the Callback URL to the address below (use the Copy button).",
-                "Copy your Client ID and Consumer Secret.",
-                "Paste them into the boxes below and tap Save & Connect.",
-                "Note: if Withings won't accept the address below, see the app's help — a small optional helper is available."
+                "You need a normal Withings account first (the one in the Withings app). Tap the button above and sign in.",
+                "Apply for a free developer account if prompted — approval is usually instant.",
+                "In the Dashboard, create a new application and choose the \u{201C}Public API\u{201D} / OAuth 2.0 type.",
+                "For \u{201C}Registered URLs\u{201D} / Callback URL, paste the address below EXACTLY (Copy button) — even a trailing slash difference makes it fail.",
+                "Fill any required app name, description and logo (anything is fine).",
+                "Save, then open the app to copy its \u{201C}Client ID\u{201D} and \u{201C}Secret\u{201D}.",
+                "Paste both below and tap Save & Connect.",
+                "If Withings rejects the address for not being https://, tell me — there's an optional helper for that one case."
             ]
         case "whoop":
             return [
-                "Open the Whoop developer site above and sign in with your Whoop account.",
-                "Create a new app in the developer dashboard.",
-                "Set the Redirect URI to the address below (use the Copy button).",
-                "Copy your Client ID and Client Secret.",
-                "Paste them into the boxes below and tap Save & Connect."
+                "Tap the button above and sign in with your Whoop account, then join the developer platform if prompted (free).",
+                "Create a new app in the developer dashboard; give it any name.",
+                "In \u{201C}Redirect URIs\u{201D}, paste the address below with the Copy button and add it to the list.",
+                "Tick the scopes: read:recovery, read:cycles, read:sleep, read:workout, read:profile, read:body_measurement.",
+                "Save, then copy the \u{201C}Client ID\u{201D} and \u{201C}Client Secret\u{201D}.",
+                "Paste both below and tap Save & Connect."
             ]
         default:
             return ["Enter your Client ID and Client Secret, then tap Save & Connect."]

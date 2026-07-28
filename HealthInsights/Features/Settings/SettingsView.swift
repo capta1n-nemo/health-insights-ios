@@ -28,7 +28,7 @@ struct SettingsView: View {
                     NavigationLink {
                         ProviderSetupView(provider: oauth)
                     } label: {
-                        IntegrationSummaryRow(integration: integration)
+                        IntegrationSummaryRow(integration: integration, status: model.status(for: integration))
                     }
                 } else {
                     IntegrationRow(integration: integration) { action in
@@ -184,6 +184,7 @@ struct IntegrationRow: View {
 /// Compact, non-interactive row for OAuth providers; tapping navigates to setup.
 struct IntegrationSummaryRow: View {
     let integration: any HealthIntegration
+    let status: IntegrationStatus
 
     var body: some View {
         HStack(spacing: 12) {
@@ -193,24 +194,30 @@ struct IntegrationSummaryRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(integration.displayName)
                 Text(statusText).font(.caption).foregroundStyle(statusColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
+            if case .connected = status {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.good)
+            } else if case .error = status {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.bad)
+            }
         }
     }
 
     private var statusText: String {
-        switch integration.status {
+        switch status {
         case .connected(let last):
             if let last { return "Connected · synced \(last.formatted(.relative(presentation: .named)))" }
             return "Connected"
         case .connecting: return "Connecting…"
-        case .error(let msg): return msg
+        case .error(let msg): return "Couldn't connect: \(msg). Tap to try again."
         default: return "Tap to set up"
         }
     }
 
     private var statusColor: Color {
-        switch integration.status {
+        switch status {
         case .connected: return Theme.good
         case .error: return Theme.bad
         default: return .secondary

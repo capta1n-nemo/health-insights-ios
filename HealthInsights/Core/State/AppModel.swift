@@ -23,6 +23,10 @@ final class AppModel {
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
     private(set) var isSyncing = false
+    /// Observable copy of each integration's status so the UI updates live when a
+    /// provider connects, fails or syncs (the providers themselves aren't tracked
+    /// by @Observable). Keyed by integration id.
+    private(set) var integrationStatuses: [String: IntegrationStatus] = [:]
     var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -39,6 +43,21 @@ final class AppModel {
         self.engine = engine
         self.summarizer = summarizer
         self.profile = dataStore.loadProfile()
+        seedIntegrationStatuses()
+    }
+
+    /// On launch, reflect each provider's status — and if a previous connection
+    /// attempt failed, restore that error message so the user sees "there was an
+    /// issue" instead of a silent "tap to set up".
+    private func seedIntegrationStatuses() {
+        for integration in registry.integrations {
+            if case .notConnected = integration.status,
+               let lastError = UserDefaults.standard.string(forKey: "lastError.\(integration.id)") {
+                integrationStatuses[integration.id] = .error(lastError)
+            } else {
+                integrationStatuses[integration.id] = integration.status
+            }
+        }
     }
 
     /// Convenience factory building the default production graph.
@@ -95,6 +114,9 @@ final class AppModel {
         var merged = dataStore.loadManualSamples()
         let fromIntegrations = await registry.syncAllConnected()
         merged.append(contentsOf: fromIntegrations)
+        for integration in registry.integrations {   // reflect fresh sync status
+            integrationStatuses[integration.id] = integration.status
+        }
         // Creative reconstruction: turn wearable skin-temperature *deviations*
         // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
         // be trended and fed to the insights.
@@ -133,16 +155,36 @@ final class AppModel {
 
     // MARK: - Integrations
 
+    /// Live status for a provider (observable), preferring the app-model copy.
+    func status(for integration: any HealthIntegration) -> IntegrationStatus {
+        integrationStatuses[integration.id] ?? integration.status
+    }
+
     func connect(_ integration: any HealthIntegration) async {
-        try? await integration.connect()
-        if case .connected = integration.status {
+        do {
+            try await integration.connect()
+        } catch {
+            // Keep going — the provider records the failure in its own status,
+            // which we surface below rather than swallowing it.
+        }
+        integrationStatuses[integration.id] = integration.status
+        let key = "lastError.\(integration.id)"
+        switch integration.status {
+        case .connected:
+            UserDefaults.standard.removeObject(forKey: key)
             dataStore.setIntegration(id: integration.id, connected: true, lastSync: nil)
             await refresh()
+        case .error(let message):
+            UserDefaults.standard.set(message, forKey: key)   // survive relaunch
+        default:
+            break
         }
     }
 
     func disconnect(_ integration: any HealthIntegration) async {
         await integration.disconnect()
+        integrationStatuses[integration.id] = integration.status
+        UserDefaults.standard.removeObject(forKey: "lastError.\(integration.id)")
         dataStore.setIntegration(id: integration.id, connected: false, lastSync: nil)
         await refresh()
     }
