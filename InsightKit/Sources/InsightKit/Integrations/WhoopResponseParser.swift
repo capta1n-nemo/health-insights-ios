@@ -66,4 +66,37 @@ public enum WhoopResponseParser {
             return HealthMetricSample(type: .dayStrain, value: strain, start: when, source: .whoop)
         }
     }
+
+    // MARK: Sleep
+
+    private struct SleepList: Decodable { let records: [SleepRecord] }
+    private struct SleepRecord: Decodable {
+        let start: String?
+        let score: Score?
+        struct Score: Decodable {
+            let respiratory_rate: Double?
+            let stage_summary: Stages?
+            struct Stages: Decodable {
+                let total_in_bed_time_milli: Double?
+                let total_awake_time_milli: Double?
+            }
+        }
+    }
+
+    public static func parseSleep(_ data: Data) throws -> [HealthMetricSample] {
+        let list = try JSONDecoder().decode(SleepList.self, from: data)
+        var samples: [HealthMetricSample] = []
+        for record in list.records {
+            guard let when = date(record.start), let s = record.score else { continue }
+            if let rr = s.respiratory_rate {
+                samples.append(HealthMetricSample(type: .respiratoryRate, value: rr, start: when, source: .whoop))
+            }
+            if let inBed = s.stage_summary?.total_in_bed_time_milli {
+                let awake = s.stage_summary?.total_awake_time_milli ?? 0
+                let hours = max(0, inBed - awake) / 3_600_000
+                samples.append(HealthMetricSample(type: .sleepDurationHours, value: hours, start: when, source: .whoop))
+            }
+        }
+        return samples
+    }
 }

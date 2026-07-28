@@ -50,11 +50,17 @@ public enum WithingsResponseParser {
 
     static func metricType(for withingsType: Int) -> MetricType? {
         switch withingsType {
-        case 1: return .bodyMass
-        case 5: return .leanBodyMass
-        case 6: return .bodyFatPercentage
-        case 9: return .bloodPressureDiastolic
-        case 10: return .bloodPressureSystolic
+        case 1: return .bodyMass                 // kg
+        case 5: return .leanBodyMass             // kg (fat-free mass)
+        case 6: return .bodyFatPercentage        // %
+        case 9: return .bloodPressureDiastolic   // mmHg
+        case 10: return .bloodPressureSystolic   // mmHg
+        case 11: return .heartRate               // bpm (heart pulse)
+        case 54: return .oxygenSaturation        // % SpO2
+        case 71, 73: return .bodyTemperature     // °C (body / skin temperature)
+        case 76: return .muscleMass              // kg
+        case 77: return .bodyWaterPercentage     // %
+        case 88: return .boneMass                // kg
         default: return nil
         }
     }

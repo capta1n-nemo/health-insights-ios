@@ -63,4 +63,51 @@ public enum OuraResponseParser {
         }
         return nil
     }
+
+    static func day(_ s: String?) -> Date? { s.flatMap { dayFormatter.date(from: $0) } }
+
+    // MARK: - Additional daily endpoints (scrape everything Oura offers)
+
+    /// `usercollection/daily_readiness` → skin-temperature deviation (°C).
+    public static func parseDailyReadiness(_ data: Data) throws -> [HealthMetricSample] {
+        struct List: Decodable { let data: [Rec] }
+        struct Rec: Decodable { let day: String?; let temperature_deviation: Double? }
+        let list = try JSONDecoder().decode(List.self, from: data)
+        return list.data.compactMap { r -> HealthMetricSample? in
+            guard let d = day(r.day), let dev = r.temperature_deviation else { return nil }
+            return HealthMetricSample(type: .skinTemperatureDeviation, value: dev,
+                                      start: d, end: d, source: .oura)
+        }
+    }
+
+    /// `usercollection/daily_spo2` → blood oxygen (%).
+    public static func parseDailySpo2(_ data: Data) throws -> [HealthMetricSample] {
+        struct List: Decodable { let data: [Rec] }
+        struct Rec: Decodable { let day: String?; let spo2_percentage: Pct? }
+        struct Pct: Decodable { let average: Double? }
+        let list = try JSONDecoder().decode(List.self, from: data)
+        return list.data.compactMap { r -> HealthMetricSample? in
+            guard let d = day(r.day), let avg = r.spo2_percentage?.average else { return nil }
+            return HealthMetricSample(type: .oxygenSaturation, value: avg,
+                                      start: d, end: d, source: .oura)
+        }
+    }
+
+    /// `usercollection/daily_activity` → steps + active energy (kcal).
+    public static func parseDailyActivity(_ data: Data) throws -> [HealthMetricSample] {
+        struct List: Decodable { let data: [Rec] }
+        struct Rec: Decodable { let day: String?; let steps: Double?; let active_calories: Double? }
+        let list = try JSONDecoder().decode(List.self, from: data)
+        var out: [HealthMetricSample] = []
+        for r in list.data {
+            guard let d = day(r.day) else { continue }
+            if let s = r.steps {
+                out.append(HealthMetricSample(type: .stepCount, value: s, start: d, end: d, source: .oura))
+            }
+            if let c = r.active_calories {
+                out.append(HealthMetricSample(type: .activeEnergyBurned, value: c, start: d, end: d, source: .oura))
+            }
+        }
+        return out
+    }
 }

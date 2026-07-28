@@ -264,7 +264,7 @@ final class OuraProvider: OAuthIntegration {
                 tokenURL: URL(string: "https://api.ouraring.com/oauth/token")!,
                 consoleURL: URL(string: "https://cloud.ouraring.com/oauth/applications")!,
                 redirectURI: "healthinsights://oauth/oura",
-                scopes: ["daily", "heartrate", "personal"],
+                scopes: ["daily", "heartrate", "workout", "session", "spo2", "personal"],
                 usesPKCE: true),
             credentials: credentials, webFlow: webFlow)
     }
@@ -273,13 +273,26 @@ final class OuraProvider: OAuthIntegration {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
-        var comps = URLComponents(string: "https://api.ouraring.com/v2/usercollection/sleep")!
-        comps.queryItems = [
-            URLQueryItem(name: "start_date", value: df.string(from: since)),
-            URLQueryItem(name: "end_date", value: df.string(from: Date()))
-        ]
-        let data = try await getJSON(comps.url!, accessToken: accessToken)
-        return try OuraResponseParser.parseSleep(data)
+        let start = df.string(from: since), end = df.string(from: Date())
+
+        func fetch(_ endpoint: String) async -> Data? {
+            var comps = URLComponents(string: "https://api.ouraring.com/v2/usercollection/\(endpoint)")!
+            comps.queryItems = [
+                URLQueryItem(name: "start_date", value: start),
+                URLQueryItem(name: "end_date", value: end)
+            ]
+            guard let url = comps.url else { return nil }
+            return try? await getJSON(url, accessToken: accessToken)
+        }
+
+        // Pull every collection we can; a single endpoint failing (e.g. a scope
+        // the user didn't grant) must not abort the rest.
+        var out: [HealthMetricSample] = []
+        if let d = await fetch("sleep") { out += (try? OuraResponseParser.parseSleep(d)) ?? [] }
+        if let d = await fetch("daily_readiness") { out += (try? OuraResponseParser.parseDailyReadiness(d)) ?? [] }
+        if let d = await fetch("daily_spo2") { out += (try? OuraResponseParser.parseDailySpo2(d)) ?? [] }
+        if let d = await fetch("daily_activity") { out += (try? OuraResponseParser.parseDailyActivity(d)) ?? [] }
+        return out
     }
 }
 
@@ -337,7 +350,9 @@ final class WithingsProvider: OAuthIntegration {
         var comps = URLComponents(string: "https://wbsapi.withings.net/measure")!
         comps.queryItems = [
             URLQueryItem(name: "action", value: "getmeas"),
-            URLQueryItem(name: "meastypes", value: "1,5,6,9,10"),
+            // weight, lean, fat%, diastolic, systolic, pulse, SpO2, temp,
+            // muscle, water%, bone — everything the scales/BP cuffs report.
+            URLQueryItem(name: "meastypes", value: "1,5,6,9,10,11,54,71,73,76,77,88"),
             URLQueryItem(name: "category", value: "1"),
             URLQueryItem(name: "startdate", value: String(Int(since.timeIntervalSince1970)))
         ]
@@ -364,21 +379,21 @@ final class WhoopProvider: OAuthIntegration {
                 tokenURL: URL(string: "https://api.prod.whoop.com/oauth/oauth2/token")!,
                 consoleURL: URL(string: "https://developer.whoop.com/")!,
                 redirectURI: "healthinsights://oauth/whoop",
-                scopes: ["read:recovery", "read:cycles", "read:sleep", "read:profile", "offline"],
+                scopes: ["read:recovery", "read:cycles", "read:sleep",
+                         "read:workout", "read:body_measurement", "read:profile", "offline"],
                 usesPKCE: false),
             credentials: credentials, webFlow: webFlow)
     }
 
     override func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
+        func fetch(_ path: String) async -> Data? {
+            guard let url = URL(string: "https://api.prod.whoop.com/developer/v2/\(path)?limit=25") else { return nil }
+            return try? await getJSON(url, accessToken: accessToken)
+        }
         var out: [HealthMetricSample] = []
-        if let url = URL(string: "https://api.prod.whoop.com/developer/v2/recovery?limit=25") {
-            let data = try await getJSON(url, accessToken: accessToken)
-            out += (try? WhoopResponseParser.parseRecovery(data)) ?? []
-        }
-        if let url = URL(string: "https://api.prod.whoop.com/developer/v2/cycle?limit=25") {
-            let data = try await getJSON(url, accessToken: accessToken)
-            out += (try? WhoopResponseParser.parseCycles(data)) ?? []
-        }
+        if let d = await fetch("recovery") { out += (try? WhoopResponseParser.parseRecovery(d)) ?? [] }
+        if let d = await fetch("cycle") { out += (try? WhoopResponseParser.parseCycles(d)) ?? [] }
+        if let d = await fetch("activity/sleep") { out += (try? WhoopResponseParser.parseSleep(d)) ?? [] }
         return out
     }
 }

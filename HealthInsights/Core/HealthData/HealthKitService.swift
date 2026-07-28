@@ -33,6 +33,7 @@ final class HealthKitService {
             (.heartRateVariabilitySDNN, .heartRateVariabilitySDNN, HKUnit.secondUnit(with: .milli)),
             (.vo2Max, .vo2Max, HKUnit(from: "ml/kg*min")),
             (.respiratoryRate, .respiratoryRate, HKUnit.count().unitDivided(by: .minute())),
+            (.oxygenSaturation, .oxygenSaturation, .percent()),
             (.bloodPressureSystolic, .bloodPressureSystolic, .millimeterOfMercury()),
             (.bloodPressureDiastolic, .bloodPressureDiastolic, .millimeterOfMercury()),
             (.bodyMass, .bodyMass, .gramUnit(with: .kilo)),
@@ -90,7 +91,7 @@ final class HealthKitService {
                 let mapped: [HealthMetricSample] = (samples as? [HKQuantitySample])?.compactMap { s in
                     guard s.quantity.`is`(compatibleWith: unit) else { return nil }
                     var value = s.quantity.doubleValue(for: unit)
-                    if metric == .bodyFatPercentage { value *= 100 } // store as %
+                    if metric == .bodyFatPercentage || metric == .oxygenSaturation { value *= 100 } // fraction → %
                     // Preserve the underlying device (Apple Watch, Oura, iPhone…)
                     // so the app can overlay and de-duplicate sources.
                     return HealthMetricSample(type: metric, value: value,
