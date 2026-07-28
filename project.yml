@@ -28,7 +28,7 @@ targets:
       path: Support/Info.plist
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.healthinsights.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.jasonsalway.healthinsights
         PRODUCT_NAME: HealthInsights
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"

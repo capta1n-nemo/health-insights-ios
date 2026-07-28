@@ -2,9 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Standard HealthKit only. We deliberately do NOT request the clinical
+         "Verifiable Health Records" access capability
+         (com.apple.developer.healthkit.access): the app reads ordinary metrics
+         (heart rate, HRV, VO2max, etc.), and that clinical entitlement is not
+         available to free personal development teams. -->
     <key>com.apple.developer.healthkit</key>
     <true/>
-    <key>com.apple.developer.healthkit.access</key>
-    <array/>
 </dict>
 </plist>
