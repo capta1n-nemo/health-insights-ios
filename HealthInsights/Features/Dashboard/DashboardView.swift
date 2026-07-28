@@ -247,6 +247,10 @@ struct InsightCard: View {
         case .bloodPressure: return "gauge.medium"
         case .readiness: return "bolt.heart"
         case .substanceImpact: return "wineglass"
+        case .sleepQuality: return "moon.stars.fill"
+        case .cardioFitness: return "figure.run"
+        case .bodyComposition: return "figure.arms.open"
+        case .restingHeartRateTrend: return "heart.text.square"
         }
     }
 }

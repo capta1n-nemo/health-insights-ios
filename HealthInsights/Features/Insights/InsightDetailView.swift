@@ -154,6 +154,10 @@ struct InsightDetailView: View {
         case .bloodPressure: return .bloodPressureSystolic
         case .readiness: return .heartRateVariabilityRMSSD
         case .substanceImpact: return .restingHeartRate
+        case .sleepQuality: return .sleepDurationHours
+        case .cardioFitness: return .vo2Max
+        case .bodyComposition: return .bodyMass
+        case .restingHeartRateTrend: return .restingHeartRate
         }
     }
 }
