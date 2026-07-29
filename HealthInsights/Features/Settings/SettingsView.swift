@@ -105,8 +105,10 @@ struct SettingsView: View {
             } label: {
                 Label("About & medical disclaimer", systemImage: "info.circle")
             }
+            LabeledContent("Version", value: BuildInfo.summary)
+            LabeledContent("Built", value: BuildInfo.formattedDate)
         } footer: {
-            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing.")
+            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Version and build time tell you which deploy is on the phone.")
         }
     }
 

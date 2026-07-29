@@ -102,6 +102,21 @@ jobs:
             -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KC" > /dev/null
           security list-keychains -d user -s "$KC"
 
+      # Stamp the build so Settings can say exactly which deploy is installed.
+      # The checkout is fresh each run, so editing Info.plist in place is safe.
+      - name: Stamp build identity
+        run: |
+          set -eo pipefail
+          PLIST=Support/Info.plist
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :BuildDate string ${BUILD_DATE}" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :BuildDate ${BUILD_DATE}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :GitCommit string ${SHORT_SHA}" "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :GitCommit ${SHORT_SHA}" "$PLIST"
+          echo "build ${GITHUB_RUN_NUMBER} · ${SHORT_SHA} · ${BUILD_DATE}"
+
       - name: Build (signed for device)
         run: |
           set -o pipefail
