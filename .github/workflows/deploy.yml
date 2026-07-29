@@ -136,11 +136,11 @@ jobs:
 
           DEVICE="${IPHONE_DEVICE_ID:-}"
           if [ -z "$DEVICE" ] && [ -f "$RUNNER_TEMP/devices.json" ]; then
-            DEVICE=$(python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['result']['devices']; c=[d for d in ds if d.get('hardwareProperties',{}).get('platform')=='iOS' and d.get('connectionProperties',{}).get('pairingState')=='paired']; print(c[0]['identifier'] if c else '')" "$RUNNER_TEMP/devices.json")
+            DEVICE=$(python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['result']['devices']; c=[d for d in ds if d.get('hardwareProperties',{}).get('platform')=='iOS' and d.get('connectionProperties',{}).get('tunnelState')=='connected']; print(c[0]['identifier'] if c else '')" "$RUNNER_TEMP/devices.json")
           fi
 
           if [ -z "$DEVICE" ]; then
-            echo "::error::No paired iOS device is visible to this Mac. In Xcode ▸ Window ▸ Devices and Simulators, pair the iPhone and tick 'Connect via network', then unlock the phone and re-run."
+            echo "::error::No reachable iOS device. Several iPhones may be paired to this Mac, but only one that is powered on, unlocked and on the same network shows as 'connected' above. Unlock the phone and re-run."
             exit 1
           fi
 
