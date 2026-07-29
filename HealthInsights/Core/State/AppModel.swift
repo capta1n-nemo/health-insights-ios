@@ -180,6 +180,13 @@ final class AppModel {
         return MultiSource.breakdown(metric, from: samples.filter { $0.start >= start })
     }
 
+    /// A breakdown restricted to an explicit window — used by the metric detail
+    /// screen so the read-outs describe the span the chart is actually showing
+    /// after a pan, rather than a window anchored to now.
+    func breakdown(_ metric: MetricType, in range: ClosedRange<Date>) -> MultiSourceBreakdown {
+        MultiSource.breakdown(metric, from: samples.filter { range.contains($0.start) })
+    }
+
     /// Every paired blood-pressure reading across all sources (logged in-app,
     /// already in Apple Health, or synced from Withings), newest first.
     var bloodPressureReadings: [BloodPressureEstimator.Reading] {

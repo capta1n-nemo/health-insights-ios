@@ -47,4 +47,23 @@ final class MultiSourceTests: XCTestCase {
         XCTAssertEqual(b.consensusLatest, 60)
         XCTAssertEqual(b.latestSpread, 0)
     }
+
+    /// A glanceable value must be the newest reading, not the mean of each
+    /// source's latest — those diverge badly once a source goes quiet, which is
+    /// what made the vitals previews read like long-run averages.
+    func testMostRecentIsNewestReadingNotCrossSourceMean() {
+        let samples = [
+            hr(90, .appleHealthDevice("MyFitnessPal"), minutesAgo: 60 * 24 * 300), // stale
+            hr(58, .oura, minutesAgo: 10)                                          // current
+        ]
+        let b = MultiSource.breakdown(.heartRate, from: samples)
+        XCTAssertEqual(b.mostRecent?.value, 58)
+        XCTAssertEqual(b.mostRecent?.source.deviceFamily, "oura")
+        // Averaging the two latest values gives 74 — nowhere near either reading.
+        XCTAssertEqual(b.consensusLatest!, 74, accuracy: 1e-9)
+    }
+
+    func testMostRecentIsNilWithoutSamples() {
+        XCTAssertNil(MultiSource.breakdown(.heartRate, from: []).mostRecent)
+    }
 }

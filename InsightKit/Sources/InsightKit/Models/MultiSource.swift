@@ -37,6 +37,17 @@ public struct MultiSourceBreakdown: Sendable, Equatable {
         sources.compactMap { s in s.latest.map { (s.source, $0) } }
     }
 
+    /// The single newest reading across every source.
+    ///
+    /// This is what a glanceable "current value" should show. `consensusLatest`
+    /// averages each source's most recent value, which drifts far from today's
+    /// number when sources last reported at very different times — a scale that
+    /// weighed you this morning averaged with an app that last logged a year ago
+    /// reads like a long-run average rather than a current one.
+    public var mostRecent: HealthMetricSample? {
+        sources.compactMap(\.samples.last).max { $0.start < $1.start }
+    }
+
     /// Consensus = mean of each source's latest value, so a device isn't
     /// over-counted just because it sampled more often.
     public var consensusLatest: Double? {

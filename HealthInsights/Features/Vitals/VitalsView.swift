@@ -120,20 +120,33 @@ struct VitalsView: View {
         return s.unit.isEmpty ? v : "\(v) \(s.unit)"
     }
 
+    /// The preview shows the single newest reading — not the average of each
+    /// source's latest, which reads like a long-run figure when sources last
+    /// reported at very different times. Anything not from today is dated, so a
+    /// stale number can't be mistaken for a current one.
     private func row(for metric: MetricType) -> some View {
         let breakdown = model.breakdown(metric)
         let sourceCount = breakdown.sources.count
         return HStack {
             Text(metric.displayName)
             Spacer()
-            if let value = breakdown.consensusLatest {
-                Text("\(formatMetric(value, metric)) \(metric.unit)")
+            if let latest = breakdown.mostRecent {
+                Text("\(formatMetric(latest.value, metric)) \(metric.unit)")
                     .foregroundStyle(.secondary).monospacedDigit()
+                if let age = staleness(latest.start) {
+                    Text("· \(age)").font(.caption2).foregroundStyle(.tertiary)
+                }
             }
             if sourceCount > 1 {
                 Text("· \(sourceCount) sources").font(.caption2).foregroundStyle(.tertiary)
             }
         }
+    }
+
+    /// A short "how old is this" label, omitted entirely for today's readings.
+    private func staleness(_ date: Date) -> String? {
+        if Calendar.current.isDateInToday(date) { return nil }
+        return date.formatted(.relative(presentation: .numeric, unitsStyle: .narrow))
     }
 }
 
@@ -156,7 +169,7 @@ struct OtherDataDetailView: View {
                 if samples.count > 1 {
                     Chart(samples) { s in
                         LineMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.linear)
                         PointMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
                             .symbolSize(20)
                     }

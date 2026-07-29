@@ -10,6 +10,10 @@ struct BloodPressureLogView: View {
     @Environment(AppModel.self) private var model
     @State private var showingAdd = false
     @State private var timeframe: Timeframe = .month
+    /// Leading edge of the visible window; nil until the user pans.
+    @State private var scrollX: Date?
+    /// The instant being scrubbed, nil when not touching the chart.
+    @State private var selected: Date?
 
     private var readings: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
     private var status: BloodPressureEstimator.CalibrationStatus { model.bloodPressureCalibration }
@@ -22,9 +26,27 @@ struct BloodPressureLogView: View {
     private var earlier: [BloodPressureEstimator.Reading] {
         readings.filter { Date().timeIntervalSince($0.date) > BloodPressureEstimator.maintenanceWindow }
     }
+    /// The chart scrolls through the whole history, so the timeframe acts as a
+    /// zoom level rather than a filter and panning travels back through time.
+    private var chartWindow: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
+    private var visibleStart: Date {
+        scrollX ?? (readings.map(\.date).max() ?? Date()).addingTimeInterval(-chartWindow)
+    }
+    private var scrollBinding: Binding<Date> {
+        Binding(get: { visibleStart }, set: { scrollX = $0 })
+    }
     private var chartReadings: [BloodPressureEstimator.Reading] {
-        guard let start = timeframe.startDate() else { return readings }
-        return readings.filter { $0.date >= start }
+        let range = visibleStart...visibleStart.addingTimeInterval(chartWindow)
+        return readings.filter { range.contains($0.date) }
+    }
+
+    /// The reading nearest the scrubbed instant, when one is close enough to be
+    /// what the user is actually pointing at.
+    private func reading(at date: Date) -> BloodPressureEstimator.Reading? {
+        guard let nearest = readings.min(by: {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }) else { return nil }
+        return abs(nearest.date.timeIntervalSince(date)) <= chartWindow / 8 ? nearest : nil
     }
 
     var body: some View {
@@ -84,32 +106,60 @@ struct BloodPressureLogView: View {
     }
 
     @ViewBuilder private var bpChart: some View {
-        let data = chartReadings
-        if data.isEmpty {
-            Text("No readings in \(timeframe.longLabel.lowercased()).")
-                .font(.footnote).foregroundStyle(.secondary)
-        } else {
-            Chart(data) { r in
+        Chart {
+            ForEach(readings) { r in
                 LineMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic),
                          series: .value("Reading", "Systolic"))
                     .foregroundStyle(Theme.sourceColor(0))
+                    .interpolationMethod(.linear)
                 PointMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic))
                     .foregroundStyle(Theme.sourceColor(0)).symbolSize(20)
                 LineMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic),
                          series: .value("Reading", "Diastolic"))
                     .foregroundStyle(Theme.sourceColor(1))
+                    .interpolationMethod(.linear)
                 PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
                     .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
             }
-            .frame(height: 180)
-            HStack(spacing: 16) {
-                legendDot("Systolic", Theme.sourceColor(0))
-                legendDot("Diastolic", Theme.sourceColor(1))
-                Spacer()
+            if let selected, let r = reading(at: selected) {
+                RuleMark(x: .value("Selected", selected))
+                    .foregroundStyle(Color.secondary.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: 4,
+                                overflowResolution: .init(x: .fitToChart, y: .disabled)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
+                                .font(.caption2.weight(.semibold)).monospacedDigit()
+                            Text(r.category).font(.caption2).foregroundStyle(.secondary)
+                            Text(r.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        .padding(7)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
+                        .shadow(radius: 2, y: 1)
+                    }
             }
-            .font(.caption)
         }
-    }
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: chartWindow)
+        .chartScrollPosition(x: scrollBinding)
+        .chartXSelection(value: $selected)
+        .frame(height: 180)
+        .overlay {
+            if chartReadings.isEmpty {
+                Text("No readings in this window — swipe sideways to look further back.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).padding(.horizontal)
+            }
+        }
+        HStack(spacing: 16) {
+            legendDot("Systolic", Theme.sourceColor(0))
+            legendDot("Diastolic", Theme.sourceColor(1))
+            Spacer()
+        }
+        .font(.caption)
+        Text("Drag across the chart to read a reading; swipe it sideways to move back through your history.")
+            .font(.caption2).foregroundStyle(.tertiary)
 
     private func legendDot(_ label: String, _ color: Color) -> some View {
         HStack(spacing: 5) {

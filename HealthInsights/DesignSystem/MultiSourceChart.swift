@@ -33,12 +33,23 @@ func formatMetric(_ value: Double, _ type: MetricType) -> String {
 /// per device (Apple Watch, Oura, …) — so differences are visible at a glance.
 /// This is the shared component every card uses.
 struct MultiSourceChart: View {
+    /// Every sample the metric has — the chart scrolls through it rather than
+    /// being handed a pre-trimmed slice, which is what makes panning possible.
     let breakdown: MultiSourceBreakdown
-    /// Only plot samples newer than this many seconds ago.
+    /// How much time fills the chart's width. The timeframe picker sets this, so
+    /// it behaves as a zoom level and panning travels through history.
     var window: TimeInterval = 2 * 24 * 3600
     /// Use a logarithmic Y-axis (only honoured when all values are positive) —
     /// helps when sources differ by a wide margin.
     var logarithmic: Bool = false
+    /// Reports the window currently on screen, so read-outs beneath the chart can
+    /// describe what is actually visible after a pan.
+    var onVisibleRangeChange: ((ClosedRange<Date>) -> Void)?
+
+    /// Leading edge of the visible window; nil until the user pans.
+    @State private var scrollX: Date?
+    /// The instant the user is scrubbing over, nil when not touching the chart.
+    @State private var selected: Date?
 
     private struct Point: Identifiable {
         let id = UUID()
@@ -47,13 +58,34 @@ struct MultiSourceChart: View {
         let source: String
     }
 
-    private var points: [Point] {
-        let cutoff = Date().addingTimeInterval(-window)
-        return breakdown.sources.flatMap { series in
-            series.samples
-                .filter { $0.start >= cutoff }
-                .map { Point(date: $0.start, value: $0.value, source: series.displayName) }
+    private var allPoints: [Point] {
+        breakdown.sources.flatMap { series in
+            series.samples.map {
+                Point(date: $0.start, value: $0.value, source: series.displayName)
+            }
         }
+    }
+
+    /// Anchor the initial view on the newest reading rather than on "now", so a
+    /// metric that last reported a while ago still opens showing its data.
+    private var defaultStart: Date {
+        let end = allPoints.map(\.date).max() ?? Date()
+        return end.addingTimeInterval(-window)
+    }
+
+    private var visibleStart: Date { scrollX ?? defaultStart }
+    private var visibleRange: ClosedRange<Date> {
+        visibleStart...visibleStart.addingTimeInterval(window)
+    }
+
+    private var scrollBinding: Binding<Date> {
+        Binding(get: { visibleStart }, set: { scrollX = $0 })
+    }
+
+    /// Points on screen right now — the Y-scale follows the pan so a zoomed-in
+    /// window isn't flattened by outliers elsewhere in the history.
+    private var points: [Point] {
+        allPoints.filter { visibleRange.contains($0.date) }
     }
 
     private var domain: [String] { breakdown.sources.map(\.displayName) }
@@ -77,25 +109,89 @@ struct MultiSourceChart: View {
         return lower...(hi + span * 0.1)
     }
 
+    /// The nearest reading to the scrubbed instant, per source, so the callout
+    /// answers "what did each device say around here?".
+    private func readings(at date: Date) -> [(source: String, sample: HealthMetricSample)] {
+        breakdown.sources.compactMap { series in
+            guard let nearest = series.samples.min(by: {
+                abs($0.start.timeIntervalSince(date)) < abs($1.start.timeIntervalSince(date))
+            }) else { return nil }
+            // Ignore a source whose closest reading is far outside the window the
+            // user is pointing at — better to omit it than to imply it was there.
+            guard abs(nearest.start.timeIntervalSince(date)) <= window / 8 else { return nil }
+            return (series.displayName, nearest)
+        }
+    }
+
     var body: some View {
-        Chart(points) { p in
-            LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
-                .foregroundStyle(by: .value("Source", p.source))
-                .interpolationMethod(.catmullRom)
-            // A point per sample so single-reading series still render visibly.
-            PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
-                .foregroundStyle(by: .value("Source", p.source))
-                .symbolSize(26)
+        Chart {
+            ForEach(allPoints) { p in
+                LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+                    .foregroundStyle(by: .value("Source", p.source))
+                    // Straight segments between readings: a curve invents values
+                    // between samples that were never measured.
+                    .interpolationMethod(.linear)
+                // A point per sample so single-reading series still render visibly.
+                PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+                    .foregroundStyle(by: .value("Source", p.source))
+                    .symbolSize(26)
+            }
+            if let selected {
+                RuleMark(x: .value("Selected", selected))
+                    .foregroundStyle(Color.secondary.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .annotation(position: .top, spacing: 4,
+                                overflowResolution: .init(x: .fitToChart, y: .disabled)) {
+                        callout(at: selected)
+                    }
+            }
         }
         .chartForegroundStyleScale(domain: domain, range: range)
         .modifier(YScaleModifier(domain: yDomain, log: useLog))
         .chartLegend(.hidden) // we render our own labelled breakdown below
+        .chartScrollableAxes(.horizontal)
+        .chartXVisibleDomain(length: window)
+        .chartScrollPosition(x: scrollBinding)
+        .chartXSelection(value: $selected)
         .frame(height: 170)
         .overlay {
             if points.isEmpty {
                 Text("No readings in this window")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+        }
+        .onAppear { onVisibleRangeChange?(visibleRange) }
+        .onChange(of: scrollX) { onVisibleRangeChange?(visibleRange) }
+        .onChange(of: window) {
+            // A new zoom level re-anchors on the newest reading.
+            scrollX = nil
+            onVisibleRangeChange?(visibleRange)
+        }
+    }
+
+    @ViewBuilder private func callout(at date: Date) -> some View {
+        let rows = readings(at: date)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(rows, id: \.source) { row in
+                    HStack(spacing: 6) {
+                        if let index = domain.firstIndex(of: row.source) {
+                            Circle().fill(Theme.sourceColor(index)).frame(width: 7, height: 7)
+                        }
+                        Text("\(formatMetric(row.sample.value, breakdown.type)) \(breakdown.type.unit)")
+                            .monospacedDigit()
+                        Text(row.source).foregroundStyle(.secondary)
+                    }
+                    .font(.caption2)
+                }
+                if let when = rows.map(\.sample.start).max() {
+                    Text(when.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            .padding(7)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
+            .shadow(radius: 2, y: 1)
         }
     }
 }
