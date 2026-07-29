@@ -104,7 +104,8 @@ jobs:
 
       - name: Build (signed for device)
         run: |
-          set -eo pipefail
+          set -o pipefail
+          STATUS=0
           xcodebuild \
             -project HealthInsights.xcodeproj \
             -scheme HealthInsights \
@@ -115,8 +116,7 @@ jobs:
             -skipPackagePluginValidation \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            clean build 2>&1 | tee "$RUNNER_TEMP/build.log"
-          STATUS=${PIPESTATUS[0]}
+            clean build 2>&1 | tee "$RUNNER_TEMP/build.log" || STATUS=$?
           if [ "$STATUS" -ne 0 ] && grep -q "errSecInternalComponent" "$RUNNER_TEMP/build.log"; then
             echo "::error::codesign could not use the signing key (errSecInternalComponent). The runner can't reach the login keychain. Fix by either (a) adding your Mac login password as the KEYCHAIN_PASSWORD repo secret, or (b) running the Actions runner interactively — stop the service with 'sudo ./svc.sh stop' and run './run.sh' from Terminal while logged in."
           fi
