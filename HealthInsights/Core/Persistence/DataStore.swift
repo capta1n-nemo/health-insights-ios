@@ -89,6 +89,30 @@ final class DataStore {
         return records.compactMap(\.sample)
     }
 
+    // MARK: - Synced-sample cache
+    //
+    // HealthKit and wearable samples are fetched live and held in memory. So the
+    // app still shows your data on launch — and when a source is temporarily
+    // disconnected or offline — we cache the last-synced non-manual samples to
+    // disk (JSON) and reload them immediately at startup.
+
+    private var syncedCacheURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("synced_samples.json")
+    }
+
+    func loadCachedSamples() -> [HealthMetricSample] {
+        guard let data = try? Data(contentsOf: syncedCacheURL) else { return [] }
+        return (try? JSONDecoder().decode([HealthMetricSample].self, from: data)) ?? []
+    }
+
+    func saveCachedSamples(_ samples: [HealthMetricSample]) {
+        guard let data = try? JSONEncoder().encode(samples) else { return }
+        try? data.write(to: syncedCacheURL, options: .atomic)
+    }
+
     // MARK: - Integration state
 
     func integrationRecord(_ id: String) -> IntegrationRecord? {

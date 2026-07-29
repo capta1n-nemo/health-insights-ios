@@ -44,6 +44,20 @@ final class AppModel {
         self.summarizer = summarizer
         self.profile = dataStore.loadProfile()
         seedIntegrationStatuses()
+        hydrateFromCache()
+    }
+
+    /// Populate state from persisted data on launch — manual readings plus the
+    /// last-synced Apple Health / wearable samples cached to disk — so the app
+    /// shows your data immediately, before (or without) a fresh network sync.
+    private func hydrateFromCache() {
+        let manual = dataStore.loadManualSamples()
+        let cached = dataStore.loadCachedSamples()
+        let merged = (manual + cached).sanitizedVitals()
+        samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+        substanceEvents = dataStore.loadSubstanceEvents()
+        recompute()
+        todaySummary = FoundationModelSummarizer.templateSummary(from: results)
     }
 
     /// On launch, reflect each provider's status — and if a previous connection
@@ -176,9 +190,8 @@ final class AppModel {
         let diag = DiagnosticsLog.shared
         diag.info("Sync", "Refresh started")
 
-        var merged = dataStore.loadManualSamples()
-        let fromIntegrations = await registry.syncAllConnected()
-        merged.append(contentsOf: fromIntegrations)
+        let manual = dataStore.loadManualSamples()
+        let fresh = await registry.syncAllConnected()
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
             switch integration.status {
@@ -189,6 +202,18 @@ final class AppModel {
             default: break
             }
         }
+        // Cache-merge: a source that returned data this sync replaces its cached
+        // copy; sources that returned nothing (disconnected/offline) keep their
+        // last-known cache, so their data never disappears from the app.
+        let cached = dataStore.loadCachedSamples()
+        let freshSourceIDs = Set(fresh.map { $0.source.id })
+        let retained = cached.filter { !freshSourceIDs.contains($0.source.id) }
+        let nonManual = fresh + retained
+        dataStore.saveCachedSamples(nonManual)
+        if !retained.isEmpty {
+            diag.info("Cache", "Kept \(retained.count) cached sample(s) from idle sources")
+        }
+        var merged = manual + nonManual
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
         let beforeSanitise = merged.count
