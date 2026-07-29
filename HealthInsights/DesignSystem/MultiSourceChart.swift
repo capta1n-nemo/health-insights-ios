@@ -133,6 +133,41 @@ struct MultiSourceChart: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            readout
+            chart
+        }
+    }
+
+    /// What the finger is currently over. Rendered above the chart rather than as
+    /// a mark annotation: on the iOS 26 SDK the RuleMark chain resolves to
+    /// Chart3DContent, which has neither `lineStyle` nor `annotation`.
+    @ViewBuilder private var readout: some View {
+        if let selected, case let rows = readings(at: selected), !rows.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(rows) { row in
+                    HStack(spacing: 5) {
+                        if let index = domain.firstIndex(of: row.source) {
+                            Circle().fill(Theme.sourceColor(index)).frame(width: 7, height: 7)
+                        }
+                        Text("\(formatMetric(row.value, breakdown.type))")
+                            .monospacedDigit()
+                    }
+                }
+                if let when = rows.map(\.date).max() {
+                    Text(when.formatted(date: .abbreviated, time: .shortened))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
+            .font(.caption2)
+        } else {
+            // Reserve the row so the chart doesn't jump as scrubbing starts.
+            Text(" ").font(.caption2)
+        }
+    }
+
+    private var chart: some View {
         Chart {
             ForEach(allPoints) { p in
                 LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
@@ -144,15 +179,6 @@ struct MultiSourceChart: View {
                 PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
                     .foregroundStyle(by: .value("Source", p.source))
                     .symbolSize(26)
-            }
-            if let selected {
-                RuleMark(x: .value("Selected", selected))
-                    .foregroundStyle(Color.secondary.opacity(0.35))
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .annotation(position: .top, spacing: 4,
-                                overflowResolution: .init(x: .fitToChart, y: .disabled)) {
-                        callout(at: selected)
-                    }
             }
         }
         .chartForegroundStyleScale(domain: domain, range: range)
@@ -175,32 +201,6 @@ struct MultiSourceChart: View {
             // A new zoom level re-anchors on the newest reading.
             scrollX = nil
             onVisibleRangeChange?(visibleRange)
-        }
-    }
-
-    @ViewBuilder private func callout(at date: Date) -> some View {
-        let rows = readings(at: date)
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(rows) { row in
-                    HStack(spacing: 6) {
-                        if let index = domain.firstIndex(of: row.source) {
-                            Circle().fill(Theme.sourceColor(index)).frame(width: 7, height: 7)
-                        }
-                        Text("\(formatMetric(row.value, breakdown.type)) \(breakdown.type.unit)")
-                            .monospacedDigit()
-                        Text(row.source).foregroundStyle(.secondary)
-                    }
-                    .font(.caption2)
-                }
-                if let when = rows.map(\.date).max() {
-                    Text(when.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption2).foregroundStyle(.tertiary)
-                }
-            }
-            .padding(7)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
-            .shadow(radius: 2, y: 1)
         }
     }
 }

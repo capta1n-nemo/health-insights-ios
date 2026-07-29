@@ -109,19 +109,37 @@ struct BloodPressureLogView: View {
     // expression the chart, its marks, the scrub annotation and the surrounding
     // stack were more than the type checker would take.
     @ViewBuilder private var bpChart: some View {
+        readout
         chart
         legend
         Text("Drag across the chart to read a reading; swipe it sideways to move back through your history.")
             .font(.caption2).foregroundStyle(.tertiary)
     }
 
+    /// The reading under the finger. Shown above the chart rather than as a mark
+    /// annotation: on the iOS 26 SDK the RuleMark chain resolves to
+    /// Chart3DContent, which has neither `lineStyle` nor `annotation`.
+    @ViewBuilder private var readout: some View {
+        if let selected, let r = reading(at: selected) {
+            HStack(spacing: 8) {
+                Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
+                    .fontWeight(.semibold).monospacedDigit()
+                Text(r.category).foregroundStyle(.secondary)
+                Text(r.date.formatted(date: .abbreviated, time: .shortened))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            .font(.caption2)
+        } else {
+            // Reserve the row so the chart doesn't jump as scrubbing starts.
+            Text(" ").font(.caption2)
+        }
+    }
+
     private var chart: some View {
         Chart {
             ForEach(readings) { r in
                 seriesMarks(for: r)
-            }
-            if let selected, let r = reading(at: selected) {
-                selectionMark(at: selected, r)
             }
         }
         .chartScrollableAxes(.horizontal)
@@ -148,33 +166,6 @@ struct BloodPressureLogView: View {
             .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
     }
 
-    /// The scrub indicator. Its return type is spelled out because without it
-    /// the builder resolves these marks as Chart3DContent, which has no
-    /// `lineStyle` or `annotation`.
-    @ChartContentBuilder
-    private func selectionMark(at date: Date,
-                               _ r: BloodPressureEstimator.Reading) -> some ChartContent {
-        RuleMark(x: .value("Selected", date))
-            .foregroundStyle(Color.secondary.opacity(0.35))
-            .lineStyle(StrokeStyle(lineWidth: 1))
-            .annotation(position: .top, spacing: 4,
-                        overflowResolution: .init(x: .fitToChart, y: .disabled)) {
-                callout(r)
-            }
-    }
-
-    private func callout(_ r: BloodPressureEstimator.Reading) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
-                .font(.caption2.weight(.semibold)).monospacedDigit()
-            Text(r.category).font(.caption2).foregroundStyle(.secondary)
-            Text(r.date.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption2).foregroundStyle(.tertiary)
-        }
-        .padding(7)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
-        .shadow(radius: 2, y: 1)
-    }
 
     @ViewBuilder private var emptyWindowNotice: some View {
         if chartReadings.isEmpty {
