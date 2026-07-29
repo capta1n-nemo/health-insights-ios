@@ -59,13 +59,23 @@ struct ProviderSetupView: View {
                 Text("Paste this exactly into the provider's \u{201C}Redirect URI\u{201D} field.")
             }
 
-            Section("Your keys") {
+            Section {
                 TextField("Client ID", text: $clientID)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                SecureField("Client Secret", text: $clientSecret)
+                    .textContentType(.username)   // let iOS offer to save/fill it
+                SecureField(secretRequired ? "Client Secret" : "Client Secret (optional)", text: $clientSecret)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .textContentType(.password)   // saved in the iCloud Keychain
+            } header: {
+                Text("Your keys")
+            } footer: {
+                if !secretRequired {
+                    Text("\(provider.displayName) shows its secret only once and doesn't need it here — it signs in securely with just the Client ID. Paste the secret only if you still have it.")
+                } else {
+                    Text("iOS can save these to your iCloud Keychain and offer to fill them next time.")
+                }
             }
 
             if let errorMessage {
@@ -85,7 +95,7 @@ struct ProviderSetupView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(clientID.isEmpty || clientSecret.isEmpty || isConnecting)
+                .disabled(clientID.isEmpty || (secretRequired && clientSecret.isEmpty) || isConnecting)
 
                 if provider.hasCredentials {
                     Button("Remove keys & disconnect", role: .destructive) {
@@ -107,7 +117,12 @@ struct ProviderSetupView: View {
         }
     }
 
+    /// Whether this provider needs a Client Secret. PKCE providers (Oura) don't —
+    /// the secret is single-use and not required for the on-device flow.
+    private var secretRequired: Bool { !provider.config.usesPKCE }
+
     private func saveAndConnect() async {
+        dismissKeyboard()   // the keyboard used to linger over the connecting UI
         errorMessage = nil
         isConnecting = true
         defer { isConnecting = false }
@@ -119,6 +134,13 @@ struct ProviderSetupView: View {
         } else if case .connected = provider.status {
             dismiss()
         }
+    }
+
+    private func dismissKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+        #endif
     }
 
     private func copyRedirect() {

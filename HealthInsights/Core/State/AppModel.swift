@@ -94,6 +94,12 @@ final class AppModel {
         // this is the "predicted X, actual Y" signal for model improvement.
         captureBloodPressureOutcome(actualSystolic: systolic, actualDiastolic: diastolic)
         dataStore.saveBloodPressureReading(systolic: systolic, diastolic: diastolic, at: date)
+        // Reflect the new reading immediately so the log re-renders on first save
+        // (previously it only appeared after the *next* async refresh completed).
+        samples.append(HealthMetricSample(type: .bloodPressureSystolic, value: systolic,
+                                          start: date, source: .manual))
+        samples.append(HealthMetricSample(type: .bloodPressureDiastolic, value: diastolic,
+                                          start: date, source: .manual))
         Task { await refresh() }
     }
 
@@ -163,6 +169,9 @@ final class AppModel {
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
         }
+        // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
+        // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
+        merged = merged.sanitizedVitals()
         // Creative reconstruction: turn wearable skin-temperature *deviations*
         // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
         // be trended and fed to the insights.

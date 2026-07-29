@@ -8,6 +8,7 @@ import InsightKit
 struct MetricDetailView: View {
     let metric: MetricType
     @Environment(AppModel.self) private var model
+    @State private var logScale = false
 
     private var breakdown: MultiSourceBreakdown { model.breakdown(metric) }
 
@@ -36,12 +37,25 @@ struct MetricDetailView: View {
     private var overlayCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Last 48 hours").font(.headline)
+                HStack {
+                    Text("Last 48 hours").font(.headline)
+                    Spacer()
+                    Picker("Scale", selection: $logScale) {
+                        Text("Linear").tag(false)
+                        Text("Log").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 150)
+                }
                 if breakdown.hasMultipleSources {
                     Text("Each device is a separate colour, so you can spot where they disagree.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                MultiSourceChart(breakdown: breakdown, window: 2 * 24 * 3600)
+                MultiSourceChart(breakdown: breakdown, window: 2 * 24 * 3600, logarithmic: logScale)
+                if logScale {
+                    Text("Logarithmic scale — useful when your sources differ by a wide margin.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
         }
     }

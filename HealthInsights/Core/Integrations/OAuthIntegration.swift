@@ -159,10 +159,12 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         var params = [
             "grant_type": "authorization_code",
             "client_id": creds.clientID,
-            "client_secret": creds.clientSecret,
             "code": code,
             "redirect_uri": config.redirectURI
         ]
+        // PKCE providers (Oura) don't need the single-use secret; only send it
+        // when the user actually provided one.
+        if !creds.clientSecret.isEmpty { params["client_secret"] = creds.clientSecret }
         if let verifier { params["code_verifier"] = verifier }
         params.merge(tokenExtraParameters()) { _, new in new }
         return try await requestTokens(params: params)
@@ -172,9 +174,9 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         var params = [
             "grant_type": "refresh_token",
             "client_id": creds.clientID,
-            "client_secret": creds.clientSecret,
             "refresh_token": refreshToken
         ]
+        if !creds.clientSecret.isEmpty { params["client_secret"] = creds.clientSecret }
         params.merge(tokenExtraParameters()) { _, new in new }
         return try await requestTokens(params: params)
     }

@@ -51,9 +51,36 @@ final class HealthKitService {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.insert(t) }
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }
+        // Characteristics used to pre-fill the onboarding "basics" step.
+        if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { types.insert(dob) }
+        if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { types.insert(sex) }
         return types
     }
     #endif
+
+    /// Read the user's date-of-birth and biological sex from Apple Health, if
+    /// they've been entered there and access was granted. Used to pre-fill (and
+    /// let the user confirm) the onboarding basics — never fabricated.
+    func biologicalCharacteristics() -> (dateOfBirth: Date?, sex: BiologicalSex?) {
+        #if canImport(HealthKit)
+        guard isAvailable else { return (nil, nil) }
+        var dob: Date?
+        if let comps = try? store.dateOfBirthComponents() {
+            dob = Calendar.current.date(from: comps)
+        }
+        var sex: BiologicalSex?
+        if let hkSex = try? store.biologicalSex().biologicalSex {
+            switch hkSex {
+            case .male: sex = .male
+            case .female: sex = .female
+            default: sex = nil
+            }
+        }
+        return (dob, sex)
+        #else
+        return (nil, nil)
+        #endif
+    }
 
     /// Request read authorization for all supported types.
     func requestAuthorization() async throws {

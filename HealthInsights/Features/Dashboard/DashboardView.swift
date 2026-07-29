@@ -102,7 +102,7 @@ struct LastNightCard: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Last night", systemImage: "moon.stars.fill")
                         .font(.headline)
-                    HStack(spacing: 22) {
+                    HStack(alignment: .top, spacing: 12) {
                         if let s = sleepHours {
                             stat(value: String(format: "%.1f h", s), label: "Sleep",
                                  icon: "bed.double.fill")
@@ -121,11 +121,13 @@ struct LastNightCard: View {
     }
 
     private func stat(value: String, label: String, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             Image(systemName: icon).foregroundStyle(Theme.accent).font(.callout)
             Text(value).font(.title3.weight(.semibold))
-            Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                .minimumScaleFactor(0.8).lineLimit(1)
+            Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
         }
+        .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
     }
 }
 

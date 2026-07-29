@@ -36,6 +36,9 @@ struct MultiSourceChart: View {
     let breakdown: MultiSourceBreakdown
     /// Only plot samples newer than this many seconds ago.
     var window: TimeInterval = 2 * 24 * 3600
+    /// Use a logarithmic Y-axis (only honoured when all values are positive) —
+    /// helps when sources differ by a wide margin.
+    var logarithmic: Bool = false
 
     private struct Point: Identifiable {
         let id = UUID()
@@ -56,15 +59,62 @@ struct MultiSourceChart: View {
     private var domain: [String] { breakdown.sources.map(\.displayName) }
     private var range: [Color] { breakdown.sources.indices.map { Theme.sourceColor($0) } }
 
+    private var values: [Double] { points.map(\.value) }
+    /// Log axis is only meaningful (and mathematically valid) for positive data.
+    private var useLog: Bool { logarithmic && !values.isEmpty && values.allSatisfy { $0 > 0 } }
+
+    /// A padded Y-range so a single point or a flat line isn't glued to an edge
+    /// and stays visible.
+    private var yDomain: ClosedRange<Double>? {
+        guard let lo = values.min(), let hi = values.max() else { return nil }
+        if lo == hi {
+            let pad = Swift.max(abs(lo) * 0.05, 1)
+            let lower = useLog ? Swift.max(lo * 0.9, 0.0001) : lo - pad
+            return lower...(hi + pad)
+        }
+        let span = hi - lo
+        let lower = useLog ? Swift.max(lo * 0.7, 0.0001) : lo - span * 0.1
+        return lower...(hi + span * 0.1)
+    }
+
     var body: some View {
         Chart(points) { p in
             LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
                 .foregroundStyle(by: .value("Source", p.source))
                 .interpolationMethod(.catmullRom)
+            // A point per sample so single-reading series still render visibly.
+            PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+                .foregroundStyle(by: .value("Source", p.source))
+                .symbolSize(26)
         }
         .chartForegroundStyleScale(domain: domain, range: range)
+        .modifier(YScaleModifier(domain: yDomain, log: useLog))
         .chartLegend(.hidden) // we render our own labelled breakdown below
         .frame(height: 170)
+        .overlay {
+            if points.isEmpty {
+                Text("No readings in this window")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// Applies the (optional) padded Y domain, in linear or logarithmic mode.
+private struct YScaleModifier: ViewModifier {
+    let domain: ClosedRange<Double>?
+    let log: Bool
+
+    func body(content: Content) -> some View {
+        if let domain {
+            if log {
+                content.chartYScale(domain: domain, type: .log)
+            } else {
+                content.chartYScale(domain: domain)
+            }
+        } else {
+            content
+        }
     }
 }
 

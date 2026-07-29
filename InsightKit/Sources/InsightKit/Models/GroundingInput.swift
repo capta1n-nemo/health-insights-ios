@@ -28,8 +28,8 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .currentSmoker: return "Current smoker"
         case .hasDiabetes: return "Diabetes"
         case .onBPMedication: return "On blood-pressure medication"
-        case .cuffSystolic: return "Cuff systolic reading"
-        case .cuffDiastolic: return "Cuff diastolic reading"
+        case .cuffSystolic: return "Cuff blood pressure reading"
+        case .cuffDiastolic: return "Cuff blood pressure (diastolic)"
         }
     }
 

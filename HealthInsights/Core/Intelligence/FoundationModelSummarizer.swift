@@ -46,7 +46,9 @@ final class FoundationModelSummarizer {
                 \(factSheet)
                 """
                 let response = try await session.respond(to: prompt)
-                let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                // The model occasionally emits Markdown (**bold**, bullets) even
+                // when asked not to — strip it so the dashboard shows clean prose.
+                let text = PlainText.strip(response.content)
                 if !text.isEmpty { return text }
             } catch {
                 // Fall through to the template on any model error.
@@ -63,7 +65,8 @@ final class FoundationModelSummarizer {
     You are a concise, supportive health-dashboard assistant. You explain \
     pre-computed metrics in plain language. You never diagnose, never give \
     medical advice, never state numbers that aren't in the provided facts, and \
-    you keep an even, non-alarming tone.
+    you keep an even, non-alarming tone. Write plain text only — no Markdown, \
+    no asterisks, no bullet points or headings.
     """
 
     static func factSheet(from results: [InsightResult]) -> String {

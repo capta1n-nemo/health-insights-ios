@@ -26,7 +26,7 @@ struct BloodPressureLogView: View {
         return systolic.compactMap { s -> Reading? in
             guard let d = diastolic.min(by: {
                 abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
-            }), abs(d.start.timeIntervalSince(s.start)) <= 3600 else { return nil }
+            }), abs(d.start.timeIntervalSince(s.start)) <= 2 * 3600 else { return nil }
             return Reading(date: s.start, systolic: s.value, diastolic: d.value,
                            source: s.source.displayName)
         }
@@ -86,33 +86,75 @@ struct BloodPressureLogView: View {
     }
 }
 
-/// Entry sheet for a single dated reading.
+/// Entry sheet for a single dated reading. Plain numeric fields (no steppers) and
+/// one clear Save action at the bottom.
 private struct AddBloodPressureView: View {
     let onSave: (Double, Double, Date) -> Void
     @Environment(\.dismiss) private var dismiss
 
-    @State private var systolic: Double = 120
-    @State private var diastolic: Double = 80
+    @State private var systolicText = ""
+    @State private var diastolicText = ""
     @State private var date = Date()
+
+    private var systolic: Double? {
+        Double(systolicText.trimmingCharacters(in: .whitespaces))
+    }
+    private var diastolic: Double? {
+        Double(diastolicText.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// A reading is valid only when both numbers are present, in a plausible
+    /// range, and systolic is above diastolic.
+    private var isValid: Bool {
+        guard let s = systolic, let d = diastolic else { return false }
+        return (60...260).contains(s) && (30...200).contains(d) && s > d
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Stepper(value: $systolic, in: 70...220) { Text("Systolic: \(Int(systolic)) mmHg") }
-                    Stepper(value: $diastolic, in: 40...140) { Text("Diastolic: \(Int(diastolic)) mmHg") }
+                    HStack {
+                        Text("Systolic")
+                        Spacer()
+                        TextField("120", text: $systolicText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
+                        Text("mmHg").foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Diastolic")
+                        Spacer()
+                        TextField("80", text: $diastolicText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
+                        Text("mmHg").foregroundStyle(.secondary)
+                    }
                     DatePicker("When", selection: $date, in: ...Date())
                 } footer: {
-                    Text("Category: \(BloodPressureEstimator.category(systolic: systolic, diastolic: diastolic)). Use a real upper-arm cuff, seated and rested.")
+                    if let s = systolic, let d = diastolic, isValid {
+                        Text("Category: \(BloodPressureEstimator.category(systolic: s, diastolic: d)). Use a real upper-arm cuff, seated and rested.")
+                    } else {
+                        Text("Enter the two numbers your cuff shows (the higher one is systolic). Use a real upper-arm cuff, seated and rested.")
+                    }
+                }
+
+                Section {
+                    Button {
+                        if let s = systolic, let d = diastolic { onSave(s, d, date); dismiss() }
+                    } label: {
+                        Text("Save reading").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isValid)
                 }
             }
             .navigationTitle("Add reading")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { onSave(systolic, diastolic, date); dismiss() }
-                }
             }
         }
     }
