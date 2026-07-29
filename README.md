@@ -70,3 +70,5 @@ Withings rejects the custom-scheme redirect (see its README).
 For information and self-tracking only — **not a medical device**, not a
 diagnosis, and not a substitute for professional medical advice. Consult a
 clinician for health decisions and seek emergency care for acute symptoms.
+
+# Test build
