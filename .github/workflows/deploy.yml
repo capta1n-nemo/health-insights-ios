@@ -1,0 +1,26 @@
+name: Deploy to iPhone over Wi-Fi
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Xcode Project
+        run: |
+          xcodebuild -project health-insights-ios.xcodeproj \
+                     -scheme health-insights-ios \
+                     -configuration Debug \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     build
+
+      - name: Deploy to iPhone
+        run: |
+          APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" | head -n 1)
+          xcrun devicectl device install app --device "26642940-2E82-5266-8527-0A0351F9D4D8" "$APP_PATH"
