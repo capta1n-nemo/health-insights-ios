@@ -194,6 +194,7 @@
 		AAAA0000000000000000AA14 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = Support/HealthInsights.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -217,6 +218,7 @@
 		AAAA0000000000000000AA15 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = Support/HealthInsights.entitlements;
 				CODE_SIGN_STYLE = Automatic;

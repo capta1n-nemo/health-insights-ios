@@ -28,6 +28,7 @@ targets:
       path: Support/Info.plist
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.jasonsalway.healthinsights
         PRODUCT_NAME: HealthInsights
         MARKETING_VERSION: "0.1.0"
