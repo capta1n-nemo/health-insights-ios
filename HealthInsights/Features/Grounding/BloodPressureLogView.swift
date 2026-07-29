@@ -121,13 +121,7 @@ struct BloodPressureLogView: View {
                 seriesMarks(for: r)
             }
             if let selected, let r = reading(at: selected) {
-                RuleMark(x: .value("Selected", selected))
-                    .foregroundStyle(Color.secondary.opacity(0.35))
-                    .lineStyle(StrokeStyle(lineWidth: 1))
-                    .annotation(position: .top, spacing: 4,
-                                overflowResolution: .init(x: .fitToChart, y: .disabled)) {
-                        callout(r)
-                    }
+                selectionMark(at: selected, r)
             }
         }
         .chartScrollableAxes(.horizontal)
@@ -152,6 +146,21 @@ struct BloodPressureLogView: View {
             .interpolationMethod(.linear)
         PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
             .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
+    }
+
+    /// The scrub indicator. Its return type is spelled out because without it
+    /// the builder resolves these marks as Chart3DContent, which has no
+    /// `lineStyle` or `annotation`.
+    @ChartContentBuilder
+    private func selectionMark(at date: Date,
+                               _ r: BloodPressureEstimator.Reading) -> some ChartContent {
+        RuleMark(x: .value("Selected", date))
+            .foregroundStyle(Color.secondary.opacity(0.35))
+            .lineStyle(StrokeStyle(lineWidth: 1))
+            .annotation(position: .top, spacing: 4,
+                        overflowResolution: .init(x: .fitToChart, y: .disabled)) {
+                callout(r)
+            }
     }
 
     private func callout(_ r: BloodPressureEstimator.Reading) -> some View {
