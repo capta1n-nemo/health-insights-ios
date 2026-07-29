@@ -162,24 +162,50 @@ final class AppModel {
     func refresh() async {
         isSyncing = true
         defer { isSyncing = false }
+        let diag = DiagnosticsLog.shared
+        diag.info("Sync", "Refresh started")
 
         var merged = dataStore.loadManualSamples()
         let fromIntegrations = await registry.syncAllConnected()
         merged.append(contentsOf: fromIntegrations)
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
+            switch integration.status {
+            case .connected(let last):
+                diag.ok(integration.displayName, last == nil ? "Connected" : "Synced")
+            case .error(let msg): diag.fail(integration.displayName, msg)
+            case .unavailable(let reason): diag.null(integration.displayName, reason)
+            default: break
+            }
         }
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
+        let beforeSanitise = merged.count
         merged = merged.sanitizedVitals()
+        if beforeSanitise != merged.count {
+            diag.null("Sanitiser", "Dropped \(beforeSanitise - merged.count) empty/invalid vital sample(s)")
+        }
         // Creative reconstruction: turn wearable skin-temperature *deviations*
         // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
         // be trended and fed to the insights.
         samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+        logMetricCounts(diag)
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
         todaySummary = await summarizer.summarize(results: results)
+        diag.info("Sync", "Refresh complete — \(samples.count) samples, \(results.count) insights")
+    }
+
+    /// Record how many samples of each metric were imported this sync — the
+    /// per-field pass/fail the Troubleshooting view surfaces.
+    private func logMetricCounts(_ diag: DiagnosticsLog) {
+        let counts = Dictionary(grouping: samples, by: { $0.type }).mapValues(\.count)
+        for type in MetricType.allCases {
+            if let c = counts[type], c > 0 {
+                diag.ok("Import", "\(c) × \(type.displayName)")
+            }
+        }
     }
 
     private func recompute() {

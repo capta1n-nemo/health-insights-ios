@@ -96,10 +96,17 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             NavigationLink {
+                TroubleshootingView()
+            } label: {
+                Label("Troubleshooting", systemImage: "stethoscope")
+            }
+            NavigationLink {
                 DisclaimerView()
             } label: {
                 Label("About & medical disclaimer", systemImage: "info.circle")
             }
+        } footer: {
+            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing.")
         }
     }
 

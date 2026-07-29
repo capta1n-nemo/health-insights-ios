@@ -103,8 +103,10 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     // MARK: HealthIntegration
 
     func connect() async throws {
+        DiagnosticsLog.shared.info(displayName, "Connect started")
         guard let creds = credentials.credentials(for: id) else {
             status = .error("Add your \(displayName) API keys first.")
+            DiagnosticsLog.shared.fail(displayName, "No API keys entered")
             throw IntegrationError.missingCredentials
         }
         status = .connecting
@@ -117,8 +119,10 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
             let tokens = try await exchangeCode(code, credentials: creds, verifier: pkce?.verifier)
             credentials.setTokens(tokens, for: id)
             status = .connected(lastSync: nil)
+            DiagnosticsLog.shared.ok(displayName, "Connected")
         } catch {
             status = .error(error.localizedDescription)
+            DiagnosticsLog.shared.fail(displayName, "Connect failed: \(error.localizedDescription)")
             throw error
         }
     }
@@ -191,8 +195,10 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let code = (response as? HTTPURLResponse)?.statusCode, code >= 400 {
+            DiagnosticsLog.shared.fail(displayName, "Token exchange → HTTP \(code)")
             throw IntegrationError.http(code)
         }
+        DiagnosticsLog.shared.ok(displayName, "Token exchange OK")
         return try parseTokenResponse(data)
     }
 
@@ -240,11 +246,22 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     func getJSON(_ url: URL, accessToken: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let code = (response as? HTTPURLResponse)?.statusCode, code >= 400 {
-            throw IntegrationError.http(code)
+        let endpoint = url.lastPathComponent
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code >= 400 {
+                DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) → HTTP \(code)")
+                throw IntegrationError.http(code)
+            }
+            DiagnosticsLog.shared.ok(displayName, "GET \(endpoint) → \(data.count) bytes")
+            return data
+        } catch let e as IntegrationError {
+            throw e   // HTTP failure already logged above
+        } catch {
+            DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) failed: \(error.localizedDescription)")
+            throw error
         }
-        return data
     }
 }
 

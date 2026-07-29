@@ -92,6 +92,13 @@ struct ImportLabView: View {
             if let data = try? await item.loadTransferable(type: Data.self),
                let image = UIImage(data: data) {
                 extracted = await scanner.extractLabValues(from: image)
+                if extracted.isEmpty {
+                    DiagnosticsLog.shared.null("Import", "Blood-test photo read — no recognised values")
+                } else {
+                    DiagnosticsLog.shared.ok("Import", "Blood-test photo read — \(extracted.count) value(s) found")
+                }
+            } else {
+                DiagnosticsLog.shared.fail("Import", "Couldn't load the selected image")
             }
             #endif
         }

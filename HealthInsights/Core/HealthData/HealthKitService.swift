@@ -85,8 +85,17 @@ final class HealthKitService {
     /// Request read authorization for all supported types.
     func requestAuthorization() async throws {
         #if canImport(HealthKit)
-        guard isAvailable else { return }
-        try await store.requestAuthorization(toShare: [], read: readTypes)
+        guard isAvailable else {
+            DiagnosticsLog.shared.null("Apple Health", "Not available on this device")
+            return
+        }
+        do {
+            try await store.requestAuthorization(toShare: [], read: readTypes)
+            DiagnosticsLog.shared.ok("Apple Health", "Authorization requested for \(readTypes.count) types")
+        } catch {
+            DiagnosticsLog.shared.fail("Apple Health", "Authorization failed: \(error.localizedDescription)")
+            throw error
+        }
         #endif
     }
 
@@ -102,6 +111,7 @@ final class HealthKitService {
             results.append(contentsOf: samples)
         }
         results.append(contentsOf: await fetchSleep(start: start))
+        DiagnosticsLog.shared.ok("Apple Health", "Read \(results.count) samples over \(days)d")
         return results
         #else
         return []
