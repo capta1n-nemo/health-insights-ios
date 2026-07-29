@@ -132,12 +132,10 @@ jobs:
           fi
 
           # The target device is pinned, never auto-detected: several iPhones are
-          # paired to this Mac and the app must only ever reach the intended one.
-          DEVICE="${IPHONE_DEVICE_ID:-}"
-          if [ -z "$DEVICE" ]; then
-            echo "::error::IPHONE_DEVICE_ID is not set. Add the target iPhone's identifier as a repo secret (Settings ▸ Secrets and variables ▸ Actions). This workflow will not guess a device."
-            exit 1
-          fi
+          # paired to this Mac and the app must only ever reach the intended one
+          # (the iPhone 16 Pro). The IPHONE_DEVICE_ID secret overrides it — needed
+          # after an erase/restore, which issues the device a new identifier.
+          DEVICE="${IPHONE_DEVICE_ID:-26642940-2E82-5266-8527-0A0351F9D4D8}"
 
           # Confirm the pinned device is the one that's reachable before installing,
           # so a mismatch fails loudly instead of landing somewhere unexpected. The
