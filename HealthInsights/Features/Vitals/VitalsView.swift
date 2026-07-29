@@ -27,9 +27,10 @@ struct VitalsView: View {
     ]
 
     private var groups: [MetricGroup] {
-        let present = Set(model.samples.map(\.type))
+        // Keyed off the cached summaries rather than remapping every sample.
+        let present = model.vitalsSummaries
         return Self.categories.compactMap { title, metrics in
-            let available = metrics.filter { present.contains($0) }
+            let available = metrics.filter { present[$0] != nil }
             return available.isEmpty ? nil : MetricGroup(title: title, metrics: available)
         }
     }
@@ -124,21 +125,21 @@ struct VitalsView: View {
     /// source's latest, which reads like a long-run figure when sources last
     /// reported at very different times. Anything not from today is dated, so a
     /// stale number can't be mistaken for a current one.
-    private func row(for metric: MetricType) -> some View {
-        let breakdown = model.breakdown(metric)
-        let sourceCount = breakdown.sources.count
-        return HStack {
+    @ViewBuilder private func row(for metric: MetricType) -> some View {
+        let summary = model.vitalsSummaries[metric]
+        HStack {
             Text(metric.displayName)
             Spacer()
-            if let latest = breakdown.mostRecent {
-                Text("\(formatMetric(latest.value, metric)) \(metric.unit)")
+            if let summary {
+                Text("\(formatMetric(summary.latest.value, metric)) \(metric.unit)")
                     .foregroundStyle(.secondary).monospacedDigit()
-                if let age = staleness(latest.start) {
+                if let age = staleness(summary.latest.start) {
                     Text("· \(age)").font(.caption2).foregroundStyle(.tertiary)
                 }
-            }
-            if sourceCount > 1 {
-                Text("· \(sourceCount) sources").font(.caption2).foregroundStyle(.tertiary)
+                if summary.sourceCount > 1 {
+                    Text("· \(summary.sourceCount) sources")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
         }
     }
@@ -159,6 +160,16 @@ struct OtherDataDetailView: View {
 
     private var samples: [RawMetricSample] { group.samples.within(timeframe) }
 
+    /// Thinned for plotting — some imported identifiers carry tens of thousands
+    /// of readings, and the extra marks are invisible at chart resolution.
+    private var charted: [RawMetricSample] {
+        let limit = 300
+        let all = samples
+        guard all.count > limit else { return all }
+        let stride = Double(all.count - 1) / Double(limit - 1)
+        return (0..<limit).map { all[Int((Double($0) * stride).rounded())] }
+    }
+
     var body: some View {
         List {
             Section {
@@ -167,7 +178,7 @@ struct OtherDataDetailView: View {
                 }
                 .pickerStyle(.segmented)
                 if samples.count > 1 {
-                    Chart(samples) { s in
+                    Chart(charted) { s in
                         LineMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
                             .interpolationMethod(.linear)
                         PointMark(x: .value("Time", s.start), y: .value(group.unit, s.value))

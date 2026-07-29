@@ -19,6 +19,44 @@ public struct SourceSeries: Sendable, Identifiable, Equatable {
         self.source = source
         self.samples = samples.sorted { $0.start < $1.start }
     }
+
+    /// This series limited to a date range.
+    ///
+    /// Binary-searched rather than filtered: panning a chart re-slices the
+    /// series continuously, and a linear scan of a long history on every frame
+    /// is what makes it stutter. Relies on `samples` being sorted, which the
+    /// initialiser guarantees.
+    public func restricted(to range: ClosedRange<Date>) -> SourceSeries {
+        let lower = firstIndex(atOrAfter: range.lowerBound)
+        let upper = firstIndex(atOrAfter: range.upperBound.addingTimeInterval(1))
+        guard lower < upper else { return SourceSeries(source: source, samples: []) }
+        return SourceSeries(source: source, samples: Array(samples[lower..<upper]))
+    }
+
+    /// Index of the first sample starting at or after `date`, or `endIndex`.
+    private func firstIndex(atOrAfter date: Date) -> Int {
+        var low = 0
+        var high = samples.count
+        while low < high {
+            let mid = (low + high) / 2
+            if samples[mid].start < date { low = mid + 1 } else { high = mid }
+        }
+        return low
+    }
+
+    /// An evenly-spaced subsample of at most `limit` readings, always keeping the
+    /// first and last. Charting a decade of high-frequency data point-for-point
+    /// is what makes the UI hang; the shape of the line survives thinning.
+    public func downsampled(to limit: Int) -> SourceSeries {
+        guard limit > 2, samples.count > limit else { return self }
+        let stride = Double(samples.count - 1) / Double(limit - 1)
+        var kept: [HealthMetricSample] = []
+        kept.reserveCapacity(limit)
+        for i in 0..<limit {
+            kept.append(samples[Int((Double(i) * stride).rounded())])
+        }
+        return SourceSeries(source: source, samples: kept)
+    }
 }
 
 /// A metric split by the device that produced it, so the UI can overlay each
@@ -56,6 +94,20 @@ public struct MultiSourceBreakdown: Sendable, Equatable {
         return values.reduce(0, +) / Double(values.count)
     }
 
+    /// This breakdown limited to a date range, without re-scanning the full
+    /// sample set. Sources left with nothing in the window are dropped, so
+    /// read-outs never show a value from outside it.
+    public func restricted(to range: ClosedRange<Date>) -> MultiSourceBreakdown {
+        MultiSourceBreakdown(
+            type: type,
+            sources: sources.map { $0.restricted(to: range) }.filter { !$0.samples.isEmpty })
+    }
+
+    /// Each series thinned for plotting. See `SourceSeries.downsampled(to:)`.
+    public func downsampled(to limit: Int) -> MultiSourceBreakdown {
+        MultiSourceBreakdown(type: type, sources: sources.map { $0.downsampled(to: limit) })
+    }
+
     /// The spread between sources' latest values (0 when they agree / single).
     public var latestSpread: Double? {
         let values = latestBySource.map(\.value)
@@ -70,11 +122,29 @@ public enum MultiSource {
     /// and Oura mirrored into Apple Health) into one sample. Two samples match
     /// when they share a device family, the same minute, and the same value.
     public static func deduplicate(_ samples: [HealthMetricSample]) -> [HealthMetricSample] {
-        var seen = Set<String>()
+        // A struct key rather than an interpolated string: this runs once per
+        // sample and string formatting dominated the cost on large histories.
+        struct Key: Hashable {
+            let family: String
+            let minute: Int
+            let hundredths: Int
+        }
+        var seen = Set<Key>()
         var out: [HealthMetricSample] = []
+        out.reserveCapacity(samples.count)
+        seen.reserveCapacity(samples.count)
+        // deviceFamily lowercases and scans the display name, so memoise it —
+        // there are only a handful of distinct sources but a great many samples.
+        var families: [MetricSource: String] = [:]
         for s in samples.sorted(by: { $0.start < $1.start }) {
-            let minute = Int(s.start.timeIntervalSince1970 / 60)
-            let key = "\(s.source.deviceFamily)|\(minute)|\(String(format: "%.2f", s.value))"
+            let family = families[s.source] ?? {
+                let f = s.source.deviceFamily
+                families[s.source] = f
+                return f
+            }()
+            let key = Key(family: family,
+                          minute: Int(s.start.timeIntervalSince1970 / 60),
+                          hundredths: Int((s.value * 100).rounded()))
             if seen.insert(key).inserted { out.append(s) }
         }
         return out
@@ -83,7 +153,13 @@ public enum MultiSource {
     /// Build the per-source breakdown for a metric from a mixed sample set.
     public static func breakdown(_ type: MetricType, from samples: [HealthMetricSample]) -> MultiSourceBreakdown {
         let ofType = deduplicate(samples.filter { $0.type == type })
-        let groups = Dictionary(grouping: ofType) { $0.source.deviceFamily }
+        var families: [MetricSource: String] = [:]
+        let groups = Dictionary(grouping: ofType) { sample -> String in
+            if let known = families[sample.source] { return known }
+            let family = sample.source.deviceFamily
+            families[sample.source] = family
+            return family
+        }
         let series: [SourceSeries] = groups.map { _, arr in
             // Represent the group by its most recent sample's source label.
             let sorted = arr.sorted { $0.start < $1.start }

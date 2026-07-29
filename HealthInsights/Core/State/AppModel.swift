@@ -17,10 +17,36 @@ final class AppModel {
     let summarizer: FoundationModelSummarizer
 
     // Rendered state
-    private(set) var samples: [HealthMetricSample] = []
+    private(set) var samples: [HealthMetricSample] = [] {
+        didSet { invalidateDerivedCaches() }
+    }
+
+    /// Per-metric breakdowns, built once and reused.
+    ///
+    /// Building one scans, de-duplicates and groups every sample of that metric.
+    /// The Vitals list asks for one per row and the detail screens ask again on
+    /// every redraw and every scroll, so recomputing was making large histories
+    /// unusable. Ignored by @Observable: these are derived from `samples`, and
+    /// filling them mid-render must not invalidate the view that asked.
+    @ObservationIgnored private var breakdownCache: [MetricType: MultiSourceBreakdown] = [:]
+    @ObservationIgnored private var vitalsSummaryCache: [MetricType: VitalsSummary]?
+    @ObservationIgnored private var otherGroupCache: [RawMetricGroup]?
+
+    /// What a Vitals row needs, without building a full breakdown per row.
+    struct VitalsSummary {
+        let latest: HealthMetricSample
+        let sourceCount: Int
+    }
+
+    private func invalidateDerivedCaches() {
+        breakdownCache.removeAll(keepingCapacity: true)
+        vitalsSummaryCache = nil
+    }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
-    private(set) var otherSamples: [RawMetricSample] = []
+    private(set) var otherSamples: [RawMetricSample] = [] {
+        didSet { otherGroupCache = nil }
+    }
     private(set) var substanceEvents: [SubstanceEvent] = []
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
@@ -65,7 +91,14 @@ final class AppModel {
     }
 
     /// Unmodelled imported data, grouped by identifier for the "Other data" browser.
-    var otherDataGroups: [RawMetricGroup] { otherSamples.groupedByIdentifier() }
+    /// Grouped "other data", cached — the Vitals list reads this on every redraw
+    /// and regrouping the whole raw import each time was needless work.
+    var otherDataGroups: [RawMetricGroup] {
+        if let cached = otherGroupCache { return cached }
+        let built = otherSamples.groupedByIdentifier()
+        otherGroupCache = built
+        return built
+    }
 
     /// On launch, reflect each provider's status — and if a previous connection
     /// attempt failed, restore that error message so the user sees "there was an
@@ -167,24 +200,54 @@ final class AppModel {
         return events
     }
 
-    /// A source-split breakdown of a metric across all connected devices.
+    /// A source-split breakdown of a metric across all connected devices, cached
+    /// until the sample set changes.
     func breakdown(_ metric: MetricType) -> MultiSourceBreakdown {
-        MultiSource.breakdown(metric, from: samples)
+        if let cached = breakdownCache[metric] { return cached }
+        let built = MultiSource.breakdown(metric, from: samples)
+        breakdownCache[metric] = built
+        return built
     }
 
     /// A breakdown restricted to a timeframe, so "what each source says" and the
     /// per-source averages reflect only the selected window — a source with no
     /// data in that window is dropped rather than shown with a stale latest value.
     func breakdown(_ metric: MetricType, within timeframe: Timeframe) -> MultiSourceBreakdown {
-        guard let start = timeframe.startDate() else { return MultiSource.breakdown(metric, from: samples) }
-        return MultiSource.breakdown(metric, from: samples.filter { $0.start >= start })
+        guard let start = timeframe.startDate() else { return breakdown(metric) }
+        return breakdown(metric, in: start...Date.distantFuture)
     }
 
     /// A breakdown restricted to an explicit window — used by the metric detail
     /// screen so the read-outs describe the span the chart is actually showing
     /// after a pan, rather than a window anchored to now.
+    ///
+    /// Narrows the cached per-metric breakdown instead of re-scanning every
+    /// sample, which matters because panning changes the range continuously.
     func breakdown(_ metric: MetricType, in range: ClosedRange<Date>) -> MultiSourceBreakdown {
-        MultiSource.breakdown(metric, from: samples.filter { range.contains($0.start) })
+        breakdown(metric).restricted(to: range)
+    }
+
+    /// Latest value and source count for every metric that has data, built in one
+    /// pass and cached. The Vitals list needs this for each row; asking for a
+    /// full breakdown per row was the main reason that screen crawled.
+    var vitalsSummaries: [MetricType: VitalsSummary] {
+        if let cached = vitalsSummaryCache { return cached }
+        var latest: [MetricType: HealthMetricSample] = [:]
+        var families: [MetricType: Set<String>] = [:]
+        for sample in samples {
+            if let current = latest[sample.type] {
+                if sample.start > current.start { latest[sample.type] = sample }
+            } else {
+                latest[sample.type] = sample
+            }
+            families[sample.type, default: []].insert(sample.source.deviceFamily)
+        }
+        let built = latest.mapValues { sample in
+            VitalsSummary(latest: sample,
+                          sourceCount: families[sample.type]?.count ?? 1)
+        }
+        vitalsSummaryCache = built
+        return built
     }
 
     /// Every paired blood-pressure reading across all sources (logged in-app,

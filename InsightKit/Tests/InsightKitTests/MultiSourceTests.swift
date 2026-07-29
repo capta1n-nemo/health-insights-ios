@@ -66,4 +66,52 @@ final class MultiSourceTests: XCTestCase {
     func testMostRecentIsNilWithoutSamples() {
         XCTAssertNil(MultiSource.breakdown(.heartRate, from: []).mostRecent)
     }
+
+    /// The binary-searched range restriction must agree with a plain filter,
+    /// including at the boundaries.
+    func testRestrictedMatchesFilteringAndKeepsBoundaries() {
+        let samples = (0..<200).map { hr(60 + Double($0 % 10), .oura, minutesAgo: $0) }
+        let series = SourceSeries(source: .oura, samples: samples)
+        let now = Date()
+        let range = now.addingTimeInterval(-100 * 60)...now.addingTimeInterval(-50 * 60)
+
+        let restricted = series.restricted(to: range).samples
+        let filtered = series.samples.filter { range.contains($0.start) }
+        XCTAssertEqual(restricted.map(\.id), filtered.map(\.id))
+        XCTAssertFalse(restricted.isEmpty)
+    }
+
+    func testRestrictedIsEmptyOutsideTheData() {
+        let series = SourceSeries(source: .oura, samples: [hr(60, .oura, minutesAgo: 5)])
+        let long = Date().addingTimeInterval(-3600)
+        XCTAssertTrue(series.restricted(to: long...long.addingTimeInterval(60)).samples.isEmpty)
+    }
+
+    /// Thinning keeps the shape's endpoints, which is what stops a chart losing
+    /// its most recent reading.
+    func testDownsamplingCapsCountAndKeepsEnds() {
+        let samples = (0..<5_000).map { hr(Double(50 + $0 % 40), .oura, minutesAgo: 5_000 - $0) }
+        let series = SourceSeries(source: .oura, samples: samples)
+        let thinned = series.downsampled(to: 300)
+        XCTAssertEqual(thinned.samples.count, 300)
+        XCTAssertEqual(thinned.samples.first?.id, series.samples.first?.id)
+        XCTAssertEqual(thinned.samples.last?.id, series.samples.last?.id)
+    }
+
+    func testDownsamplingLeavesShortSeriesAlone() {
+        let series = SourceSeries(source: .oura, samples: (0..<10).map { hr(60, .oura, minutesAgo: $0) })
+        XCTAssertEqual(series.downsampled(to: 300).samples.count, 10)
+    }
+
+    /// Restricting a breakdown drops sources with nothing in the window, so a
+    /// read-out can't show a value from outside it.
+    func testRestrictedBreakdownDropsSourcesOutsideTheWindow() {
+        let b = MultiSource.breakdown(.heartRate, from: [
+            hr(90, .appleHealthDevice("MyFitnessPal"), minutesAgo: 60 * 24 * 300),
+            hr(58, .oura, minutesAgo: 10)
+        ])
+        let recent = b.restricted(to: Date().addingTimeInterval(-3600)...Date())
+        XCTAssertEqual(recent.sources.count, 1)
+        XCTAssertEqual(recent.mostRecent?.value, 58)
+    }
 }

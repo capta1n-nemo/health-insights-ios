@@ -51,26 +51,35 @@ struct MultiSourceChart: View {
     /// The instant the user is scrubbing over, nil when not touching the chart.
     @State private var selected: Date?
 
+    /// Most readings a single source contributes to one screen. Beyond this the
+    /// extra marks are invisible at chart resolution but still cost layout time.
+    private static let maxPointsPerSource = 300
+
     private struct Point: Identifiable {
-        let id = UUID()
+        /// Derived, not a fresh UUID: a new identity every render made SwiftUI
+        /// rebuild every mark on each redraw.
+        var id: String { "\(source)@\(date.timeIntervalSince1970)" }
         let date: Date
         let value: Double
         let source: String
     }
 
-    private var allPoints: [Point] {
-        breakdown.sources.flatMap { series in
-            series.samples.map {
-                Point(date: $0.start, value: $0.value, source: series.displayName)
-            }
+    /// The extent of the whole history, which fixes how far the chart can scroll
+    /// even though only the visible slice is plotted.
+    private var fullDomain: ClosedRange<Date> {
+        let starts = breakdown.sources.compactMap(\.samples.first?.start)
+        let ends = breakdown.sources.compactMap(\.samples.last?.start)
+        guard let first = starts.min(), let last = ends.max(), first < last else {
+            let now = Date()
+            return now.addingTimeInterval(-window)...now
         }
+        return first...last
     }
 
     /// Anchor the initial view on the newest reading rather than on "now", so a
     /// metric that last reported a while ago still opens showing its data.
     private var defaultStart: Date {
-        let end = allPoints.map(\.date).max() ?? Date()
-        return end.addingTimeInterval(-window)
+        fullDomain.upperBound.addingTimeInterval(-window)
     }
 
     private var visibleStart: Date { scrollX ?? defaultStart }
@@ -82,22 +91,42 @@ struct MultiSourceChart: View {
         Binding(get: { visibleStart }, set: { scrollX = $0 })
     }
 
+    /// Only what's on screen, plus a window either side so a pan doesn't reveal
+    /// an empty chart before the next redraw, thinned for plotting. Charting a
+    /// decade of high-frequency readings mark-for-mark is what made this hang.
+    private var visibleBreakdown: MultiSourceBreakdown {
+        let padded = visibleStart.addingTimeInterval(-window)
+            ...visibleStart.addingTimeInterval(window * 2)
+        return breakdown.restricted(to: padded)
+            .downsampled(to: Self.maxPointsPerSource * 3)
+    }
+
     /// Points on screen right now — the Y-scale follows the pan so a zoomed-in
     /// window isn't flattened by outliers elsewhere in the history.
     private var points: [Point] {
-        allPoints.filter { visibleRange.contains($0.date) }
+        visibleBreakdown.restricted(to: visibleRange)
+            .downsampled(to: Self.maxPointsPerSource)
+            .sources
+            .flatMap { series in
+                series.samples.map {
+                    Point(date: $0.start, value: $0.value, source: series.displayName)
+                }
+            }
     }
 
     private var domain: [String] { breakdown.sources.map(\.displayName) }
     private var range: [Color] { breakdown.sources.indices.map { Theme.sourceColor($0) } }
 
-    private var values: [Double] { points.map(\.value) }
     /// Log axis is only meaningful (and mathematically valid) for positive data.
-    private var useLog: Bool { logarithmic && !values.isEmpty && values.allSatisfy { $0 > 0 } }
+    private func useLog(for plotted: [Point]) -> Bool {
+        logarithmic && !plotted.isEmpty && plotted.allSatisfy { $0.value > 0 }
+    }
 
     /// A padded Y-range so a single point or a flat line isn't glued to an edge
     /// and stays visible.
-    private var yDomain: ClosedRange<Double>? {
+    private func yDomain(for plotted: [Point]) -> ClosedRange<Double>? {
+        let values = plotted.map(\.value)
+        let useLog = useLog(for: plotted)
         guard let lo = values.min(), let hi = values.max() else { return nil }
         if lo == hi {
             let pad = Swift.max(abs(lo) * 0.05, 1)
@@ -168,8 +197,11 @@ struct MultiSourceChart: View {
     }
 
     private var chart: some View {
-        Chart {
-            ForEach(allPoints) { p in
+        // Computed once here rather than per access: each of the marks, the
+        // Y-scale and the empty check would otherwise re-slice the history.
+        let plotted = points
+        return Chart {
+            ForEach(plotted) { p in
                 LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
                     .foregroundStyle(by: .value("Source", p.source))
                     // Straight segments between readings: a curve invents values
@@ -182,15 +214,18 @@ struct MultiSourceChart: View {
             }
         }
         .chartForegroundStyleScale(domain: domain, range: range)
-        .modifier(YScaleModifier(domain: yDomain, log: useLog))
+        .modifier(YScaleModifier(domain: yDomain(for: plotted), log: useLog(for: plotted)))
         .chartLegend(.hidden) // we render our own labelled breakdown below
         .chartScrollableAxes(.horizontal)
+        // The full extent stays scrollable even though only the visible slice
+        // is plotted.
+        .chartXScale(domain: fullDomain)
         .chartXVisibleDomain(length: window)
         .chartScrollPosition(x: scrollBinding)
         .chartXSelection(value: $selected)
         .frame(height: 170)
         .overlay {
-            if points.isEmpty {
+            if plotted.isEmpty {
                 Text("No readings in this window")
                     .font(.footnote).foregroundStyle(.secondary)
             }
