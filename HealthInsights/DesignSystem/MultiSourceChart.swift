@@ -95,9 +95,12 @@ struct MultiSourceChart: View {
     /// an empty chart before the next redraw, thinned for plotting. Charting a
     /// decade of high-frequency readings mark-for-mark is what made this hang.
     private var visibleBreakdown: MultiSourceBreakdown {
-        let padded = visibleStart.addingTimeInterval(-window)
-            ...visibleStart.addingTimeInterval(window * 2)
-        return breakdown.restricted(to: padded)
+        // `...` must not start the continuation line: Swift then parses it as a
+        // standalone prefix PartialRangeThrough, leaving `padded` typed as a
+        // bare Date and failing to match restricted(to: ClosedRange<Date>).
+        let lower = visibleStart.addingTimeInterval(-window)
+        let upper = visibleStart.addingTimeInterval(window * 2)
+        return breakdown.restricted(to: lower...upper)
             .downsampled(to: Self.maxPointsPerSource * 3)
     }
 
