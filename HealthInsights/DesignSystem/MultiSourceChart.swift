@@ -109,9 +109,18 @@ struct MultiSourceChart: View {
         return lower...(hi + span * 0.1)
     }
 
+    /// One line of the scrub callout. A named type rather than a tuple, because
+    /// ForEach needs an id key path and Swift has none into tuple elements.
+    private struct Callout: Identifiable {
+        let source: String
+        let value: Double
+        let date: Date
+        var id: String { source }
+    }
+
     /// The nearest reading to the scrubbed instant, per source, so the callout
     /// answers "what did each device say around here?".
-    private func readings(at date: Date) -> [(source: String, sample: HealthMetricSample)] {
+    private func readings(at date: Date) -> [Callout] {
         breakdown.sources.compactMap { series in
             guard let nearest = series.samples.min(by: {
                 abs($0.start.timeIntervalSince(date)) < abs($1.start.timeIntervalSince(date))
@@ -119,7 +128,7 @@ struct MultiSourceChart: View {
             // Ignore a source whose closest reading is far outside the window the
             // user is pointing at — better to omit it than to imply it was there.
             guard abs(nearest.start.timeIntervalSince(date)) <= window / 8 else { return nil }
-            return (series.displayName, nearest)
+            return Callout(source: series.displayName, value: nearest.value, date: nearest.start)
         }
     }
 
@@ -173,18 +182,18 @@ struct MultiSourceChart: View {
         let rows = readings(at: date)
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(rows, id: \.source) { row in
+                ForEach(rows) { row in
                     HStack(spacing: 6) {
                         if let index = domain.firstIndex(of: row.source) {
                             Circle().fill(Theme.sourceColor(index)).frame(width: 7, height: 7)
                         }
-                        Text("\(formatMetric(row.sample.value, breakdown.type)) \(breakdown.type.unit)")
+                        Text("\(formatMetric(row.value, breakdown.type)) \(breakdown.type.unit)")
                             .monospacedDigit()
                         Text(row.source).foregroundStyle(.secondary)
                     }
                     .font(.caption2)
                 }
-                if let when = rows.map(\.sample.start).max() {
+                if let when = rows.map(\.date).max() {
                     Text(when.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption2).foregroundStyle(.tertiary)
                 }

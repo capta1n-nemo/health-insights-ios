@@ -160,6 +160,7 @@ struct BloodPressureLogView: View {
         .font(.caption)
         Text("Drag across the chart to read a reading; swipe it sideways to move back through your history.")
             .font(.caption2).foregroundStyle(.tertiary)
+    }
 
     private func legendDot(_ label: String, _ color: Color) -> some View {
         HStack(spacing: 5) {
