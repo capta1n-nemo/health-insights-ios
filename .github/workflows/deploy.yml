@@ -1,26 +1,62 @@
 name: Deploy to iPhone over Wi-Fi
 
+# Builds the app on your self-hosted macOS runner and installs it onto your
+# iPhone (paired to that Mac, over USB or Wi-Fi) using devicectl.
+#
+# One-time setup on the runner Mac:
+#   • Open HealthInsights.xcodeproj in Xcode once, sign in with your Apple ID,
+#     and let it create the signing certificate/profile (Signing & Capabilities
+#     → Automatically manage signing). HealthKit is included in your team's
+#     free profile.
+#   • Pair your iPhone (Xcode ▸ Window ▸ Devices and Simulators ▸ "Connect via
+#     network") so it's reachable over Wi-Fi.
+# Optional repo secrets (Settings ▸ Secrets and variables ▸ Actions):
+#   • DEVELOPMENT_TEAM  – your 10-char Apple Team ID (only needed if the runner
+#     has more than one team, or headless signing can't pick one).
+#   • IPHONE_DEVICE_ID  – your device's identifier (defaults to the one below).
+
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: self-hosted
+    env:
+      DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+      IPHONE_DEVICE_ID: ${{ secrets.IPHONE_DEVICE_ID }}
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Xcode Project
-        run: |
-          xcodebuild -project health-insights-ios.xcodeproj \
-                     -scheme health-insights-ios \
-                     -configuration Debug \
-                     -sdk iphoneos \
-                     -derivedDataPath build \
-                     build
+      - name: Show toolchain
+        run: xcodebuild -version
 
-      - name: Deploy to iPhone
+      - name: Build (signed for device)
         run: |
-          APP_PATH=$(find build/Build/Products/Debug-iphoneos -name "*.app" | head -n 1)
-          xcrun devicectl device install app --device "26642940-2E82-5266-8527-0A0351F9D4D8" "$APP_PATH"
+          set -eo pipefail
+          EXTRA=""
+          if [ -n "${DEVELOPMENT_TEAM:-}" ]; then EXTRA="DEVELOPMENT_TEAM=${DEVELOPMENT_TEAM}"; fi
+          xcodebuild \
+            -project HealthInsights.xcodeproj \
+            -scheme HealthInsights \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            -allowProvisioningUpdates \
+            -skipPackagePluginValidation \
+            $EXTRA \
+            clean build
+
+      - name: Install onto iPhone
+        run: |
+          set -eo pipefail
+          APP_PATH=$(find build/Build/Products/Debug-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app was produced by the build step."
+            exit 1
+          fi
+          DEVICE="${IPHONE_DEVICE_ID:-26642940-2E82-5266-8527-0A0351F9D4D8}"
+          echo "Installing $APP_PATH onto device $DEVICE"
+          xcrun devicectl device install app --device "$DEVICE" "$APP_PATH"
