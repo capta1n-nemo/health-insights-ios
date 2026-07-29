@@ -4,16 +4,16 @@ name: Deploy to iPhone over Wi-Fi
 # iPhone (paired to that Mac, over USB or Wi-Fi) using devicectl.
 #
 # One-time setup on the runner Mac:
-#   • Open HealthInsights.xcodeproj in Xcode once, sign in with your Apple ID,
-#     and let it create the signing certificate/profile (Signing & Capabilities
-#     → Automatically manage signing). HealthKit is included in your team's
-#     free profile.
+#   • Open HealthInsights.xcodeproj in Xcode once, sign in with your Apple ID
+#     (Settings ▸ Accounts), and let "Automatically manage signing" create the
+#     development certificate. That certificate is what this workflow reads the
+#     Apple Team ID from — no secrets needed.
 #   • Pair your iPhone (Xcode ▸ Window ▸ Devices and Simulators ▸ "Connect via
-#     network") so it's reachable over Wi-Fi.
-# Optional repo secrets (Settings ▸ Secrets and variables ▸ Actions):
-#   • DEVELOPMENT_TEAM  – your 10-char Apple Team ID (only needed if the runner
-#     has more than one team, or headless signing can't pick one).
-#   • IPHONE_DEVICE_ID  – your device's identifier (defaults to the one below).
+#     network") so it's reachable over Wi-Fi, and trust the Mac on the phone.
+# Optional repo secrets (Settings ▸ Secrets and variables ▸ Actions), only if
+# auto-detection picks the wrong one:
+#   • DEVELOPMENT_TEAM  – your 10-character Apple Team ID.
+#   • IPHONE_DEVICE_ID  – the target device's identifier.
 
 on:
   push:
@@ -33,11 +33,57 @@ jobs:
       - name: Show toolchain
         run: xcodebuild -version
 
+      - name: Resolve Apple Team ID
+        run: |
+          set -eo pipefail
+          TEAM="${DEVELOPMENT_TEAM:-}"
+
+          # The Team ID is the OU field of the development certificate's subject.
+          if [ -z "$TEAM" ]; then
+            PEM="$RUNNER_TEMP/dev-certs.pem"
+            : > "$PEM"
+            for CN in "Apple Development" "iPhone Developer" "Apple Distribution"; do
+              security find-certificate -a -c "$CN" -p >> "$PEM" 2>/dev/null || true
+            done
+            if [ -s "$PEM" ]; then
+              rm -f "$RUNNER_TEMP"/cert-*.pem
+              csplit -s -z -f "$RUNNER_TEMP/cert-" -b '%02d.pem' \
+                "$PEM" '/BEGIN CERTIFICATE/' '{*}' 2>/dev/null || true
+              for f in "$RUNNER_TEMP"/cert-*.pem; do
+                [ -e "$f" ] || continue
+                OU=$(openssl x509 -in "$f" -noout -subject -nameopt sep_multiline,utf8 2>/dev/null \
+                     | sed -n 's/^[[:space:]]*OU=//p' | head -n 1)
+                if [ -n "$OU" ]; then TEAM="$OU"; break; fi
+              done
+            fi
+          fi
+
+          # Fall back to any provisioning profile Xcode has already installed.
+          if [ -z "$TEAM" ]; then
+            for DIR in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                       "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              [ -d "$DIR" ] || continue
+              for p in "$DIR"/*.mobileprovision; do
+                [ -e "$p" ] || continue
+                T=$(security cms -D -i "$p" 2>/dev/null \
+                    | plutil -extract TeamIdentifier.0 raw - 2>/dev/null || true)
+                if [ -n "$T" ]; then TEAM="$T"; break 2; fi
+              done
+            done
+          fi
+
+          if [ -z "$TEAM" ]; then
+            echo "::error::No Apple development certificate found on this runner. Open HealthInsights.xcodeproj in Xcode on this Mac, sign in under Settings ▸ Accounts, and let automatic signing create a certificate — or set the DEVELOPMENT_TEAM repo secret."
+            security find-identity -v -p codesigning || true
+            exit 1
+          fi
+
+          echo "Using Apple Team ID $TEAM"
+          echo "TEAM_ID=$TEAM" >> "$GITHUB_ENV"
+
       - name: Build (signed for device)
         run: |
           set -eo pipefail
-          EXTRA=""
-          if [ -n "${DEVELOPMENT_TEAM:-}" ]; then EXTRA="DEVELOPMENT_TEAM=${DEVELOPMENT_TEAM}"; fi
           xcodebuild \
             -project HealthInsights.xcodeproj \
             -scheme HealthInsights \
@@ -46,7 +92,8 @@ jobs:
             -derivedDataPath build \
             -allowProvisioningUpdates \
             -skipPackagePluginValidation \
-            $EXTRA \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
             clean build
 
       - name: Install onto iPhone
@@ -57,6 +104,19 @@ jobs:
             echo "::error::No .app was produced by the build step."
             exit 1
           fi
-          DEVICE="${IPHONE_DEVICE_ID:-26642940-2E82-5266-8527-0A0351F9D4D8}"
+
+          xcrun devicectl list devices --json-output "$RUNNER_TEMP/devices.json" || true
+          xcrun devicectl list devices || true
+
+          DEVICE="${IPHONE_DEVICE_ID:-}"
+          if [ -z "$DEVICE" ] && [ -f "$RUNNER_TEMP/devices.json" ]; then
+            DEVICE=$(python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['result']['devices']; c=[d for d in ds if d.get('hardwareProperties',{}).get('platform')=='iOS' and d.get('connectionProperties',{}).get('pairingState')=='paired']; print(c[0]['identifier'] if c else '')" "$RUNNER_TEMP/devices.json")
+          fi
+
+          if [ -z "$DEVICE" ]; then
+            echo "::error::No paired iOS device is visible to this Mac. In Xcode ▸ Window ▸ Devices and Simulators, pair the iPhone and tick 'Connect via network', then unlock the phone and re-run."
+            exit 1
+          fi
+
           echo "Installing $APP_PATH onto device $DEVICE"
           xcrun devicectl device install app --device "$DEVICE" "$APP_PATH"
