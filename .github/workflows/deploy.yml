@@ -131,18 +131,45 @@ jobs:
             exit 1
           fi
 
-          xcrun devicectl list devices --json-output "$RUNNER_TEMP/devices.json" || true
-          xcrun devicectl list devices || true
-
+          # The target device is pinned, never auto-detected: several iPhones are
+          # paired to this Mac and the app must only ever reach the intended one.
           DEVICE="${IPHONE_DEVICE_ID:-}"
-          if [ -z "$DEVICE" ] && [ -f "$RUNNER_TEMP/devices.json" ]; then
-            DEVICE=$(python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['result']['devices']; c=[d for d in ds if d.get('hardwareProperties',{}).get('platform')=='iOS' and d.get('connectionProperties',{}).get('tunnelState')=='connected']; print(c[0]['identifier'] if c else '')" "$RUNNER_TEMP/devices.json")
-          fi
-
           if [ -z "$DEVICE" ]; then
-            echo "::error::No reachable iOS device. Several iPhones may be paired to this Mac, but only one that is powered on, unlocked and on the same network shows as 'connected' above. Unlock the phone and re-run."
+            echo "::error::IPHONE_DEVICE_ID is not set. Add the target iPhone's identifier as a repo secret (Settings ▸ Secrets and variables ▸ Actions). This workflow will not guess a device."
             exit 1
           fi
 
-          echo "Installing $APP_PATH onto device $DEVICE"
+          # Confirm the pinned device is the one that's reachable before installing,
+          # so a mismatch fails loudly instead of landing somewhere unexpected. The
+          # device table is not echoed — it would publish every paired device's
+          # identifier into the public run log.
+          xcrun devicectl list devices --json-output "$RUNNER_TEMP/devices.json" > /dev/null 2>&1 || true
+          SUMMARY=$(python3 -c "
+          import json, sys
+          target = sys.argv[2]
+          try:
+              devices = json.load(open(sys.argv[1]))['result']['devices']
+          except Exception:
+              print('unknown|unknown'); raise SystemExit
+          for d in devices:
+              if d.get('identifier') == target:
+                  model = d.get('hardwareProperties', {}).get('marketingName', 'unknown')
+                  state = d.get('connectionProperties', {}).get('tunnelState', 'unknown')
+                  print(model + '|' + state); break
+          else:
+              print('absent|absent')
+          " "$RUNNER_TEMP/devices.json" "$DEVICE")
+          MODEL="${SUMMARY%%|*}"
+          STATE="${SUMMARY##*|}"
+
+          if [ "$STATE" = "absent" ]; then
+            echo "::error::The pinned device is not paired with this Mac. Pair it in Xcode ▸ Window ▸ Devices and Simulators, or correct the IPHONE_DEVICE_ID secret."
+            exit 1
+          fi
+          if [ "$STATE" != "connected" ] && [ "$STATE" != "unknown" ]; then
+            echo "::error::The pinned device ($MODEL) is paired but not reachable (state: $STATE). Unlock it, make sure it's on the same network, and re-run."
+            exit 1
+          fi
+
+          echo "Installing $APP_PATH onto the pinned device ($MODEL)"
           xcrun devicectl device install app --device "$DEVICE" "$APP_PATH"
