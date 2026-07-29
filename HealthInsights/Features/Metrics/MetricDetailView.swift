@@ -9,8 +9,11 @@ struct MetricDetailView: View {
     let metric: MetricType
     @Environment(AppModel.self) private var model
     @State private var logScale = false
+    @State private var timeframe: Timeframe = .month
 
     private var breakdown: MultiSourceBreakdown { model.breakdown(metric) }
+    /// Seconds of history to show; `.all` maps to a very large window.
+    private var window: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
 
     var body: some View {
         ScrollView {
@@ -37,21 +40,25 @@ struct MetricDetailView: View {
     private var overlayCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
+                Text(timeframe.longLabel).font(.headline)
+                Picker("Timeframe", selection: $timeframe) {
+                    ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                if breakdown.hasMultipleSources {
+                    Text("Each device is a separate colour, so you can spot where they disagree.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                MultiSourceChart(breakdown: breakdown, window: window, logarithmic: logScale)
                 HStack {
-                    Text("Last 48 hours").font(.headline)
-                    Spacer()
                     Picker("Scale", selection: $logScale) {
                         Text("Linear").tag(false)
                         Text("Log").tag(true)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 150)
+                    .frame(width: 160)
+                    Spacer()
                 }
-                if breakdown.hasMultipleSources {
-                    Text("Each device is a separate colour, so you can spot where they disagree.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                MultiSourceChart(breakdown: breakdown, window: 2 * 24 * 3600, logarithmic: logScale)
                 if logScale {
                     Text("Logarithmic scale — useful when your sources differ by a wide margin.")
                         .font(.caption2).foregroundStyle(.tertiary)

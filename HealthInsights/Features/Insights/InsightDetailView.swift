@@ -7,6 +7,9 @@ struct InsightDetailView: View {
     @Environment(AppModel.self) private var model
     @State private var groundingKind: GroundingKind?
     @State private var feedbackGiven = false
+    @State private var timeframe: Timeframe = .month
+
+    private var window: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
 
     private var result: InsightResult? { model.result(for: insightID) }
 
@@ -100,22 +103,26 @@ struct InsightDetailView: View {
         let metric = primaryMetric
         let breakdown = model.breakdown(metric)
         if !breakdown.sources.isEmpty {
-            NavigationLink {
-                MetricDetailView(metric: metric)
-            } label: {
-                Card {
-                    VStack(alignment: .leading, spacing: 8) {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(metric.displayName).font(.headline)
+                    Picker("Timeframe", selection: $timeframe) {
+                        ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    MultiSourceChart(breakdown: breakdown, window: window)
+                    SourceBreakdown(breakdown: breakdown)
+                    NavigationLink {
+                        MetricDetailView(metric: metric)
+                    } label: {
                         HStack {
-                            Text(metric.displayName).font(.headline)
+                            Text("Open full history").font(.caption)
                             Spacer()
                             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                         }
-                        MultiSourceChart(breakdown: breakdown, window: 2 * 24 * 3600)
-                        SourceBreakdown(breakdown: breakdown)
                     }
                 }
             }
-            .buttonStyle(.plain)
         }
     }
 

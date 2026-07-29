@@ -18,6 +18,9 @@ final class AppModel {
 
     // Rendered state
     private(set) var samples: [HealthMetricSample] = []
+    /// Imported data we don't yet model as canonical metrics (new HealthKit types,
+    /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
+    private(set) var otherSamples: [RawMetricSample] = []
     private(set) var substanceEvents: [SubstanceEvent] = []
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
@@ -55,10 +58,14 @@ final class AppModel {
         let cached = dataStore.loadCachedSamples()
         let merged = (manual + cached).sanitizedVitals()
         samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+        otherSamples = dataStore.loadCachedOther()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
         todaySummary = FoundationModelSummarizer.templateSummary(from: results)
     }
+
+    /// Unmodelled imported data, grouped by identifier for the "Other data" browser.
+    var otherDataGroups: [RawMetricGroup] { otherSamples.groupedByIdentifier() }
 
     /// On launch, reflect each provider's status — and if a previous connection
     /// attempt failed, restore that error message so the user sees "there was an
@@ -191,7 +198,7 @@ final class AppModel {
         diag.info("Sync", "Refresh started")
 
         let manual = dataStore.loadManualSamples()
-        let fresh = await registry.syncAllConnected()
+        let synced = await registry.syncAllConnected()
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
             switch integration.status {
@@ -205,14 +212,27 @@ final class AppModel {
         // Cache-merge: a source that returned data this sync replaces its cached
         // copy; sources that returned nothing (disconnected/offline) keep their
         // last-known cache, so their data never disappears from the app.
+        let freshSamples = synced.samples
         let cached = dataStore.loadCachedSamples()
-        let freshSourceIDs = Set(fresh.map { $0.source.id })
+        let freshSourceIDs = Set(freshSamples.map { $0.source.id })
         let retained = cached.filter { !freshSourceIDs.contains($0.source.id) }
-        let nonManual = fresh + retained
+        let nonManual = freshSamples + retained
         dataStore.saveCachedSamples(nonManual)
         if !retained.isEmpty {
             diag.info("Cache", "Kept \(retained.count) cached sample(s) from idle sources")
         }
+
+        // Same cache-merge for the raw "other" data.
+        let freshOther = synced.other
+        let cachedOther = dataStore.loadCachedOther()
+        let freshOtherSourceIDs = Set(freshOther.map { $0.source.id })
+        let retainedOther = cachedOther.filter { !freshOtherSourceIDs.contains($0.source.id) }
+        otherSamples = freshOther + retainedOther
+        dataStore.saveCachedOther(otherSamples)
+        if !freshOther.isEmpty {
+            diag.ok("Import", "\(freshOther.count) other data point(s) imported")
+        }
+
         var merged = manual + nonManual
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.

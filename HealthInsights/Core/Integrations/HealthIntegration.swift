@@ -33,8 +33,8 @@ protocol HealthIntegration: AnyObject {
     func connect() async throws
     /// Tear down credentials.
     func disconnect() async
-    /// Pull the latest data as canonical samples.
-    func sync() async throws -> [HealthMetricSample]
+    /// Pull the latest data — canonical samples plus any unmodelled "other" data.
+    func sync() async throws -> SyncedData
 }
 
 /// Holds the set of available integrations and exposes them to Settings + sync.
@@ -51,14 +51,14 @@ final class IntegrationRegistry: ObservableObject {
         integrations.first { $0.id == id }
     }
 
-    /// Sync all connected integrations, merging their samples. Failures on one
+    /// Sync all connected integrations, merging their data. Failures on one
     /// source don't abort the others.
-    func syncAllConnected() async -> [HealthMetricSample] {
-        var all: [HealthMetricSample] = []
+    func syncAllConnected() async -> SyncedData {
+        var all = SyncedData()
         for integration in integrations {
             if case .connected = integration.status {
-                if let samples = try? await integration.sync() {
-                    all.append(contentsOf: samples)
+                if let data = try? await integration.sync() {
+                    all.append(data)
                 }
             }
         }

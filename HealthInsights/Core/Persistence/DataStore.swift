@@ -103,6 +103,13 @@ final class DataStore {
         return base.appendingPathComponent("synced_samples.json")
     }
 
+    private var otherCacheURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("synced_other.json")
+    }
+
     func loadCachedSamples() -> [HealthMetricSample] {
         guard let data = try? Data(contentsOf: syncedCacheURL) else { return [] }
         return (try? JSONDecoder().decode([HealthMetricSample].self, from: data)) ?? []
@@ -111,6 +118,16 @@ final class DataStore {
     func saveCachedSamples(_ samples: [HealthMetricSample]) {
         guard let data = try? JSONEncoder().encode(samples) else { return }
         try? data.write(to: syncedCacheURL, options: .atomic)
+    }
+
+    func loadCachedOther() -> [RawMetricSample] {
+        guard let data = try? Data(contentsOf: otherCacheURL) else { return [] }
+        return (try? JSONDecoder().decode([RawMetricSample].self, from: data)) ?? []
+    }
+
+    func saveCachedOther(_ samples: [RawMetricSample]) {
+        guard let data = try? JSONEncoder().encode(samples) else { return }
+        try? data.write(to: otherCacheURL, options: .atomic)
     }
 
     // MARK: - Integration state

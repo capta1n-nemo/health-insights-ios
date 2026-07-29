@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 import InsightKit
 
 /// The Vitals tab — the "everything" data browser for people who want to dig.
@@ -34,10 +35,12 @@ struct VitalsView: View {
         }
     }
 
+    private var otherGroups: [RawMetricGroup] { model.otherDataGroups }
+
     var body: some View {
         NavigationStack {
             Group {
-                if groups.isEmpty {
+                if groups.isEmpty && otherGroups.isEmpty {
                     ContentUnavailableView("No data yet", systemImage: "waveform.path.ecg",
                         description: Text("Connect Apple Health or a device in Settings, then pull to refresh."))
                 } else {
@@ -53,12 +56,45 @@ struct VitalsView: View {
                                 }
                             }
                         }
+                        otherDataSection
                     }
                 }
             }
             .navigationTitle("Vitals")
             .refreshable { await model.refresh() }
         }
+    }
+
+    /// Everything imported that we don't yet model as a first-class vital, so it
+    /// can be reviewed and later promoted into proper metrics/insights.
+    @ViewBuilder private var otherDataSection: some View {
+        if !otherGroups.isEmpty {
+            Section {
+                ForEach(otherGroups) { group in
+                    NavigationLink {
+                        OtherDataDetailView(group: group)
+                    } label: {
+                        HStack {
+                            Text(group.displayName).lineLimit(1)
+                            Spacer()
+                            if let latest = group.latest {
+                                Text(rawValue(latest))
+                                    .foregroundStyle(.secondary).monospacedDigit()
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Other data")
+            } footer: {
+                Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
+            }
+        }
+    }
+
+    private func rawValue(_ s: RawMetricSample) -> String {
+        let v = abs(s.value) >= 100 ? String(format: "%.0f", s.value) : String(format: "%.1f", s.value)
+        return s.unit.isEmpty ? v : "\(v) \(s.unit)"
     }
 
     private func row(for metric: MetricType) -> some View {
@@ -75,5 +111,57 @@ struct VitalsView: View {
                 Text("· \(sourceCount) sources").font(.caption2).foregroundStyle(.tertiary)
             }
         }
+    }
+}
+
+/// Read-only detail for one "other data" identifier: its readings over a chosen
+/// timeframe, with a simple trend chart. This is the review surface for data the
+/// app has imported but not yet modelled.
+struct OtherDataDetailView: View {
+    let group: RawMetricGroup
+    @State private var timeframe: Timeframe = .month
+
+    private var samples: [RawMetricSample] { group.samples.within(timeframe) }
+
+    var body: some View {
+        List {
+            Section {
+                Picker("Timeframe", selection: $timeframe) {
+                    ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                if samples.count > 1 {
+                    Chart(samples) { s in
+                        LineMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
+                            .interpolationMethod(.catmullRom)
+                        PointMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
+                            .symbolSize(20)
+                    }
+                    .frame(height: 160)
+                }
+            } header: {
+                Text(group.displayName)
+            } footer: {
+                Text("Identifier: \(group.id)\nSources: \(group.sources.sorted().joined(separator: ", "))")
+            }
+
+            Section("Readings · \(samples.count)") {
+                ForEach(samples) { s in
+                    HStack {
+                        Text(valueLabel(s)).monospacedDigit()
+                        Spacer()
+                        Text(s.start.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .navigationTitle(group.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func valueLabel(_ s: RawMetricSample) -> String {
+        let v = abs(s.value) >= 100 ? String(format: "%.0f", s.value) : String(format: "%.2f", s.value)
+        return s.unit.isEmpty ? v : "\(v) \(s.unit)"
     }
 }

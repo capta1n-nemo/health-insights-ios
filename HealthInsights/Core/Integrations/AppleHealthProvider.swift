@@ -57,9 +57,9 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
         status = .notConnected
     }
 
-    func sync() async throws -> [HealthMetricSample] {
-        let samples = await service.fetchRecentSamples()
+    func sync() async throws -> SyncedData {
+        let data = await service.fetchAllData()
         status = .connected(lastSync: Date())
-        return samples
+        return data
     }
 }

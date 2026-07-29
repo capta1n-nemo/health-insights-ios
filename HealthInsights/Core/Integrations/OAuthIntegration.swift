@@ -132,12 +132,13 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         status = .notConnected
     }
 
-    func sync() async throws -> [HealthMetricSample] {
+    func sync() async throws -> SyncedData {
         let token = try await validAccessToken()
-        let since = Calendar.current.date(byAdding: .day, value: -90, to: Date()) ?? Date()
-        let samples = try await fetchSamples(accessToken: token, since: since)
+        // Pull a long history so trends and future insights have depth to work with.
+        let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
+        let data = try await fetchData(accessToken: token, since: since)
         status = .connected(lastSync: Date())
-        return samples
+        return data
     }
 
     // MARK: Token flow
@@ -231,9 +232,10 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
                            expiresAt: t.expires_in.map { Date().addingTimeInterval($0) })
     }
 
-    /// Fetch + normalise the provider's data. Must be overridden.
-    func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
-        []
+    /// Fetch + normalise the provider's data (canonical samples + raw "other").
+    /// Must be overridden.
+    func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
+        SyncedData()
     }
 
     // MARK: Helpers
@@ -288,7 +290,7 @@ final class OuraProvider: OAuthIntegration {
             credentials: credentials, webFlow: webFlow)
     }
 
-    override func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
+    override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
@@ -305,12 +307,32 @@ final class OuraProvider: OAuthIntegration {
         }
 
         // Pull every collection we can; a single endpoint failing (e.g. a scope
-        // the user didn't grant) must not abort the rest.
-        var out: [HealthMetricSample] = []
-        if let d = await fetch("sleep") { out += (try? OuraResponseParser.parseSleep(d)) ?? [] }
-        if let d = await fetch("daily_readiness") { out += (try? OuraResponseParser.parseDailyReadiness(d)) ?? [] }
-        if let d = await fetch("daily_spo2") { out += (try? OuraResponseParser.parseDailySpo2(d)) ?? [] }
-        if let d = await fetch("daily_activity") { out += (try? OuraResponseParser.parseDailyActivity(d)) ?? [] }
+        // the user didn't grant) must not abort the rest. Mapped endpoints feed
+        // canonical metrics AND are raw-captured for any extra fields.
+        var out = SyncedData()
+        if let d = await fetch("sleep") {
+            out.samples += (try? OuraResponseParser.parseSleep(d)) ?? []
+            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "sleep")
+        }
+        if let d = await fetch("daily_readiness") {
+            out.samples += (try? OuraResponseParser.parseDailyReadiness(d)) ?? []
+            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_readiness")
+        }
+        if let d = await fetch("daily_spo2") {
+            out.samples += (try? OuraResponseParser.parseDailySpo2(d)) ?? []
+            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_spo2")
+        }
+        if let d = await fetch("daily_activity") {
+            out.samples += (try? OuraResponseParser.parseDailyActivity(d)) ?? []
+            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_activity")
+        }
+        // Additional collections captured wholesale as raw "other" data.
+        for endpoint in ["daily_sleep", "daily_stress", "daily_resilience",
+                         "daily_cardiovascular_age", "vO2_max"] {
+            if let d = await fetch(endpoint) {
+                out.other += OuraResponseParser.parseRawDaily(d, endpoint: endpoint)
+            }
+        }
         return out
     }
 }
@@ -365,18 +387,22 @@ final class WithingsProvider: OAuthIntegration {
                            expiresAt: b.expires_in.map { Date().addingTimeInterval($0) })
     }
 
-    override func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
+    override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
         var comps = URLComponents(string: "https://wbsapi.withings.net/measure")!
         comps.queryItems = [
             URLQueryItem(name: "action", value: "getmeas"),
-            // weight, lean, fat%, diastolic, systolic, pulse, SpO2, temp,
-            // muscle, water%, bone — everything the scales/BP cuffs report.
-            URLQueryItem(name: "meastypes", value: "1,5,6,9,10,11,54,71,73,76,77,88"),
+            // A broad set of measure types; the ones we don't model yet are
+            // captured as raw "other" data rather than dropped.
+            URLQueryItem(name: "meastypes",
+                         value: "1,4,5,6,8,9,10,11,12,54,71,73,76,77,88,91,123,130,135,136,137,138,139,155,167,168,169,170,174,196,197,198,226,227,229"),
             URLQueryItem(name: "category", value: "1"),
             URLQueryItem(name: "startdate", value: String(Int(since.timeIntervalSince1970)))
         ]
         let data = try await getJSON(comps.url!, accessToken: accessToken)
-        return try WithingsResponseParser.parseMeasures(data)
+        var out = SyncedData()
+        out.samples += (try? WithingsResponseParser.parseMeasures(data)) ?? []
+        out.other += WithingsResponseParser.parseOtherMeasures(data)
+        return out
     }
 }
 
@@ -404,15 +430,15 @@ final class WhoopProvider: OAuthIntegration {
             credentials: credentials, webFlow: webFlow)
     }
 
-    override func fetchSamples(accessToken: String, since: Date) async throws -> [HealthMetricSample] {
+    override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
         func fetch(_ path: String) async -> Data? {
             guard let url = URL(string: "https://api.prod.whoop.com/developer/v2/\(path)?limit=25") else { return nil }
             return try? await getJSON(url, accessToken: accessToken)
         }
-        var out: [HealthMetricSample] = []
-        if let d = await fetch("recovery") { out += (try? WhoopResponseParser.parseRecovery(d)) ?? [] }
-        if let d = await fetch("cycle") { out += (try? WhoopResponseParser.parseCycles(d)) ?? [] }
-        if let d = await fetch("activity/sleep") { out += (try? WhoopResponseParser.parseSleep(d)) ?? [] }
+        var out = SyncedData()
+        if let d = await fetch("recovery") { out.samples += (try? WhoopResponseParser.parseRecovery(d)) ?? [] }
+        if let d = await fetch("cycle") { out.samples += (try? WhoopResponseParser.parseCycles(d)) ?? [] }
+        if let d = await fetch("activity/sleep") { out.samples += (try? WhoopResponseParser.parseSleep(d)) ?? [] }
         return out
     }
 }

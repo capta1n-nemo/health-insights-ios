@@ -45,6 +45,85 @@ final class HealthKitService {
         ]
     }
 
+    /// Additional quantity types we import as raw "other" data (not yet modelled
+    /// as canonical metrics). Listed as raw identifier strings so unknown ones on
+    /// older SDKs simply resolve to nil and are skipped. This is how we "scrape
+    /// everything" — activity, respiratory, nutrition, environmental, etc.
+    private static let otherQuantityIdentifiers: [String] = [
+        // Activity & mobility
+        "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
+        "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
+        "HKQuantityTypeIdentifierDistanceDownhillSnowSports", "HKQuantityTypeIdentifierBasalEnergyBurned",
+        "HKQuantityTypeIdentifierFlightsClimbed", "HKQuantityTypeIdentifierAppleExerciseTime",
+        "HKQuantityTypeIdentifierAppleStandTime", "HKQuantityTypeIdentifierAppleMoveTime",
+        "HKQuantityTypeIdentifierPushCount", "HKQuantityTypeIdentifierSwimmingStrokeCount",
+        "HKQuantityTypeIdentifierWalkingSpeed", "HKQuantityTypeIdentifierWalkingStepLength",
+        "HKQuantityTypeIdentifierWalkingAsymmetryPercentage", "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage",
+        "HKQuantityTypeIdentifierSixMinuteWalkTestDistance", "HKQuantityTypeIdentifierStairAscentSpeed",
+        "HKQuantityTypeIdentifierStairDescentSpeed", "HKQuantityTypeIdentifierRunningSpeed",
+        "HKQuantityTypeIdentifierRunningPower", "HKQuantityTypeIdentifierRunningStrideLength",
+        "HKQuantityTypeIdentifierRunningVerticalOscillation", "HKQuantityTypeIdentifierRunningGroundContactTime",
+        "HKQuantityTypeIdentifierCyclingSpeed", "HKQuantityTypeIdentifierCyclingPower",
+        "HKQuantityTypeIdentifierCyclingCadence", "HKQuantityTypeIdentifierPhysicalEffort",
+        "HKQuantityTypeIdentifierAppleWalkingSteadiness", "HKQuantityTypeIdentifierNumberOfTimesFallen",
+        // Cardio / respiratory / other vitals
+        "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute", "HKQuantityTypeIdentifierAtrialFibrillationBurden",
+        "HKQuantityTypeIdentifierPeripheralPerfusionIndex", "HKQuantityTypeIdentifierForcedVitalCapacity",
+        "HKQuantityTypeIdentifierForcedExpiratoryVolume1", "HKQuantityTypeIdentifierPeakExpiratoryFlowRate",
+        "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBodyTemperature",
+        "HKQuantityTypeIdentifierBasalBodyTemperature", "HKQuantityTypeIdentifierBloodGlucose",
+        "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
+        "HKQuantityTypeIdentifierInsulinDelivery", "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages",
+        // Body
+        "HKQuantityTypeIdentifierBodyMassIndex", "HKQuantityTypeIdentifierWaistCircumference",
+        // Environment
+        "HKQuantityTypeIdentifierUVExposure", "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
+        "HKQuantityTypeIdentifierHeadphoneAudioExposure", "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
+        "HKQuantityTypeIdentifierTimeInDaylight", "HKQuantityTypeIdentifierUnderwaterDepth",
+        "HKQuantityTypeIdentifierWaterTemperature",
+        // Nutrition
+        "HKQuantityTypeIdentifierDietaryEnergyConsumed", "HKQuantityTypeIdentifierDietaryCarbohydrates",
+        "HKQuantityTypeIdentifierDietaryFiber", "HKQuantityTypeIdentifierDietarySugar",
+        "HKQuantityTypeIdentifierDietaryFatTotal", "HKQuantityTypeIdentifierDietaryFatSaturated",
+        "HKQuantityTypeIdentifierDietaryFatMonounsaturated", "HKQuantityTypeIdentifierDietaryFatPolyunsaturated",
+        "HKQuantityTypeIdentifierDietaryCholesterol", "HKQuantityTypeIdentifierDietaryProtein",
+        "HKQuantityTypeIdentifierDietarySodium", "HKQuantityTypeIdentifierDietaryPotassium",
+        "HKQuantityTypeIdentifierDietaryCalcium", "HKQuantityTypeIdentifierDietaryIron",
+        "HKQuantityTypeIdentifierDietaryWater", "HKQuantityTypeIdentifierDietaryCaffeine",
+        "HKQuantityTypeIdentifierDietaryVitaminC", "HKQuantityTypeIdentifierDietaryVitaminD",
+        "HKQuantityTypeIdentifierDietaryVitaminA", "HKQuantityTypeIdentifierDietaryVitaminB12",
+        "HKQuantityTypeIdentifierDietaryMagnesium", "HKQuantityTypeIdentifierDietaryZinc"
+    ]
+
+    /// Category (event/state) types imported as raw "other" data.
+    private static let otherCategoryIdentifiers: [String] = [
+        "HKCategoryTypeIdentifierMindfulSession", "HKCategoryTypeIdentifierAppleStandHour",
+        "HKCategoryTypeIdentifierHighHeartRateEvent", "HKCategoryTypeIdentifierLowHeartRateEvent",
+        "HKCategoryTypeIdentifierIrregularHeartRhythmEvent", "HKCategoryTypeIdentifierAudioExposureEvent",
+        "HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent", "HKCategoryTypeIdentifierHeadphoneAudioExposureEvent",
+        "HKCategoryTypeIdentifierToothbrushingEvent", "HKCategoryTypeIdentifierHandwashingEvent",
+        "HKCategoryTypeIdentifierSexualActivity", "HKCategoryTypeIdentifierMenstrualFlow",
+        "HKCategoryTypeIdentifierLowCardioFitnessEvent", "HKCategoryTypeIdentifierAppleWalkingSteadinessEvent",
+        "HKCategoryTypeIdentifierNausea", "HKCategoryTypeIdentifierHeadache", "HKCategoryTypeIdentifierFatigue",
+        "HKCategoryTypeIdentifierDizziness", "HKCategoryTypeIdentifierFever", "HKCategoryTypeIdentifierCoughing",
+        "HKCategoryTypeIdentifierShortnessOfBreath", "HKCategoryTypeIdentifierChestTightnessOrPain",
+        "HKCategoryTypeIdentifierAbdominalCramps", "HKCategoryTypeIdentifierBloating",
+        "HKCategoryTypeIdentifierHeartburn", "HKCategoryTypeIdentifierSleepChanges",
+        "HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierHotFlashes"
+    ]
+
+    private var otherQuantityTypes: [HKQuantityType] {
+        Self.otherQuantityIdentifiers.compactMap {
+            HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier(rawValue: $0))
+        }
+    }
+
+    private var otherCategoryTypes: [HKCategoryType] {
+        Self.otherCategoryIdentifiers.compactMap {
+            HKObjectType.categoryType(forIdentifier: HKCategoryTypeIdentifier(rawValue: $0))
+        }
+    }
+
     private var readTypes: Set<HKObjectType> {
         var types = Set<HKObjectType>()
         for (id, _, _) in readMap {
@@ -54,6 +133,11 @@ final class HealthKitService {
         // Characteristics used to pre-fill the onboarding "basics" step.
         if let dob = HKObjectType.characteristicType(forIdentifier: .dateOfBirth) { types.insert(dob) }
         if let sex = HKObjectType.characteristicType(forIdentifier: .biologicalSex) { types.insert(sex) }
+        if let blood = HKObjectType.characteristicType(forIdentifier: .bloodType) { types.insert(blood) }
+        if let skin = HKObjectType.characteristicType(forIdentifier: .fitzpatrickSkinType) { types.insert(skin) }
+        // Everything else — request read access so we can import it all.
+        otherQuantityTypes.forEach { types.insert($0) }
+        otherCategoryTypes.forEach { types.insert($0) }
         return types
     }
     #endif
@@ -99,36 +183,144 @@ final class HealthKitService {
         #endif
     }
 
-    /// Metrics we pull the *full* history for rather than just the recent window.
-    /// Blood pressure is sparse and every past reading helps calibrate/ground the
-    /// estimate, so we read years of it, not 90 days.
+    /// Metrics we pull the *full* history for (blood pressure, body composition,
+    /// labs) — sparse data where every past reading is valuable. Read back years,
+    /// not the shorter recent window used for high-frequency vitals.
     private static let longHistoryMetrics: Set<MetricType> = [
-        .bloodPressureSystolic, .bloodPressureDiastolic
+        .bloodPressureSystolic, .bloodPressureDiastolic, .bodyMass, .bodyFatPercentage,
+        .leanBodyMass, .muscleMass, .boneMass, .bodyWaterPercentage, .height
     ]
 
-    /// Fetch recent samples for all mapped types within `days` — except the
-    /// long-history metrics (blood pressure), which are read all the way back.
-    func fetchRecentSamples(days: Int = 90) async -> [HealthMetricSample] {
+    /// High-frequency metrics capped to a shorter window so the import stays fast
+    /// and the cache reasonable (heart rate can be hundreds of samples per day).
+    private static let highFrequencyMetrics: Set<MetricType> = [.heartRate]
+
+    #if canImport(HealthKit)
+    private func lookbackStart(for metric: MetricType, now: Date = Date()) -> Date {
+        let cal = Calendar.current
+        if Self.longHistoryMetrics.contains(metric) {
+            return cal.date(byAdding: .year, value: -10, to: now) ?? now
+        }
+        if Self.highFrequencyMetrics.contains(metric) {
+            return cal.date(byAdding: .day, value: -180, to: now) ?? now
+        }
+        return cal.date(byAdding: .year, value: -2, to: now) ?? now
+    }
+
+    private var otherLookbackStart: Date {
+        Calendar.current.date(byAdding: .year, value: -3, to: Date()) ?? Date()
+    }
+    #endif
+
+    /// Fetch **everything**: canonical mapped samples plus raw "other" data for
+    /// every additional quantity/category type. High-frequency vitals use a
+    /// shorter window; sparse data goes back years.
+    func fetchAllData() async -> SyncedData {
         #if canImport(HealthKit)
-        guard isAvailable else { return [] }
-        let start = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
-        let longStart = Calendar.current.date(byAdding: .year, value: -10, to: Date()) ?? start
-        var results: [HealthMetricSample] = []
+        guard isAvailable else { return SyncedData() }
+        var result = SyncedData()
         for (id, metric, unit) in readMap {
             guard let qType = HKQuantityType.quantityType(forIdentifier: id) else { continue }
-            let from = Self.longHistoryMetrics.contains(metric) ? longStart : start
-            let samples = await fetchQuantity(qType, metric: metric, unit: unit, start: from)
-            results.append(contentsOf: samples)
+            result.samples += await fetchQuantity(qType, metric: metric, unit: unit,
+                                                  start: lookbackStart(for: metric))
         }
-        results.append(contentsOf: await fetchSleep(start: start))
-        DiagnosticsLog.shared.ok("Apple Health", "Read \(results.count) samples over \(days)d")
-        return results
+        result.samples += await fetchSleep(start: lookbackStart(for: .sleepDurationHours))
+        result.other += await fetchOtherQuantities(start: otherLookbackStart)
+        result.other += await fetchOtherCategories(start: otherLookbackStart)
+        DiagnosticsLog.shared.ok("Apple Health",
+            "Read \(result.samples.count) samples + \(result.other.count) other data points")
+        return result
         #else
-        return []
+        return SyncedData()
         #endif
     }
 
     #if canImport(HealthKit)
+    /// Read arbitrary quantity types using each type's preferred unit, emitting
+    /// raw samples for the "Other data" browser.
+    private func fetchOtherQuantities(start: Date) async -> [RawMetricSample] {
+        let types = otherQuantityTypes
+        guard !types.isEmpty else { return [] }
+        let units: [HKQuantityType: HKUnit]
+        do { units = try await store.preferredUnits(for: Set(types)) } catch { return [] }
+        var out: [RawMetricSample] = []
+        for type in types {
+            guard let unit = units[type] else { continue }
+            out += await fetchRawQuantity(type, unit: unit, start: start)
+        }
+        return out
+    }
+
+    private func fetchRawQuantity(_ type: HKQuantityType, unit: HKUnit, start: Date) async -> [RawMetricSample] {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
+            let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                      limit: HKObjectQueryNoLimit,
+                                      sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, samples, _ in
+                let mapped: [RawMetricSample] = (samples as? [HKQuantitySample])?.compactMap { s in
+                    guard s.quantity.`is`(compatibleWith: unit) else { return nil }
+                    return RawMetricSample(identifier: type.identifier,
+                                           displayName: Self.humanize(type.identifier),
+                                           value: s.quantity.doubleValue(for: unit),
+                                           unit: unit.unitString,
+                                           start: s.startDate, end: s.endDate,
+                                           source: .appleHealthDevice(s.sourceRevision.source.name))
+                } ?? []
+                continuation.resume(returning: mapped)
+            }
+            store.execute(query)
+        }
+    }
+
+    private func fetchOtherCategories(start: Date) async -> [RawMetricSample] {
+        var out: [RawMetricSample] = []
+        for type in otherCategoryTypes {
+            out += await fetchRawCategory(type, start: start)
+        }
+        return out
+    }
+
+    private func fetchRawCategory(_ type: HKCategoryType, start: Date) async -> [RawMetricSample] {
+        await withCheckedContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
+            let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                      limit: HKObjectQueryNoLimit,
+                                      sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, samples, _ in
+                let mapped: [RawMetricSample] = (samples as? [HKCategorySample])?.map { s in
+                    // For "event/session" types the value is often not-applicable;
+                    // fall back to the duration in minutes so there's something useful.
+                    let minutes = s.endDate.timeIntervalSince(s.startDate) / 60
+                    let usesDuration = s.value == 0 && minutes > 0   // 0 = notApplicable
+                    return RawMetricSample(identifier: type.identifier,
+                                           displayName: Self.humanize(type.identifier),
+                                           value: usesDuration ? minutes : Double(s.value),
+                                           unit: usesDuration ? "min" : "",
+                                           start: s.startDate, end: s.endDate,
+                                           source: .appleHealthDevice(s.sourceRevision.source.name))
+                } ?? []
+                continuation.resume(returning: mapped)
+            }
+            store.execute(query)
+        }
+    }
+
+    /// Turn "HKQuantityTypeIdentifierDietaryVitaminC" into "Dietary Vitamin C".
+    static func humanize(_ identifier: String) -> String {
+        var s = identifier
+        for prefix in ["HKQuantityTypeIdentifier", "HKCategoryTypeIdentifier"] where s.hasPrefix(prefix) {
+            s.removeFirst(prefix.count)
+        }
+        var out = ""
+        let chars = Array(s)
+        for (i, ch) in chars.enumerated() {
+            if i > 0, ch.isUppercase || ch.isNumber, !(chars[i - 1].isUppercase || chars[i - 1].isNumber) {
+                out.append(" ")
+            }
+            out.append(ch)
+        }
+        return out.isEmpty ? identifier : out
+    }
+
     private func fetchQuantity(_ type: HKQuantityType, metric: MetricType, unit: HKUnit, start: Date) async -> [HealthMetricSample] {
         await withCheckedContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
