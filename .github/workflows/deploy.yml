@@ -14,6 +14,11 @@ name: Deploy to iPhone over Wi-Fi
 # auto-detection picks the wrong one:
 #   • DEVELOPMENT_TEAM  – your 10-character Apple Team ID.
 #   • IPHONE_DEVICE_ID  – the target device's identifier.
+#   • KEYCHAIN_PASSWORD – your Mac login password. Needed only when the runner
+#     is installed as a background service, which leaves it unable to use the
+#     signing key (codesign fails with errSecInternalComponent). The
+#     alternative, with no secret, is to run the runner interactively:
+#     `sudo ./svc.sh stop` then `./run.sh` from Terminal while logged in.
 
 on:
   push:
@@ -26,6 +31,7 @@ jobs:
     env:
       DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
       IPHONE_DEVICE_ID: ${{ secrets.IPHONE_DEVICE_ID }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +87,21 @@ jobs:
           echo "Using Apple Team ID $TEAM"
           echo "TEAM_ID=$TEAM" >> "$GITHUB_ENV"
 
+      # codesign fails with errSecInternalComponent when the runner process
+      # can't reach the signing key — either the login keychain is locked, or
+      # codesign isn't on the key's ACL. Both are fixed here when the runner's
+      # macOS login password is available as the KEYCHAIN_PASSWORD secret.
+      - name: Unlock signing keychain
+        if: env.KEYCHAIN_PASSWORD != ''
+        run: |
+          set -eo pipefail
+          KC="$HOME/Library/Keychains/login.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC"
+
       - name: Build (signed for device)
         run: |
           set -eo pipefail
@@ -94,7 +115,12 @@ jobs:
             -skipPackagePluginValidation \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            clean build
+            clean build 2>&1 | tee "$RUNNER_TEMP/build.log"
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ] && grep -q "errSecInternalComponent" "$RUNNER_TEMP/build.log"; then
+            echo "::error::codesign could not use the signing key (errSecInternalComponent). The runner can't reach the login keychain. Fix by either (a) adding your Mac login password as the KEYCHAIN_PASSWORD repo secret, or (b) running the Actions runner interactively — stop the service with 'sudo ./svc.sh stop' and run './run.sh' from Terminal while logged in."
+          fi
+          exit "$STATUS"
 
       - name: Install onto iPhone
         run: |
