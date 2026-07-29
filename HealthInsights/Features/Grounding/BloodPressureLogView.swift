@@ -1,29 +1,44 @@
 import SwiftUI
+import Charts
 import InsightKit
 
-/// A dated list of blood-pressure readings — the fix for the old single-value
-/// input. It merges readings you log here with any blood pressure already in
-/// **Apple Health** (or Withings), shows each with its date, source and
-/// category, and lets you add as many as you like. The personalised estimate
-/// needs at least `minimumCalibrationPoints` readings, surfaced as a progress hint.
+/// The consolidated blood-pressure vital — Apple-Health-inspired: one screen with
+/// a systolic + diastolic chart, calibration status, and the full dated list of
+/// readings merged from everywhere (in-app, Apple Health, Withings). Grounding
+/// uses only readings from the last 30 days.
 struct BloodPressureLogView: View {
     @Environment(AppModel.self) private var model
     @State private var showingAdd = false
+    @State private var timeframe: Timeframe = .month
 
     private var readings: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
     private var status: BloodPressureEstimator.CalibrationStatus { model.bloodPressureCalibration }
 
-    /// Split the history so recent readings (the ones keeping the estimate
-    /// grounded) are visible at a glance, while all history is still listed.
+    /// Split the history so recent readings (the ones grounding the estimate)
+    /// are visible at a glance, while all history is still listed.
     private var recent: [BloodPressureEstimator.Reading] {
         readings.filter { Date().timeIntervalSince($0.date) <= BloodPressureEstimator.maintenanceWindow }
     }
     private var earlier: [BloodPressureEstimator.Reading] {
         readings.filter { Date().timeIntervalSince($0.date) > BloodPressureEstimator.maintenanceWindow }
     }
+    private var chartReadings: [BloodPressureEstimator.Reading] {
+        guard let start = timeframe.startDate() else { return readings }
+        return readings.filter { $0.date >= start }
+    }
 
     var body: some View {
         List {
+            if !readings.isEmpty {
+                Section {
+                    Picker("Timeframe", selection: $timeframe) {
+                        ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    bpChart
+                }
+            }
+
             Section {
                 Button {
                     showingAdd = true
@@ -34,7 +49,7 @@ struct BloodPressureLogView: View {
             } header: {
                 Text("Calibration")
             } footer: {
-                Text("It takes \(BloodPressureEstimator.initialCalibrationReadings) cuff readings to calibrate the estimate, then about \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month to keep it grounded. Readings already in Apple Health count automatically.")
+                Text("Grounding uses only readings from the last 30 days: log \(BloodPressureEstimator.initialCalibrationReadings) to ground the estimate, and because readings stop counting after 30 days you'll need to add fresh ones over time. Readings already in Apple Health count automatically.")
             }
 
             if readings.isEmpty {
@@ -68,6 +83,41 @@ struct BloodPressureLogView: View {
         }
     }
 
+    @ViewBuilder private var bpChart: some View {
+        let data = chartReadings
+        if data.isEmpty {
+            Text("No readings in \(timeframe.longLabel.lowercased()).")
+                .font(.footnote).foregroundStyle(.secondary)
+        } else {
+            Chart(data) { r in
+                LineMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic),
+                         series: .value("Reading", "Systolic"))
+                    .foregroundStyle(Theme.sourceColor(0))
+                PointMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic))
+                    .foregroundStyle(Theme.sourceColor(0)).symbolSize(20)
+                LineMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic),
+                         series: .value("Reading", "Diastolic"))
+                    .foregroundStyle(Theme.sourceColor(1))
+                PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
+                    .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
+            }
+            .frame(height: 180)
+            HStack(spacing: 16) {
+                legendDot("Systolic", Theme.sourceColor(0))
+                legendDot("Diastolic", Theme.sourceColor(1))
+                Spacer()
+            }
+            .font(.caption)
+        }
+    }
+
+    private func legendDot(_ label: String, _ color: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 9, height: 9)
+            Text(label).foregroundStyle(.secondary)
+        }
+    }
+
     private func readingRow(_ r: BloodPressureEstimator.Reading) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
@@ -86,21 +136,20 @@ struct BloodPressureLogView: View {
     }
 }
 
-/// A compact "N of 5" (or "grounded this month") progress row for BP calibration.
+/// A compact "N of 5 in the last 30 days" progress row for BP grounding.
 private struct CalibrationProgress: View {
     let status: BloodPressureEstimator.CalibrationStatus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if !status.initialComplete {
-                ProgressView(value: Double(status.totalReadings),
-                             total: Double(BloodPressureEstimator.initialCalibrationReadings))
+            if !status.isGrounded {
+                ProgressView(value: Double(status.recentReadings),
+                             total: Double(status.required))
                     .tint(Theme.accent)
             }
             HStack(spacing: 6) {
-                Image(systemName: status.isFresh ? "checkmark.seal.fill"
-                      : (status.initialComplete ? "clock.badge.exclamationmark" : "target"))
-                    .foregroundStyle(status.isFresh ? Theme.good : Theme.accent)
+                Image(systemName: status.isGrounded ? "checkmark.seal.fill" : "target")
+                    .foregroundStyle(status.isGrounded ? Theme.good : Theme.accent)
                 Text(status.guidance)
                     .font(.footnote).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

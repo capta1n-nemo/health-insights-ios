@@ -172,6 +172,14 @@ final class AppModel {
         MultiSource.breakdown(metric, from: samples)
     }
 
+    /// A breakdown restricted to a timeframe, so "what each source says" and the
+    /// per-source averages reflect only the selected window — a source with no
+    /// data in that window is dropped rather than shown with a stale latest value.
+    func breakdown(_ metric: MetricType, within timeframe: Timeframe) -> MultiSourceBreakdown {
+        guard let start = timeframe.startDate() else { return MultiSource.breakdown(metric, from: samples) }
+        return MultiSource.breakdown(metric, from: samples.filter { $0.start >= start })
+    }
+
     /// Every paired blood-pressure reading across all sources (logged in-app,
     /// already in Apple Health, or synced from Withings), newest first.
     var bloodPressureReadings: [BloodPressureEstimator.Reading] {

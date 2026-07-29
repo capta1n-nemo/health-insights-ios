@@ -24,7 +24,12 @@ public struct MetricSource: Codable, Sendable, Hashable {
     /// device name is what lets us overlay and de-duplicate sources.
     public static func appleHealthDevice(_ name: String) -> MetricSource {
         let slug = name.lowercased().replacingOccurrences(of: " ", with: "_")
-        return MetricSource(id: "apple_health/\(slug)", displayName: name)
+        // Clarify provenance: this data reached us through Apple Health, even
+        // though it originated in another app/device (e.g. "MyFitnessPal via
+        // Apple Health"). Avoid a redundant suffix if the name already says so.
+        let label = name.localizedCaseInsensitiveContains("apple health")
+            ? name : "\(name) via Apple Health"
+        return MetricSource(id: "apple_health/\(slug)", displayName: label)
     }
 
     /// A normalised device identity used to de-duplicate the same physical

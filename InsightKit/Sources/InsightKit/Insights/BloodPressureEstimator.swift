@@ -60,41 +60,37 @@ public enum BloodPressureEstimator {
         return out.sorted { $0.date > $1.date }
     }
 
-    /// Where the user is in the calibration journey: how many cuff readings they
-    /// have in total (all history, incl. Apple Health) and how many are recent
-    /// enough to keep the estimate grounded.
+    /// Where the user is in grounding the estimate. Only readings **within the
+    /// last 30 days** count toward grounding — older readings drift and expire,
+    /// so the user must keep providing fresh ones. `totalReadings` is kept only
+    /// for display ("N in your history").
     public struct CalibrationStatus: Sendable, Equatable {
-        public let totalReadings: Int
-        public let recentReadings: Int
+        public let totalReadings: Int      // all history, for display
+        public let recentReadings: Int     // last 30 days — the grounding set
         public init(totalReadings: Int, recentReadings: Int) {
             self.totalReadings = totalReadings
             self.recentReadings = recentReadings
         }
 
-        /// The one-time initial calibration is done once there are enough readings.
-        public var initialComplete: Bool { totalReadings >= BloodPressureEstimator.initialCalibrationReadings }
-        public var neededForInitial: Int { max(0, BloodPressureEstimator.initialCalibrationReadings - totalReadings) }
-        public var neededThisMonth: Int { max(0, BloodPressureEstimator.maintenanceReadingsPerMonth - recentReadings) }
-        /// Whether there are enough recent readings to consider the estimate fresh.
-        public var isFresh: Bool { recentReadings >= BloodPressureEstimator.maintenanceReadingsPerMonth }
+        /// Readings required within the grounding window to calibrate.
+        public var required: Int { BloodPressureEstimator.initialCalibrationReadings }
+        /// Grounded once there are enough readings *in the last 30 days*.
+        public var isGrounded: Bool { recentReadings >= required }
+        public var neededForGrounding: Int { max(0, required - recentReadings) }
 
-        /// One plain-language sentence describing what to do next.
+        /// One plain-language sentence describing what to do next — the same
+        /// message the app shows in Vitals, Insights and Settings.
         public var guidance: String {
-            if !initialComplete {
-                let n = neededForInitial
-                return "Initial calibration: \(totalReadings) of \(BloodPressureEstimator.initialCalibrationReadings) readings. Log \(n) more from a cuff to start — readings already in Apple Health count."
+            if isGrounded {
+                return "Grounded — \(recentReadings) cuff readings in the last 30 days. Keep adding readings as older ones pass 30 days so it stays grounded."
             }
-            if !isFresh {
-                let n = neededThisMonth
-                return "Calibrated. Log \(n) more reading\(n == 1 ? "" : "s") this month to keep it grounded (about 2 a month)."
-            }
-            return "Calibrated and up to date — \(recentReadings) reading\(recentReadings == 1 ? "" : "s") in the last 30 days."
+            let n = neededForGrounding
+            return "\(recentReadings) of \(required) cuff readings in the last 30 days. Log \(n) more from a cuff to ground the estimate — only readings from the last 30 days count (readings already in Apple Health count too)."
         }
     }
 
-    /// Compute the calibration status from the user's samples: all paired cuff
-    /// readings count toward the initial 5; those within the last 30 days count
-    /// toward staying grounded.
+    /// Compute grounding status: readings within the last 30 days are the
+    /// grounding set; anything older is shown as history but doesn't count.
     public static func calibrationStatus(from samples: [HealthMetricSample],
                                          now: Date = Date()) -> CalibrationStatus {
         let pairs = pairedReadings(from: samples)
@@ -311,14 +307,18 @@ public struct BloodPressureInsight: InsightModel {
         // Calibration expectation, grounded in readings already on the device.
         drivers.append(status.guidance)
 
-        // Experimental personalised estimate (clearly separated).
+        // Experimental personalised estimate (clearly separated). Only grounded
+        // in the last 30 days of readings, matching the calibration rules.
         if experimentalEstimateEnabled,
            let restHR = samples.meanValue(.restingHeartRate) {
             let currentHRV = samples.latestValue(.heartRateVariabilityRMSSD)
                 ?? samples.latestValue(.heartRateVariabilitySDNN)
-            let calibration = BloodPressureEstimator.buildCalibration(from: samples)
+            let recentSamples = samples.filter {
+                now.timeIntervalSince($0.start) <= BloodPressureEstimator.maintenanceWindow
+            }
+            let calibration = BloodPressureEstimator.buildCalibration(from: recentSamples)
             if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
-                drivers.append(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d calibration readings",
+                drivers.append(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d recent calibration readings",
                                       est.systolic, est.diastolic,
                                       est.systolicUncertainty, est.diastolicUncertainty,
                                       est.calibrationCount))
@@ -328,10 +328,10 @@ public struct BloodPressureInsight: InsightModel {
                     confidence = .experimental
                     explanation = "Experimental estimate only — not a measurement. Log a cuff reading for a value you can trust."
                 }
-            } else if status.initialComplete {
-                // Enough readings exist, but too few line up with a nearby
+            } else if status.isGrounded {
+                // Enough recent readings exist, but too few line up with a nearby
                 // resting-HR sample to fit the model yet.
-                drivers.append("Experimental estimate will appear once more of your readings line up with resting-heart-rate data.")
+                drivers.append("Experimental estimate will appear once more of your recent readings line up with resting-heart-rate data.")
             }
         }
 

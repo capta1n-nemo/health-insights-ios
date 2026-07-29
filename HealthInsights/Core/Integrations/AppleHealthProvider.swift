@@ -22,6 +22,11 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
     /// and restore "connected" on relaunch instead of asking them to reconnect
     /// every time.
     private let connectedKey = "integration.connected.apple_health"
+    /// Re-request authorization once per launch so newly-added read types (e.g.
+    /// after an app update that expands what we import) get surfaced. HealthKit
+    /// only prompts for types the user hasn't decided yet, so this is silent once
+    /// everything's been granted.
+    private var didRequestAuthThisLaunch = false
 
     init(service: HealthKitService) {
         self.service = service
@@ -58,6 +63,11 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
     }
 
     func sync() async throws -> SyncedData {
+        // Ensure any read types added since the user first connected are authorized.
+        if !didRequestAuthThisLaunch {
+            didRequestAuthThisLaunch = true
+            try? await service.requestAuthorization()
+        }
         let data = await service.fetchAllData()
         status = .connected(lastSync: Date())
         return data

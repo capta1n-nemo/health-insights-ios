@@ -101,8 +101,8 @@ struct InsightDetailView: View {
 
     @ViewBuilder private var trendCard: some View {
         let metric = primaryMetric
-        let breakdown = model.breakdown(metric)
-        if !breakdown.sources.isEmpty {
+        let breakdown = model.breakdown(metric, within: timeframe)
+        if !model.breakdown(metric).sources.isEmpty {   // has data at all
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(metric.displayName).font(.headline)
@@ -111,7 +111,12 @@ struct InsightDetailView: View {
                     }
                     .pickerStyle(.segmented)
                     MultiSourceChart(breakdown: breakdown, window: window)
-                    SourceBreakdown(breakdown: breakdown)
+                    if breakdown.sources.isEmpty {
+                        Text("No readings in \(timeframe.longLabel.lowercased()).")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        SourceBreakdown(breakdown: breakdown)
+                    }
                     NavigationLink {
                         MetricDetailView(metric: metric)
                     } label: {

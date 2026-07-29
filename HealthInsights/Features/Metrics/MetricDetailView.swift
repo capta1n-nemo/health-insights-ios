@@ -11,14 +11,20 @@ struct MetricDetailView: View {
     @State private var logScale = false
     @State private var timeframe: Timeframe = .month
 
-    private var breakdown: MultiSourceBreakdown { model.breakdown(metric) }
+    /// Restricted to the selected timeframe, so the per-source read-outs and
+    /// averages reflect only that window (not stale latest values).
+    private var breakdown: MultiSourceBreakdown { model.breakdown(metric, within: timeframe) }
     /// Seconds of history to show; `.all` maps to a very large window.
     private var window: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
+
+    /// Whether the metric has any data at all (across all time) — used so the
+    /// timeframe picker stays available even when the chosen window is empty.
+    private var hasAnyData: Bool { !model.breakdown(metric).sources.isEmpty }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacing) {
-                if breakdown.sources.isEmpty {
+                if !hasAnyData {
                     ContentUnavailableView(
                         "No \(metric.displayName.lowercased()) yet",
                         systemImage: "waveform.path.ecg",
@@ -26,8 +32,15 @@ struct MetricDetailView: View {
                         .padding(.top, 40)
                 } else {
                     overlayCard
-                    Card { SourceBreakdown(breakdown: breakdown) }
-                    if breakdown.hasMultipleSources { statsCard }
+                    if breakdown.sources.isEmpty {
+                        Card {
+                            Text("No \(metric.displayName.lowercased()) in \(timeframe.longLabel.lowercased()). Try a longer timeframe.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Card { SourceBreakdown(breakdown: breakdown) }
+                        if breakdown.hasMultipleSources { statsCard }
+                    }
                 }
             }
             .padding()

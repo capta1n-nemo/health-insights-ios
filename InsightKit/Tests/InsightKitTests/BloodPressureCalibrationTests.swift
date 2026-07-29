@@ -20,7 +20,7 @@ final class BloodPressureCalibrationTests: XCTestCase {
         XCTAssertEqual(readings.count, 2)
         // Newest first.
         XCTAssertEqual(readings.first?.systolic, 120)
-        XCTAssertEqual(readings.first?.source, "Apple Watch")
+        XCTAssertEqual(readings.first?.source, "Apple Watch via Apple Health")
     }
 
     func testThreeRecentReadingsNeedTwoMoreForInitial() {
@@ -32,36 +32,35 @@ final class BloodPressureCalibrationTests: XCTestCase {
         let status = BloodPressureEstimator.calibrationStatus(from: samples)
         XCTAssertEqual(status.totalReadings, 3)
         XCTAssertEqual(status.recentReadings, 3)
-        XCTAssertFalse(status.initialComplete)
-        XCTAssertEqual(status.neededForInitial, 2)
+        XCTAssertFalse(status.isGrounded)
+        XCTAssertEqual(status.neededForGrounding, 2)
     }
 
-    func testFiveReadingsCompleteInitialCalibration() {
+    func testFiveRecentReadingsGround() {
         var samples: [HealthMetricSample] = []
         for d in [1.0, 5, 12, 18, 27] { samples += reading(120, 80, daysAgo: d) }
         let status = BloodPressureEstimator.calibrationStatus(from: samples)
-        XCTAssertEqual(status.totalReadings, 5)
-        XCTAssertTrue(status.initialComplete)
-        XCTAssertEqual(status.neededForInitial, 0)
+        XCTAssertEqual(status.recentReadings, 5)
+        XCTAssertTrue(status.isGrounded)
+        XCTAssertEqual(status.neededForGrounding, 0)
     }
 
-    func testMaintenanceFreshnessUsesLast30Days() {
-        // Initial done long ago, but nothing recent → needs maintenance readings.
+    func testOnlyLast30DaysCountTowardGrounding() {
+        // Five readings, but all older than 30 days → NOT grounded; they show in
+        // history (totalReadings) but don't count toward the 5.
         var samples: [HealthMetricSample] = []
-        for d in [200.0, 210, 220, 230, 240] { samples += reading(120, 80, daysAgo: d) }
+        for d in [40.0, 60, 90, 120, 150] { samples += reading(120, 80, daysAgo: d) }
         let status = BloodPressureEstimator.calibrationStatus(from: samples)
-        XCTAssertTrue(status.initialComplete)
+        XCTAssertEqual(status.totalReadings, 5)
         XCTAssertEqual(status.recentReadings, 0)
-        XCTAssertFalse(status.isFresh)
-        XCTAssertEqual(status.neededThisMonth, BloodPressureEstimator.maintenanceReadingsPerMonth)
+        XCTAssertFalse(status.isGrounded)
+        XCTAssertEqual(status.neededForGrounding, 5)
 
-        // Add two recent → fresh/grounded.
-        samples += reading(118, 78, daysAgo: 3)
-        samples += reading(122, 82, daysAgo: 10)
-        let fresh = BloodPressureEstimator.calibrationStatus(from: samples)
-        XCTAssertEqual(fresh.recentReadings, 2)
-        XCTAssertTrue(fresh.isFresh)
-        XCTAssertEqual(fresh.neededThisMonth, 0)
+        // Add five within 30 days → grounded.
+        for d in [2.0, 6, 11, 20, 28] { samples += reading(118, 78, daysAgo: d) }
+        let grounded = BloodPressureEstimator.calibrationStatus(from: samples)
+        XCTAssertEqual(grounded.recentReadings, 5)
+        XCTAssertTrue(grounded.isGrounded)
     }
 
     func testAppleHealthReadingsSatisfyCuffRequirement() {

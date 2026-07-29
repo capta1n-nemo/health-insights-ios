@@ -18,8 +18,7 @@ struct VitalsView: View {
     private static let categories: [(String, [MetricType])] = [
         ("Heart & circulation", [.heartRate, .restingHeartRate, .walkingHeartRateAverage,
                                  .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
-                                 .vo2Max, .respiratoryRate, .oxygenSaturation,
-                                 .bloodPressureSystolic, .bloodPressureDiastolic]),
+                                 .vo2Max, .respiratoryRate, .oxygenSaturation]),
         ("Body", [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
                   .boneMass, .bodyWaterPercentage, .height]),
         ("Sleep & recovery", [.sleepDurationHours, .bodyTemperature,
@@ -36,11 +35,12 @@ struct VitalsView: View {
     }
 
     private var otherGroups: [RawMetricGroup] { model.otherDataGroups }
+    private var bloodPressure: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
 
     var body: some View {
         NavigationStack {
             Group {
-                if groups.isEmpty && otherGroups.isEmpty {
+                if groups.isEmpty && otherGroups.isEmpty && bloodPressure.isEmpty {
                     ContentUnavailableView("No data yet", systemImage: "waveform.path.ecg",
                         description: Text("Connect Apple Health or a device in Settings, then pull to refresh."))
                 } else {
@@ -56,12 +56,35 @@ struct VitalsView: View {
                                 }
                             }
                         }
+                        bloodPressureSection
                         otherDataSection
                     }
                 }
             }
             .navigationTitle("Vitals")
             .refreshable { await model.refresh() }
+        }
+    }
+
+    /// One consolidated Blood Pressure entry (systolic + diastolic together),
+    /// Apple-Health style, opening the combined BP screen.
+    @ViewBuilder private var bloodPressureSection: some View {
+        if let latest = bloodPressure.first {
+            Section {
+                NavigationLink {
+                    BloodPressureLogView()
+                } label: {
+                    HStack {
+                        Text("Blood Pressure")
+                        Spacer()
+                        Text("\(Int(latest.systolic.rounded()))/\(Int(latest.diastolic.rounded())) mmHg")
+                            .foregroundStyle(.secondary).monospacedDigit()
+                        Text("· \(bloodPressure.count)").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text("Blood pressure")
+            }
         }
     }
 
