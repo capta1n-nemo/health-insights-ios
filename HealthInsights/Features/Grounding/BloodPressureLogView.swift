@@ -105,21 +105,20 @@ struct BloodPressureLogView: View {
         }
     }
 
+    // Kept deliberately small and split across several members: as one
+    // expression the chart, its marks, the scrub annotation and the surrounding
+    // stack were more than the type checker would take.
     @ViewBuilder private var bpChart: some View {
+        chart
+        legend
+        Text("Drag across the chart to read a reading; swipe it sideways to move back through your history.")
+            .font(.caption2).foregroundStyle(.tertiary)
+    }
+
+    private var chart: some View {
         Chart {
             ForEach(readings) { r in
-                LineMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic),
-                         series: .value("Reading", "Systolic"))
-                    .foregroundStyle(Theme.sourceColor(0))
-                    .interpolationMethod(.linear)
-                PointMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic))
-                    .foregroundStyle(Theme.sourceColor(0)).symbolSize(20)
-                LineMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic),
-                         series: .value("Reading", "Diastolic"))
-                    .foregroundStyle(Theme.sourceColor(1))
-                    .interpolationMethod(.linear)
-                PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
-                    .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
+                seriesMarks(for: r)
             }
             if let selected, let r = reading(at: selected) {
                 RuleMark(x: .value("Selected", selected))
@@ -127,16 +126,7 @@ struct BloodPressureLogView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top, spacing: 4,
                                 overflowResolution: .init(x: .fitToChart, y: .disabled)) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
-                                .font(.caption2.weight(.semibold)).monospacedDigit()
-                            Text(r.category).font(.caption2).foregroundStyle(.secondary)
-                            Text(r.date.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2).foregroundStyle(.tertiary)
-                        }
-                        .padding(7)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
-                        .shadow(radius: 2, y: 1)
+                        callout(r)
                     }
             }
         }
@@ -145,21 +135,53 @@ struct BloodPressureLogView: View {
         .chartScrollPosition(x: scrollBinding)
         .chartXSelection(value: $selected)
         .frame(height: 180)
-        .overlay {
-            if chartReadings.isEmpty {
-                Text("No readings in this window — swipe sideways to look further back.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).padding(.horizontal)
-            }
+        .overlay { emptyWindowNotice }
+    }
+
+    @ChartContentBuilder
+    private func seriesMarks(for r: BloodPressureEstimator.Reading) -> some ChartContent {
+        LineMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic),
+                 series: .value("Reading", "Systolic"))
+            .foregroundStyle(Theme.sourceColor(0))
+            .interpolationMethod(.linear)
+        PointMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic))
+            .foregroundStyle(Theme.sourceColor(0)).symbolSize(20)
+        LineMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic),
+                 series: .value("Reading", "Diastolic"))
+            .foregroundStyle(Theme.sourceColor(1))
+            .interpolationMethod(.linear)
+        PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
+            .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
+    }
+
+    private func callout(_ r: BloodPressureEstimator.Reading) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
+                .font(.caption2.weight(.semibold)).monospacedDigit()
+            Text(r.category).font(.caption2).foregroundStyle(.secondary)
+            Text(r.date.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption2).foregroundStyle(.tertiary)
         }
+        .padding(7)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 7))
+        .shadow(radius: 2, y: 1)
+    }
+
+    @ViewBuilder private var emptyWindowNotice: some View {
+        if chartReadings.isEmpty {
+            Text("No readings in this window — swipe sideways to look further back.")
+                .font(.footnote).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal)
+        }
+    }
+
+    private var legend: some View {
         HStack(spacing: 16) {
             legendDot("Systolic", Theme.sourceColor(0))
             legendDot("Diastolic", Theme.sourceColor(1))
             Spacer()
         }
         .font(.caption)
-        Text("Drag across the chart to read a reading; swipe it sideways to move back through your history.")
-            .font(.caption2).foregroundStyle(.tertiary)
     }
 
     private func legendDot(_ label: String, _ color: Color) -> some View {
