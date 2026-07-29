@@ -10,27 +10,16 @@ struct BloodPressureLogView: View {
     @Environment(AppModel.self) private var model
     @State private var showingAdd = false
 
-    private struct Reading: Identifiable {
-        let id = UUID()
-        let date: Date
-        let systolic: Double
-        let diastolic: Double
-        let source: String
-    }
+    private var readings: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
+    private var status: BloodPressureEstimator.CalibrationStatus { model.bloodPressureCalibration }
 
-    /// Pair systolic + diastolic samples (from every source) by nearest time.
-    private var readings: [Reading] {
-        let systolic = model.series(.bloodPressureSystolic)
-        let diastolic = model.series(.bloodPressureDiastolic)
-        guard !systolic.isEmpty else { return [] }
-        return systolic.compactMap { s -> Reading? in
-            guard let d = diastolic.min(by: {
-                abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
-            }), abs(d.start.timeIntervalSince(s.start)) <= 2 * 3600 else { return nil }
-            return Reading(date: s.start, systolic: s.value, diastolic: d.value,
-                           source: s.source.displayName)
-        }
-        .sorted { $0.date > $1.date }
+    /// Split the history so recent readings (the ones keeping the estimate
+    /// grounded) are visible at a glance, while all history is still listed.
+    private var recent: [BloodPressureEstimator.Reading] {
+        readings.filter { Date().timeIntervalSince($0.date) <= BloodPressureEstimator.maintenanceWindow }
+    }
+    private var earlier: [BloodPressureEstimator.Reading] {
+        readings.filter { Date().timeIntervalSince($0.date) > BloodPressureEstimator.maintenanceWindow }
     }
 
     var body: some View {
@@ -41,37 +30,31 @@ struct BloodPressureLogView: View {
                 } label: {
                     Label("Add a reading", systemImage: "plus.circle.fill")
                 }
+                CalibrationProgress(status: status)
+            } header: {
+                Text("Calibration")
             } footer: {
-                let n = readings.count
-                if n < BloodPressureEstimator.minimumCalibrationPoints {
-                    Text("Log \(BloodPressureEstimator.minimumCalibrationPoints - n) more reading\(BloodPressureEstimator.minimumCalibrationPoints - n == 1 ? "" : "s") to unlock the personalised estimate. Readings from Apple Health count too.")
-                } else {
-                    Text("You have enough readings for the personalised estimate. Keep logging to improve it.")
-                }
+                Text("It takes \(BloodPressureEstimator.initialCalibrationReadings) cuff readings to calibrate the estimate, then about \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month to keep it grounded. Readings already in Apple Health count automatically.")
             }
 
             if readings.isEmpty {
                 Section {
-                    Text("No readings yet. Add one from a cuff, or log some in Apple Health — they'll show here automatically.")
+                    Text("No readings yet. Add one from a cuff, or log some in Apple Health — they'll show here automatically with their dates.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             } else {
-                Section("Your readings") {
-                    ForEach(readings) { r in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
-                                    .font(.body.weight(.semibold))
-                                Text(BloodPressureEstimator.category(systolic: r.systolic, diastolic: r.diastolic))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(r.date.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
-                                Text(r.source).font(.caption2).foregroundStyle(.tertiary)
-                            }
-                        }
+                if !recent.isEmpty {
+                    Section {
+                        ForEach(recent) { readingRow($0) }
+                    } header: {
+                        Text("Last 30 days · \(recent.count)")
+                    }
+                }
+                if !earlier.isEmpty {
+                    Section {
+                        ForEach(earlier) { readingRow($0) }
+                    } header: {
+                        Text("Earlier · \(earlier.count)")
                     }
                 }
             }
@@ -83,6 +66,47 @@ struct BloodPressureLogView: View {
                 model.logBloodPressure(systolic: systolic, diastolic: diastolic, at: date)
             }
         }
+    }
+
+    private func readingRow(_ r: BloodPressureEstimator.Reading) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Int(r.systolic.rounded()))/\(Int(r.diastolic.rounded())) mmHg")
+                    .font(.body.weight(.semibold))
+                Text(r.category)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(r.date.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption)
+                Text(r.source).font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
+/// A compact "N of 5" (or "grounded this month") progress row for BP calibration.
+private struct CalibrationProgress: View {
+    let status: BloodPressureEstimator.CalibrationStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !status.initialComplete {
+                ProgressView(value: Double(status.totalReadings),
+                             total: Double(BloodPressureEstimator.initialCalibrationReadings))
+                    .tint(Theme.accent)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: status.isFresh ? "checkmark.seal.fill"
+                      : (status.initialComplete ? "clock.badge.exclamationmark" : "target"))
+                    .foregroundStyle(status.isFresh ? Theme.good : Theme.accent)
+                Text(status.guidance)
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 

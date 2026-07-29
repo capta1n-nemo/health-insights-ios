@@ -99,15 +99,25 @@ final class HealthKitService {
         #endif
     }
 
-    /// Fetch recent samples for all mapped types within `days`.
+    /// Metrics we pull the *full* history for rather than just the recent window.
+    /// Blood pressure is sparse and every past reading helps calibrate/ground the
+    /// estimate, so we read years of it, not 90 days.
+    private static let longHistoryMetrics: Set<MetricType> = [
+        .bloodPressureSystolic, .bloodPressureDiastolic
+    ]
+
+    /// Fetch recent samples for all mapped types within `days` — except the
+    /// long-history metrics (blood pressure), which are read all the way back.
     func fetchRecentSamples(days: Int = 90) async -> [HealthMetricSample] {
         #if canImport(HealthKit)
         guard isAvailable else { return [] }
         let start = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        let longStart = Calendar.current.date(byAdding: .year, value: -10, to: Date()) ?? start
         var results: [HealthMetricSample] = []
         for (id, metric, unit) in readMap {
             guard let qType = HKQuantityType.quantityType(forIdentifier: id) else { continue }
-            let samples = await fetchQuantity(qType, metric: metric, unit: unit, start: start)
+            let from = Self.longHistoryMetrics.contains(metric) ? longStart : start
+            let samples = await fetchQuantity(qType, metric: metric, unit: unit, start: from)
             results.append(contentsOf: samples)
         }
         results.append(contentsOf: await fetchSleep(start: start))

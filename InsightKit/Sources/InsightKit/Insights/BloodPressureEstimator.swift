@@ -15,6 +15,93 @@ public enum BloodPressureEstimator {
     /// number at all.
     public static let minimumCalibrationPoints = 5
 
+    /// Readings needed to complete the one-time initial calibration.
+    public static let initialCalibrationReadings = 5
+
+    /// Readings expected per month afterwards to keep the estimate grounded.
+    public static let maintenanceReadingsPerMonth = 2
+
+    /// The trailing window that defines "this month" for maintenance/freshness.
+    public static let maintenanceWindow: TimeInterval = 30 * 24 * 3600
+
+    /// A single cuff reading (systolic + diastolic) at a point in time, from any
+    /// source — logged in-app, in Apple Health, or synced from Withings. This is
+    /// the shared pairing used by both the reading list and calibration counting.
+    public struct Reading: Sendable, Equatable, Identifiable {
+        public let id: UUID
+        public let date: Date
+        public let systolic: Double
+        public let diastolic: Double
+        public let source: String
+        public init(id: UUID = UUID(), date: Date, systolic: Double, diastolic: Double, source: String) {
+            self.id = id; self.date = date; self.systolic = systolic
+            self.diastolic = diastolic; self.source = source
+        }
+        public var category: String { BloodPressureEstimator.category(systolic: systolic, diastolic: diastolic) }
+    }
+
+    /// Pair every systolic sample with its nearest diastolic (within
+    /// `pairingWindow`) across **all** sources, newest first. Apple Health and
+    /// Withings readings are included automatically, each keeping its own date
+    /// and source label.
+    public static func pairedReadings(from samples: [HealthMetricSample],
+                                      pairingWindow: TimeInterval = 2 * 3600) -> [Reading] {
+        let systolic = samples.samples(of: .bloodPressureSystolic)
+        let diastolic = samples.samples(of: .bloodPressureDiastolic)
+        guard !systolic.isEmpty else { return [] }
+        var out: [Reading] = []
+        for s in systolic {
+            guard let d = diastolic.min(by: {
+                abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
+            }), abs(d.start.timeIntervalSince(s.start)) <= pairingWindow else { continue }
+            out.append(Reading(date: s.start, systolic: s.value, diastolic: d.value,
+                               source: s.source.displayName))
+        }
+        return out.sorted { $0.date > $1.date }
+    }
+
+    /// Where the user is in the calibration journey: how many cuff readings they
+    /// have in total (all history, incl. Apple Health) and how many are recent
+    /// enough to keep the estimate grounded.
+    public struct CalibrationStatus: Sendable, Equatable {
+        public let totalReadings: Int
+        public let recentReadings: Int
+        public init(totalReadings: Int, recentReadings: Int) {
+            self.totalReadings = totalReadings
+            self.recentReadings = recentReadings
+        }
+
+        /// The one-time initial calibration is done once there are enough readings.
+        public var initialComplete: Bool { totalReadings >= BloodPressureEstimator.initialCalibrationReadings }
+        public var neededForInitial: Int { max(0, BloodPressureEstimator.initialCalibrationReadings - totalReadings) }
+        public var neededThisMonth: Int { max(0, BloodPressureEstimator.maintenanceReadingsPerMonth - recentReadings) }
+        /// Whether there are enough recent readings to consider the estimate fresh.
+        public var isFresh: Bool { recentReadings >= BloodPressureEstimator.maintenanceReadingsPerMonth }
+
+        /// One plain-language sentence describing what to do next.
+        public var guidance: String {
+            if !initialComplete {
+                let n = neededForInitial
+                return "Initial calibration: \(totalReadings) of \(BloodPressureEstimator.initialCalibrationReadings) readings. Log \(n) more from a cuff to start — readings already in Apple Health count."
+            }
+            if !isFresh {
+                let n = neededThisMonth
+                return "Calibrated. Log \(n) more reading\(n == 1 ? "" : "s") this month to keep it grounded (about 2 a month)."
+            }
+            return "Calibrated and up to date — \(recentReadings) reading\(recentReadings == 1 ? "" : "s") in the last 30 days."
+        }
+    }
+
+    /// Compute the calibration status from the user's samples: all paired cuff
+    /// readings count toward the initial 5; those within the last 30 days count
+    /// toward staying grounded.
+    public static func calibrationStatus(from samples: [HealthMetricSample],
+                                         now: Date = Date()) -> CalibrationStatus {
+        let pairs = pairedReadings(from: samples)
+        let recent = pairs.filter { now.timeIntervalSince($0.date) <= maintenanceWindow }.count
+        return CalibrationStatus(totalReadings: pairs.count, recentReadings: recent)
+    }
+
     /// A cuff reading paired with contemporaneous features (resting HR, and
     /// optionally HRV, which correlates with vascular tone / BP).
     public struct CalibrationPoint: Sendable, Equatable {
@@ -193,11 +280,18 @@ public struct BloodPressureInsight: InsightModel {
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
-        let unmet = unmetRequirements(profile: profile, now: now)
-
         // Latest trusted reading: prefer fresh grounding, else most recent sample.
         let sys = profile.cuffSystolic ?? samples.latestValue(.bloodPressureSystolic)
         let dia = profile.cuffDiastolic ?? samples.latestValue(.bloodPressureDiastolic)
+
+        // Cuff readings already in Apple Health (or Withings) satisfy the "log a
+        // reading" requirement — the user shouldn't be asked to re-enter what
+        // the phone already has.
+        let status = BloodPressureEstimator.calibrationStatus(from: samples, now: now)
+        var unmet = unmetRequirements(profile: profile, now: now)
+        if status.totalReadings > 0 || (sys != nil && dia != nil) {
+            unmet.removeAll { $0.kind == .cuffSystolic || $0.kind == .cuffDiastolic }
+        }
 
         var drivers: [String] = []
         var headline = "Log a reading"
@@ -213,6 +307,9 @@ public struct BloodPressureInsight: InsightModel {
             drivers.append("Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))")
             explanation = "Your latest measured blood pressure is \(Int(s.rounded()))/\(Int(d.rounded())) mmHg — \(cat)."
         }
+
+        // Calibration expectation, grounded in readings already on the device.
+        drivers.append(status.guidance)
 
         // Experimental personalised estimate (clearly separated).
         if experimentalEstimateEnabled,
@@ -231,9 +328,10 @@ public struct BloodPressureInsight: InsightModel {
                     confidence = .experimental
                     explanation = "Experimental estimate only — not a measurement. Log a cuff reading for a value you can trust."
                 }
-            } else {
-                let have = calibration.count
-                drivers.append("Experimental estimator needs \(BloodPressureEstimator.minimumCalibrationPoints) paired readings to calibrate (have \(have)).")
+            } else if status.initialComplete {
+                // Enough readings exist, but too few line up with a nearby
+                // resting-HR sample to fit the model yet.
+                drivers.append("Experimental estimate will appear once more of your readings line up with resting-heart-rate data.")
             }
         }
 

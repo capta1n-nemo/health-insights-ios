@@ -151,6 +151,17 @@ final class AppModel {
         MultiSource.breakdown(metric, from: samples)
     }
 
+    /// Every paired blood-pressure reading across all sources (logged in-app,
+    /// already in Apple Health, or synced from Withings), newest first.
+    var bloodPressureReadings: [BloodPressureEstimator.Reading] {
+        BloodPressureEstimator.pairedReadings(from: samples)
+    }
+
+    /// Where the user is in the BP calibration journey (5 to start, ~2/month).
+    var bloodPressureCalibration: BloodPressureEstimator.CalibrationStatus {
+        BloodPressureEstimator.calibrationStatus(from: samples)
+    }
+
     var outstandingGrounding: [(requirement: GroundingRequirement, status: RequirementStatus)] {
         engine.outstandingGrounding(profile: profile)
     }
