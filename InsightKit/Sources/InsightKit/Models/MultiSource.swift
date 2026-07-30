@@ -10,6 +10,15 @@ public struct SourceSeries: Sendable, Identifiable, Equatable {
     public var displayName: String { source.displayName }
 
     public var latest: Double? { samples.last?.value }
+
+    /// Every path that fed this series. More than one is normal and worth
+    /// showing: the same ring can report directly and through Apple Health.
+    public var origins: Set<SourceOrigin> {
+        Set(samples.map(\.source.origin))
+    }
+
+    /// The path the newest reading took.
+    public var latestOrigin: SourceOrigin? { samples.last?.source.origin }
     public var mean: Double? {
         guard !samples.isEmpty else { return nil }
         return samples.map(\.value).reduce(0, +) / Double(samples.count)
@@ -59,6 +68,32 @@ public struct SourceSeries: Sendable, Identifiable, Equatable {
     }
 }
 
+/// Sources divided into those describing the present and those that have gone
+/// quiet, so stale readings can be shown as history without polluting "now".
+public struct SourceActivity: Sendable {
+    public struct Stale: Sendable {
+        public let series: SourceSeries
+        public let lastActive: Date
+
+        public init(series: SourceSeries, lastActive: Date) {
+            self.series = series
+            self.lastActive = lastActive
+        }
+    }
+
+    public let active: [SourceSeries]
+    public let inactive: [Stale]
+
+    public init(active: [SourceSeries], inactive: [Stale]) {
+        self.active = active
+        self.inactive = inactive
+    }
+
+    /// A discrepancy is only worth reporting between sources that are both
+    /// currently reporting.
+    public var canCompare: Bool { active.count >= 2 }
+}
+
 /// A metric split by the device that produced it, so the UI can overlay each
 /// source on one chart and show "Apple said X, Oura said Y, average Z". This is
 /// the universal building block every card uses to be honest about multiple,
@@ -106,6 +141,54 @@ public struct MultiSourceBreakdown: Sendable, Equatable {
     /// Each series thinned for plotting. See `SourceSeries.downsampled(to:)`.
     public func downsampled(to limit: Int) -> MultiSourceBreakdown {
         MultiSourceBreakdown(type: type, sources: sources.map { $0.downsampled(to: limit) })
+    }
+
+    /// Oldest → newest extent across every source; nil when there is no data.
+    /// The chart derives its scroll domain and its `.all` window from this.
+    public var dateSpan: ClosedRange<Date>? {
+        let starts = sources.compactMap(\.samples.first?.start)
+        let ends = sources.compactMap(\.samples.last?.start)
+        guard let first = starts.min(), let last = ends.max(), first <= last else { return nil }
+        return first...last
+    }
+
+    /// Sources split by whether they reported recently enough to describe "now".
+    ///
+    /// A phone that last logged a weight in 2022 still belongs on the chart, but
+    /// letting it into the current average invents a discrepancy that doesn't
+    /// exist today.
+    public func activity(in range: ClosedRange<Date>,
+                         recencyWindow: TimeInterval) -> SourceActivity {
+        let cutoff = range.upperBound.addingTimeInterval(-recencyWindow)
+        var active: [SourceSeries] = []
+        var inactive: [SourceActivity.Stale] = []
+        for series in sources {
+            let inRange = series.restricted(to: range)
+            guard let lastSeen = inRange.samples.last?.start
+                    ?? series.samples.last?.start else { continue }
+            if !inRange.samples.isEmpty && lastSeen >= cutoff {
+                active.append(inRange)
+            } else {
+                inactive.append(.init(series: inRange.samples.isEmpty ? series : inRange,
+                                      lastActive: lastSeen))
+            }
+        }
+        return SourceActivity(active: active, inactive: inactive)
+    }
+
+    /// Mean of the given sources' latest values — the honest "average right now"
+    /// when passed only the active ones.
+    public func consensus(over series: [SourceSeries]) -> Double? {
+        let values = series.compactMap(\.latest)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    /// Disagreement between the given sources' latest values.
+    public func spread(over series: [SourceSeries]) -> Double? {
+        let values = series.compactMap(\.latest)
+        guard let lo = values.min(), let hi = values.max() else { return nil }
+        return hi - lo
     }
 
     /// The spread between sources' latest values (0 when they agree / single).

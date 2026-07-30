@@ -32,6 +32,23 @@ public struct MetricSource: Codable, Sendable, Hashable {
         return MetricSource(id: "apple_health/\(slug)", displayName: label)
     }
 
+    /// Which path a reading travelled to reach us.
+    ///
+    /// Distinct from `deviceFamily`, which deliberately collapses paths so the
+    /// same physical reading isn't counted twice. This says *how* it arrived, so
+    /// the UI can label "Oura (Direct API)" versus "Oura (via Apple Health)"
+    /// without splitting them into competing series.
+    ///
+    /// Derived from `id`, not `displayName`, because persistence round-trips
+    /// preserve the id but rebuild the display name.
+    public var origin: SourceOrigin {
+        if id == "manual" { return .manual }
+        if id == "document" { return .document }
+        guard id.hasPrefix("apple_health") else { return .directAPI }
+        let name = "\(id) \(displayName)".lowercased()
+        return name.contains("watch") ? .appleWatch : .appleHealth
+    }
+
     /// A normalised device identity used to de-duplicate the same physical
     /// device arriving through more than one path — e.g. Oura synced directly
     /// via its API *and* mirrored into Apple Health both collapse to "oura".

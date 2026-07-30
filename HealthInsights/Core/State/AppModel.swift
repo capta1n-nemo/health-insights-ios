@@ -31,6 +31,7 @@ final class AppModel {
     @ObservationIgnored private var breakdownCache: [MetricType: MultiSourceBreakdown] = [:]
     @ObservationIgnored private var vitalsSummaryCache: [MetricType: VitalsSummary]?
     @ObservationIgnored private var otherGroupCache: [RawMetricGroup]?
+    @ObservationIgnored private var bloodPressureCache: [BloodPressureEstimator.Reading]?
 
     /// What a Vitals row needs, without building a full breakdown per row.
     struct VitalsSummary {
@@ -41,6 +42,7 @@ final class AppModel {
     private func invalidateDerivedCaches() {
         breakdownCache.removeAll(keepingCapacity: true)
         vitalsSummaryCache = nil
+        bloodPressureCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
@@ -252,8 +254,14 @@ final class AppModel {
 
     /// Every paired blood-pressure reading across all sources (logged in-app,
     /// already in Apple Health, or synced from Withings), newest first.
+    ///
+    /// Cached like the breakdowns: pairing is O(systolic × diastolic), and the
+    /// blood-pressure screen reads this several times per redraw.
     var bloodPressureReadings: [BloodPressureEstimator.Reading] {
-        BloodPressureEstimator.pairedReadings(from: samples)
+        if let cached = bloodPressureCache { return cached }
+        let built = BloodPressureEstimator.pairedReadings(from: samples)
+        bloodPressureCache = built
+        return built
     }
 
     /// Where the user is in the BP calibration journey (5 to start, ~2/month).

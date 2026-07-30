@@ -17,16 +17,18 @@ extension Theme {
 }
 
 /// Formats a metric value for compact display.
+///
+/// Forwards to `MetricValueFormatter` so every call site picks up the
+/// metric-aware precision — notably height, which is stored in metres and used
+/// to round to a bare "2".
 func formatMetric(_ value: Double, _ type: MetricType) -> String {
-    switch type {
-    case .bodyMass, .leanBodyMass, .sleepDurationHours, .bodyTemperature,
-         .skinTemperatureDeviation, .dayStrain:
-        return String(format: "%.1f", value)
-    case .bodyFatPercentage, .oxygenSaturation:
-        return String(format: "%.0f%%", value)
-    default:
-        return "\(Int(value.rounded()))"
-    }
+    MetricValueFormatter.string(value, type)
+}
+
+/// Whether `formatMetric` already rendered the unit, so callers don't append a
+/// second one (height comes back as "185 cm", not "185").
+func formatMetricIncludesUnit(_ type: MetricType) -> Bool {
+    MetricValueFormatter.includesUnit(type)
 }
 
 /// Overlays every source of one metric on a single chart — one coloured line

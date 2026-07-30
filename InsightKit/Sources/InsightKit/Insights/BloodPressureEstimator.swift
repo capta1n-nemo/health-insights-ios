@@ -246,11 +246,72 @@ public enum BloodPressureEstimator {
 
     /// Simple ACC/AHA-style category from a systolic/diastolic pair.
     public static func category(systolic: Double, diastolic: Double) -> String {
-        if systolic >= 180 || diastolic >= 120 { return "Hypertensive crisis" }
-        if systolic >= 140 || diastolic >= 90 { return "Stage 2 hypertension" }
-        if systolic >= 130 || diastolic >= 80 { return "Stage 1 hypertension" }
-        if systolic >= 120 { return "Elevated" }
-        return "Normal"
+        Category.of(systolic: systolic, diastolic: diastolic).displayName
+    }
+
+    /// The ACC/AHA bands as data rather than a string, so the UI can colour a
+    /// reading and show where it sits among the rest.
+    public enum Category: String, Sendable, CaseIterable, Comparable {
+        case normal, elevated, stage1, stage2, crisis
+
+        public var displayName: String {
+            switch self {
+            case .normal: return "Normal"
+            case .elevated: return "Elevated"
+            case .stage1: return "Stage 1 hypertension"
+            case .stage2: return "Stage 2 hypertension"
+            case .crisis: return "Hypertensive crisis"
+            }
+        }
+
+        /// A reading falls in the *higher* of the bands its two numbers imply —
+        /// the standard rule, and the safe direction to err in.
+        public static func of(systolic: Double, diastolic: Double) -> Category {
+            if systolic >= 180 || diastolic >= 120 { return .crisis }
+            if systolic >= 140 || diastolic >= 90 { return .stage2 }
+            if systolic >= 130 || diastolic >= 80 { return .stage1 }
+            if systolic >= 120 { return .elevated }
+            return .normal
+        }
+
+        private var rank: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+        public static func < (a: Category, b: Category) -> Bool { a.rank < b.rank }
+    }
+
+    /// Diastolic plus a third of the pulse pressure — the average pressure over
+    /// a cardiac cycle, weighted towards diastole because the heart spends
+    /// longer there.
+    public static func meanArterialPressure(systolic: Double, diastolic: Double) -> Double {
+        diastolic + (systolic - diastolic) / 3
+    }
+
+    /// Splits readings into those still counting towards grounding and those
+    /// that are only history.
+    ///
+    /// Only the last `maintenanceWindow` counts, so this is what keeps an older
+    /// reading visible without letting it prop up the calibration.
+    public static func split(_ readings: [Reading], now: Date = Date())
+        -> (recent: [Reading], earlier: [Reading]) {
+        var recent: [Reading] = []
+        var earlier: [Reading] = []
+        for reading in readings {
+            if now.timeIntervalSince(reading.date) <= maintenanceWindow {
+                recent.append(reading)
+            } else {
+                earlier.append(reading)
+            }
+        }
+        return (recent, earlier)
+    }
+}
+
+public extension BloodPressureEstimator.Reading {
+    var categoryValue: BloodPressureEstimator.Category {
+        .of(systolic: systolic, diastolic: diastolic)
+    }
+
+    var meanArterialPressure: Double {
+        BloodPressureEstimator.meanArterialPressure(systolic: systolic, diastolic: diastolic)
     }
 }
 

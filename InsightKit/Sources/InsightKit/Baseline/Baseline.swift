@@ -46,6 +46,59 @@ public enum Baseline {
         return Double(below) / Double(history.count)
     }
 
+    /// The whole EWMA curve rather than just its final value — the smoothed
+    /// line a trend chart draws. Input and output are oldest → newest.
+    public static func ewmaSeries(_ xs: [Double], alpha: Double = 0.3) -> [Double] {
+        guard let first = xs.first else { return [] }
+        var acc = first
+        var out: [Double] = [first]
+        out.reserveCapacity(xs.count)
+        for x in xs.dropFirst() {
+            acc = alpha * x + (1 - alpha) * acc
+            out.append(acc)
+        }
+        return out
+    }
+
+    /// The value at quantile `q` (0…1), linearly interpolated.
+    ///
+    /// The inverse of `percentile(_:history:)`: that answers "how high does this
+    /// value rank?", this answers "what value sits at that rank?" — which is
+    /// what a p10–p90 range needs.
+    public static func quantile(_ q: Double, of xs: [Double]) -> Double? {
+        guard !xs.isEmpty else { return nil }
+        let sorted = xs.sorted()
+        if sorted.count == 1 { return sorted[0] }
+        let clamped = Swift.min(Swift.max(q, 0), 1)
+        let position = clamped * Double(sorted.count - 1)
+        let lower = Int(position.rounded(.down))
+        let upper = Swift.min(lower + 1, sorted.count - 1)
+        let fraction = position - Double(lower)
+        return sorted[lower] + (sorted[upper] - sorted[lower]) * fraction
+    }
+
+    /// Ordinary least-squares fit of y on x.
+    ///
+    /// Used for trend velocity: a slope over the whole window is far less jumpy
+    /// than (last − first), which one noisy final reading can swing.
+    public static func linearRegression(x: [Double], y: [Double])
+        -> (slope: Double, intercept: Double, residualSD: Double)? {
+        guard x.count == y.count, x.count >= 2,
+              let mx = mean(x), let my = mean(y) else { return nil }
+        var sxx = 0.0
+        var sxy = 0.0
+        for i in x.indices {
+            let dx = x[i] - mx
+            sxx += dx * dx
+            sxy += dx * (y[i] - my)
+        }
+        guard sxx > 0 else { return nil }   // no spread in x: slope undefined
+        let slope = sxy / sxx
+        let intercept = my - slope * mx
+        let residuals = x.indices.map { y[$0] - (slope * x[$0] + intercept) }
+        return (slope, intercept, standardDeviation(residuals) ?? 0)
+    }
+
     /// A compact description of where a fresh value sits relative to baseline.
     public struct Deviation: Sendable, Equatable {
         public let value: Double
