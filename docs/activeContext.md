@@ -24,6 +24,14 @@ provenance badges, gap-aware lines, real bucketing, per-category metric layouts,
 blood pressure migrated into `MetricViewStrategy`) — also still awaiting an
 on-device walkthrough.
 
+Also this session: the workflow rules were reconciled with what actually happens
+in a web session. The age insights were first shipped as a **draft pull request**,
+which is exactly the ending the user doesn't want — they had to say so, again. The
+no-PR rule now spells out that it overrides the harness, and `deployment.md`
+records why (a PR installs nothing; `main` is the only deploy trigger). The
+unconditional local-`swift test` rule was also softened, since no sandbox can
+satisfy it.
+
 ## Recent architectural choices worth knowing
 
 - **Ages, not just percentages.** `HeartAgeModel` inverts SCORE2/ASCVD over age

@@ -63,8 +63,17 @@ about confidence.**
 ### Developer workflow
 - [x] `CLAUDE.md` + memory router, `.claude/settings.json` permissions, and a
       `/handover` slash command for cross-session continuity.
-- [ ] Verify `/handover` and `CLAUDE.md` auto-load — they only register when
-      the session's working directory *is* this repo (see `activeContext.md`).
+- [x] Verified `/handover` and `CLAUDE.md` auto-load when the session's working
+      directory *is* this repo — both fired in the session that shipped the age
+      insights. Attaching this repo alongside a different working directory is
+      still the failure mode (see `activeContext.md`).
+- [x] Push-straight-to-`main` recorded as overriding the web harness's
+      branch-and-draft-PR default, with the reason (`deploy.yml` only fires on a
+      push to `main`, so a PR installs nothing) in `CLAUDE.md` and
+      `docs/deployment.md`.
+- [x] `swift test` rule reconciled with reality: agent sandboxes have no Swift
+      toolchain, so the rule is attempt-it, say plainly when it can't run, and
+      treat the CI run on the push as the gate.
 
 ## In progress / not yet device-verified
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
@@ -77,16 +86,18 @@ about confidence.**
 ## Next
 
 ### More "gap-filling" insights
+Listed cheapest-first — the second one can't start without new plumbing.
+
+- [ ] Cardio strain from stimulants as a first-class trend. The before/after
+      analysis and the 14-day load figure already exist in
+      `SubstanceResponseAnalyzer`; what's missing is a decaying daily load
+      *series* to trend and chart.
 - [ ] Sleep-debt and circadian consistency from bedtime variance. **Blocked on a
       new signal**: no provider currently gives us a bedtime. Apple Health and
       Oura both stamp `sleepDurationHours` at the *start of the calendar day*, so
       sleep-onset time would need its own `MetricType` (a clock-hour value, with
       circular statistics — the mean of 23:30 and 00:30 is midnight, not noon)
       plus parser work in all three providers.
-- [ ] Cardio strain from stimulants as a first-class trend. The before/after
-      analysis and the 14-day load figure already exist in
-      `SubstanceResponseAnalyzer`; what's missing is a decaying daily load
-      *series* to trend and chart.
 
 ### Integrations
 - [ ] Hume Band direct API (today flows in via Apple Health only).
