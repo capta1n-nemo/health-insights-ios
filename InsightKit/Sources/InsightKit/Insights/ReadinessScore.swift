@@ -53,56 +53,59 @@ public enum ReadinessScore {
         clamp(65 + polarity * z * 20)
     }
 
-    public static func evaluate(samples: [HealthMetricSample]) -> Output? {
+    /// Readiness is a statement about *today*, so every component is the day's
+    /// de-duplicated value judged against a windowed baseline — see `VitalReader`
+    /// for why reading `series.last` against `series.dropLast()` was wrong in
+    /// four separate ways. A component whose reading is stale is dropped rather
+    /// than counted, because a week-old HRV says nothing about this morning.
+    public static func evaluate(samples: [HealthMetricSample],
+                                now: Date = Date()) -> Output? {
         var comps: [Component] = []
 
-        func history(_ type: MetricType) -> [Double] { samples.samples(of: type).map(\.value) }
+        func fresh(_ type: MetricType) -> VitalReading? {
+            guard let reading = VitalReader.reading(type, from: samples, now: now) else { return nil }
+            return reading.isFresh ? reading : nil
+        }
 
         // HRV — prefer rMSSD, fall back to SDNN. Higher than baseline is better.
-        let hrvMetric: MetricType = history(.heartRateVariabilityRMSSD).isEmpty
+        let hrvMetric: MetricType = fresh(.heartRateVariabilityRMSSD) == nil
             ? .heartRateVariabilitySDNN : .heartRateVariabilityRMSSD
-        let hrv = history(hrvMetric)
-        if hrv.count >= 4, let latest = hrv.last,
-           let z = Baseline.zScore(latest, history: Array(hrv.dropLast())) {
+        if let hrv = fresh(hrvMetric), let z = hrv.zScore {
             comps.append(.init(name: "HRV vs your baseline",
                                score: zScoreToScore(z, polarity: 1),
-                               weight: 0.40, detail: String(format: "%.0f ms", latest),
+                               weight: 0.40, detail: String(format: "%.0f ms", hrv.value),
                                metric: hrvMetric, higherIsBetter: true))
         }
 
         // Resting HR — lower than baseline is better.
-        let rhr = history(.restingHeartRate)
-        if rhr.count >= 4, let latest = rhr.last,
-           let z = Baseline.zScore(latest, history: Array(rhr.dropLast())) {
+        if let rhr = fresh(.restingHeartRate), let z = rhr.zScore {
             comps.append(.init(name: "Resting HR vs your baseline",
                                score: zScoreToScore(z, polarity: -1),
-                               weight: 0.25, detail: String(format: "%.0f bpm", latest),
+                               weight: 0.25, detail: String(format: "%.0f bpm", rhr.value),
                                metric: .restingHeartRate, higherIsBetter: false))
         }
 
         // Sleep — vs a 7.5 h target (6 h ≈ 55, 8 h ≈ 90).
-        if let sleep = samples.latestValue(.sleepDurationHours) {
-            let s = clamp((sleep - 4) / (8.0 - 4) * 100)
+        if let sleep = fresh(.sleepDurationHours) {
+            let s = clamp((sleep.value - 4) / (8.0 - 4) * 100)
             comps.append(.init(name: "Sleep", score: s, weight: 0.20,
-                               detail: String(format: "%.1f h", sleep),
+                               detail: String(format: "%.1f h", sleep.value),
                                metric: .sleepDurationHours, higherIsBetter: true))
         }
 
         // Skin-temp deviation — being near baseline is good; a spike (fever /
         // strain / alcohol) pulls it down. Uses the deviation directly.
-        if let dev = samples.latestValue(.skinTemperatureDeviation) {
-            let penalty = min(70, abs(dev) * 60)
+        if let temp = fresh(.skinTemperatureDeviation) {
+            let penalty = min(70, abs(temp.value) * 60)
             comps.append(.init(name: "Body temperature", score: clamp(92 - penalty),
-                               weight: 0.10, detail: String(format: "%+.1f °C", dev),
+                               weight: 0.10, detail: String(format: "%+.1f °C", temp.value),
                                metric: .skinTemperatureDeviation, higherIsBetter: nil))
         }
 
         // Respiratory rate — a rise above baseline is an early strain/illness sign.
-        let resp = history(.respiratoryRate)
-        if resp.count >= 4, let latest = resp.last,
-           let z = Baseline.zScore(latest, history: Array(resp.dropLast())) {
+        if let resp = fresh(.respiratoryRate), let z = resp.zScore {
             comps.append(.init(name: "Respiratory rate", score: zScoreToScore(z, polarity: -1),
-                               weight: 0.05, detail: String(format: "%.0f br/min", latest),
+                               weight: 0.05, detail: String(format: "%.0f br/min", resp.value),
                                metric: .respiratoryRate, higherIsBetter: false))
         }
 
@@ -111,17 +114,12 @@ public enum ReadinessScore {
         // feel it. Small weight: it's a narrow signal, and most nights it says
         // nothing. Absolute floor as well as a personal one, because a baseline
         // built from consistently low saturation would normalise the problem.
-        let spo2 = history(.oxygenSaturation)
-        if let latest = spo2.last {
-            let component: Double
-            if spo2.count >= 4, let z = Baseline.zScore(latest, history: Array(spo2.dropLast())) {
-                component = zScoreToScore(z, polarity: 1)
-            } else {
-                component = latest >= 95 ? 85 : 60
-            }
-            let floored = latest < 92 ? min(component, 40) : component
+        if let spo2 = fresh(.oxygenSaturation) {
+            let component = spo2.zScore.map { zScoreToScore($0, polarity: 1) }
+                ?? (spo2.value >= 95 ? 85 : 60)
+            let floored = spo2.value < 92 ? min(component, 40) : component
             comps.append(.init(name: "Blood oxygen", score: floored, weight: 0.05,
-                               detail: String(format: "%.0f%%", latest),
+                               detail: String(format: "%.0f%%", spo2.value),
                                metric: .oxygenSaturation, higherIsBetter: true))
         }
 
@@ -159,11 +157,11 @@ public struct ReadinessInsight: InsightModel {
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
-        guard let out = ReadinessScore.evaluate(samples: samples) else {
+        guard let out = ReadinessScore.evaluate(samples: samples, now: now) else {
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "Building baseline",
                 score: nil, confidence: .low,
-                explanation: "Wear your device for a few nights so we can learn your normal HRV, resting heart rate and sleep — then you'll get a daily readiness score.",
+                explanation: "Wear your device for a few nights so we can learn your normal HRV, resting heart rate and sleep — then you'll get a daily readiness score. Readings older than a day or so don't count: readiness is about today.",
                 drivers: [], unmetRequirements: [])
         }
         let confidence: InsightConfidence = out.components.count >= 3 ? .high

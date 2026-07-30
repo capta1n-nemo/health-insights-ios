@@ -38,13 +38,15 @@ final class ReadinessTests: XCTestCase {
         // High HRV + low RHR + good sleep = recovered.
         var good = hrvSamples([55, 58, 54, 57, 56, 80])          // last well above baseline
         good += rhrSamples([56, 55, 57, 56, 55, 48])             // last below baseline
-        good.append(HealthMetricSample(type: .sleepDurationHours, value: 8, start: day(6), source: .oura))
-        let goodOut = ReadinessScore.evaluate(samples: good)!
+        good.append(HealthMetricSample(type: .sleepDurationHours, value: 8, start: day(5), source: .oura))
+        // `now` is explicit because readiness only counts fresh readings now —
+        // a fixture pinned to a 2023 epoch is otherwise entirely stale.
+        let goodOut = ReadinessScore.evaluate(samples: good, now: day(5))!
 
         var bad = hrvSamples([55, 58, 54, 57, 56, 30])           // crashed HRV
         bad += rhrSamples([56, 55, 57, 56, 55, 74])              // spiked RHR
-        bad.append(HealthMetricSample(type: .sleepDurationHours, value: 4.5, start: day(6), source: .oura))
-        let badOut = ReadinessScore.evaluate(samples: bad)!
+        bad.append(HealthMetricSample(type: .sleepDurationHours, value: 4.5, start: day(5), source: .oura))
+        let badOut = ReadinessScore.evaluate(samples: bad, now: day(5))!
 
         XCTAssertGreaterThan(goodOut.score, badOut.score)
         XCTAssertGreaterThan(goodOut.score, 70)

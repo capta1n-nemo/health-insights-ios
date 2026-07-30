@@ -156,19 +156,36 @@ public struct HeartHealthInsight: InsightModel {
                 drivers: [], unmetRequirements: unmet)
         }
 
-        let vo2 = samples.latestValue(.vo2Max)
-        let restHR = samples.meanValue(.restingHeartRate)
+        // Heart health is a *level*, not a moment, so each signal is read as its
+        // recent normal rather than its newest sample — one restless night
+        // shouldn't move a composite scored against age norms. Freshness isn't
+        // gated here (unlike Readiness): VO₂max updates every few weeks by
+        // design, and a fortnight-old figure is still the right one.
+        //
+        // Two bugs this replaces. `latestValue` on HRV returned the newest raw
+        // sample, which for a continuously sampled vital is one recent minute.
+        // And resting heart rate came from `meanValue` — the mean of every
+        // resting-HR sample ever recorded, which over a 180-day lookback is
+        // effectively frozen: real improvement moved it by a fraction of a beat,
+        // so the score could not reflect one.
+        let vo2 = VitalReader.reading(.vo2Max, from: samples, now: now)?.value
+        let rhrReading = VitalReader.reading(.restingHeartRate, from: samples, now: now)
+        let restHR = rhrReading.map { $0.baseline ?? $0.value }
         // Track which flavour was used, so the chart plots the series the score
         // actually read rather than whichever one it guesses at.
-        let hrvMetric: MetricType = samples.latestValue(.heartRateVariabilityRMSSD) != nil
+        let hrvMetric: MetricType = VitalReader.reading(.heartRateVariabilityRMSSD,
+                                                        from: samples, now: now) != nil
             ? .heartRateVariabilityRMSSD : .heartRateVariabilitySDNN
-        let hrv = samples.latestValue(.heartRateVariabilityRMSSD)
-            ?? samples.latestValue(.heartRateVariabilitySDNN)
+        let hrv = VitalReader.reading(hrvMetric, from: samples, now: now)
+            .map { $0.baseline ?? $0.value }
 
-        let respSamples = samples.samples(of: .respiratoryRate).map(\.value)
-        let respDev: Baseline.Deviation? = respSamples.count >= 4
-            ? Baseline.deviation(latest: respSamples.last!, history: Array(respSamples.dropLast()))
-            : nil
+        let respDev: Baseline.Deviation? = VitalReader
+            .reading(.respiratoryRate, from: samples, now: now)
+            .flatMap { (reading: VitalReading) -> Baseline.Deviation? in
+                guard let z = reading.zScore, let baseline = reading.baseline else { return nil }
+                return Baseline.Deviation(value: reading.value, baseline: baseline, zScore: z,
+                                          direction: abs(z) >= 1.5 ? (z > 0 ? 1 : -1) : 0)
+            }
 
         guard let out = HeartHealthScore.evaluate(
             vo2Max: vo2, restingHR: restHR, hrv: hrv, hrvMetric: hrvMetric,
