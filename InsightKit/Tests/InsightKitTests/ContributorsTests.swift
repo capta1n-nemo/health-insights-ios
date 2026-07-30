@@ -28,7 +28,14 @@ final class ContributorsTests: XCTestCase {
             .muscleMass: 58, .boneMass: 3.2, .bodyWaterPercentage: 58,
             .height: 1.83, .stepCount: 9000, .activeEnergyBurned: 520,
             .sleepDurationHours: 7.4, .bodyTemperature: 36.6,
-            .skinTemperatureDeviation: 0.1
+            .skinTemperatureDeviation: 0.1,
+            // The vitals promoted out of the raw layer. Present here so
+            // "full coverage" stays literally true — without them Vitals Check
+            // correctly charts only what it measured, and the equality below
+            // would be asserting something the fixture never supplied.
+            .bloodGlucose: 5.2, .peripheralPerfusionIndex: 2.0,
+            .atrialFibrillationBurden: 0.5, .heartRateRecovery: 25,
+            .walkingSteadiness: 85, .walkingAsymmetry: 2
         ]
         var out: [HealthMetricSample] = []
         for i in stride(from: days - 1, through: 0, by: -1) {
