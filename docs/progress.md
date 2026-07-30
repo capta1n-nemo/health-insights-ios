@@ -285,6 +285,22 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
       `score: nil`; Substance Impact isn't an `InsightModel` at all, so anything
       applied "to every insight" skips it.
 
+### Test and file hygiene
+- [ ] Shared test clock — **narrow version only**. The obvious "one `Clock` for
+      the whole target" was audited and rejected: two files model a forward
+      timeline with a movable `now`, one uses `Calendar.current` deliberately
+      (production `VitalReader` defaults to it), and one fixture needs a
+      fractional `daysAgo: 29.9`. Five files are safely in scope. See
+      `activeContext.md` ▸ 6.
+- [ ] A recorded dataset. There is not one golden fixture in the repo — every
+      number is invented inline, so no test sees the shapes the phone actually
+      produces (300 heart-rate samples a day, Oura+Apple duplicates of one
+      reading, a real gap, a fever night). Needs `resources:` on the testTarget.
+- [ ] Split the four largest files — proposed but **unverified**, the audit's
+      verifier agents hit a session limit. `OAuthIntegration.swift` (858 lines),
+      `AdditionalInsights.swift` (four unrelated insights), `HeartAge.swift`,
+      and `MetricOverlayLegend` out of `MetricOverlayChart.swift`.
+
 ### Charts
 - [ ] Filled `AreaMark` min/max bands (currently shipped as outlined
       `LineMark` pairs — a deliberate, pre-approved fallback for a Swift Charts

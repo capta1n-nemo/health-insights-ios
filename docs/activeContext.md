@@ -479,7 +479,66 @@ Also outstanding:
   oxygen's preferred hues. Low severity (the two ages aren't `MetricType`s and
   never share a chart with them), but worth a dedicated pair.
 
-### 6. On-device walkthrough
+### 6. Test-fixture consolidation — do the narrow version only
+
+26 test files build their own clocks and sample helpers, and four `day()`
+helpers are character-identical. The obvious fix — one shared `Clock` for the
+whole target — was **audited and rejected**. Three reasons, each verified
+against the code:
+
+1. **The "direction flip" is an idiom, not a copy-paste bug.**
+   `CardioTrajectoryTests` and `NewInsightsTests` model a *forward* study
+   timeline with a movable `now` (`now: day(9)`, `day(60)`, `afterAYear =
+   day(52*7)`, and `afterAYear + 200 days`). A backward-only `day(n)` renders
+   "after a year" as `day(-364)` — reintroducing the exact sign footgun it
+   claims to remove — or forces rewriting ~30 assertions.
+   `CardioTrajectoryTests.day()` also deliberately does *not* noon-snap, and
+   snapping would move all 52 weekly instants under the UTC bucketing it passes.
+2. **`SharedBaselineTests` uses `Calendar.current` on purpose.** It never passes
+   a calendar, and `VitalReader` defaults to `.current` — so fixture and
+   bucketing calendar are coupled by construction. Moving the fixture to a UTC
+   clock while production reads `.current` *decouples* them. The right fix there
+   is to inject `utc` into production, not to swap the fixture.
+3. **`day(_ n: Int)` cannot express `daysAgo: 29.9`** — a deliberate fractional
+   probe of the 30-day `BloodPressureEstimator.split` boundary
+   (`PresentationTests.swift:362`).
+
+Also: `enum Clock` would shadow the stdlib `Clock` protocol module-wide.
+
+**In scope (safe):** the five files that already anchor at `1_700_000_000` and
+look backward from a fixed `now` — `VitalSignsTests`, `DeepDiveTests`,
+`MetricPatternsTests`, `ScoreHistoryTests`, and the class-local clocks in
+`ContributorsTests`. Name the type `TestClock`, matching its filename.
+
+**Explicitly out of scope:** `CardioTrajectoryTests`, `NewInsightsTests`
+(forward timelines), `SharedBaselineTests` (`Calendar.current` by design).
+
+There are four anchors in the tree, not two, and `PresentationTests:148` uses
+midnight of the day *after* the anchor. SwiftPM picks up
+`Tests/InsightKitTests/Support/` automatically — no `Package.swift` edit.
+
+### 7. Larger file splits — proposed but NOT verified
+
+The audit proposed splitting the four largest files. **Five of its verifier
+agents died on a session limit, so these carry no adversarial check** — treat as
+leads, not conclusions, and read the file before acting:
+
+- `OAuthIntegration.swift` (858 lines, the largest) — extract `OuraProvider`,
+  `WithingsProvider`, `WhoopProvider`. Needs `ProviderAPIError` to widen from
+  `private` to internal.
+- `AdditionalInsights.swift` (436 lines) — four unrelated `InsightModel`s in one
+  file; one file each, plus the shared phrasing helpers.
+- `HeartAge.swift`, `VitalSignsInsight.swift`, `BloodPressureEstimator.swift` —
+  split model from insight, following the `CardiovascularRiskModel` /
+  `CardiovascularRiskInsight` precedent already in the tree.
+- `MetricOverlayLegend` out of `MetricOverlayChart.swift` — 214 of 514 lines,
+  no shared file-private state. The trivial one.
+
+⚠️ Swift `private` is file-scoped, so any `extension`-based split of `AppModel`
+or `InsightDetailView` widens the members the moved code touches. Weigh that
+before splitting those two.
+
+### 8. On-device walkthrough
 
 CI proves it compiles, not that it behaves — and both regressions this session
 were caught by the user's screenshots, not by CI. Newest first:
