@@ -70,43 +70,51 @@ struct MultiSourceChart: View {
     /// scroll even though only the visible slice is plotted.
     private var fullDomain: ClosedRange<Date>? { breakdown.dateSpan }
 
-    /// Only what's on screen, plus a window either side, bucketed for plotting.
-    /// Charting a decade of high-frequency readings mark-for-mark is what made
-    /// this hang; bucketing also stops long ranges aliasing the way plain
-    /// decimation did.
-    private func plotted(in range: ClosedRange<Date>) -> [Series] {
-        let bucket = BucketSize.forWindow(window)
-        return breakdown.restricted(to: range).sources.enumerated().map { index, series in
-            let points = series.bucketed(by: bucket, for: breakdown.type)
-                .map { Point(date: $0.date, value: $0.value, source: series.displayName) }
-            return Series(name: series.displayName, colorIndex: index, points: points)
-        }
+    /// One unbroken run of one source's readings. Flat rather than nested
+    /// per-source, because a ForEach over sources containing a ForEach over
+    /// segments containing a ForEach over points exceeded what the type checker
+    /// would accept inside a chart builder.
+    private struct Segment: Identifiable {
+        let id: String
+        let points: [Point]
     }
 
-    /// One source's plotted points, split on gaps so nothing bridges a period
-    /// when nothing was measured.
-    private struct Series: Identifiable {
-        let name: String
-        let colorIndex: Int
-        let points: [Point]
-        var id: String { name }
-
-        func segments(maxGap: TimeInterval) -> [[Point]] {
-            guard !points.isEmpty else { return [] }
-            var out: [[Point]] = []
-            var current: [Point] = [points[0]]
-            for point in points.dropFirst() {
-                if let previous = current.last,
-                   point.date.timeIntervalSince(previous.date) > maxGap {
-                    out.append(current)
-                    current = [point]
-                } else {
-                    current.append(point)
-                }
+    /// Only what's on screen, plus a window either side, bucketed and split on
+    /// gaps. Charting a decade of high-frequency readings mark-for-mark is what
+    /// made this hang; bucketing also stops long ranges aliasing the way plain
+    /// decimation did.
+    private func plotted(in range: ClosedRange<Date>) -> [Segment] {
+        let bucket = BucketSize.forWindow(window)
+        let maxGap = breakdown.type.maxValidInterval
+        var out: [Segment] = []
+        for series in breakdown.restricted(to: range).sources {
+            let name = series.displayName
+            let points = series.bucketed(by: bucket, for: breakdown.type)
+                .map { Point(date: $0.date, value: $0.value, source: name) }
+            for (index, run) in split(points, maxGap: maxGap).enumerated() {
+                out.append(Segment(id: "\(name)#\(index)", points: run))
             }
-            out.append(current)
-            return out
         }
+        return out
+    }
+
+    /// Breaks a run wherever the gap exceeds `maxGap`, so no line bridges a
+    /// period when nothing was measured.
+    private func split(_ points: [Point], maxGap: TimeInterval) -> [[Point]] {
+        guard !points.isEmpty else { return [] }
+        var out: [[Point]] = []
+        var current: [Point] = [points[0]]
+        for point in points.dropFirst() {
+            if let previous = current.last,
+               point.date.timeIntervalSince(previous.date) > maxGap {
+                out.append(current)
+                current = [point]
+            } else {
+                current.append(point)
+            }
+        }
+        out.append(current)
+        return out
     }
 
     private var domain: [String] { breakdown.sources.map(\.displayName) }
@@ -190,27 +198,28 @@ struct MultiSourceChart: View {
         .chartForegroundStyleScale(domain: domain, range: self.range)
     }
 
-    /// One line per source, broken wherever the readings are too far apart to
-    /// join honestly.
+    /// One line per contiguous run.
     @ChartContentBuilder
-    private func seriesMarks(_ series: [Series]) -> some ChartContent {
-        ForEach(series) { line in
-            ForEach(Array(line.segments(maxGap: breakdown.type.maxValidInterval).enumerated()),
-                    id: \.offset) { _, segment in
-                ForEach(segment) { p in
-                    LineMark(x: .value("Time", p.date),
-                             y: .value(breakdown.type.unit, p.value))
-                        .foregroundStyle(by: .value("Source", p.source))
-                        // Straight segments between readings: a curve invents
-                        // values between samples that were never measured.
-                        .interpolationMethod(.linear)
-                    // A point per reading so single-reading series still render.
-                    PointMark(x: .value("Time", p.date),
-                              y: .value(breakdown.type.unit, p.value))
-                        .foregroundStyle(by: .value("Source", p.source))
-                        .symbolSize(26)
-                }
+    private func seriesMarks(_ segments: [Segment]) -> some ChartContent {
+        ForEach(segments) { segment in
+            ForEach(segment.points) { point in
+                marks(for: point)
             }
         }
+    }
+
+    /// Kept in its own function with an explicit return type: it pins the marks
+    /// to 2D chart content and keeps each expression small enough to type-check.
+    @ChartContentBuilder
+    private func marks(for p: Point) -> some ChartContent {
+        LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+            .foregroundStyle(by: .value("Source", p.source))
+            // Straight segments between readings: a curve invents values between
+            // samples that were never measured.
+            .interpolationMethod(.linear)
+        // A point per reading so single-reading series still render.
+        PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+            .foregroundStyle(by: .value("Source", p.source))
+            .symbolSize(26)
     }
 }
