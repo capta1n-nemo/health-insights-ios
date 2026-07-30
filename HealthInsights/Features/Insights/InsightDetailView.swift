@@ -42,6 +42,12 @@ struct InsightDetailView: View {
                     if insightID == .bloodPressure {
                         bloodPressureLogLink
                     }
+                    // Before the score history, not after: Energy's subject is
+                    // today, and the month of morning scores is the supporting
+                    // context rather than the finding.
+                    if insightID == .energy {
+                        energyCurveCard
+                    }
                     scoreHistoryCard
                     if insightID == .substanceImpact {
                         substanceLoadCard
@@ -301,6 +307,30 @@ struct InsightDetailView: View {
                     Text("Days before you had at least two signals recording aren't shown — a score resting on one measurement isn't one.")
                         .font(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Today's reservoir, hour by hour.
+    ///
+    /// The model computed this curve from the day it shipped and nothing drew
+    /// it, so the one insight in this app whose subject is *within* a day was
+    /// presented like the ones whose subject is a month.
+    @ViewBuilder private var energyCurveCard: some View {
+        if let energy = model.energyToday(), energy.curve.count >= 2 {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Today").font(.headline)
+                        Spacer()
+                        Text(String(format: "%.0f spent of %.0f",
+                                    energy.spent, energy.morningCharge))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    EnergyCurveChart(curve: energy.curve,
+                                     morningCharge: energy.morningCharge)
                 }
             }
         }

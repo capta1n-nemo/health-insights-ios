@@ -180,3 +180,73 @@ final class SeriesBridgingTests: XCTestCase {
         XCTAssertTrue(bridges([0, 1, 2, 6, 7], windowDays: 2).isEmpty)
     }
 }
+
+/// The overlay chart's half of roadmap 4b. It broke at every gap while the
+/// metric-detail chart bridged them, so the same silence rendered two different
+/// ways depending on which screen you were on.
+final class OverlayBridgingTests: XCTestCase {
+
+    private func points(_ dayOffsets: [Double]) -> [NormalizedPoint] {
+        dayOffsets.map {
+            NormalizedPoint(date: segBase.addingTimeInterval($0 * segDay),
+                            z: $0 < 3 ? 0.2 : 2.6, raw: 60 + $0)
+        }
+    }
+
+    private func pairs(_ dayOffsets: [Double], windowDays: Double = 30)
+        -> [(from: NormalizedPoint, to: NormalizedPoint)] {
+        let series = NormalizedSeries(metric: .restingHeartRate, higherIsBetter: false,
+                                      points: points(dayOffsets), baseline: 60)
+        return SeriesBridging.bridgePairs(across: series.segments(),
+                                          metric: .restingHeartRate, bucket: .day,
+                                          window: windowDays * segDay, date: \.date)
+    }
+
+    /// The same two bounds the `AggregatedPoint` version obeys — the point of
+    /// making the pairing generic was that there is one rule, not two.
+    func testTheOverlayObeysTheSameBoundsAsTheDetailChart() {
+        XCTAssertEqual(pairs([0, 1, 2, 6, 7]).count, 1, "a four-day hole should bridge")
+        XCTAssertEqual(pairs([0, 1, 2, 10, 11]).count, 0, "an eight-day hole should not")
+        XCTAssertEqual(pairs([0, 1, 6, 7], windowDays: 7).count, 0, "a quarter of a week")
+    }
+
+    func testABridgeCarriesTheRealEndpointsWithTheirZScores() throws {
+        let bridge = try XCTUnwrap(pairs([0, 1, 2, 6, 7]).first)
+        XCTAssertEqual(bridge.from.date, segBase.addingTimeInterval(2 * segDay))
+        XCTAssertEqual(bridge.to.date, segBase.addingTimeInterval(6 * segDay))
+        // The z-scores are the reason this returns the points rather than a
+        // `GapBridge`: the overlay encodes anomaly as opacity, and a flattened
+        // two-dates-two-values struct cannot carry that.
+        XCTAssertEqual(bridge.from.z, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(bridge.to.z, 2.6, accuracy: 0.0001)
+    }
+
+    func testAContinuousRunIsNeverBridged() {
+        XCTAssertTrue(pairs([0, 1, 2, 3, 4]).isEmpty)
+    }
+
+    /// The decision the audit left open: how a dashed span interacts with the
+    /// overlay's per-span opacity encoding.
+    ///
+    /// The quieter end wins. Everywhere else a span is as prominent as its more
+    /// anomalous end, because both ends were measured. A bridge was measured
+    /// nowhere, so taking the maximum would let one spike pull a week of silence
+    /// forward as though something had been observed in it.
+    func testAnInferredSpanIsNeverLouderThanItsQuieterEnd() {
+        let loud = 0.9, quiet = 0.2
+        let prominence = SeriesBridging.bridgeProminence(from: quiet, to: loud)
+        XCTAssertLessThanOrEqual(prominence, quiet)
+        XCTAssertEqual(prominence,
+                       SeriesBridging.bridgeProminence(from: loud, to: quiet),
+                       "which end is which must not matter")
+    }
+
+    /// And it is always dimmer than the measured span it continues, so dash is
+    /// not the only thing separating inference from measurement.
+    func testAnInferredSpanIsDimmerThanEitherMeasuredEnd() {
+        for (a, b) in [(0.2, 0.9), (0.5, 0.5), (1.0, 0.12)] {
+            XCTAssertLessThan(SeriesBridging.bridgeProminence(from: a, to: b),
+                              Swift.min(a, b))
+        }
+    }
+}

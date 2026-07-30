@@ -145,16 +145,58 @@ public enum SeriesBridging {
     ///
     /// Computed between *adjacent* runs only, so a bridge can never overlap a
     /// drawn segment.
-    public static func bridges(across runs: [[AggregatedPoint]], metric: MetricType,
-                               bucket: BucketSize, window: TimeInterval) -> [GapBridge] {
+    ///
+    /// Which pairs of adjacent runs may be joined, **returning the endpoints
+    /// themselves** rather than a flattened two-dates-two-values struct.
+    ///
+    /// Generic, and returning the caller's own point type, because the two
+    /// charts that bridge need different things out of the endpoints. The
+    /// metric-detail chart wants only a date and a value, which is what
+    /// `GapBridge` carries. The insight overlay encodes *anomaly as opacity*,
+    /// so it needs the z-score of both ends to know how loudly to draw the
+    /// connector — information `GapBridge` cannot hold and should not grow.
+    ///
+    /// The alternative was a second copy of this pairing loop in the view. That
+    /// is the exact mistake this file exists to undo: there were four copies of
+    /// the segmentation loop under two different rules, the app target has no
+    /// test target, and the duplication *was* the defect.
+    public static func bridgePairs<Point>(across runs: [[Point]], metric: MetricType,
+                                          bucket: BucketSize, window: TimeInterval,
+                                          date: (Point) -> Date) -> [(from: Point, to: Point)] {
         zip(runs, runs.dropFirst()).compactMap { left, right in
             guard let from = left.last, let to = right.first else { return nil }
-            let gap = to.date.timeIntervalSince(from.date)
+            let gap = date(to).timeIntervalSince(date(from))
             guard isBridgeable(gap: gap, metric: metric, bucket: bucket, window: window) else {
                 return nil
             }
-            return GapBridge(start: from.date, end: to.date,
-                             startValue: from.value, endValue: to.value)
+            return (from, to)
         }
+    }
+
+    /// The bucketed-series call, unchanged for its callers.
+    public static func bridges(across runs: [[AggregatedPoint]], metric: MetricType,
+                               bucket: BucketSize, window: TimeInterval) -> [GapBridge] {
+        bridgePairs(across: runs, metric: metric, bucket: bucket, window: window,
+                    date: \.date)
+            .map { GapBridge(start: $0.from.date, end: $0.to.date,
+                             startValue: $0.from.value, endValue: $0.to.value) }
+    }
+
+    /// How prominent an inferred connector may be, given the two measurements
+    /// it joins.
+    ///
+    /// **The quieter end wins, not the louder one.** Everywhere else on the
+    /// overlay a span is as prominent as its more anomalous end, because both
+    /// of its endpoints were measured and the louder one is the finding. A
+    /// bridge has no measurement anywhere along it, so taking the maximum would
+    /// let a single spike pull a whole week of silence forward as though
+    /// something had been observed there. Taking the minimum says the weakest
+    /// thing the two ends jointly support, which is all an inference is entitled
+    /// to claim.
+    ///
+    /// Then halved again, because dash alone is not enough separation when the
+    /// same hue is already on screen at full strength.
+    public static func bridgeProminence(from: Double, to: Double) -> Double {
+        Swift.min(from, to) / 2
     }
 }

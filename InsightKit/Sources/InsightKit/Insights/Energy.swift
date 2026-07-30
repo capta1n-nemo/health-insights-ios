@@ -144,6 +144,100 @@ public enum EnergyModel {
         return Swift.max(0, Swift.min(100, fromSleep + fromRecovery))
     }
 
+    // MARK: - The overnight half, over history
+
+    /// What each of the last `days` mornings started on.
+    ///
+    /// Only the overnight half of the model — the drain side needs an intraday
+    /// replay per day and answers a different question. This is the one the app
+    /// can ask across months: *were my mornings starting well*, which is sleep
+    /// length and overnight recovery together and is therefore not the same
+    /// series as sleep duration.
+    ///
+    /// Recovery is scored against the whole run's own spread rather than a
+    /// trailing baseline. The question here is a contrast *within* the run —
+    /// which weeks started better than which — and a trailing baseline gives
+    /// every day a different, drifting zero, which is precisely what makes two
+    /// weeks incomparable. Same reasoning as `SeriesNormalizer`.
+    public static func morningChargeSeries(samples: [HealthMetricSample],
+                                           days: Int = 90,
+                                           now: Date = Date(),
+                                           calendar: Calendar = .current) -> [VitalReader.DailyValue] {
+        let sleep = VitalReader.dailySeries(.sleepDurationHours, from: samples, days: days,
+                                            now: now, calendar: calendar)
+        guard !sleep.isEmpty else { return [] }
+
+        let hrv = hrvSeries(samples: samples, days: days, now: now, calendar: calendar)
+        let history = hrv.map(\.value)
+        let mean = Baseline.mean(history)
+        let spread = Baseline.standardDeviation(history)
+        var recoveryByDay: [Date: Double] = [:]
+        if let mean, let spread, spread > 0 {
+            for day in hrv { recoveryByDay[day.date] = (day.value - mean) / spread }
+        }
+
+        return sleep.map { night in
+            VitalReader.DailyValue(
+                date: night.date,
+                value: morningCharge(sleepHours: night.value,
+                                     recoveryZ: recoveryByDay[night.date]))
+        }
+    }
+
+    /// Whichever HRV metric this person actually records, preferring the one
+    /// with more nights. Mixing them would put two differently-scaled
+    /// quantities into one standard deviation.
+    static func hrvSeries(samples: [HealthMetricSample], days: Int, now: Date,
+                          calendar: Calendar) -> [VitalReader.DailyValue] {
+        let rmssd = VitalReader.dailySeries(.heartRateVariabilityRMSSD, from: samples,
+                                            days: days, now: now, calendar: calendar)
+        let sdnn = VitalReader.dailySeries(.heartRateVariabilitySDNN, from: samples,
+                                           days: days, now: now, calendar: calendar)
+        return rmssd.count >= sdnn.count ? rmssd : sdnn
+    }
+
+    /// This week's mornings against the best week in the series.
+    public struct WeekContrast: Sendable, Equatable {
+        public let recent: Double
+        public let best: Double
+        public let recentNights: Int
+        public let bestNights: Int
+        public var shortfall: Double { Swift.max(0, best - recent) }
+    }
+
+    /// How many nights a week needs before it may be compared. Below this a
+    /// single unusually good night *is* the week.
+    public static let minimumNightsPerWeek = 3
+
+    /// The recent week against the best other week in the run.
+    ///
+    /// The best week deliberately excludes the recent one, so a good week can
+    /// never be reported as falling short of itself.
+    public static func weekContrast(_ series: [VitalReader.DailyValue],
+                                    now: Date = Date()) -> WeekContrast? {
+        let weekStart = now.addingTimeInterval(-7 * 86_400)
+        let recentDays = series.filter { $0.date >= weekStart }
+        guard recentDays.count >= minimumNightsPerWeek,
+              let recent = Baseline.mean(recentDays.map(\.value)) else { return nil }
+
+        let earlier = series.filter { $0.date < weekStart }
+        var best: (mean: Double, nights: Int)?
+        // Every seven-day window that ended before this week started. Sliding
+        // rather than calendar-aligned: a person's good stretch does not begin
+        // on a Monday.
+        for (index, anchor) in earlier.enumerated() {
+            let window = earlier[index...].prefix {
+                $0.date.timeIntervalSince(anchor.date) < 7 * 86_400
+            }
+            guard window.count >= minimumNightsPerWeek,
+                  let mean = Baseline.mean(window.map(\.value)) else { continue }
+            if best == nil || mean > best!.mean { best = (mean, window.count) }
+        }
+        guard let best else { return nil }
+        return WeekContrast(recent: recent, best: best.mean,
+                            recentNights: recentDays.count, bestNights: best.nights)
+    }
+
     /// Hours since `since` with heart rate meaningfully above the resting
     /// baseline.
     ///

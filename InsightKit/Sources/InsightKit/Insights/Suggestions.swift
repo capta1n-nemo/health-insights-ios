@@ -26,6 +26,15 @@ public struct Suggestion: Sendable, Equatable, Identifiable {
     /// about this person outranks a gap in the app's inputs, which outranks a
     /// signal merely being off.
     public enum Basis: String, Sendable, Comparable {
+        /// Several independent signals leaning the same way at once.
+        ///
+        /// Ranked above everything else because it is the best-founded thing
+        /// this app can say. One signal off baseline is an ordinary Tuesday and
+        /// sits at the bottom of this list for exactly that reason; four of them
+        /// agreeing is a different claim resting on independent evidence, and it
+        /// is also the only one that is *time-critical* — a lever drawn from
+        /// three months of history will still be true next week.
+        case convergingSignals
         /// Drawn from a contrast in the user's own history.
         case yourOwnData
         /// A missing or stale grounding fact that would make an insight work.
@@ -35,9 +44,10 @@ public struct Suggestion: Sendable, Equatable, Identifiable {
 
         private var rank: Int {
             switch self {
-            case .yourOwnData: return 0
-            case .unlockAnInsight: return 1
-            case .signalOffBaseline: return 2
+            case .convergingSignals: return 0
+            case .yourOwnData: return 1
+            case .unlockAnInsight: return 2
+            case .signalOffBaseline: return 3
             }
         }
         public static func < (a: Basis, b: Basis) -> Bool { a.rank < b.rank }
@@ -82,10 +92,19 @@ public enum SuggestionEngine {
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
+        let watch = HealthWatchModel.evaluate(samples: samples, now: now, calendar: calendar)
+
         var out: [Suggestion] = []
+        out += convergence(watch)
         out += personalLevers(samples: samples, profile: profile, now: now, calendar: calendar)
+        out += overnightCharge(samples: samples, now: now, calendar: calendar)
         out += unlocks(results: results)
-        out += departures(samples: samples, now: now, calendar: calendar)
+        // A signal named in the convergence row must not appear again three
+        // rows further down as a lone departure. The same reading twice, once
+        // as part of a pattern and once as an isolated fact, reads as two
+        // findings and is one.
+        out += departures(samples: samples, now: now, calendar: calendar,
+                          excluding: Set(convergenceCovers(watch)))
 
         return out
             .sorted { a, b in
@@ -93,6 +112,56 @@ public enum SuggestionEngine {
             }
             .prefix(limit)
             .map { $0 }
+    }
+
+    // MARK: - 0. Several signals leaning together
+
+    /// Health Watch's finding, promoted to the top of this list.
+    ///
+    /// `SuggestionEngine` predates the card, so the strongest observation the
+    /// app makes was the one thing this list could not say. It is not restated
+    /// from the card's prose — the card's phrasing is written for a card — but
+    /// recomputed from the same model, which is the only way the two can be
+    /// guaranteed to agree about how many signals are leaning.
+    ///
+    /// Two is the floor, and that is the whole point: one signal off baseline is
+    /// already covered by `departures` below, at the *bottom* of the ranking,
+    /// and promoting a single reading to the top would destroy the distinction
+    /// the card exists to draw.
+    static func convergence(_ watch: HealthWatchModel.Output?) -> [Suggestion] {
+        guard let watch else { return [] }
+        let leaning = watch.leaning.sorted { abs($0.zScore) > abs($1.zScore) }
+        guard leaning.count >= 2 else { return [] }
+
+        let named = list(leaning.map { $0.metric.inSentence })
+        return [Suggestion(
+            id: "converging-\(leaning.count)",
+            title: "\(leaning.count) signals are leaning the same way",
+            detail: "\(named.capitalizedFirst) have all moved in the direction an immune response pushes them, over the last \(HealthWatchModel.recentDays) days against a fortnight that ended before they started. Individually each is inside the noise; together they are a pattern. An observation about your own numbers, not a diagnosis — if you feel unwell, that is the better information.",
+            basis: .convergingSignals,
+            insight: .healthWatch,
+            metric: leaning.first?.metric,
+            // The card's own score, read as concern. It already accumulates
+            // votes rather than taking the worst, so it is the right scale here.
+            strength: Swift.min(1, Swift.max(0, (100 - watch.score) / 100)))]
+    }
+
+    /// Which metrics the convergence row already speaks for. Empty whenever no
+    /// convergence row is emitted, so nothing is suppressed on its behalf.
+    static func convergenceCovers(_ watch: HealthWatchModel.Output?) -> [MetricType] {
+        guard let watch, watch.leaning.count >= 2 else { return [] }
+        return watch.leaning.map(\.metric)
+    }
+
+    /// "a, b and c" — hand-rolled rather than `ListFormatter`, which is not in
+    /// Foundation on Linux and would take this package off the platforms its
+    /// tests run on.
+    static func list(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        default: return items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
+        }
     }
 
     // MARK: - 1. The user's own history
@@ -124,6 +193,44 @@ public enum SuggestionEngine {
             metric: volume.metric,
             strength: strength)]
     }
+
+    /// Energy's own contrast: how this week's mornings compare with the user's
+    /// best week of the last quarter.
+    ///
+    /// Deliberately the *morning charge* rather than sleep hours. Charge is
+    /// sleep length and overnight autonomic recovery together, so it separates
+    /// "seven hours that worked" from "seven hours that didn't" — a distinction
+    /// a duration series cannot express, and the reason this is Energy's
+    /// suggestion rather than Sleep Debt's.
+    ///
+    /// Against the user's own best week, not against 100: the ceiling of the
+    /// model is not a target anybody should be measured against, and their own
+    /// good week demonstrably is reachable — they reached it.
+    static func overnightCharge(samples: [HealthMetricSample], now: Date,
+                                calendar: Calendar) -> [Suggestion] {
+        let series = EnergyModel.morningChargeSeries(samples: samples, days: 90,
+                                                     now: now, calendar: calendar)
+        guard let contrast = EnergyModel.weekContrast(series, now: now),
+              contrast.shortfall >= minimumChargeShortfall else { return [] }
+
+        return [Suggestion(
+            id: "morning-charge",
+            title: "Your mornings have been starting lower than usual",
+            detail: String(format: "Energy has charged to %.0f overnight on average this week, against %.0f in your best week of the last three months — %d nights each. Charge is sleep length and overnight recovery together, which is why two seven-hour nights can start you in different places. Your own range, not a target.",
+                           contrast.recent, contrast.best,
+                           Swift.min(contrast.recentNights, contrast.bestNights)),
+            basis: .yourOwnData,
+            insight: .energy,
+            metric: .sleepDurationHours,
+            // A full standard deviation of overnight recovery is eight points;
+            // three of those is as large as this contrast realistically gets.
+            strength: Swift.min(1, contrast.shortfall / (3 * EnergyModel.recoveryPointsPerSD)))]
+    }
+
+    /// How far below their own best week a person has to be starting before it
+    /// is worth saying. One standard deviation of overnight recovery — below
+    /// that this is reporting the week-to-week wobble of the model itself.
+    static let minimumChargeShortfall = EnergyModel.recoveryPointsPerSD
 
     // MARK: - 2. Facts the app is missing
 
@@ -176,9 +283,11 @@ public enum SuggestionEngine {
     /// say why, and it does not say what to do — both of which would be claims
     /// this app has no standing to make.
     static func departures(samples: [HealthMetricSample], now: Date,
-                           calendar: Calendar) -> [Suggestion] {
+                           calendar: Calendar,
+                           excluding covered: Set<MetricType> = []) -> [Suggestion] {
         let scan = VitalSignsCheck.evaluate(samples: samples, now: now, calendar: calendar)
         return scan.unusual.compactMap { reading in
+            guard !covered.contains(reading.metric) else { return nil }
             guard let z = reading.zScore, abs(z) >= VitalSignsCheck.unusualZ else { return nil }
             let direction = z > 0 ? "above" : "below"
             return Suggestion(

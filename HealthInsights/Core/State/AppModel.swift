@@ -52,6 +52,7 @@ final class AppModel {
         ageHistoryRunning = false
         overlayCache.removeAll()
         suggestionCache = nil
+        energyCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
@@ -81,6 +82,20 @@ final class AppModel {
         if let substanceLoadCache { return substanceLoadCache }
         let built = SubstanceLoad.series(events: substanceEvents, days: days)
         substanceLoadCache = built
+        return built
+    }
+
+    /// Today's energy curve, for the chart on the Energy detail screen.
+    ///
+    /// Cached like the others: a detail view re-evaluates its body on every
+    /// scrub frame, and this walks the day's heart-rate samples once per hour of
+    /// elapsed day. Invalidated with `samples`, which is what it reads.
+    @ObservationIgnored private var energyCache: EnergyModel.Output?
+
+    func energyToday() -> EnergyModel.Output? {
+        if let energyCache { return energyCache }
+        let built = EnergyModel.evaluate(samples: samples)
+        energyCache = built
         return built
     }
 

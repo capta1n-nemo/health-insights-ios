@@ -46,14 +46,13 @@ the place to look.
   - `PromotionRuleSet` :51
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
-- `Insights/AdditionalInsights.swift`
-  - `BodyCompositionInsight` :238
-  - `CardioFitnessInsight` :177
-  - `RestingHeartRateTrendInsight` :439
-  - `SleepQualityInsight` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
   - `BloodPressureInsight` :506
+- `Insights/BodyCompositionInsight.swift`
+  - `BodyCompositionInsight` :4
+- `Insights/CardioFitnessInsight.swift`
+  - `CardioFitnessInsight` :5
 - `Insights/CardioTrajectory.swift`
   - `CardioTrajectoryInsight` :302
   - `VO2Trajectory` :11
@@ -62,20 +61,22 @@ the place to look.
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
 - `Insights/Energy.swift`
-  - `EnergyInsight` :207
+  - `EnergyInsight` :301
   - `EnergyModel` :29
+- `Insights/FitnessAgeModel.swift`
+  - `FitnessAgeModel` :18
 - `Insights/GroundingRenewal.swift`
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchInsight` :168
   - `HealthWatchModel` :32
-- `Insights/HeartAge.swift`
-  - `FitnessAgeModel` :16
-  - `HeartAgeInsight` :363
-  - `HeartAgeModel` :120
 - `Insights/HeartAgeHistory.swift`
   - `AgePoint` :4
   - `HeartAgeHistory` :40
+- `Insights/HeartAgeInsight.swift`
+  - `HeartAgeInsight` :9
+- `Insights/HeartAgeModel.swift`
+  - `HeartAgeModel` :13
 - `Insights/HeartHealthScore.swift`
   - `HeartHealthInsight` :129
   - `HeartHealthScore` :13
@@ -108,6 +109,8 @@ the place to look.
 - `Insights/ReadinessScore.swift`
   - `ReadinessInsight` :144
   - `ReadinessScore` :15
+- `Insights/RestingHeartRateTrendInsight.swift`
+  - `RestingHeartRateTrendInsight` :5
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
@@ -115,9 +118,11 @@ the place to look.
 - `Insights/SleepDebt.swift`
   - `SleepDebtInsight` :109
   - `SleepDebtModel` :25
+- `Insights/SleepQualityInsight.swift`
+  - `SleepQualityInsight` :5
 - `Insights/Suggestions.swift`
   - `Suggestion` :23
-  - `SuggestionEngine` :72
+  - `SuggestionEngine` :82
 - `Insights/SummaryFingerprint.swift`
   - `RefreshGate` :59
   - `SummaryFingerprint` :20
@@ -234,20 +239,23 @@ the place to look.
 - `Core/Integrations/OAuthIntegration.swift`
   - `IntegrationError` :20
   - `OAuthConfig` :7
-  - `OAuthIntegration` :149
-  - `OuraProvider` :543
-  - `PKCE` :130
-  - `ProviderAPIError` :56
-  - `WhoopProvider` :805
-  - `WithingsProvider` :736
+  - `OAuthIntegration` :155
+  - `PKCE` :136
+  - `ProviderAPIError` :62
 - `Core/Integrations/OAuthWebFlow.swift`
   - `OAuthWebFlow` :13
+- `Core/Integrations/OuraProvider.swift`
+  - `OuraProvider` :12
 - `Core/Integrations/ProviderCredentialStore.swift`
   - `OAuthTokens` :4
   - `ProviderCredentialStore` :46
   - `ProviderCredentials` :37
 - `Core/Integrations/SyncedData.swift`
   - `SyncedData` :8
+- `Core/Integrations/WhoopProvider.swift`
+  - `WhoopProvider` :6
+- `Core/Integrations/WithingsProvider.swift`
+  - `WithingsProvider` :8
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Persistence/DataStore.swift`
@@ -266,6 +274,8 @@ the place to look.
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
   - `AgeHistoryChart` :15
+- `DesignSystem/EnergyCurveChart.swift`
+  - `EnergyCurveChart` :31
 - `DesignSystem/Haptics.swift`
   - `CopyButton` :37
   - `Haptics` :10
