@@ -52,19 +52,53 @@ struct SettingsView: View {
     }
 
     private var profileSection: some View {
-        Section("Your details") {
+        Section {
             ForEach(profileKinds, id: \.self) { kind in
                 Button {
                     groundingKind = kind
                 } label: {
-                    HStack {
-                        Text(kind.displayName).foregroundStyle(.primary)
-                        Spacer()
-                        Text(valueLabel(kind)).foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(kind.displayName).foregroundStyle(.primary)
+                            Spacer()
+                            Text(valueLabel(kind)).foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right").font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        // Where the fact stands, not just what it is.
+                        // `requirementStatuses` has always known this and every
+                        // caller threw away everything but `.missing`, so a value
+                        // was invisible until the day it expired.
+                        if let renewal = renewals[kind] {
+                            HStack(spacing: 5) {
+                                Circle().fill(colour(for: renewal.state))
+                                    .frame(width: 6, height: 6)
+                                Text(renewal.sentence(asOf: Date()))
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
             }
+        } header: {
+            Text("Your details")
+        } footer: {
+            Text("These are the one-off facts the clinical models need. A value past its window keeps being used — it's still better than a population average — but it stops the estimate counting as current.")
+        }
+    }
+
+    /// Renewal state per fact, computed once for the whole section.
+    private var renewals: [GroundingKind: GroundingRenewal] {
+        Dictionary(uniqueKeysWithValues:
+            model.engine.groundingRenewals(profile: model.profile).map { ($0.kind, $0) })
+    }
+
+    private func colour(for state: GroundingRenewal.State) -> Color {
+        switch state {
+        case .current: return Theme.good
+        case .expiringSoon: return Theme.warn
+        case .stale: return Theme.bad
+        case .missing: return .secondary
         }
     }
 

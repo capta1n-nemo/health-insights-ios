@@ -61,6 +61,8 @@ the place to look.
   - `CardiovascularRiskInsight` :13
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
+- `Insights/GroundingRenewal.swift`
+  - `GroundingRenewal` :12
 - `Insights/HeartAge.swift`
   - `FitnessAgeModel` :16
   - `HeartAgeInsight` :363
@@ -317,9 +319,9 @@ the place to look.
   - `OnboardingPanel` :213
   - `OnboardingView` :7
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :250
-  - `IntegrationRow` :151
-  - `IntegrationSummaryRow` :207
+  - `DisclaimerView` :284
+  - `IntegrationRow` :185
+  - `IntegrationSummaryRow` :241
   - `SettingsView` :4
 - `Features/Settings/TelemetryOutboxView.swift`
   - `TelemetryOutboxView` :7
