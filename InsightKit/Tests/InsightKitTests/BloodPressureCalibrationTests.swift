@@ -75,3 +75,58 @@ final class BloodPressureCalibrationTests: XCTestCase {
         XCTAssertEqual(result.headline, "124/82")
     }
 }
+
+/// The chart shades the AHA bands, which means the thresholds now exist in two
+/// places: `Category.of` decides a reading's category, and `systolicRange` /
+/// `diastolicRange` decide where the shading sits. Two copies of a clinical
+/// threshold is one copy too many unless something holds them to each other.
+final class PressureBandTests: XCTestCase {
+
+    /// Every systolic value must land in the band whose range contains it —
+    /// with the diastolic held at a value that can't promote the category.
+    func testSystolicRangesAgreeWithTheClassifier() {
+        for systolic in stride(from: 80.0, through: 210.0, by: 1.0) {
+            let category = BloodPressureEstimator.Category.of(systolic: systolic, diastolic: 70)
+            let range = category.systolicRange
+            XCTAssertGreaterThanOrEqual(systolic, range.lower,
+                                        "\(systolic) classified \(category) but sits below its band")
+            if let upper = range.upper {
+                XCTAssertLessThan(systolic, upper,
+                                  "\(systolic) classified \(category) but sits above its band")
+            }
+        }
+    }
+
+    /// The same for diastolic, systolic held low. Elevated is defined by
+    /// systolic alone, so it never appears on this axis.
+    func testDiastolicRangesAgreeWithTheClassifier() {
+        for diastolic in stride(from: 50.0, through: 130.0, by: 1.0) {
+            let category = BloodPressureEstimator.Category.of(systolic: 110, diastolic: diastolic)
+            let range = category.diastolicRange
+            XCTAssertGreaterThanOrEqual(diastolic, range.lower,
+                                        "\(diastolic) classified \(category) but sits below its band")
+            if let upper = range.upper {
+                XCTAssertLessThan(diastolic, upper,
+                                  "\(diastolic) classified \(category) but sits above its band")
+            }
+        }
+    }
+
+    /// The bands must tile the axis with no gap and no overlap, or the shading
+    /// will show seams the classifier doesn't have.
+    func testSystolicBandsTileWithoutGaps() {
+        let ordered = BloodPressureEstimator.Category.allCases
+        for (lower, higher) in zip(ordered, ordered.dropFirst()) {
+            XCTAssertEqual(lower.systolicRange.upper ?? -1, higher.systolicRange.lower,
+                           "\(lower) and \(higher) don't meet")
+        }
+        XCTAssertNil(ordered.last?.systolicRange.upper, "the top band must be open-ended")
+    }
+
+    /// The reason the chart shades systolic only: the two axes disagree, and a
+    /// single shaded set would mislabel one of the two lines.
+    func testTheTwoAxesGenuinelyDisagree() {
+        XCTAssertEqual(BloodPressureEstimator.Category.of(systolic: 110, diastolic: 85), .stage1)
+        XCTAssertEqual(BloodPressureEstimator.Category.of(systolic: 110, diastolic: 70), .normal)
+    }
+}

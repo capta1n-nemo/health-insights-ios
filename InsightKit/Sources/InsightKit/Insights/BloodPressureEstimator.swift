@@ -288,6 +288,36 @@ public enum BloodPressureEstimator {
             }
         }
 
+        /// Where this band sits on a systolic axis, as a half-open range.
+        ///
+        /// Exposed so a chart can shade the bands rather than restating the
+        /// thresholds beside the ones in `of(systolic:diastolic:)` — two copies
+        /// of a clinical threshold is one copy too many. `nil` upper bound means
+        /// "and above".
+        public var systolicRange: (lower: Double, upper: Double?) {
+            switch self {
+            case .normal: return (0, 120)
+            case .elevated: return (120, 130)
+            case .stage1: return (130, 140)
+            case .stage2: return (140, 180)
+            case .crisis: return (180, nil)
+            }
+        }
+
+        /// The same bands on a diastolic axis. They do **not** line up with the
+        /// systolic ones — 85 is stage 1 diastolic and perfectly normal
+        /// systolic — which is why a chart plotting both on one axis cannot
+        /// shade a single set of bands and call it correct for both lines.
+        public var diastolicRange: (lower: Double, upper: Double?) {
+            switch self {
+            // Elevated is defined by systolic alone; diastolic has no such band.
+            case .normal, .elevated: return (0, 80)
+            case .stage1: return (80, 90)
+            case .stage2: return (90, 120)
+            case .crisis: return (120, nil)
+            }
+        }
+
         /// A reading falls in the *higher* of the bands its two numbers imply —
         /// the standard rule, and the safe direction to err in.
         public static func of(systolic: Double, diastolic: Double) -> Category {

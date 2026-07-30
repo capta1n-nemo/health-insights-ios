@@ -87,14 +87,51 @@ struct BloodPressureSections: View {
                 return paddedYDomain(visible.flatMap { [$0.systolic, $0.diastolic] })
             }
         ) { range in
-            pairMarks(readings.filter { range.contains($0.date) })
+            pairMarks(readings.filter { range.contains($0.date) }, across: range)
         }
     }
 
     @ChartContentBuilder
-    private func pairMarks(_ visible: [BloodPressureEstimator.Reading]) -> some ChartContent {
+    private func pairMarks(_ visible: [BloodPressureEstimator.Reading],
+                           across range: ClosedRange<Date>) -> some ChartContent {
+        bandMarks(across: range)
         ForEach(visible) { r in
             marks(for: r)
+        }
+    }
+
+    /// The ACC/AHA bands shaded behind the readings, so a point's category is
+    /// legible without consulting the axis.
+    ///
+    /// **Systolic bands only, deliberately.** The two lines share one mmHg axis
+    /// but not one set of thresholds — 85 is stage 1 diastolic and entirely
+    /// normal systolic — so a single shaded set cannot be correct for both. The
+    /// diastolic thresholds are drawn as thin rules instead, in the diastolic
+    /// line's own colour, and the caption says which is which. The alternative,
+    /// shading one set and letting it read as applying to both, would be a chart
+    /// that lies.
+    ///
+    /// Explicit `-> some ChartContent` on every builder here: horizontal band
+    /// marks are exactly the family that resolves to `Chart3DContent` on this
+    /// SDK and silently drops `.foregroundStyle`. That hazard is why this screen
+    /// previously had a strip under the chart instead of bands behind it.
+    @ChartContentBuilder
+    private func bandMarks(across range: ClosedRange<Date>) -> some ChartContent {
+        ForEach(BloodPressureEstimator.Category.allCases, id: \.self) { category in
+            RectangleMark(
+                xStart: .value("From", range.lowerBound),
+                xEnd: .value("To", range.upperBound),
+                yStart: .value("Low", category.systolicRange.lower),
+                // A finite top for the open-ended band: the y-domain is fitted
+                // to the readings, so anything past the highest plausible
+                // reading is off-screen anyway.
+                yEnd: .value("High", category.systolicRange.upper ?? 260))
+                .foregroundStyle(color(for: category).opacity(0.10))
+        }
+        ForEach([80.0, 90.0, 120.0], id: \.self) { threshold in
+            RuleMark(y: .value("Diastolic threshold", threshold))
+                .foregroundStyle(Theme.sourceColor(1).opacity(0.30))
+                .lineStyle(StrokeStyle(lineWidth: 1))
         }
     }
 
@@ -138,10 +175,15 @@ struct BloodPressureSections: View {
     }
 
     private var legend: some View {
-        HStack(spacing: 16) {
-            legendDot("Systolic", Theme.sourceColor(0))
-            legendDot("Diastolic", Theme.sourceColor(1))
-            Spacer()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 16) {
+                legendDot("Systolic", Theme.sourceColor(0))
+                legendDot("Diastolic", Theme.sourceColor(1))
+                Spacer()
+            }
+            Text("Shaded bands are the systolic categories. The two numbers don't share thresholds — 85 is stage 1 diastolic but normal systolic — so the diastolic limits (80, 90, 120) are the thin lines in its own colour.")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .font(.caption)
     }
