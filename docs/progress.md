@@ -51,6 +51,12 @@ about confidence.**
 - [x] Incremental deploy builds (no forced `clean`) for faster iteration.
 - [x] Build-provenance stamp in Settings ▸ About (commit + build number).
 
+### Developer workflow
+- [x] `CLAUDE.md` + memory router, `.claude/settings.json` permissions, and a
+      `/handover` slash command for cross-session continuity.
+- [ ] Verify `/handover` and `CLAUDE.md` auto-load — they only register when
+      the session's working directory *is* this repo (see `activeContext.md`).
+
 ## In progress / not yet device-verified
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.

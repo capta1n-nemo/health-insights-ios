@@ -41,11 +41,28 @@ dropping `clean` from the deploy build step for faster incremental deploys).
   standalone prefix `PartialRangeThrough`, not a continuation of the range
   expression above it. Also caused a CI failure this session.
 
+## Known gotcha: memory files may not auto-load
+
+`CLAUDE.md` and `.claude/commands/handover.md` live in **this repo's** root
+(`health-insights-ios`). If a session's working directory is a *different*
+repo (e.g. `ripp3r`, with this one attached alongside), Claude Code may not
+discover either — `/handover` comes back "Unknown command" and `CLAUDE.md`
+isn't auto-read. Slash commands are also registered at session start, so a
+newly-created one never works in the session that created it.
+
+To get the intended behaviour, start the session with `health-insights-ios` as
+the working directory. If that isn't possible, run the handover steps manually
+(they're just: update this file + `progress.md`, then commit) and paste the
+contents of `CLAUDE.md` at the start of a new chat.
+
 ## Immediate next steps
 
-- Confirm the just-triggered deploy actually installs (device connectivity
-  has been flaky this session — VPN and Wi-Fi/lock-state issues, unrelated to
-  the app).
+- **Confirm the deploy actually installed.** Several attempts failed this
+  session purely on device reachability, never on code: the phone was
+  variously locked, off Wi-Fi, or on a VPN (which routes it off the local
+  subnet so the Mac can't reach it for `devicectl`). Signing itself was
+  verified working. Check `Settings ▸ About` in the app — if the build number
+  and commit hash match the latest push, it landed.
 - On-device verification of the nine-part UI pass is still outstanding (CI only
   proves it compiles): Heart Rate at `All` and `Y`, a multi-source metric's
   active/inactive badges, drag-to-scrub, the Height static-attribute card, and
