@@ -38,6 +38,14 @@ struct InsightDetailView: View {
                     scoreHistoryCard
                     contributorsCard(result)
                     patternsCard(result)
+                    // The deep-dive pair belongs to the Insights tab's question
+                    // ("what has been happening to me over months"), not to
+                    // Today's ("how am I right now"), so it's gated on cadence
+                    // rather than shown on every screen.
+                    if insightID.cadence == .trend {
+                        laggedCard(result)
+                        periodContrastCard(result)
+                    }
                     contributorLinksCard(result)
                     feedbackCard(result)
                     disclaimerCard
@@ -179,7 +187,16 @@ struct InsightDetailView: View {
                         ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    ScoreHistoryChart(points: history, window: window(spanning: scoreSpan(history)))
+                    ScoreHistoryChart(points: history,
+                                      window: window(spanning: scoreSpan(history)),
+                                      showsTrend: insightID.cadence == .trend)
+                    if insightID.cadence == .trend, let trend = history.trend, trend.isMeaningful {
+                        Text(String(format: "Fitted trend %@%.1f a week, with days scattering about %.0f points either side of it.",
+                                    trend.slopePerWeek > 0 ? "+" : "−",
+                                    abs(trend.slopePerWeek), trend.residualSD))
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text("Days before you had at least two signals recording aren't shown — a score resting on one measurement isn't one.")
                         .font(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -313,6 +330,83 @@ struct InsightDetailView: View {
         case .coMovement: return "arrow.left.arrow.right"
         case .driver: return "target"
         }
+    }
+
+    // MARK: - Deep dive (Insights tab only)
+
+    /// Signals that *lead* the score rather than moving with it.
+    ///
+    /// This is the one question the Today tab structurally cannot ask: it
+    /// compares today with yesterday, so everything it can see is same-day.
+    /// Shifting a signal against the score asks whether last night's sleep
+    /// predicts tomorrow's number — and a lag only appears here when it
+    /// genuinely beats same-day, because otherwise it's the same finding blurred.
+    @ViewBuilder private func laggedCard(_ result: InsightResult) -> some View {
+        let series = model.overlaySeries(for: insightID,
+                                         contributions: resolvedContributions(result),
+                                         timeframe: timeframe)
+        let leads = LagFinder.relationships(between: series,
+                                            and: model.scoreHistory(for: insightID))
+        if !leads.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("What comes first", systemImage: "clock.arrow.circlepath")
+                        .font(.headline)
+                    ForEach(leads) { lead in
+                        HStack(alignment: .top, spacing: 8) {
+                            Circle().fill(Theme.metricColor(lead.metric))
+                                .frame(width: 8, height: 8).padding(.top, 6)
+                            Text(lead.sentence).font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Has your normal itself moved? A z-score can't answer that — its baseline
+    /// drifts along with the change, which is exactly how a slow decline stays
+    /// invisible day to day.
+    @ViewBuilder private func periodContrastCard(_ result: InsightResult) -> some View {
+        let changes = PeriodContrast.changes(for: resolvedContributions(result),
+                                             samples: model.samples)
+        if !changes.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("What changed").font(.headline)
+                    Text("Your last four weeks against the four before them.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(changes) { change in
+                        HStack(spacing: 8) {
+                            Circle().fill(Theme.metricColor(change.metric))
+                                .frame(width: 9, height: 9)
+                            Text(change.metric.displayName).font(.subheadline)
+                            Spacer()
+                            Text(deltaLabel(change))
+                                .font(.subheadline.weight(.medium)).monospacedDigit()
+                                .foregroundStyle(tint(for: change))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func deltaLabel(_ change: PeriodChange) -> String {
+        let unit = change.metric.unit
+        let magnitude = abs(change.delta) < 10
+            ? String(format: "%.1f", abs(change.delta))
+            : String(format: "%.0f", abs(change.delta))
+        return "\(change.delta >= 0 ? "+" : "−")\(magnitude)\(unit.isEmpty ? "" : " \(unit)")"
+    }
+
+    /// Coloured only where a direction is genuinely better or worse. Where
+    /// neither end is good — a temperature deviation — it stays neutral rather
+    /// than implying a verdict.
+    private func tint(for change: PeriodChange) -> Color {
+        guard let improved = change.isImprovement else { return .primary }
+        return improved ? Theme.good : Theme.warn
     }
 
     // MARK: - Full history per metric

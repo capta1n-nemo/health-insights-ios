@@ -132,6 +132,31 @@ public enum ScoreHistory {
     }
 }
 
+/// A fitted line through a score history, with the spread around it.
+///
+/// The spread is the point. A slope quoted alone reads as a promise; quoted with
+/// the scatter it was drawn through, it reads as what it is. This follows how
+/// `VO2Trajectory` already reports a trend — never a bare number.
+public struct ScoreTrend: Sendable, Equatable {
+    public let slopePerWeek: Double
+    /// Typical distance of a real day from the fitted line, in score points.
+    public let residualSD: Double
+    public let start: Date
+    public let intercept: Double
+    public let slopePerDay: Double
+    public let sampleCount: Int
+
+    public func value(at date: Date) -> Double {
+        intercept + slopePerDay * (date.timeIntervalSince(start) / 86_400)
+    }
+
+    /// Whether the slope is big enough to call a direction at all, given how
+    /// much the days scatter around it.
+    public var isMeaningful: Bool {
+        residualSD > 0 && abs(slopePerWeek) >= residualSD * 0.25
+    }
+}
+
 public extension Array where Element == ScorePoint {
     /// Least-squares change per week, in score points. Used for the one-line
     /// trend sentence above the chart — a slope over the window rather than
@@ -142,5 +167,15 @@ public extension Array where Element == ScorePoint {
         let y = map(\.score)
         guard let fit = Baseline.linearRegression(x: x, y: y) else { return nil }
         return fit.slope * 7
+    }
+
+    /// The fitted line and its scatter, for the long-horizon view.
+    var trend: ScoreTrend? {
+        guard count >= 8, let first = self.first?.date else { return nil }
+        let x = map { $0.date.timeIntervalSince(first) / 86_400 }
+        guard let fit = Baseline.linearRegression(x: x, y: map(\.score)) else { return nil }
+        return ScoreTrend(slopePerWeek: fit.slope * 7, residualSD: fit.residualSD,
+                          start: first, intercept: fit.intercept,
+                          slopePerDay: fit.slope, sampleCount: count)
     }
 }

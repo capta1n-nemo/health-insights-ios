@@ -59,6 +59,32 @@ enum Theme {
     /// Which hue each metric wears. The slot assignment itself lives in
     /// InsightKit (`MetricType.colourSlot`) so its collision-safety can be
     /// tested — see the note there.
+    /// A stable tint per insight, for the cross-insight score comparison.
+    ///
+    /// Drawn from the same validated eight, and never more than four are on
+    /// screen at once — comfortably inside what the palette separates.
+    static func insightTint(_ id: InsightID) -> Color {
+        let slot: Int
+        switch id {
+        case .readiness: slot = 0
+        case .sleepQuality: slot = 2
+        case .vitalSigns: slot = 3
+        case .heartHealth: slot = 1
+        case .cardioFitness: slot = 5
+        case .cardioTrajectory: slot = 6
+        case .cardiovascularRisk: slot = 7
+        case .heartAge: slot = 4
+        case .bloodPressure: slot = 4
+        case .bodyComposition: slot = 5
+        case .restingHeartRateTrend: slot = 1
+        case .substanceImpact: slot = 6
+        }
+        let step = metricPalette[slot % metricPalette.count]
+        return Color(UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? step.dark : step.light)
+        })
+    }
+
     /// Line dash, the second half of a series' identity.
     ///
     /// Needed because hue alone cannot carry seventeen series: eight validated

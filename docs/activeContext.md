@@ -14,29 +14,36 @@ log into GitHub to merge anything.
 
 ## Current focus
 
-**Newest: insight detail screens rebuilt** (this session). Tapping Readiness used
-to open an HRV chart — one metric out of six, chosen by a hand-written switch.
-Now every scored card opens on its own score over time, then an overlay of every
-input standardised onto one axis, then plain-language patterns read off those
-series. The full design rationale is in `docs/architecture.md` ▸ "What an insight
-detail screen shows". Three things worth knowing without reading it:
+**Vitals Check rebuilt, then the Insights tab deep dive** (this session, four
+pushes, all CI-green). Driven by the user's observation that the card read 100 /
+"All normal" every day — "that should be really hard to achieve" — plus four
+screenshots that showed three of the defects outright.
 
-- **Score history is replayed, not just recorded.** Nothing ever stored a score,
-  so the chart would have been empty for months. `ScoreHistory.replay` re-runs a
-  model against **truncated** samples per past day — truncation is the mechanism,
-  because `ReadinessScore` ignores its `now:` argument. Stored days (new
-  `InsightScoreRecord`) win over replayed ones.
-- **The chart's series come from the scoring code**, via
-  `InsightResult.contributors`. Adding a component to a score adds a line with no
-  second edit. `candidateMetrics` (no default implementation) is the declared
-  superset, for "no data yet" rows.
-- **Z-scores, not a log axis.** Log doesn't equalise — `log(SpO₂ 95–99)` is flat
-  while `log(sleep 5–9 h)` still swings. Raw mode is a toggle, log within it only
-  when every series is strictly positive.
+Full rationale is in `docs/architecture.md` ▸ "Vitals Check: why a perfect score
+is hard", "Events are not metrics", "Chart identity: hue *and* dash" and
+"Insights tab: the deep dive". The things worth knowing without reading it:
 
-Not yet on the phone. Insights-tab deep-dive (lagged correlation, cross-insight
-overlay, period contrast) is designed but deliberately not built yet — see
-"Immediate next steps".
+- **The baseline was the anomaly.** `suffix(60)` was sixty *readings*, not days —
+  five hours for heart rate. It printed a baseline heart rate of 100 bpm. Now the
+  day's representative value per source over 28 days.
+- **`now` was accepted and never read**, so any-age readings counted as "measured
+  today" and bought high confidence. Freshness is per `Spec`; stale vitals are
+  named and cost coverage.
+- **Coverage is what makes 100 hard**, judged against what *this* person's
+  devices normally provide — so one wearable isn't punished for not being two.
+- **Hue alone cannot carry seventeen series.** No seven-hue subset of the
+  validated palette clears the colour-blind all-pairs floor; that was measured,
+  and the first version shipped two indistinguishable greens. Identity is now a
+  globally-unique (hue, dash) pair, so no chart can collide.
+- **Opacity carries the anomaly** (the user's idea, and the right one): flat
+  stretches fade to ~0.12, departures go opaque, so every series stays on the
+  chart and the interesting parts are what you see.
+- **Events are not metrics.** Apple's irregular-rhythm flag has no unit,
+  baseline, bucketing rule or gap interval — it gets its own input with a
+  defaulted protocol overload, leaving the other ten models untouched.
+
+**None of it is on the phone yet beyond the deploys firing** — the on-device
+walkthrough is the outstanding item.
 
 Landed earlier, driven by a troubleshooting log the user pasted:
 

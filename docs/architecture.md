@@ -277,6 +277,94 @@ Note this is a *second* colour scale. `Theme.sourcePalette` keys on **source**
 ("which device said this"); this one keys on **metric** ("which signal is this").
 They answer different questions and both are needed.
 
+## Vitals Check: why a perfect score is hard
+
+The card once read 100 / "All normal" on essentially every day. That was the
+model, not the user's health, and every cause pushed the same way:
+
+- **The baseline was the anomaly.** History was `suffix(60)` — sixty *readings*.
+  Heart rate arrives raw at ~300 samples a day, so the "personal baseline" was
+  the last five hours and moved with whatever it was meant to detect. It printed
+  a baseline heart rate of 100 bpm. It is now the day's representative value
+  **per source**, bucketed by the metric's own `bucketStatistic`, against a
+  28-day window needing ≥ 7 days present.
+- **Nothing checked the date.** `now` was accepted and never read, so a reading
+  of any age was current, normal by construction, and bought high confidence
+  while the copy said "measured today". Each `Spec` now carries `freshWithin`;
+  anything older moves to a stale list that is named and counted against
+  coverage.
+- **Two paths for one device set the variance.** `MultiSource.deduplicate` was
+  never called on the insight path, so inter-device disagreement — not
+  physiology — sized the SD. Sources are de-duplicated and scored separately.
+- **The score was a step function.** `100 - (unusual*25 + watch*10)` ignored the
+  z-scores it carried. `normality` is now continuous (Gaussian in z),
+  direction-aware, aggregated worst-first — this insight reports outliers, it
+  does not average an abnormal SpO₂ against a normal heart rate — then **capped
+  by coverage** measured against what this person's devices normally provide.
+  So 100 needs everything you usually record measured today *and* on baseline,
+  while a one-wearable user isn't punished for lacking a second.
+- **Bounds were wrong.** Walking heart rate's 130 could never fire; blood oxygen
+  flagged only at 92 when 94 is the attention line; body temperature applied
+  core bounds to a *reconstructed skin* series, so a fever needed +2.3 °C.
+  Apple's real thermometer readings are now in `readMap`.
+
+HRV also gains a **relative floor** (60% of the long-run median), because a slow
+collapse walks its own baseline down and no rolling z-score can see it.
+
+## Events are not metrics
+
+Apple's discrete flags — irregular rhythm, high/low heart rate, low cardio
+fitness, unsteady walking — have no unit, no baseline, no bucketing rule and no
+gap interval. Modelling them as a `MetricType` would mean inventing all four, so
+`VitalEvent` is a separate input. `InsightModel` has an `evaluate(samples:events:
+profile:now:)` overload **with a default implementation** that ignores them, so
+only Vitals Check overrides and the other ten models were untouched. Events
+outrank z-scores, are de-duplicated by kind, and are priced by severity.
+`ScoreHistory.replay` truncates them on the same contract as samples.
+
+Watch the encoding quirk: a HealthKit category sample with value `notApplicable`
+(0) *and* a duration is stored as **minutes**, not the enum. So the sample's
+existence is the signal, not its value.
+
+## Chart identity: hue *and* dash
+
+Eight validated hues is the ceiling for a categorical palette. Vitals Check now
+charts seventeen signals, and when any pair may be compared — as on an overlay
+where the eye picks its own two lines — **no seven-hue subset of the palette
+clears the colour-blind separation floor**. Measured with the validator, not
+assumed; the first version shipped two indistinguishable greens.
+
+So identity is a pair: `MetricType.chartStyleIndex` gives hue (`% 8`) and dash
+(`/ 8`), and is **globally unique per metric**. Any subset of metrics is
+therefore collision-free on any chart, with no per-insight rule to maintain —
+`MetricColourSlotTests` asserts the uniqueness directly instead of checking a
+belief about what co-occurs.
+
+**Opacity carries the anomaly.** Each span between adjacent readings is drawn at
+an opacity set by how far from baseline it is (≈0.12 at baseline, opaque by
+|z| ≥ 3), so flat ordinary stretches recede and departures come forward — which
+is what makes seventeen overlaid series legible rather than spaghetti. Dots
+appear only past 1.5 SD. Thinning for long windows keeps the **extremes** rather
+than striding, because a stride drops exactly the days the chart exists to show.
+
+## Insights tab: the deep dive
+
+Today asks "how am I right now"; the Insights tab asks "what has been happening
+over months". Gated on `InsightID.cadence == .trend` so the split stays clean.
+
+- **`LagFinder`** — the one question Today structurally cannot ask. Today
+  compares today with yesterday, so every relationship it sees is same-day.
+  Correlating a metric at day *d* against the score at *d+1…d+3* asks whether
+  last night's sleep predicts tomorrow. A lag is reported only when it beats
+  same-day by a real margin, or it is the same finding blurred.
+- **`PeriodContrast`** — last 28 days against the prior 28, standardised by the
+  prior period's own spread. A z-score cannot answer "has my normal moved?",
+  because its baseline drifts along with the change.
+- **`ScoreTrend`** — the fitted line *with its residual spread*, never a bare
+  slope, matching the standard `VO2Trajectory` already holds itself to.
+- **`ScoreComparisonChart`** — scores are all 0–100, so they are the one overlay
+  in the app that needs no transform at all.
+
 ## Chart gap interpolation
 
 `MetricType.maxValidInterval` (same file) sets the longest gap a chart line may

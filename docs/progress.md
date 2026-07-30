@@ -54,6 +54,34 @@ about confidence.**
       behind sample-count and effect-size floors, and always worded as
       associations rather than causes.
 
+### Vitals Check, rebuilt so 100 means something
+- [x] Real baselines: the day's representative value per source over a 28-day
+      window, replacing `suffix(60)` — sixty *readings*, which for heart rate was
+      the last five hours and moved with the very thing it was meant to detect.
+- [x] Freshness: `now` is finally used, stale vitals are named and counted
+      against coverage instead of silently reading as "measured today".
+- [x] Continuous, direction-aware normality replacing a step function, aggregated
+      worst-first and capped by coverage — so a perfect score needs everything
+      you normally record measured today *and* sitting on its baseline.
+- [x] Sources de-duplicated and scored separately, so two miscalibrated devices
+      no longer size the standard deviation between them.
+- [x] Corrected bounds, plus an HRV relative floor for the slow collapse a
+      rolling z-score cannot see.
+- [x] Scan widened from 7 metrics to 17: HRV SDNN (the HRV Apple Watch actually
+      records), blood pressure, skin temperature, blood glucose, perfusion index,
+      AFib burden, heart-rate recovery, walking steadiness and asymmetry.
+- [x] Apple's own event flags read as events, not metrics — irregular rhythm,
+      high/low heart rate, low cardio fitness, unsteady walking.
+
+### Insights tab: the deep dive
+- [x] Lagged correlation — a signal at day *d* against the score at *d+1…d+3*,
+      reported only when it beats same-day. The one question Today can't ask.
+- [x] Long-horizon score history with a fitted trend and its residual spread.
+- [x] Cross-insight score comparison — all 0–100, so directly comparable.
+- [x] Rolling 28 days vs the prior 28, standardised by the prior spread.
+- [x] `contributors` filled for the trend models, so their charts carry honest
+      weights rather than falling back to the declared candidate list.
+
 ### Creative data use
 - [x] Temperature reconstruction from wearable nightly-deviation readings.
 - [x] Blood-test photo import (on-device OCR → confirmed grounding values).
@@ -130,18 +158,6 @@ about confidence.**
       Oura setup screen no longer raises the "Paste from your Mac?" prompt.
 
 ## Next
-
-### Insights tab: the deep dive (designed, not built)
-The Today tab answers "today vs yesterday"; this answers "what's been happening
-to me over months", reusing the same components at a longer horizon.
-
-- [ ] **Lagged correlation** — an input at day *d* against the score at *d+1…d+3*.
-      The one thing Today structurally can't do, and the reason this tab exists.
-- [ ] Long-horizon score history with a regression trend and residual spread.
-- [ ] Cross-insight overlay — readiness/sleep/fitness scores on one axis.
-- [ ] Rolling 28 days vs the prior 28, per contributor: a "what changed" table.
-- [ ] Fill `contributors` for the eight trend-tab models — they currently fall
-      back to `candidateMetrics`, so the charts work but without honest weights.
 
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.

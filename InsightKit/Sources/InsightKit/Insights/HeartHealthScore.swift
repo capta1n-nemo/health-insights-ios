@@ -17,14 +17,31 @@ public enum HeartHealthScore {
         public let score: Double       // 0…100
         public let weight: Double
         public let detail: String
-        public init(name: String, score: Double, weight: Double, detail: String) {
+        /// The metric this read, so the detail screen charts exactly what the
+        /// score used rather than a hand-maintained guess at it.
+        public let metric: MetricType
+        public let higherIsBetter: Bool?
+        public init(name: String, score: Double, weight: Double, detail: String,
+                    metric: MetricType, higherIsBetter: Bool?) {
             self.name = name; self.score = score; self.weight = weight; self.detail = detail
+            self.metric = metric; self.higherIsBetter = higherIsBetter
         }
     }
 
     public struct Output: Sendable, Equatable {
         public let score: Double        // 0…100 weighted composite
         public let components: [Component]
+
+        /// Weights renormalised over the components that had data — the same
+        /// division the composite itself does.
+        public var contributions: [MetricContribution] {
+            let total = components.reduce(0) { $0 + $1.weight }
+            guard total > 0 else { return [] }
+            return components.map {
+                MetricContribution(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
+                                   weight: $0.weight / total, detail: $0.detail)
+            }
+        }
     }
 
     // MARK: - Reference-range sub-scores (clamped 0…100)
@@ -63,6 +80,8 @@ public enum HeartHealthScore {
         vo2Max: Double?,
         restingHR: Double?,
         hrv: Double?,
+        /// Which HRV flavour `hrv` came from, so the chart plots that one.
+        hrvMetric: MetricType = .heartRateVariabilityRMSSD,
         respiratoryRateDeviation: Baseline.Deviation?,
         age: Double,
         sex: BiologicalSex
@@ -72,24 +91,28 @@ public enum HeartHealthScore {
         if let vo2 = vo2Max {
             comps.append(.init(name: "Cardio fitness (VO₂max)",
                                score: vo2Score(vo2, age: age, sex: sex), weight: 0.45,
-                               detail: String(format: "%.0f mL/kg·min", vo2)))
+                               detail: String(format: "%.0f mL/kg·min", vo2),
+                               metric: .vo2Max, higherIsBetter: true))
         }
         if let hr = restingHR {
             comps.append(.init(name: "Resting heart rate",
                                score: restingHRScore(hr), weight: 0.25,
-                               detail: String(format: "%.0f bpm", hr)))
+                               detail: String(format: "%.0f bpm", hr),
+                               metric: .restingHeartRate, higherIsBetter: false))
         }
         if let v = hrv {
             comps.append(.init(name: "Heart-rate variability",
                                score: hrvScore(v, age: age), weight: 0.25,
-                               detail: String(format: "%.0f ms", v)))
+                               detail: String(format: "%.0f ms", v),
+                               metric: hrvMetric, higherIsBetter: true))
         }
         if let dev = respiratoryRateDeviation {
             // Stable respiratory rate (near baseline) scores high; big deviations lower it.
             let penalty = min(60, abs(dev.zScore ?? 0) * 20)
             comps.append(.init(name: "Respiratory stability",
                                score: clamp(90 - penalty), weight: 0.05,
-                               detail: String(format: "%.0f br/min", dev.value)))
+                               detail: String(format: "%.0f br/min", dev.value),
+                               metric: .respiratoryRate, higherIsBetter: nil))
         }
 
         guard !comps.isEmpty else { return nil }
@@ -135,6 +158,10 @@ public struct HeartHealthInsight: InsightModel {
 
         let vo2 = samples.latestValue(.vo2Max)
         let restHR = samples.meanValue(.restingHeartRate)
+        // Track which flavour was used, so the chart plots the series the score
+        // actually read rather than whichever one it guesses at.
+        let hrvMetric: MetricType = samples.latestValue(.heartRateVariabilityRMSSD) != nil
+            ? .heartRateVariabilityRMSSD : .heartRateVariabilitySDNN
         let hrv = samples.latestValue(.heartRateVariabilityRMSSD)
             ?? samples.latestValue(.heartRateVariabilitySDNN)
 
@@ -144,7 +171,7 @@ public struct HeartHealthInsight: InsightModel {
             : nil
 
         guard let out = HeartHealthScore.evaluate(
-            vo2Max: vo2, restingHR: restHR, hrv: hrv,
+            vo2Max: vo2, restingHR: restHR, hrv: hrv, hrvMetric: hrvMetric,
             respiratoryRateDeviation: respDev, age: age, sex: sex) else {
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "No data yet",
@@ -163,7 +190,8 @@ public struct HeartHealthInsight: InsightModel {
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: band, score: out.score, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: unmet)
+            explanation: explanation, drivers: drivers, unmetRequirements: unmet,
+            contributors: out.contributions)
     }
 
     static func band(_ score: Double) -> String {

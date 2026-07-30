@@ -160,7 +160,9 @@ public struct CardioFitnessInsight: InsightModel {
             id: id, title: title, primaryValue: vo2, headline: level, score: score,
             confidence: vo2Series.count >= 3 ? .high : .moderate,
             explanation: "Your cardio fitness (VO₂max \(Int(vo2.rounded()))) is \(level.lowercased()) for your age and sex. Higher VO₂max is one of the strongest predictors of long-term heart health.",
-            drivers: drivers, unmetRequirements: unmet)
+            drivers: drivers, unmetRequirements: unmet,
+            contributors: [.init(metric: .vo2Max, higherIsBetter: true, weight: 1,
+                                 detail: String(format: "%.0f", vo2))])
     }
     static func level(_ s: Double) -> String {
         switch s { case 80...: return "Excellent"; case 60..<80: return "Good"
@@ -237,10 +239,21 @@ public struct BodyCompositionInsight: InsightModel {
             explanation += " " + composition
         }
 
+        // Every body measurement that actually reported, evenly weighted: this
+        // insight narrates rather than scores, so no share of a score is claimed.
+        let present = candidateMetrics.filter { samples.latestValue($0) != nil }
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline, score: nil,
             confidence: height == nil ? .moderate : .high,
-            explanation: explanation, drivers: drivers, unmetRequirements: [])
+            explanation: explanation, drivers: drivers, unmetRequirements: [],
+            contributors: present.map { metric in
+                let unit = metric.unit
+                return .init(metric: metric,
+                             higherIsBetter: metric == .bodyFatPercentage ? false : nil,
+                             weight: 0,
+                             detail: String(format: "%.1f%@", samples.latestValue(metric) ?? 0,
+                                            unit.isEmpty ? "" : " \(unit)"))
+            })
     }
 
     /// Reads the direction of weight change against lean mass.
@@ -308,6 +321,8 @@ public struct RestingHeartRateTrendInsight: InsightModel {
             explanation: "Resting heart rate \(Int(latest.rounded())) bpm — \(direction).",
             drivers: [String(format: "Baseline: %.0f bpm", dev.baseline),
                       dev.zScore.map { String(format: "%.1f SD from baseline", $0) } ?? "Within range"],
-            unmetRequirements: [])
+            unmetRequirements: [],
+            contributors: [.init(metric: .restingHeartRate, higherIsBetter: false, weight: 1,
+                                 detail: "\(Int(latest.rounded())) bpm")])
     }
 }
