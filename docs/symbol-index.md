@@ -101,6 +101,9 @@ the place to look.
   - `ScoreHistory` :38
   - `ScorePoint` :4
   - `ScoreTrend` :140
+- `Insights/SummaryFingerprint.swift`
+  - `RefreshGate` :59
+  - `SummaryFingerprint` :20
 - `Insights/VitalEvent.swift`
   - `VitalEvent` :76
   - `VitalEventKind` :12
@@ -273,10 +276,10 @@ the place to look.
   - `ConfidenceBadge` :150
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :211
-  - `LastNightCard` :91
+  - `InsightCard` :220
+  - `LastNightCard` :100
   - `TodayView` :7
-  - `VitalsGlance` :136
+  - `VitalsGlance` :145
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`

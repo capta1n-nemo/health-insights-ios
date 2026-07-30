@@ -72,6 +72,15 @@ struct TodayView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                // Says when the data last moved. A pull-to-refresh inside the
+                // thirty-second floor returns without syncing, and a gesture that
+                // appears to do nothing reads as a bug — this is what makes it
+                // read as "already up to date" instead.
+                if let refreshed = model.lastRefreshedAt, !model.isSyncing {
+                    Text("Updated \(refreshed.formatted(.relative(presentation: .named)))")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }

@@ -131,6 +131,36 @@ final class DataStore {
         try? data.write(to: otherCacheURL, options: .atomic)
     }
 
+    // MARK: - Today summary
+
+    private var summaryURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? URL.temporaryDirectory
+        return base.appendingPathComponent("today_summary.json")
+    }
+
+    private struct StoredSummary: Codable {
+        let text: String
+        let fingerprint: SummaryFingerprint
+    }
+
+    /// The last summary and what it was written from, so a cold launch on
+    /// unchanged data doesn't pay for a fresh model round-trip either.
+    func loadSummary() -> (text: String, fingerprint: SummaryFingerprint)? {
+        guard let data = try? Data(contentsOf: summaryURL),
+              let stored = try? JSONDecoder().decode(StoredSummary.self, from: data)
+        else { return nil }
+        return (stored.text, stored.fingerprint)
+    }
+
+    func saveSummary(_ text: String, fingerprint: SummaryFingerprint) {
+        guard let data = try? JSONEncoder().encode(
+            StoredSummary(text: text, fingerprint: fingerprint)) else { return }
+        try? data.write(to: summaryURL, options: .atomic)
+    }
+
     // MARK: - Discovered provider schema
 
     private var fieldCatalogueURL: URL {

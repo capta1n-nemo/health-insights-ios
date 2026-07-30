@@ -86,6 +86,29 @@ final class AppModel {
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
     private(set) var isSyncing = false
+    /// When the last refresh actually completed. Shown on the Today card, which
+    /// is what keeps a floored pull-to-refresh from reading as a broken one.
+    private(set) var lastRefreshedAt: Date?
+
+    /// What the stored summary was written from. Compared against the current
+    /// results so an app open that changed nothing skips the model round-trip.
+    @ObservationIgnored private var summaryFingerprint: SummaryFingerprint?
+
+    /// Regenerate the Today summary only when the results behind it have moved.
+    ///
+    /// `RootView` refreshes on every appearance, so this used to run a full
+    /// on-device model pass each time the app came to the foreground, whether or
+    /// not anything had changed.
+    private func refreshSummaryIfChanged(now: Date, diag: DiagnosticsLog) async {
+        let fingerprint = SummaryFingerprint.of(results: results, now: now)
+        if fingerprint == summaryFingerprint, !todaySummary.isEmpty {
+            diag.info("Summary", "Unchanged since the last pass — reused")
+            return
+        }
+        todaySummary = await summarizer.summarize(results: results)
+        summaryFingerprint = fingerprint
+        dataStore.saveSummary(todaySummary, fingerprint: fingerprint)
+    }
     /// Observable copy of each integration's status so the UI updates live when a
     /// provider connects, fails or syncs (the providers themselves aren't tracked
     /// by @Observable). Keyed by integration id.
@@ -121,7 +144,17 @@ final class AppModel {
         otherSamples = dataStore.loadCachedOther()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
-        todaySummary = FoundationModelSummarizer.templateSummary(from: results)
+        // A stored summary written from *these* results is the real thing and is
+        // worth showing immediately. Only fall back to the template when there
+        // isn't one, or when the results have moved since it was written — the
+        // refresh that follows will replace it either way.
+        if let stored = dataStore.loadSummary(),
+           stored.fingerprint == SummaryFingerprint.of(results: results, now: Date()) {
+            todaySummary = stored.text
+            summaryFingerprint = stored.fingerprint
+        } else {
+            todaySummary = FoundationModelSummarizer.templateSummary(from: results)
+        }
     }
 
     /// Unmodelled imported data, grouped by identifier for the "Other data" browser.
@@ -188,7 +221,9 @@ final class AppModel {
                                           start: date, source: .manual))
         samples.append(HealthMetricSample(type: .bloodPressureDiastolic, value: diastolic,
                                           start: date, source: .manual))
-        Task { await refresh() }
+        // Forced: a reading was just logged, so waiting out the manual floor
+        // would leave the card showing the state before it.
+        Task { await refresh(force: true) }
     }
 
     private func captureBloodPressureOutcome(actualSystolic: Double, actualDiastolic: Double) {
@@ -309,11 +344,23 @@ final class AppModel {
 
     /// Refresh all data: fetch from connected integrations + local samples, then
     /// recompute insights and the summary.
-    func refresh() async {
+    /// - Parameter force: bypass the manual-refresh floor. Used by the paths that
+    ///   *know* something changed — logging a substance, saving a grounding value
+    ///   — where waiting thirty seconds would be nonsense.
+    func refresh(force: Bool = false) async {
+        let startedAt = Date()
+        // Three pull-to-refresh gestures in three seconds used to pay for three
+        // full syncs and three model round-trips. The gesture isn't ignored
+        // silently — `lastRefreshedAt` is on the Today card, so a suppressed pull
+        // still shows when the data last moved.
+        if !force, case .tooSoon = RefreshGate.decide(lastRefreshAt: lastRefreshedAt,
+                                                      now: startedAt) {
+            DiagnosticsLog.shared.info("Sync", "Refresh skipped — less than \(Int(RefreshGate.manualFloor))s since the last one")
+            return
+        }
         isSyncing = true
         defer { isSyncing = false }
         let diag = DiagnosticsLog.shared
-        let startedAt = Date()
         diag.info("Sync", "Refresh started",
                   detail: "Build \(BuildInfo.summary), built \(BuildInfo.formattedDate)")
 
@@ -373,7 +420,8 @@ final class AppModel {
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
-        todaySummary = await summarizer.summarize(results: results)
+        await refreshSummaryIfChanged(now: startedAt, diag: diag)
+        lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })
             .map { "· \($0.key): \($0.value.count) sample(s)" }
@@ -688,7 +736,7 @@ final class AppModel {
         case .connected:
             UserDefaults.standard.removeObject(forKey: key)
             dataStore.setIntegration(id: integration.id, connected: true, lastSync: nil)
-            await refresh()
+            await refresh(force: true)
         case .error(let message):
             UserDefaults.standard.set(message, forKey: key)   // survive relaunch
         default:
@@ -701,7 +749,7 @@ final class AppModel {
         integrationStatuses[integration.id] = integration.status
         UserDefaults.standard.removeObject(forKey: "lastError.\(integration.id)")
         dataStore.setIntegration(id: integration.id, connected: false, lastSync: nil)
-        await refresh()
+        await refresh(force: true)
     }
 
     /// Samples of a metric for charting, oldest → newest.

@@ -81,9 +81,10 @@ A metric with no reader is invisible. Either add it to an insight's
 code, or accept that it is Vitals-tab-only and say so. `docs/architecture.md`
 carries the metric → insight table; keep it current.
 
-Prefer reading it through `VitalReader` (`Baseline/VitalReader.swift`) — the
-day's de-duplicated value against a windowed baseline, with freshness. Six
-insights still hand-roll this and each got it wrong differently.
+Read it through `VitalReader` (`Baseline/VitalReader.swift`) — the day's
+de-duplicated value against a windowed baseline, with freshness. Every insight
+does now; six used to hand-roll it and each got it wrong differently, which is
+what the type exists to stop happening again.
 
 ## 5. Tests that will move
 

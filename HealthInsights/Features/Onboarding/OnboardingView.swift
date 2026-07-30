@@ -205,7 +205,7 @@ struct OnboardingView: View {
         }
         model.hasCompletedOnboarding = true
         isPresented = false
-        Task { await model.refresh() }
+        Task { await model.refresh(force: true) }
     }
 }
 
