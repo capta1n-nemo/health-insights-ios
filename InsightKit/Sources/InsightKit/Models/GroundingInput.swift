@@ -42,7 +42,10 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .dateOfBirth, .biologicalSex, .ascvdRaceGroup, .score2Region:
             return nil
         case .totalCholesterol, .hdlCholesterol:
-            return 365 * 24 * 3600            // a year — labs are done infrequently
+            // Six months. An aged lab is still the best number available and
+            // keeps being used — what it stops buying is high confidence, and a
+            // prompt to repeat it. See `CardiovascularRiskInsight`.
+            return 180 * 24 * 3600
         case .currentSmoker, .hasDiabetes, .onBPMedication:
             return 180 * 24 * 3600            // six months
         case .cuffSystolic, .cuffDiastolic:

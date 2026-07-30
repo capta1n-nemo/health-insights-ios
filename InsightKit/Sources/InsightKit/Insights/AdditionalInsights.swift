@@ -231,7 +231,14 @@ public struct BodyCompositionInsight: InsightModel {
         [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass, .boneMass,
          .bodyWaterPercentage, .height]
     }
-    public var requirements: [GroundingRequirement] { [] }
+    /// Non-mandatory: without them the dial falls back to BMI rather than
+    /// disappearing, and the card still narrates.
+    public var requirements: [GroundingRequirement] {
+        [.init(kind: .dateOfBirth, isMandatory: false,
+               rationale: "Healthy body-fat ranges are age-banded."),
+         .init(kind: .biologicalSex, isMandatory: false,
+               rationale: "Healthy body-fat ranges differ substantially by sex.")]
+    }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         let weightSeries = samples.samples(of: .bodyMass)
@@ -246,14 +253,16 @@ public struct BodyCompositionInsight: InsightModel {
         var primary = weight
         var explanation = "Your latest weight is \(String(format: "%.1f", weight)) kg."
 
+        var bmi: Double?
         if let h = height, h > 0.5 {
-            let bmi = weight / (h * h)
-            let cat = Self.bmiCategory(bmi)
-            headline = String(format: "BMI %.1f", bmi)
-            primary = bmi
-            drivers.insert(InsightDriver(text: String(format: "BMI: %.1f (%@)", bmi, cat),
+            let value = weight / (h * h)
+            bmi = value
+            let cat = Self.bmiCategory(value)
+            headline = String(format: "BMI %.1f", value)
+            primary = value
+            drivers.insert(InsightDriver(text: String(format: "BMI: %.1f (%@)", value, cat),
                                          isNotable: cat != "healthy"), at: 0)
-            explanation = "Your BMI is \(String(format: "%.1f", bmi)) (\(cat)), from \(String(format: "%.1f", weight)) kg at \(String(format: "%.2f", h)) m."
+            explanation = "Your BMI is \(String(format: "%.1f", value)) (\(cat)), from \(String(format: "%.1f", weight)) kg at \(String(format: "%.2f", h)) m."
         } else {
             // Something the user can act on, so it doesn't get folded away.
             drivers.append(.notable("Add your height to calculate BMI"))
@@ -298,16 +307,21 @@ public struct BodyCompositionInsight: InsightModel {
             explanation += " " + composition
         }
 
-        // Every body measurement that actually reported, evenly weighted: this
-        // insight narrates rather than scores, so no share of a score is claimed.
+        // Every body measurement that actually reported. The contributor weights
+        // stay 0 — the dial below is not a weighted blend of these lines — but
+        // the card does now carry a score.
         let present = candidateMetrics.filter { samples.latestValue($0) != nil }
+        let bodyFat = samples.latestValue(.bodyFatPercentage)
         return InsightResult(
-            id: id, title: title, primaryValue: primary, headline: headline, score: nil,
-            confidence: height == nil ? .moderate : .high,
+            id: id, title: title, primaryValue: primary, headline: headline,
+            score: Self.score(bodyFat: bodyFat, bmi: bmi,
+                              age: profile.age(asOf: now), sex: profile.sex),
+            confidence: Self.scoreConfidence(bodyFat: bodyFat, height: height,
+                                             profile: profile, now: now),
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
-            unmetRequirements: [],
+            unmetRequirements: unmetRequirements(profile: profile, now: now),
             contributors: present.map { metric in
                 let unit = metric.unit
                 return .init(metric: metric,
@@ -346,6 +360,63 @@ public struct BodyCompositionInsight: InsightModel {
     static func bmiCategory(_ bmi: Double) -> String {
         switch bmi { case ..<18.5: return "underweight"; case 18.5..<25: return "healthy"
         case 25..<30: return "overweight"; default: return "obese" }
+    }
+
+    // MARK: - The dial
+    //
+    // This card carried `score: nil` unconditionally, which meant it could never
+    // show a dial even with a complete smart-scale dataset — while at the same
+    // time printing "BMI: 30.4 (obese)" as a notable driver. That is the
+    // judgement without the calibration, not restraint about making one.
+
+    /// Healthy body-fat % for age and sex — the Gallagher et al. (2000) bands
+    /// behind the NIH / ACE "healthy range" tables. Published thresholds, not a
+    /// weighting this app invented, which is the same justification the repo
+    /// already accepted for scoring blood pressure.
+    static func healthyBodyFatRange(age: Double, sex: BiologicalSex) -> (lower: Double, upper: Double) {
+        switch sex {
+        case .male:   return age < 40 ? (8, 19)  : age < 60 ? (11, 21) : (13, 24)
+        case .female: return age < 40 ? (21, 32) : age < 60 ? (23, 33) : (24, 35)
+        }
+    }
+
+    /// How close a value sits to the middle of a published healthy range.
+    ///
+    /// The same Gaussian falloff `VitalSignsCheck.normality` uses, with the
+    /// range's own half-width standing in for a standard deviation: dead centre
+    /// scores 100, either edge about 82. Below the range costs half as much —
+    /// lean is not the failure mode this measures, and it is the same asymmetry
+    /// Vitals Check applies to a departure in the harmless direction.
+    static func rangeScore(_ value: Double, lower: Double, upper: Double) -> Double {
+        let centre = (lower + upper) / 2
+        let halfWidth = Swift.max(0.5, (upper - lower) / 2)
+        let d = (value - centre) / halfWidth
+        let base = 100 * exp(-0.5 * pow(d / 1.6, 2))
+        return d < 0 ? 100 - (100 - base) * 0.5 : base
+    }
+
+    /// Body fat against the age/sex healthy range when a scale reports it; BMI
+    /// against 18.5–24.9 otherwise.
+    ///
+    /// BMI is the *fallback* rather than the basis because it cannot tell muscle
+    /// from fat — which is the whole distinction this card exists to draw, and
+    /// the reason it carried no score for so long. Scoring BMI when a measured
+    /// fat fraction is on hand would be choosing the worse instrument.
+    static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?) -> Double? {
+        if let bodyFat, let age, let sex {
+            let range = healthyBodyFatRange(age: age, sex: sex)
+            return rangeScore(bodyFat, lower: range.lower, upper: range.upper)
+        }
+        if let bmi { return rangeScore(bmi, lower: 18.5, upper: 24.9) }
+        return nil
+    }
+
+    /// `.high` only when the dial rests on a measured fat fraction against a
+    /// real age and sex. BMI alone is a weaker instrument and should say so.
+    static func scoreConfidence(bodyFat: Double?, height: Double?,
+                                profile: UserHealthProfile, now: Date) -> InsightConfidence {
+        if bodyFat != nil, profile.age(asOf: now) != nil, profile.sex != nil { return .high }
+        return height == nil ? .low : .moderate
     }
 }
 

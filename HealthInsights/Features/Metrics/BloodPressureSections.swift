@@ -250,7 +250,7 @@ struct BloodPressureSections: View {
                     Label("Add a reading", systemImage: "plus.circle.fill")
                 }
                 CalibrationProgress(status: status)
-                Text("Grounding uses only readings from the last 30 days: log \(BloodPressureEstimator.initialCalibrationReadings) to ground the estimate, and because readings stop counting after 30 days you'll need to add fresh ones over time. Readings already in Apple Health count automatically.")
+                Text("Grounding uses only readings from the last 30 days. Log \(BloodPressureEstimator.initialCalibrationReadings) within 30 days to ground the estimate, then \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month keeps it grounded. Readings already in Apple Health count automatically.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

@@ -24,6 +24,15 @@ public enum BloodPressureEstimator {
     /// The trailing window that defines "this month" for maintenance/freshness.
     public static let maintenanceWindow: TimeInterval = 30 * 24 * 3600
 
+    /// How far back the personal regression may reach for calibration points.
+    ///
+    /// Deliberately not `maintenanceWindow`. Grounding asks "is this estimate
+    /// still current?" — thirty days. The fit asks "do we have enough of this
+    /// person to draw a line through?" — a different question, and answering it
+    /// with thirty days is what forced the app to demand five readings every
+    /// month forever just to keep the estimator alive.
+    public static let calibrationFitWindow: TimeInterval = 180 * 24 * 3600
+
     /// A single cuff reading (systolic + diastolic) at a point in time, from any
     /// source — logged in-app, in Apple Health, or synced from Withings. This is
     /// the shared pairing used by both the reading list and calibration counting.
@@ -65,15 +74,51 @@ public enum BloodPressureEstimator {
     /// so the user must keep providing fresh ones. `totalReadings` is kept only
     /// for display ("N in your history").
     public struct CalibrationStatus: Sendable, Equatable {
-        public let totalReadings: Int      // all history, for display
-        public let recentReadings: Int     // last 30 days — the grounding set
-        public init(totalReadings: Int, recentReadings: Int) {
-            self.totalReadings = totalReadings
-            self.recentReadings = recentReadings
+        /// Where the user is in the calibration lifecycle.
+        public enum Phase: Sendable, Equatable {
+            /// `initialCalibrationReadings` have never landed inside one 30-day
+            /// window.
+            case initial
+            /// Calibrated, and the fit window still holds enough to refit.
+            case maintenance
+            /// Calibrated once, but the fit window has emptied out — the
+            /// regression cannot be rebuilt, so the full initial ask is honest.
+            case expired
         }
 
-        /// Readings required within the grounding window to calibrate.
-        public var required: Int { BloodPressureEstimator.initialCalibrationReadings }
+        public let totalReadings: Int      // all history, for display
+        public let recentReadings: Int     // last 30 days — the grounding set
+        /// Readings inside `calibrationFitWindow` — what the regression can use.
+        public let fittableReadings: Int
+        /// Whether the initial five ever landed inside one 30-day window.
+        public let hasCompletedInitial: Bool
+
+        public init(totalReadings: Int, recentReadings: Int,
+                    fittableReadings: Int = 0, hasCompletedInitial: Bool = false) {
+            self.totalReadings = totalReadings
+            self.recentReadings = recentReadings
+            self.fittableReadings = fittableReadings
+            self.hasCompletedInitial = hasCompletedInitial
+        }
+
+        public var phase: Phase {
+            guard hasCompletedInitial else { return .initial }
+            return fittableReadings >= BloodPressureEstimator.minimumCalibrationPoints
+                ? .maintenance : .expired
+        }
+
+        /// Readings required within the grounding window.
+        ///
+        /// Five once, then two a month — which is what
+        /// `maintenanceReadingsPerMonth` was declared for. It was never read,
+        /// and this was hard-wired to `initialCalibrationReadings`, so the app
+        /// demanded five readings every thirty days forever.
+        public var required: Int {
+            switch phase {
+            case .initial, .expired: return BloodPressureEstimator.initialCalibrationReadings
+            case .maintenance:       return BloodPressureEstimator.maintenanceReadingsPerMonth
+            }
+        }
         /// Grounded once there are enough readings *in the last 30 days*.
         public var isGrounded: Bool { recentReadings >= required }
         public var neededForGrounding: Int { max(0, required - recentReadings) }
@@ -81,21 +126,108 @@ public enum BloodPressureEstimator {
         /// One plain-language sentence describing what to do next — the same
         /// message the app shows in Vitals, Insights and Settings.
         public var guidance: String {
-            if isGrounded {
-                return "Grounded — \(recentReadings) cuff readings in the last 30 days. Keep adding readings as older ones pass 30 days so it stays grounded."
-            }
             let n = neededForGrounding
-            return "\(recentReadings) of \(required) cuff readings in the last 30 days. Log \(n) more from a cuff to ground the estimate — only readings from the last 30 days count (readings already in Apple Health count too)."
+            switch phase {
+            case .initial:
+                if isGrounded {
+                    return "Grounded — \(recentReadings) cuff readings in the last 30 days. \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month from here keeps it grounded."
+                }
+                return "\(recentReadings) of \(required) cuff readings in the last 30 days. Log \(n) more from a cuff to ground the estimate — only readings from the last 30 days count (readings already in Apple Health count too)."
+            case .maintenance:
+                if isGrounded {
+                    return "Grounded — \(recentReadings) cuff readings in the last 30 days. \(required) a month keeps it that way."
+                }
+                return "\(recentReadings) of \(required) cuff readings this month. Log \(n) more to keep the estimate grounded — you've already done the one-off five."
+            case .expired:
+                return "It's been a while — \(recentReadings) of \(required) cuff readings in the last 30 days. Your earlier calibration is too old to fit against, so it needs the full five again."
+            }
         }
     }
 
     /// Compute grounding status: readings within the last 30 days are the
-    /// grounding set; anything older is shown as history but doesn't count.
+    /// grounding set; anything older is shown as history but doesn't count
+    /// toward grounding — though it may still feed the fit.
     public static func calibrationStatus(from samples: [HealthMetricSample],
                                          now: Date = Date()) -> CalibrationStatus {
         let pairs = pairedReadings(from: samples)
         let recent = pairs.filter { now.timeIntervalSince($0.date) <= maintenanceWindow }.count
-        return CalibrationStatus(totalReadings: pairs.count, recentReadings: recent)
+        let fittable = pairs.filter { now.timeIntervalSince($0.date) <= calibrationFitWindow }.count
+        return CalibrationStatus(totalReadings: pairs.count, recentReadings: recent,
+                                 fittableReadings: fittable,
+                                 hasCompletedInitial: completedInitialCalibration(pairs))
+    }
+
+    /// Whether `initialCalibrationReadings` ever landed inside one 30-day window.
+    ///
+    /// Anchored on each reading and looking *back* thirty days: the user
+    /// completed the one-off calibration the moment such a window existed, and
+    /// no later gap un-completes it. Whether the calibration has since gone
+    /// stale is a separate question, answered by whether the fit window still
+    /// holds enough points — see `CalibrationStatus.phase`.
+    static func completedInitialCalibration(_ readings: [Reading]) -> Bool {
+        guard readings.count >= initialCalibrationReadings else { return false }
+        // `pairedReadings` returns newest-first, so from each anchor the
+        // remainder of the array runs backwards in time.
+        let dates = readings.map(\.date)
+        for (index, anchor) in dates.enumerated() {
+            let window = dates[index...].prefix { anchor.timeIntervalSince($0) <= maintenanceWindow }
+            if window.count >= initialCalibrationReadings { return true }
+        }
+        return false
+    }
+
+    /// The recent cuff *pattern*, which is what the card is actually about.
+    ///
+    /// A single reading is a moment: it moves with a rushed morning, a coffee,
+    /// a cuff on the wrong arm. The clinical question — and the one the card
+    /// asks — is where someone's blood pressure is sitting lately, which is why
+    /// the dial reads from this rather than from whichever reading happens to be
+    /// newest. It also means someone who cuffs weekly still sees a number, where
+    /// before the dial was blank six days in seven.
+    public struct Trend: Sendable, Equatable {
+        /// Mean systolic across the window — the level being scored.
+        public let systolic: Double
+        public let diastolic: Double
+        public let readingCount: Int
+        /// Oldest reading in the window, so the card can say what it covered.
+        public let spanDays: Int
+        /// Change in systolic per week across the window, when there is enough
+        /// spread in time to fit one. Positive is rising.
+        public let systolicPerWeek: Double?
+
+        public var category: String {
+            BloodPressureEstimator.category(systolic: systolic, diastolic: diastolic)
+        }
+    }
+
+    /// The recent cuff pattern, or nil when there are too few readings to
+    /// describe one.
+    ///
+    /// Two readings is the floor: one is a moment, not a pattern, and averaging
+    /// a single reading would just be the old behaviour wearing a new word.
+    public static func recentTrend(from samples: [HealthMetricSample],
+                                   now: Date = Date(),
+                                   window: TimeInterval = maintenanceWindow,
+                                   minimumReadings: Int = 2) -> Trend? {
+        let readings = pairedReadings(from: samples)
+            .filter { now.timeIntervalSince($0.date) <= window && $0.date <= now }
+        guard readings.count >= minimumReadings,
+              let systolic = Baseline.mean(readings.map(\.systolic)),
+              let diastolic = Baseline.mean(readings.map(\.diastolic)),
+              let oldest = readings.map(\.date).min() else { return nil }
+
+        // Drift in mmHg per week, fitted against real elapsed time rather than
+        // sample index — cuff readings are irregular, so an index regression
+        // would report a slope per *reading*, which means nothing.
+        let days = readings.map { $0.date.timeIntervalSince(oldest) / 86_400 }
+        let perWeek = Set(days).count >= 2
+            ? Baseline.linearRegression(x: days, y: readings.map(\.systolic)).map { $0.slope * 7 }
+            : nil
+
+        return Trend(systolic: systolic, diastolic: diastolic,
+                     readingCount: readings.count,
+                     spanDays: Swift.max(1, Int((now.timeIntervalSince(oldest) / 86_400).rounded())),
+                     systolicPerWeek: perWeek)
     }
 
     /// A cuff reading paired with contemporaneous features (resting HR, and
@@ -418,23 +550,59 @@ public struct BloodPressureInsight: InsightModel {
         var explanation = "Log a blood-pressure reading from a real cuff. That measured value is what the app trusts and trends over time."
         var confidence: InsightConfidence = .low
 
-        // A cuff reading from the last 24 hours is what the score should reflect;
-        // beyond that it describes a day that has passed, and the experimental
-        // estimate — clearly labelled as such — is the better current answer.
+        // What the dial reads from.
+        //
+        // A reading from the last 24 hours is today's answer and wins. Failing
+        // that, the *recent pattern* — because blood pressure is a level, not an
+        // event, and the previous rule (24 hours or nothing) left anyone who
+        // cuffs weekly staring at an empty bubble six days in seven. A single
+        // aged reading is deliberately not enough: one reading is a moment.
+        let trend = BloodPressureEstimator.recentTrend(from: samples, now: now)
+        let latestPair = BloodPressureEstimator.pairedReadings(from: samples).first
+        let hasFreshReading = latestPair.map { now.timeIntervalSince($0.date) <= 24 * 3600 } ?? false
+
         var score: Double?
         if let s = sys, let d = dia {
             let cat = BloodPressureEstimator.category(systolic: s, diastolic: d)
             headline = "\(Int(s.rounded()))/\(Int(d.rounded()))"
             primary = s
-            if let latest = BloodPressureEstimator.pairedReadings(from: samples).first,
-               now.timeIntervalSince(latest.date) <= 24 * 3600 {
-                score = BloodPressureEstimator.score(systolic: s, diastolic: d)
-            }
             confidence = unmet.isEmpty ? .high : .moderate
             drivers.append(InsightDriver(
                 text: "Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))",
                 isNotable: cat != "Normal"))
             explanation = "Your latest measured blood pressure is \(Int(s.rounded()))/\(Int(d.rounded())) mmHg — \(cat)."
+
+            if hasFreshReading {
+                score = BloodPressureEstimator.score(systolic: s, diastolic: d)
+            }
+        }
+
+        if let trend {
+            if score == nil {
+                // The card is now about where blood pressure has been sitting,
+                // and says so rather than implying the number is from today.
+                score = BloodPressureEstimator.score(systolic: trend.systolic,
+                                                     diastolic: trend.diastolic)
+                confidence = .moderate
+                explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) readings over the last \(trend.spanDays) days — rather than any single measurement."
+            }
+            if !hasFreshReading {
+                drivers.append(InsightDriver(
+                    text: String(format: "Recent average: %.0f/%.0f mmHg across %d readings in %d days (%@)",
+                                 trend.systolic, trend.diastolic, trend.readingCount,
+                                 trend.spanDays, trend.category),
+                    isNotable: trend.category != "Normal"))
+            }
+            // A drift worth naming. Half a mmHg a week is roughly 6 over a
+            // season, which is the scale at which a trend becomes a finding.
+            if let perWeek = trend.systolicPerWeek, abs(perWeek) >= 0.5 {
+                drivers.append(InsightDriver(
+                    text: String(format: "Systolic trending %@ %.1f mmHg per week",
+                                 perWeek > 0 ? "up" : "down", abs(perWeek)),
+                    // Falling blood pressure is good news and belongs with the
+                    // routine lines, not the alarms.
+                    isNotable: perWeek > 0))
+            }
         }
 
         // Calibration expectation, grounded in readings already on the device.
@@ -446,11 +614,16 @@ public struct BloodPressureInsight: InsightModel {
            let restHR = samples.meanValue(.restingHeartRate) {
             let currentHRV = samples.latestValue(.heartRateVariabilityRMSSD)
                 ?? samples.latestValue(.heartRateVariabilitySDNN)
-            let recentSamples = samples.filter {
-                now.timeIntervalSince($0.start) <= BloodPressureEstimator.maintenanceWindow
+            // The fit reaches back six months; *grounding* — five once, then two
+            // a month — is what says the fit still describes this person now.
+            // Without that gate, widening the fit window would let a half-year-old
+            // regression speak for today.
+            let fittableSamples = samples.filter {
+                now.timeIntervalSince($0.start) <= BloodPressureEstimator.calibrationFitWindow
             }
-            let calibration = BloodPressureEstimator.buildCalibration(from: recentSamples)
-            if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
+            let calibration = BloodPressureEstimator.buildCalibration(from: fittableSamples)
+            if status.isGrounded,
+               let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
                 drivers.append(.routine(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d recent calibration readings",
                                                est.systolic, est.diastolic,
                                                est.systolicUncertainty, est.diastolicUncertainty,

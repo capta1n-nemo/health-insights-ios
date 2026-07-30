@@ -49,11 +49,11 @@ the place to look.
 - `Insights/AdditionalInsights.swift`
   - `BodyCompositionInsight` :226
   - `CardioFitnessInsight` :177
-  - `RestingHeartRateTrendInsight` :356
+  - `RestingHeartRateTrendInsight` :427
   - `SleepQualityInsight` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :374
+  - `BloodPressureInsight` :506
 - `Insights/CardioTrajectory.swift`
   - `CardioTrajectoryInsight` :289
   - `VO2Trajectory` :11
@@ -115,9 +115,9 @@ the place to look.
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
 - `Models/GroundingInput.swift`
-  - `GroundingInput` :57
+  - `GroundingInput` :60
   - `GroundingKind` :7
-  - `UserHealthProfile` :79
+  - `UserHealthProfile` :82
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :71
   - `MetricSource` :5

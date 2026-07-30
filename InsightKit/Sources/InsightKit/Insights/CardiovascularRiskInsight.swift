@@ -83,6 +83,13 @@ public struct CardiovascularRiskInsight: InsightModel {
         let totalChol = profile.totalCholesterol ?? Self.defaultTotalCholesterol
         let hdl = profile.hdlCholesterol ?? Self.defaultHDLCholesterol
         let assumedCholesterol = profile.totalCholesterol == nil || profile.hdlCholesterol == nil
+        // Presence and freshness are different questions, and only presence was
+        // being asked. A seven-month-old lab is still the best number we have —
+        // better than a population average — so it keeps being used; what it
+        // stops buying is `.high` confidence and a silent pass.
+        let staleCholesterol = !assumedCholesterol
+            && !((profile.input(.totalCholesterol)?.isFresh(asOf: now) ?? false)
+                 && (profile.input(.hdlCholesterol)?.isFresh(asOf: now) ?? false))
 
         // Compute whichever models this engine uses, tagging each with whether
         // the person's age is inside that model's *validated* range. Applying an
@@ -122,7 +129,7 @@ public struct CardiovascularRiskInsight: InsightModel {
         // average cholesterol (or a stale mandatory input) softens it to moderate.
         let mandatoryUnsatisfied = statuses.contains { $0.0.isMandatory && $0.1 != .satisfied }
         let confidence: InsightConfidence = !anyValid ? .low
-            : (assumedCholesterol || mandatoryUnsatisfied ? .moderate : .high)
+            : (assumedCholesterol || staleCholesterol || mandatoryUnsatisfied ? .moderate : .high)
 
         // The risk figures themselves, the modifiable factors carrying that risk,
         // and anything the user could act on lead; the demographic inputs and a
@@ -142,6 +149,8 @@ public struct CardiovascularRiskInsight: InsightModel {
                                      isNotable: systolic >= 140))
         if assumedCholesterol {
             drivers.append(.notable("Cholesterol assumed average — add a blood test to improve accuracy"))
+        } else if staleCholesterol {
+            drivers.append(.notable(String(format: "Total/HDL cholesterol %.1f/%.1f mmol/L — over six months old, worth repeating", totalChol, hdl)))
         } else {
             drivers.append(.routine(String(format: "Total/HDL cholesterol %.1f/%.1f mmol/L", totalChol, hdl)))
         }
@@ -185,13 +194,43 @@ public struct CardiovascularRiskInsight: InsightModel {
             drivers: [], unmetRequirements: unmet)
     }
 
-    /// Map risk % to a friendly band + a dial score where lower risk = higher score.
-    private func riskBand(pct: Double) -> (label: String, score: Double) {
+    /// The friendly band label. 5 / 10 / 20 % are the clinical thresholds and
+    /// are what the copy says; the *dial* deliberately no longer shares them.
+    func riskBand(pct: Double) -> (label: String, score: Double) {
+        let label: String
         switch pct {
-        case ..<5:   return ("low", 90)
-        case ..<10:  return ("low-to-moderate", 72)
-        case ..<20:  return ("moderate-to-high", 45)
-        default:     return ("high", 20)
+        case ..<5:   label = "low"
+        case ..<10:  label = "low-to-moderate"
+        case ..<20:  label = "moderate-to-high"
+        default:     label = "high"
         }
+        return (label, Self.score(pct: pct))
+    }
+
+    /// 10-year risk % → a 0–100 dial, continuous and strictly decreasing.
+    ///
+    /// This used to be the same four-step function as the label — {90, 72, 45,
+    /// 20} — so 4.9 % dialled 90 and 5.1 % dialled 72: an 18-point drop across
+    /// two tenths of a percentage point, and nothing at all moving between 10 %
+    /// and 19.9 %. That is the defect already fixed in Vitals Check and Heart
+    /// Age, and this card was missed.
+    ///
+    /// Risk is multiplicative — every SCORE2 and ASCVD coefficient is a
+    /// log-hazard — so the continuous analogue of a risk band is a logistic in
+    /// *log* risk. That is the same family as `HeartAgeInsight.score`, written
+    /// here as a power because it reads better than an exp-of-log:
+    ///
+    ///     100 / (1 + (pct / centre)^exponent)
+    ///
+    /// `centre` and `exponent` are a least-squares fit to the four old anchors
+    /// evaluated at their band midpoints (2.5 / 7.5 / 15 / 30 %), so no card's
+    /// number jumps: 93.1 / 70.4 / 44.4 / 21.1 against the old 90 / 72 / 45 /
+    /// 20. Clamped 1…99 for the reason Heart Age is — a perfect score and a
+    /// hopeless one should both have to be earned.
+    static func score(pct: Double) -> Double {
+        let centre = 13.0        // % 10-year risk that dials 50
+        let exponent = 1.575
+        let p = Swift.max(0.01, pct)
+        return Swift.max(1, Swift.min(99, 100 / (1 + pow(p / centre, exponent))))
     }
 }
