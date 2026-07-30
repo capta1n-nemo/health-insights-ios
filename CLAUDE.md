@@ -9,6 +9,9 @@
 - Architecture: Swift 6, SwiftUI, `@Observable` view models (NO `ObservableObject`), `NavigationStack` (NO `NavigationView`), `@MainActor` on view models.
 - Treat static attributes (Height, Sex) separately from time-series vitals (Heart Rate, Weight).
 - Always run `cd InsightKit && swift test` locally before making any git commit.
+- **Push finished work straight to `main`. Do not open pull requests.** The user
+  does not want a review/approval step and will not log in to GitHub to merge
+  one. Ask a pull request's worth of questions *before* writing code, not after.
 - Once pushed to `main`, notify the user that deployment to their iPhone is triggered, then complete the turn immediately.
 
 ## Memory Router
