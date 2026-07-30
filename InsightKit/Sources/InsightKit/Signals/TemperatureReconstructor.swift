@@ -28,7 +28,7 @@ import Foundation
 /// 4. Baselines were learned from core absolutes, so a user with a thermometer
 ///    reading had skin deviations added to a *core* baseline.
 /// 5. Worst: the reconstructed series competed with a real thermometer for the
-///    same metric, and `primary(from:)` picks the source with the most history —
+///    same metric, and source selection prefers the most established history —
 ///    so a wearable's long run of nights displaced a genuine 38.5 °C fever and
 ///    the card read "All normal".
 ///

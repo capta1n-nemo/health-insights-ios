@@ -406,17 +406,30 @@ public struct HeartAgeInsight: InsightModel {
         /// there is no heart age; so is an age outside 40–79, and the two need
         /// different things said about them.
         public let systolicUsed: Double?
+        /// The VO₂max and provider vascular age the analysis actually read.
+        ///
+        /// Carried here for the reason `systolicUsed` already was: `contributors`
+        /// used to re-read the samples with its own `latestValue` calls, which
+        /// could plot a different number than the card computed from. One read,
+        /// one answer.
+        public let vo2Used: Double?
+        public let vascularAgeUsed: Double?
+        public let vascularAgeSource: String?
 
         public init(chronologicalAge: Double?, heart: HeartAgeModel.Output?,
                     fitness: FitnessAgeModel.Output?,
                     projections: [HeartAgeModel.Projection], assumedCholesterol: Bool,
-                    systolicUsed: Double? = nil) {
+                    systolicUsed: Double? = nil, vo2Used: Double? = nil,
+                    vascularAgeUsed: Double? = nil, vascularAgeSource: String? = nil) {
             self.chronologicalAge = chronologicalAge
             self.heart = heart
             self.fitness = fitness
             self.projections = projections
             self.assumedCholesterol = assumedCholesterol
             self.systolicUsed = systolicUsed
+            self.vo2Used = vo2Used
+            self.vascularAgeUsed = vascularAgeUsed
+            self.vascularAgeSource = vascularAgeSource
         }
 
         /// The age we lead with: the clinical one when it exists, else fitness.
@@ -436,16 +449,31 @@ public struct HeartAgeInsight: InsightModel {
                             projections: [], assumedCholesterol: false)
         }
 
-        let fitness = samples.latestValue(.vo2Max).map {
-            FitnessAgeModel.evaluate(vo2: $0, sex: sex, chronologicalAge: age)
+        // Read through `VitalReader`, with per-metric freshness windows: 45 days
+        // for VO₂max (Apple publishes one per outdoor walk or run), 14 for a cuff
+        // reading (matching `GroundingKind.cuffSystolic.freshness`), 60 for a
+        // provider's vascular age. `latestValue` gave the newest raw sample and
+        // asked nothing about its age or whether the same reading had arrived
+        // twice.
+        let vo2Reading = VitalReader.reading(.vo2Max, from: samples, now: now,
+                                             freshWithin: 45 * 86_400)
+        let fitness = vo2Reading.map {
+            FitnessAgeModel.evaluate(vo2: $0.value, sex: sex, chronologicalAge: age)
         }
+        let vascularReading = VitalReader.reading(.vascularAge, from: samples, now: now,
+                                                  freshWithin: 60 * 86_400)
 
         // Heart age needs a blood pressure and a real age; everything else falls
         // back to the same averages the risk card assumes.
-        let systolic = profile.cuffSystolic ?? samples.latestValue(.bloodPressureSystolic)
+        let systolicReading = VitalReader.reading(.bloodPressureSystolic, from: samples,
+                                                  now: now, freshWithin: 14 * 86_400)
+        let systolic = profile.cuffSystolic ?? systolicReading?.value
         guard let age, let systolic else {
             return Analysis(chronologicalAge: age, heart: nil, fitness: fitness,
-                            projections: [], assumedCholesterol: false)
+                            projections: [], assumedCholesterol: false,
+                            systolicUsed: systolic, vo2Used: vo2Reading?.value,
+                            vascularAgeUsed: vascularReading?.value,
+                            vascularAgeSource: vascularReading?.sourceName)
         }
         let assumed = profile.totalCholesterol == nil || profile.hdlCholesterol == nil
         let subject = HeartAgeModel.Subject(
@@ -462,7 +490,9 @@ public struct HeartAgeInsight: InsightModel {
             fitness: fitness,
             projections: HeartAgeModel.projection(subject: subject, currentAge: age),
             assumedCholesterol: assumed,
-            systolicUsed: systolic)
+            systolicUsed: systolic, vo2Used: vo2Reading?.value,
+            vascularAgeUsed: vascularReading?.value,
+            vascularAgeSource: vascularReading?.sourceName)
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
@@ -516,12 +546,12 @@ public struct HeartAgeInsight: InsightModel {
         // A provider's own vascular-age estimate, shown beside ours rather than
         // folded into it. Two models built on different inputs disagreeing is
         // information; averaging them away is not.
-        if let vascular = samples.samples(of: .vascularAge).last {
+        if let vascularValue = analysis.vascularAgeUsed {
             var gapIsNotable = false
             var line = String(format: "%@ estimates your vascular age at %.0f",
-                              vascular.source.displayName, vascular.value)
+                              analysis.vascularAgeSource ?? "Your wearable", vascularValue)
             if let age = analysis.chronologicalAge {
-                let gap = vascular.value - age
+                let gap = vascularValue - age
                 gapIsNotable = gap >= 1
                 if abs(gap) < 1 {
                     line += " — level with your actual age"
@@ -552,17 +582,21 @@ public struct HeartAgeInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmet,
-            contributors: Self.contributors(analysis, samples: samples))
+            contributors: Self.contributors(analysis))
     }
 
     /// The sensed metrics behind the two ages, so the detail chart plots what
     /// the calculation read. Weight 0 throughout: these ages come from published
     /// equations over grounding facts, not a weighted blend of these series, and
     /// claiming a share of them would be inventing one.
-    static func contributors(_ analysis: HeartAgeInsight.Analysis,
-                             samples: [HealthMetricSample]) -> [MetricContribution] {
+    ///
+    /// Reads the analysis, never the samples. It used to re-read them with its
+    /// own `latestValue` calls, which could plot a different number than the card
+    /// computed from — the chart and the headline disagreeing about the same
+    /// measurement, silently.
+    static func contributors(_ analysis: HeartAgeInsight.Analysis) -> [MetricContribution] {
         var out: [MetricContribution] = []
-        if let systolic = samples.latestValue(.bloodPressureSystolic) {
+        if let systolic = analysis.systolicUsed {
             out.append(.init(metric: .bloodPressureSystolic, higherIsBetter: false, weight: 0,
                              detail: "\(Int(systolic.rounded())) mmHg"))
         }
@@ -570,7 +604,7 @@ public struct HeartAgeInsight: InsightModel {
             out.append(.init(metric: .vo2Max, higherIsBetter: true, weight: 0,
                              detail: String(format: "%.0f", fitness.vo2)))
         }
-        if let vascular = samples.latestValue(.vascularAge) {
+        if let vascular = analysis.vascularAgeUsed {
             out.append(.init(metric: .vascularAge, higherIsBetter: false, weight: 0,
                              detail: String(format: "%.0f years", vascular)))
         }

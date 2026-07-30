@@ -47,15 +47,15 @@ the place to look.
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
 - `Insights/AdditionalInsights.swift`
-  - `BodyCompositionInsight` :226
+  - `BodyCompositionInsight` :238
   - `CardioFitnessInsight` :177
-  - `RestingHeartRateTrendInsight` :427
+  - `RestingHeartRateTrendInsight` :439
   - `SleepQualityInsight` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
   - `BloodPressureInsight` :506
 - `Insights/CardioTrajectory.swift`
-  - `CardioTrajectoryInsight` :289
+  - `CardioTrajectoryInsight` :302
   - `VO2Trajectory` :11
 - `Insights/CardiovascularRiskInsight.swift`
   - `CardiovascularRiskInsight` :13
@@ -107,7 +107,7 @@ the place to look.
   - `VitalEventReader` :103
 - `Insights/VitalSignsInsight.swift`
   - `VitalSignsCheck` :39
-  - `VitalSignsInsight` :500
+  - `VitalSignsInsight` :471
 - `Integrations/OuraResponseParser.swift`
   - `OuraResponseParser` :13
 - `Integrations/WhoopResponseParser.swift`

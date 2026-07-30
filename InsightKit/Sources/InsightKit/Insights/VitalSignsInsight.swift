@@ -298,47 +298,28 @@ public enum VitalSignsCheck {
             if let better = spec.supersededBy,
                readings.contains(where: { $0.metric == better }) { continue }
 
-            // One line per device, de-duplicated: the same ring arriving
-            // directly and through Apple Health is one instrument, and counting
-            // it twice was inflating the variance it is measured against.
-            let breakdown = MultiSource.breakdown(spec.metric, from: samples)
-            guard !breakdown.sources.isEmpty else { continue }
+            // The day's representative value, from one de-duplicated device,
+            // against a windowed baseline, with freshness attached.
+            //
+            // This used to be forty lines of inline code here — and `VitalReader`
+            // is that code, extracted, because every other insight was writing its
+            // own version and getting it wrong differently. Keeping a private copy
+            // alive in the file the shared one came from is how the two drift
+            // apart; `testTheReaderAgreesWithVitalsCheckOnSourceSelection` pins
+            // that they don't.
+            guard let vital = VitalReader.reading(
+                spec.metric, from: samples, now: now,
+                windowDays: baselineDays, minimumDays: minimumBaselineDays,
+                freshWithin: spec.freshWithin, calendar: calendar) else { continue }
 
-            var candidates: [(reading: Reading, historyCount: Int)] = []
-            var mostRecent: (value: Double, date: Date)?
-
-            for series in breakdown.sources {
-                // The day's representative value — the mean of the day's
-                // readings for a continuously-sampled vital, the median for a
-                // metric that says so. This is what the old comment claimed and
-                // the old code did not do; it took the newest raw sample, so one
-                // high minute during a run was reported as the day's heart rate.
-                let daily = series.bucketed(by: .day, for: spec.metric, calendar: calendar)
-                guard let today = daily.last else { continue }
-
-                if mostRecent == nil || today.date > mostRecent!.date {
-                    mostRecent = (today.value, today.date)
-                }
-
-                guard now.timeIntervalSince(today.date) <= spec.freshWithin else { continue }
-
-                let cutoff = today.date.addingTimeInterval(-Double(baselineDays) * day)
-                let history = daily.dropLast().filter { $0.date >= cutoff }.map(\.value)
-
-                candidates.append((
-                    reading(spec: spec, value: today.value, at: today.date,
-                            history: history, source: series.displayName),
-                    history.count))
-            }
-
-            if let best = primary(from: candidates) {
-                readings.append(best)
-            } else if let mostRecent,
-                      now.timeIntervalSince(mostRecent.date) <= expectedWindow {
+            if vital.isFresh {
+                readings.append(reading(spec: spec, value: vital.value, at: vital.date,
+                                        history: vital.history, source: vital.sourceName))
+            } else if now.timeIntervalSince(vital.date) <= expectedWindow {
                 // Recorded by this user, just not lately. Counted against
                 // coverage rather than silently reported as fine.
-                stale.append(StaleReading(metric: spec.metric, value: mostRecent.value,
-                                          lastMeasured: mostRecent.date))
+                stale.append(StaleReading(metric: spec.metric, value: vital.value,
+                                          lastMeasured: vital.date))
             }
         }
 
@@ -351,19 +332,9 @@ public enum VitalSignsCheck {
                       coverage: coverage)
     }
 
-    /// Which device's verdict to report when several measured the same vital.
-    ///
-    /// The one with the most baseline history: its standard deviation is the
-    /// best-established, so its z is the most trustworthy. Pooling them instead
-    /// — which is what happened before — let the gap between two miscalibrated
-    /// instruments set the variance, and nothing ever cleared the threshold.
-    static func primary(from candidates: [(reading: Reading, historyCount: Int)]) -> Reading? {
-        candidates.max { a, b in
-            a.historyCount == b.historyCount
-                ? a.reading.measuredAt < b.reading.measuredAt
-                : a.historyCount < b.historyCount
-        }?.reading
-    }
+    // `primary(from:)` lived here — "which device's verdict to report when
+    // several measured the same vital". It is `VitalReader`'s job now, and a
+    // dead copy of a rule is how two answers to one question get born.
 
     static func reading(spec: Spec, value: Double, at date: Date,
                         history: [Double], source: String) -> Reading {

@@ -141,19 +141,24 @@ public enum VO2Trajectory {
     public static func evaluate(samples: [HealthMetricSample], age: Double,
                                sex: BiologicalSex, now: Date = Date(),
                                calendar: Calendar = .current) -> Output? {
-        // The same physical watch can arrive both directly and via Apple Health;
-        // de-duplicate before fitting or the slope is weighted by the number of
-        // paths a reading took.
-        let series = MultiSource.deduplicate(samples.filter { $0.type == .vo2Max })
-            .sorted { $0.start < $1.start }
+        // One value per day, de-duplicated across devices, with the dates kept.
+        //
+        // De-duplication alone was not enough: the fit ran over *raw samples*, so
+        // a day on which the watch published twice weighted that day twice, and
+        // two devices reporting the same morning pulled the line toward whichever
+        // read higher. `dailySeries` rather than `dailyValues` because the dates
+        // are load-bearing — VO₂max arrives irregularly, and regressing an
+        // unevenly-spaced series against 0, 1, 2, … answers a different question.
+        let series = VitalReader.dailySeries(.vo2Max, from: samples, now: now,
+                                             calendar: calendar)
         guard series.count >= minimumReadings,
               let first = series.first, let last = series.last else { return nil }
 
-        let spanDays = last.start.timeIntervalSince(first.start) / 86_400
+        let spanDays = last.date.timeIntervalSince(first.date) / 86_400
         guard spanDays >= minimumSpanDays,
-              now.timeIntervalSince(last.start) <= staleAfter else { return nil }
+              now.timeIntervalSince(last.date) <= staleAfter else { return nil }
 
-        let years = series.map { $0.start.timeIntervalSince(first.start) / (365.2425 * 86_400) }
+        let years = series.map { $0.date.timeIntervalSince(first.date) / (365.2425 * 86_400) }
         let values = series.map(\.value)
         guard let fit = Baseline.linearRegression(x: years, y: values) else { return nil }
 
@@ -175,13 +180,14 @@ public enum VO2Trajectory {
             fitnessAgeIn12Months: FitnessAgeModel.evaluate(vo2: projected, sex: sex).fitnessAge,
             volume: volumeContrast(samples: samples, vo2: series, calendar: calendar),
             levers: [])
-        output.levers = levers(for: output, samples: samples)
+        output.levers = levers(for: output, samples: samples, now: now)
         return output
     }
 
     // MARK: - "What would move it"
 
-    static func levers(for output: Output, samples: [HealthMetricSample]) -> [Lever] {
+    static func levers(for output: Output, samples: [HealthMetricSample],
+                       now: Date) -> [Lever] {
         var out: [Lever] = []
 
         // 1. Their own busier-versus-lighter weeks, when the contrast is real.
@@ -197,7 +203,14 @@ public enum VO2Trajectory {
 
         // 2. Resting HR drifting up is the earliest sign the trajectory is about
         //    to turn, and it is measured every night without being asked for.
-        let restingHR = samples.samples(of: .restingHeartRate).map(\.value)
+        // Daily and de-duplicated, so a device reporting through two paths can't
+        // weight its own mornings twice. Deliberately *not* freshness-gated: this
+        // lever is "here is something that tends to move your trajectory", not a
+        // claim about today, and a trajectory is read over months — requiring a
+        // reading from the last 36 hours would delete the lever for anyone
+        // reviewing a year of history.
+        let restingHR = VitalReader.dailyValues(.restingHeartRate, from: samples,
+                                                days: 365, now: now)
         if restingHR.count >= 8, let latest = restingHR.last,
            let deviation = Baseline.deviation(latest: latest, history: Array(restingHR.dropLast())),
            deviation.direction > 0 {
@@ -225,7 +238,7 @@ public enum VO2Trajectory {
 
     // MARK: - Weekly pairing
 
-    static func volumeContrast(samples: [HealthMetricSample], vo2: [HealthMetricSample],
+    static func volumeContrast(samples: [HealthMetricSample], vo2: [VitalReader.DailyValue],
                                calendar: Calendar) -> VolumeContrast? {
         let weeklyVO2 = weeklyMean(vo2, calendar: calendar)
         // Active energy first: it counts effort, where steps only count walking.
@@ -270,13 +283,13 @@ public enum VO2Trajectory {
         return out
     }
 
-    static func weeklyMean(_ samples: [HealthMetricSample], calendar: Calendar) -> [Date: Double] {
+    static func weeklyMean(_ values: [VitalReader.DailyValue], calendar: Calendar) -> [Date: Double] {
         var totals: [Date: (sum: Double, count: Int)] = [:]
-        for sample in samples {
-            let week = calendar.dateInterval(of: .weekOfYear, for: sample.start)?.start
-                ?? sample.start
+        for value in values {
+            let week = calendar.dateInterval(of: .weekOfYear, for: value.date)?.start
+                ?? value.date
             let existing = totals[week] ?? (sum: 0, count: 0)
-            totals[week] = (sum: existing.sum + sample.value, count: existing.count + 1)
+            totals[week] = (sum: existing.sum + value.value, count: existing.count + 1)
         }
         return totals.mapValues { $0.sum / Double($0.count) }
     }

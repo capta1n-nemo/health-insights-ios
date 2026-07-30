@@ -69,8 +69,21 @@ public struct CardiovascularRiskInsight: InsightModel {
         let statuses = requirementStatuses(profile: profile, now: now)
         let unmet = statuses.compactMap { $0.1 == .satisfied ? nil : $0.0 }
 
-        // Resolve systolic BP: prefer a logged cuff reading, else a measured sample.
-        let sbp = profile.cuffSystolic ?? samples.latestValue(.bloodPressureSystolic)
+        // Resolve systolic BP: prefer a logged cuff reading, else a measured
+        // sample read through `VitalReader` — the day's de-duplicated value,
+        // against a 14-day window matching `GroundingKind.cuffSystolic.freshness`.
+        //
+        // Two things were wrong with `latestValue`. A cuff reading arriving as a
+        // *sample* bypassed the staleness rule the same reading typed into the
+        // profile has to obey; and "latest" meant whichever of the day's cuffings
+        // happened to be last, where a morning 118 and an evening 146 are one
+        // day's blood pressure and a clinician averages them. SCORE2 and ASCVD
+        // are exponential in systolic, so that is the largest single number this
+        // migration moves.
+        let bpReading = VitalReader.reading(.bloodPressureSystolic, from: samples,
+                                            now: now, freshWithin: 14 * 86_400)
+        let sbp = profile.cuffSystolic ?? bpReading?.value
+        let staleSystolic = profile.cuffSystolic == nil && (bpReading.map { !$0.isFresh } ?? false)
 
         // Only age, sex and a blood-pressure value are truly required. Everything
         // else falls back to a sensible average so people without a blood test
@@ -129,7 +142,8 @@ public struct CardiovascularRiskInsight: InsightModel {
         // average cholesterol (or a stale mandatory input) softens it to moderate.
         let mandatoryUnsatisfied = statuses.contains { $0.0.isMandatory && $0.1 != .satisfied }
         let confidence: InsightConfidence = !anyValid ? .low
-            : (assumedCholesterol || staleCholesterol || mandatoryUnsatisfied ? .moderate : .high)
+            : (assumedCholesterol || staleCholesterol || staleSystolic || mandatoryUnsatisfied
+               ? .moderate : .high)
 
         // The risk figures themselves, the modifiable factors carrying that risk,
         // and anything the user could act on lead; the demographic inputs and a
@@ -145,8 +159,11 @@ public struct CardiovascularRiskInsight: InsightModel {
         }
         drivers.append(.routine("Age \(Int(age.rounded())), \(sex.displayName.lowercased())"))
         // 140 is the hypertension line; below it, blood pressure is context.
-        drivers.append(InsightDriver(text: "Systolic BP \(Int(systolic.rounded())) mmHg",
-                                     isNotable: systolic >= 140))
+        drivers.append(InsightDriver(
+            text: staleSystolic
+                ? "Systolic BP \(Int(systolic.rounded())) mmHg — over two weeks old"
+                : "Systolic BP \(Int(systolic.rounded())) mmHg",
+            isNotable: systolic >= 140 || staleSystolic))
         if assumedCholesterol {
             drivers.append(.notable("Cholesterol assumed average — add a blood test to improve accuracy"))
         } else if staleCholesterol {
