@@ -48,14 +48,8 @@ struct MultiSourceChart: View {
     /// describe what is actually visible after a pan.
     var onVisibleRangeChange: ((ClosedRange<Date>) -> Void)?
 
-    /// Leading edge of the visible window; nil until the user pans.
-    @State private var scrollX: Date?
     /// The instant the user is scrubbing over, nil when not touching the chart.
     @State private var selected: Date?
-
-    /// Most readings a single source contributes to one screen. Beyond this the
-    /// extra marks are invisible at chart resolution but still cost layout time.
-    private static let maxPointsPerSource = 300
 
     private struct Point: Identifiable {
         /// Derived, not a fresh UUID: a new identity every render made SwiftUI
@@ -66,82 +60,51 @@ struct MultiSourceChart: View {
         let source: String
     }
 
-    /// The extent of the whole history, which fixes how far the chart can scroll
-    /// even though only the visible slice is plotted.
-    private var fullDomain: ClosedRange<Date> {
-        let starts = breakdown.sources.compactMap(\.samples.first?.start)
-        let ends = breakdown.sources.compactMap(\.samples.last?.start)
-        guard let first = starts.min(), let last = ends.max(), first < last else {
-            let now = Date()
-            return now.addingTimeInterval(-window)...now
+    /// The extent of the whole history, which fixes how far the chart can
+    /// scroll even though only the visible slice is plotted.
+    private var fullDomain: ClosedRange<Date>? { breakdown.dateSpan }
+
+    /// Only what's on screen, plus a window either side, bucketed for plotting.
+    /// Charting a decade of high-frequency readings mark-for-mark is what made
+    /// this hang; bucketing also stops long ranges aliasing the way plain
+    /// decimation did.
+    private func plotted(in range: ClosedRange<Date>) -> [Series] {
+        let bucket = BucketSize.forWindow(window)
+        return breakdown.restricted(to: range).sources.enumerated().map { index, series in
+            let points = series.bucketed(by: bucket, for: breakdown.type)
+                .map { Point(date: $0.date, value: $0.value, source: series.displayName) }
+            return Series(name: series.displayName, colorIndex: index, points: points)
         }
-        return first...last
     }
 
-    /// Anchor the initial view on the newest reading rather than on "now", so a
-    /// metric that last reported a while ago still opens showing its data.
-    private var defaultStart: Date {
-        fullDomain.upperBound.addingTimeInterval(-window)
-    }
+    /// One source's plotted points, split on gaps so nothing bridges a period
+    /// when nothing was measured.
+    private struct Series: Identifiable {
+        let name: String
+        let colorIndex: Int
+        let points: [Point]
+        var id: String { name }
 
-    private var visibleStart: Date { scrollX ?? defaultStart }
-    private var visibleRange: ClosedRange<Date> {
-        visibleStart...visibleStart.addingTimeInterval(window)
-    }
-
-    private var scrollBinding: Binding<Date> {
-        Binding(get: { visibleStart }, set: { scrollX = $0 })
-    }
-
-    /// Only what's on screen, plus a window either side so a pan doesn't reveal
-    /// an empty chart before the next redraw, thinned for plotting. Charting a
-    /// decade of high-frequency readings mark-for-mark is what made this hang.
-    private var visibleBreakdown: MultiSourceBreakdown {
-        // `...` must not start the continuation line: Swift then parses it as a
-        // standalone prefix PartialRangeThrough, leaving `padded` typed as a
-        // bare Date and failing to match restricted(to: ClosedRange<Date>).
-        let lower = visibleStart.addingTimeInterval(-window)
-        let upper = visibleStart.addingTimeInterval(window * 2)
-        return breakdown.restricted(to: lower...upper)
-            .downsampled(to: Self.maxPointsPerSource * 3)
-    }
-
-    /// Points on screen right now — the Y-scale follows the pan so a zoomed-in
-    /// window isn't flattened by outliers elsewhere in the history.
-    private var points: [Point] {
-        visibleBreakdown.restricted(to: visibleRange)
-            .downsampled(to: Self.maxPointsPerSource)
-            .sources
-            .flatMap { series in
-                series.samples.map {
-                    Point(date: $0.start, value: $0.value, source: series.displayName)
+        func segments(maxGap: TimeInterval) -> [[Point]] {
+            guard !points.isEmpty else { return [] }
+            var out: [[Point]] = []
+            var current: [Point] = [points[0]]
+            for point in points.dropFirst() {
+                if let previous = current.last,
+                   point.date.timeIntervalSince(previous.date) > maxGap {
+                    out.append(current)
+                    current = [point]
+                } else {
+                    current.append(point)
                 }
             }
+            out.append(current)
+            return out
+        }
     }
 
     private var domain: [String] { breakdown.sources.map(\.displayName) }
     private var range: [Color] { breakdown.sources.indices.map { Theme.sourceColor($0) } }
-
-    /// Log axis is only meaningful (and mathematically valid) for positive data.
-    private func useLog(for plotted: [Point]) -> Bool {
-        logarithmic && !plotted.isEmpty && plotted.allSatisfy { $0.value > 0 }
-    }
-
-    /// A padded Y-range so a single point or a flat line isn't glued to an edge
-    /// and stays visible.
-    private func yDomain(for plotted: [Point]) -> ClosedRange<Double>? {
-        let values = plotted.map(\.value)
-        let useLog = useLog(for: plotted)
-        guard let lo = values.min(), let hi = values.max() else { return nil }
-        if lo == hi {
-            let pad = Swift.max(abs(lo) * 0.05, 1)
-            let lower = useLog ? Swift.max(lo * 0.9, 0.0001) : lo - pad
-            return lower...(hi + pad)
-        }
-        let span = hi - lo
-        let lower = useLog ? Swift.max(lo * 0.7, 0.0001) : lo - span * 0.1
-        return lower...(hi + span * 0.1)
-    }
 
     /// One line of the scrub callout. A named type rather than a tuple, because
     /// ForEach needs an id key path and Swift has none into tuple elements.
@@ -202,63 +165,46 @@ struct MultiSourceChart: View {
     }
 
     private var chart: some View {
-        // Computed once here rather than per access: each of the marks, the
-        // Y-scale and the empty check would otherwise re-slice the history.
-        let plotted = points
-        return Chart {
-            ForEach(plotted) { p in
-                LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
-                    .foregroundStyle(by: .value("Source", p.source))
-                    // Straight segments between readings: a curve invents values
-                    // between samples that were never measured.
-                    .interpolationMethod(.linear)
-                // A point per sample so single-reading series still render visibly.
-                PointMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
-                    .foregroundStyle(by: .value("Source", p.source))
-                    .symbolSize(26)
-            }
+        ScrollableMetricChart(
+            dataSpan: fullDomain,
+            window: window,
+            selection: $selected,
+            logarithmic: logarithmic,
+            isEmpty: { range in
+                plotted(in: range).allSatisfy { $0.points.isEmpty }
+            },
+            yDomain: { range in
+                paddedYDomain(plotted(in: range).flatMap { $0.points.map(\.value) },
+                              logarithmic: logarithmic)
+            },
+            onVisibleRangeChange: onVisibleRangeChange
+        ) { range in
+            seriesMarks(plotted(in: range))
         }
-        .chartForegroundStyleScale(domain: domain, range: range)
-        .modifier(YScaleModifier(domain: yDomain(for: plotted), log: useLog(for: plotted)))
-        .chartLegend(.hidden) // we render our own labelled breakdown below
-        .chartScrollableAxes(.horizontal)
-        // The full extent stays scrollable even though only the visible slice
-        // is plotted.
-        .chartXScale(domain: fullDomain)
-        .chartXVisibleDomain(length: window)
-        .chartScrollPosition(x: scrollBinding)
-        .chartXSelection(value: $selected)
-        .frame(height: 170)
-        .overlay {
-            if plotted.isEmpty {
-                Text("No readings in this window")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-        }
-        .onAppear { onVisibleRangeChange?(visibleRange) }
-        .onChange(of: scrollX) { onVisibleRangeChange?(visibleRange) }
-        .onChange(of: window) {
-            // A new zoom level re-anchors on the newest reading.
-            scrollX = nil
-            onVisibleRangeChange?(visibleRange)
-        }
+        .chartForegroundStyleScale(domain: domain, range: self.range)
     }
-}
 
-/// Applies the (optional) padded Y domain, in linear or logarithmic mode.
-private struct YScaleModifier: ViewModifier {
-    let domain: ClosedRange<Double>?
-    let log: Bool
-
-    func body(content: Content) -> some View {
-        if let domain {
-            if log {
-                content.chartYScale(domain: domain, type: .log)
-            } else {
-                content.chartYScale(domain: domain)
+    /// One line per source, broken wherever the readings are too far apart to
+    /// join honestly.
+    @ChartContentBuilder
+    private func seriesMarks(_ series: [Series]) -> some ChartContent {
+        ForEach(series) { line in
+            ForEach(Array(line.segments(maxGap: breakdown.type.maxValidInterval).enumerated()),
+                    id: \.offset) { _, segment in
+                ForEach(segment) { p in
+                    LineMark(x: .value("Time", p.date),
+                             y: .value(breakdown.type.unit, p.value))
+                        .foregroundStyle(by: .value("Source", p.source))
+                        // Straight segments between readings: a curve invents
+                        // values between samples that were never measured.
+                        .interpolationMethod(.linear)
+                    // A point per reading so single-reading series still render.
+                    PointMark(x: .value("Time", p.date),
+                              y: .value(breakdown.type.unit, p.value))
+                        .foregroundStyle(by: .value("Source", p.source))
+                        .symbolSize(26)
+                }
             }
-        } else {
-            content
         }
     }
 }

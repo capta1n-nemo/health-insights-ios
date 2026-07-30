@@ -50,6 +50,23 @@ public struct AggregatedPoint: Sendable, Identifiable, Equatable {
     }
 }
 
+public extension BucketSize {
+    /// Bucket width for an arbitrary visible window.
+    ///
+    /// Charts are handed a window in seconds rather than a `Timeframe` (panning
+    /// and the data-derived `.all` window both produce values that match no
+    /// case), so the choice is made from the span itself. The thresholds mirror
+    /// `Timeframe.bucket`.
+    static func forWindow(_ window: TimeInterval) -> BucketSize {
+        let day: TimeInterval = 24 * 3600
+        if window > 300 * day { return .month }
+        if window > 45 * day { return .week }
+        if window > 3 * day { return .day }
+        if window > 1.5 * day { return .hour }
+        return .raw
+    }
+}
+
 public extension Timeframe {
     /// Bucket width for this zoom level.
     ///

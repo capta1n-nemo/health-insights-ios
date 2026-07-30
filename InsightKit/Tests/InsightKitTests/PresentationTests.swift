@@ -136,9 +136,20 @@ final class PresentationTests: XCTestCase {
 
     // MARK: - Bucketing
 
+    /// Fixtures pin both the calendar and the base date to UTC midnight: with a
+    /// system-timezone calendar, "midnight plus three hours" can land in two
+    /// different days and the grouping looks broken when it isn't.
+    private static var utcCalendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        return cal
+    }
+    /// 2023-11-15T00:00:00Z.
+    private static let utcMidnight = Date(timeIntervalSince1970: 1_700_006_400)
+
     func testDailyBucketsUseTheMetricStatistic() {
-        let day = Date(timeIntervalSince1970: 1_700_000_000)
-        let cal = Calendar(identifier: .gregorian)
+        let day = Self.utcMidnight
+        let cal = Self.utcCalendar
         func at(_ hour: Double, _ v: Double) -> HealthMetricSample {
             HealthMetricSample(type: .bodyMass, value: v,
                                start: day.addingTimeInterval(hour * 3600),
@@ -158,8 +169,8 @@ final class PresentationTests: XCTestCase {
     }
 
     func testStepsSumWithinADayRatherThanAveraging() {
-        let day = Date(timeIntervalSince1970: 1_700_000_000)
-        let cal = Calendar(identifier: .gregorian)
+        let day = Self.utcMidnight
+        let cal = Self.utcCalendar
         let series = SourceSeries(source: .appleHealthDevice("iPhone"), samples: (1...4).map {
             HealthMetricSample(type: .stepCount, value: 1000,
                                start: day.addingTimeInterval(Double($0) * 3600),
@@ -267,8 +278,8 @@ final class PresentationTests: XCTestCase {
     // MARK: - Daily totals
 
     func testDailyTotalsSumPerDayAndReportTheBestDay() {
-        let cal = Calendar(identifier: .gregorian)
-        let day = Date(timeIntervalSince1970: 1_700_000_000)
+        let cal = Self.utcCalendar
+        let day = Self.utcMidnight
         func step(_ v: Double, dayOffset: Double, hour: Double) -> HealthMetricSample {
             HealthMetricSample(type: .stepCount, value: v,
                                start: day.addingTimeInterval(dayOffset * 86_400 + hour * 3600),
