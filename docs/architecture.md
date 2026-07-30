@@ -216,6 +216,41 @@ switch is gone. The screen is now built from three things:
    standardised so unlike units share one axis.
 3. **Patterns** (`PatternFinder`) read off those series — see below.
 
+Plus, where the insight has one: **what's driving this**, and for Heart &
+Fitness Age, **both ages over time**.
+
+### "What's driving this": departures first, the routine folded away
+
+`InsightDriver` carries `isNotable: Bool?`, and the card leads with the lines
+that departed while the rest sit behind "Show N more in your normal range".
+Vitals Check scans seventeen signals; on an ordinary day sixteen say "in your
+normal range", which buries the one that doesn't and makes the card a wall.
+Hiding the detail entirely would make it a black box, so it is one tap away
+rather than gone.
+
+`isNotable` is **tri-state on purpose**. `nil` means *this insight doesn't draw
+the distinction*, which is not the same as "everything is routine" — an
+unclassified insight still shows all its lines rather than claiming a clean bill
+of health it never checked.
+
+### Both ages over time (`HeartAgeHistory`)
+
+The Heart & Fitness Age card was three numbers and a dial: where you are, and
+nothing about which way it's going — and the direction is the part you can act
+on. `HeartAgeHistory.replay` rebuilds both ages weekly on the same **truncation**
+contract `ScoreHistory` uses (`analyse` reads `latestValue`, so the only honest
+way to reconstruct a past day is to hand it the samples that existed by then).
+Weekly, not daily, because both ages move in steps as slow inputs land and a
+daily replay draws a staircase of duplicates.
+
+Your chronological age is drawn alongside as the reference, because it is the
+only line with a guaranteed slope. That is also how the pace is reported —
+`yearsPerYear` against the 1.0 everyone gets, so 0.9 reads as "gaining on it"
+rather than as a bare slope that looks like good news. Grounding facts
+(cholesterol, smoking) are applied as they stand today; the profile has no
+history to replay, and the card says so rather than implying the reconstruction
+is exact.
+
 ### Contributions: why the chart can't drift from the maths
 
 `InsightResult.contributors: [MetricContribution]` is emitted **by the scoring
@@ -277,6 +312,45 @@ Note this is a *second* colour scale. `Theme.sourcePalette` keys on **source**
 ("which device said this"); this one keys on **metric** ("which signal is this").
 They answer different questions and both are needed.
 
+## `VitalReader`: one way to read a vital
+
+Every insight used to build its own baseline by hand — `series.last` for "today"
+and `Array(series.dropLast())` for "normal". That has four defects and had them
+everywhere:
+
+1. **The newest raw sample isn't the day's value.** For a continuously sampled
+   vital that is one minute of one afternoon — a heart rate taken mid-run
+   reported as the day's. HRV arrives sixty-odd times a night, so a single
+   artefact reading at the end of the series *was* the whole night's HRV.
+2. **The baseline was every reading ever taken**, so it adapted to a real change
+   far too slowly — and for high-frequency metrics it was actually the last few
+   *hours*, a baseline that moves with the thing it should be detecting.
+3. **Duplicates counted twice.** The same ring arriving directly and through
+   Apple Health both survived, so inter-device disagreement rather than
+   physiology set the standard deviation, and departures never cleared it.
+4. **No reading was ever too old to use.** A months-old value was reported as
+   today's, and bought the card its high confidence.
+
+Heart Health had a fifth, worse one: resting heart rate came from `meanValue` —
+the mean of *every* resting-HR sample ever recorded. Over a 180-day lookback that
+number is effectively frozen; a genuine improvement moved it by a fraction of a
+beat, so the score could not reflect one.
+
+`Baseline/VitalReader.swift` is the fix made shared. `VitalReader.reading(_:from:)`
+returns a `VitalReading`: the day's representative value (via the metric's own
+`bucketStatistic`), the windowed baseline behind it, a z-score, the source it
+came from, and `isFresh`. Per source, de-duplicated, 28-day window, minimum
+history before any z is offered — because a single reading is not a clean bill of
+health and shouldn't read as one. `dailyValues(_:from:days:)` returns the series
+for the things that need it (sleep consistency is the night-to-night spread, not
+a single day).
+
+**Freshness is a per-insight decision, not a global one.** Readiness *drops* a
+component whose reading is stale — it is a claim about today, and a week-old HRV
+says nothing about this morning. Heart Health deliberately does not gate on it:
+VO₂max updates every few weeks by design, and a fortnight-old figure is still the
+right one. The reader reports staleness; the insight decides what it means.
+
 ## Vitals Check: why a perfect score is hard
 
 The card once read 100 / "All normal" on essentially every day. That was the
@@ -326,26 +400,88 @@ Watch the encoding quirk: a HealthKit category sample with value `notApplicable`
 (0) *and* a duration is stored as **minutes**, not the enum. So the sample's
 existence is the signal, not its value.
 
-## Chart identity: hue *and* dash
+## Chart identity: hue alone, and a bounded number of lines
 
-Eight validated hues is the ceiling for a categorical palette. Vitals Check now
-charts seventeen signals, and when any pair may be compared — as on an overlay
-where the eye picks its own two lines — **no seven-hue subset of the palette
-clears the colour-blind separation floor**. Measured with the validator, not
-assumed; the first version shipped two indistinguishable greens.
+Identity used to be a **(hue, dash) pair**. Eight validated hues is the ceiling
+for a categorical palette, Vitals Check charts seventeen signals, and no
+seven-hue subset clears the colour-blind all-pairs floor — measured with the
+validator, not assumed, after the first version shipped two indistinguishable
+greens. A globally-unique (hue, dash) pair per metric made any subset
+collision-free by construction.
 
-So identity is a pair: `MetricType.chartStyleIndex` gives hue (`% 8`) and dash
-(`/ 8`), and is **globally unique per metric**. Any subset of metrics is
-therefore collision-free on any chart, with no per-insight rule to maintain —
-`MetricColourSlotTests` asserts the uniqueness directly instead of checking a
-belief about what co-occurs.
+**It was measurably safe and practically wrong.** A dashed line reads as *an
+estimate, or a gap in the data* — not as a different signal. The user reported
+the dashes as gap markers, which is the correct reading of that ink.
+
+So the encoding inverted. **Dash now means exactly one thing anywhere in the
+app: this value was not measured** — a gap, a projection, a reference level
+(`Theme.projectedStroke`). Every measured series is solid, and identity is hue
+alone. Which means the *number of lines* has to stay inside what hue can carry:
+
+- **`MetricPalette.slots(for:)`** (`Presentation/MetricPresentation.swift`)
+  assigns hues **per chart**, not globally. A metric keeps its own preferred slot
+  (`colourSlot`) wherever that slot is free, so the same signal usually looks the
+  same from card to card; where two would collide, the later one steps to the
+  next free hue. Global assignment could not promise distinctness once dash was
+  gone — `colourSlot` is `chartStyleIndex % 8`, so two metrics eight apart in the
+  table collided silently.
+- **`OverlaySelection`** (`Presentation/OverlaySelection.swift`) decides which
+  series are drawn. It lives in InsightKit, not the view, for the same reason
+  `colourSlot` does: it is the rule that determines whether two lines can look
+  alike, and the first version shipped from the view layer where no test could
+  reach it — and put two identical reds on one chart.
+
+### What counts as "away from baseline"
+
+`OverlaySelection.anomaly` is deliberately **not** "did any day in the window
+depart". That question let a flat line with one blip three weeks ago rank
+alongside a signal elevated all fortnight, so body temperature was drawn on a
+chart whose own legend called it "steady" — a card contradicting itself in two
+places at once.
+
+Two terms, larger wins:
+
+- **Recent** — the furthest it got in the last seven days, so yesterday's fever
+  is a finding even if the rest of the month was flat.
+- **Sustained** — the RMS departure across the window, so a signal sitting a full
+  SD off baseline every day counts, while one |z| = 4 day among thirty flat ones
+  comes to ≈0.8 and doesn't.
+
+Anchored to the **newest reading**, not the clock, so a series that stopped
+reporting doesn't lose its recent term and sink down the list as time passes.
+
+### Selection is the reader's
+
+The legend is a picker: every signal is individually tappable, and the list is
+ordered most-departed first so choosing among thirteen is reading from the top
+rather than hunting. `defaultSelection` is a *starting point* — everything when
+there are ≤ `comfortableSeriesCount` (6) series, otherwise the notable ones
+capped at `hueCount` (8). Going past eight by hand is allowed rather than
+refused; the legend says plainly that the colours will repeat.
 
 **Opacity carries the anomaly.** Each span between adjacent readings is drawn at
 an opacity set by how far from baseline it is (≈0.12 at baseline, opaque by
-|z| ≥ 3), so flat ordinary stretches recede and departures come forward — which
-is what makes seventeen overlaid series legible rather than spaghetti. Dots
-appear only past 1.5 SD. Thinning for long windows keeps the **extremes** rather
-than striding, because a stride drops exactly the days the chart exists to show.
+|z| ≥ 3), so flat ordinary stretches recede and departures come forward. Dots
+appear only past 1.5 SD — the same threshold that decides which series are drawn
+at all, so "away from baseline" means one thing on the chart. Thinning for long
+windows keeps the **extremes** rather than striding, because a stride drops
+exactly the days the chart exists to show.
+
+### Reference bands
+
+The blood-pressure chart shades the ACC/AHA categories behind the readings
+(`Category.systolicRange`). **Systolic only, and the chart says so**: the two
+lines share one mmHg axis but not one set of thresholds — 85 is stage 1
+diastolic and entirely normal systolic — so a single shaded set would mislabel
+one of them. Diastolic limits are thin rules in the diastolic line's own colour.
+
+The thresholds therefore exist in two places (`Category.of` classifies,
+`systolicRange`/`diastolicRange` place the shading), so `PressureBandTests` holds
+them to each other: every value from 80 to 210 must land inside the band its own
+classifier assigned it, and the bands must tile the axis with no seam.
+
+⚠️ Horizontal band marks are the API family most prone to the `Chart3DContent`
+overload hazard. Every mark builder keeps its explicit `-> some ChartContent`.
 
 ## Insights tab: the deep dive
 
@@ -364,6 +500,23 @@ over months". Gated on `InsightID.cadence == .trend` so the split stays clean.
   slope, matching the standard `VO2Trajectory` already holds itself to.
 - **`ScoreComparisonChart`** — scores are all 0–100, so they are the one overlay
   in the app that needs no transform at all.
+
+**Patterns must not report their own arithmetic.** `PatternFinder` suppresses
+any pair where `MetricType.sharesMeasurementBasis(with:)` holds. Same family is
+the obvious case — body temperature and skin-temperature deviation are one
+measurement reported twice. The non-obvious one is **heart rate against
+heart-rate variability**: both are computed from the same beat-to-beat interval
+stream, so a shorter interval is simultaneously a higher rate and less room to
+vary. "HRV and resting heart rate move in opposite directions (r = −0.71)"
+reached the card as the *top* pattern, and it is arithmetic wearing the clothes
+of a finding.
+
+They stay in separate `MetricFamily` values because family also drives colour
+grouping and how the app talks about systems, where the distinction is real —
+so shared *basis* is its own, narrower question. Both the co-movement and the
+divergence branches consult it; divergence previously had no guard at all, and
+two readings of one measurement always diverge when one is the inverse of the
+other.
 
 ## Chart gap interpolation
 

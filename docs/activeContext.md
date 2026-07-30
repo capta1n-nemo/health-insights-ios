@@ -14,50 +14,56 @@ log into GitHub to merge anything.
 
 ## Current focus
 
-**Vitals Check rebuilt, then the Insights tab deep dive** (this session, four
-pushes, all CI-green). Driven by the user's observation that the card read 100 /
-"All normal" every day — "that should be really hard to achieve" — plus four
-screenshots that showed three of the defects outright.
+**Every card held to the standard Vitals Check was rebuilt to** (this session,
+six pushes, all CI-green: `1de13c1` → `084f70f`). Driven by the user's
+observation — "you've only applied these changes to the vitals check card, all
+the improvements should apply to every card" — plus a ten-item feedback list and
+two device screenshots that caught two of my own regressions.
 
-Full rationale is in `docs/architecture.md` ▸ "Vitals Check: why a perfect score
-is hard", "Events are not metrics", "Chart identity: hue *and* dash" and
-"Insights tab: the deep dive". The things worth knowing without reading it:
+Full rationale is in `docs/architecture.md` ▸ "`VitalReader`: one way to read a
+vital", "Chart identity: hue alone, and a bounded number of lines", and the
+patterns note under "Insights tab: the deep dive". What's worth knowing without
+reading it:
 
-- **The baseline was the anomaly.** `suffix(60)` was sixty *readings*, not days —
-  five hours for heart rate. It printed a baseline heart rate of 100 bpm. Now the
-  day's representative value per source over 28 days.
-- **`now` was accepted and never read**, so any-age readings counted as "measured
-  today" and bought high confidence. Freshness is per `Spec`; stale vitals are
-  named and cost coverage.
-- **Coverage is what makes 100 hard**, judged against what *this* person's
-  devices normally provide — so one wearable isn't punished for not being two.
-- **Hue alone cannot carry seventeen series.** No seven-hue subset of the
-  validated palette clears the colour-blind all-pairs floor; that was measured,
-  and the first version shipped two indistinguishable greens. Identity is now a
-  globally-unique (hue, dash) pair, so no chart can collide.
-- **Opacity carries the anomaly** (the user's idea, and the right one): flat
-  stretches fade to ~0.12, departures go opaque, so every series stays on the
-  chart and the interesting parts are what you see.
-- **Events are not metrics.** Apple's irregular-rhythm flag has no unit,
-  baseline, bucketing rule or gap interval — it gets its own input with a
-  defaulted protocol overload, leaving the other ten models untouched.
+- **`VitalReader` is now the only honest way to read a vital.** Four insights
+  moved onto it this session; **six still bypass it** (see the audit table
+  below), so this is half-done, not done. Of the four, Heart Health's was worst:
+  resting heart rate came from the mean of *every* sample ever recorded, which
+  over a 180-day lookback cannot move.
+- **Four scores were wrong, not just imprecise.** Sleep consistency read 0/100
+  (it measured fragmentation, not sleep). Blood pressure passed `score: nil`
+  unconditionally. Heart age hit exactly zero from fifteen excess years on, and a
+  *capped* fitness age reaches forty years of excess on the bound alone.
+- **Dash is retired as identity.** It was a globally-unique (hue, dash) pair,
+  measurably collision-free — and practically wrong, because a dashed line reads
+  as *an estimate or a gap*. The user reported the dashes as gap markers, which
+  is the correct reading of that ink. Dash now means "not measured" only.
+- **The chart can't outrun its palette.** Hue alone means the *number of lines*
+  must stay inside eight. `OverlaySelection` decides which are drawn and the
+  legend is a picker — every signal individually tappable, ordered most-departed
+  first.
+- **"Away from baseline" is recent-or-sustained, not ever.** The first version
+  asked "did any day depart", so a flat line with one blip three weeks ago was
+  drawn as notable while the legend beside it said "steady".
+- **Patterns stopped reporting their own arithmetic.** HRV against heart rate
+  comes off the same beat-to-beat interval stream; it was reaching the card as
+  the *top* finding at r = −0.71.
 
-**None of it is on the phone yet beyond the deploys firing** — the on-device
-walkthrough is the outstanding item.
+## Two regressions I shipped, and what they cost
 
-Landed earlier, driven by a troubleshooting log the user pasted:
+Both were caught by the user's screenshots, not by CI, and both have the same
+root cause: **the rule lived in the view layer where no test could reach it.**
 
-1. **Oura 401 diagnosis and fix.** Three collections (`daily_resilience`,
-   `daily_cardiovascular_age`, `vO2_max`) failed every sync. Root cause: two
-   **undocumented** Oura scopes the app never requested. All nine collections
-   now return 200.
-2. **A provider-agnostic ingestion pipeline** (`InsightKit/Sources/InsightKit/Ingestion/`)
-   replacing the per-provider, `Double`-only raw capture.
-3. **Nine orphaned vitals wired into insights**, plus a new `Vitals Check`
-   Today card.
+1. **Two identical reds.** "Draw only the anomalous ones" is not by itself a
+   small number — thirteen vitals with nine departing is an ordinary week, so the
+   ninth line wrapped onto a hue already in use.
+2. **Steady signals drawn as notable**, contradicting the legend one line below.
 
-CI green on `bf68e67`. **None of it walked on the phone yet** — that is now the
-outstanding item for three batches, not two.
+Fixed by moving the rule into `InsightKit/Sources/InsightKit/Presentation/OverlaySelection.swift`
+and testing it against the screenshot's own shape. **Rule worth keeping: if a
+piece of logic decides whether two things can look alike, or whether a number is
+right, it belongs in InsightKit.** The app target has no test target — anything
+that lives there is verified only by eye.
 
 ## The Oura scope answer (don't re-derive this)
 
@@ -78,6 +84,31 @@ reliably return `scope` on the OAuth callback, despite documenting that it does.
 
 ## Recent architectural choices worth knowing
 
+- **A shared reader beats a shared convention.** Every insight "knew" it should
+  read a daily, de-duplicated, windowed value; every insight wrote its own and
+  got it wrong differently. `VitalReader` is the convention made a type. When you
+  find the same four-line pattern in five files with five bugs, extract it —
+  don't document it.
+- **Freshness is reported, not enforced.** `VitalReading.isFresh` is a fact; what
+  it *means* is the insight's call. Readiness drops a stale component (it's a
+  claim about today); Heart Health keeps one (VO₂max updates every few weeks by
+  design). A single global staleness rule would have been wrong for one of them.
+- **Presentation logic that can be wrong belongs in InsightKit.** The app target
+  has no test target. `OverlaySelection` and `MetricPalette` decide whether two
+  lines can look alike — that is a correctness question, not a styling one, and
+  both regressions this session came from having it in the view.
+- **A tri-state flag beats a Bool when "we didn't check" is a real state.**
+  `InsightDriver.isNotable: Bool?` — `nil` means the insight doesn't draw the
+  distinction, which must not render as "everything is fine".
+- **Two copies of a clinical threshold need a test binding them.** The
+  blood-pressure bands exist in `Category.of` (classify) and `systolicRange`
+  (shade). `PressureBandTests` sweeps every value from 80 to 210 and asserts each
+  lands inside the band its own classifier assigned it.
+- **Encoding that is technically safe can still be practically wrong.** The
+  (hue, dash) pair was collision-free by construction and validated with a
+  colour-blindness tool. It still failed, because dash carries a *meaning* to
+  readers — "estimated / missing" — that no separation metric measures. Check
+  what an encoding says, not just whether it's distinguishable.
 - **Providers fetch bytes; the pipeline decides what they mean.** `SyncedData`
   now carries `payloads: [IngestPayload]` alongside samples. A provider's typed
   parser contributes only the handful of fields it has *unit and semantic*
@@ -166,19 +197,27 @@ added to the engine and cadence but not to the four switches, so the build broke
 The complete list, verified by grepping for the enum's last case:
 
 - `MetricType`: `displayName`, `unit` (both in `MetricType.swift`),
-  `presentation`, `maxValidInterval`, **`colourSlot`** (all three in
-  `MetricPresentation.swift`), `requiresPositiveValue` (`MetricSanitizer.swift`).
-  `bucketStatistic` and `MetricValueFormatter` have `default:` clauses and are safe.
+  **`family`**, **`chartStyleIndex`**, `presentation`, `maxValidInterval` (all
+  four in `MetricPresentation.swift`), `requiresPositiveValue`
+  (`Signals/MetricSanitizer.swift`). `bucketStatistic`, `inSentence` and
+  `MetricValueFormatter` are safe — the first has a `default:`, the second is
+  derived from `displayName`.
+  `colourSlot` and `sharesMeasurementBasis` are **derived**, not switches, so
+  they no longer need touching. `chartStyleIndex` must stay contiguous from zero
+  (`testStyleIndicesAreContiguousFromZero` pins it) so the metrics most likely to
+  share a chart keep first claim on the eight hues.
 - `InsightID`: `modelVersion` (`Feedback.swift`), plus `prettyInsight`
   (`TelemetryOutboxView`) and `iconName` (`DashboardView`) in the app target.
   **`primaryMetric` in `InsightDetailView` is gone** — the detail screen now
   charts `InsightResult.contributors`, which the scoring code emits itself, so
   that switch no longer exists to fall out of date.
 
-Adding an `InsightModel` also now requires `candidateMetrics` (no default
-implementation, so it won't compile without one), and adding a `MetricType` to an
-insight can break `MetricColourSlotTests` from a file that never mentions colour
-— see the colour-slot note in `docs/architecture.md`. Both are deliberate.
+Adding an `InsightModel` also requires `candidateMetrics` (no default
+implementation, so it won't compile without one). `MetricColourSlotTests` no
+longer depends on what co-occurs — it asserts that *any* set up to the palette
+size resolves to distinct hues, so adding a metric to an insight can't break it
+from a file that never mentions colour. That was deliberate: the previous version
+encoded a belief about co-occurrence, and the belief shipped wrong.
 
 Do this grep *before* pushing, because CI is the only thing that will tell you.
 
@@ -220,31 +259,221 @@ request. This is the same failure shape as the `tunnelState` guard below.
 
 ## Immediate next steps
 
-- **Walk the new insight detail screens on the phone.** Specifically: Readiness
-  opens on a score line with real history rather than an HRV chart; the overlay
-  shows all six inputs coloured and labelled against a dashed "your normal";
-  Compare→Raw keeps the shape readable and the log toggle only appears when it's
-  legitimate; a metric with no data shows dimmed as "No data" rather than
-  vanishing; the Patterns card either reads as sentences or is absent (absent is
-  the common and correct case); and **Vitals Check opens without a stall** — it's
-  the one insight whose replay touches heart rate (~53k samples), so it's the
-  performance case. Also confirm the score line is not empty on first launch,
-  which is the whole point of replaying rather than only recording.
-- **Then: the Insights-tab deep dive** (Phase 2, designed with the user, not yet
-  built). It reuses the same components at a longer horizon and adds the one
-  thing Today structurally cannot do:
-  - **Lagged correlation** — metric at day *d* against the score at *d+1…d+3*
-    ("does last night's sleep predict tomorrow's readiness *for me*?"), reporting
-    the best lag only when it beats lag-0.
-  - Long-horizon score history with a regression trend and its residual spread,
-    following how `VO2Trajectory` already reports slope with uncertainty.
-  - Cross-insight overlay — readiness/sleep/fitness scores on one normalised axis.
-  - Rolling 28 days vs the prior 28, per contributor, as a "what changed" table.
-  - Fill `contributors` for the eight trend-tab models, which currently fall back
-    to `candidateMetrics` (so their charts work, but without honest weights).
-- **On-device walkthrough of the older batches, still outstanding.**
-  CI proves it compiles, not that it behaves.
-  - Newest (this session): the **Vitals Check** card on Today — confirm it reads
+The user's ten-item feedback list is the working agenda. Status below was
+**audited against the code**, not recalled — every claim has a file reference in
+the audit that produced it. Items 5, 6, 8 (score half) and 9 are done and are in
+`docs/progress.md` ▸ "Every card held to the same standard".
+
+### 1. Verified defects worth fixing first
+
+- **Body temperature is judged in the wrong domain — start here.** Audited and
+  confirmed, and it is worse than first flagged. Four compounding faults:
+
+  1. **`hardLow` (35.5) is exactly `TemperatureReconstructor.defaultBaselineCelsius`
+     (35.5).** A reconstructed value is `baseline + deviation`, so `value < hardLow`
+     reduces to **`deviation < 0`**. Any cool night at all trips the bound. A
+     routine −0.1 °C scores normality 32.7 (penalty 67.3), and `VitalSignsCheck.score`
+     is worst-offender-dominant — so one ordinary night tanks the whole card.
+  2. **`hardHigh` (37.8) can never fire on reconstructed data**: it needs
+     `deviation > +2.3 °C`, while the app's own `skinTemperatureDeviation` spec
+     treats ±1.5 as the outer bound of plausible. A real febrile night (Oura
+     typically +0.8 to +1.2) reconstructs to 36.3–36.7 °C and is invisible to
+     both bounds.
+  3. **Both temperature rows are always present and double-counted.**
+     `withReconstructedTemperature` returns `samples + reconstruct(samples)` —
+     additive, not a replacement. Their z-scores are *mathematically identical*
+     (adding a constant to every sample shifts the mean, not the SD), so the same
+     physiological signal enters `penalties` twice: once correctly scaled as a
+     deviation, once mis-bounded as an absolute.
+  4. **Routing real thermometer readings into `readMap` made it worse, not
+     better.** Reconstruction still runs unconditionally, so `.bodyTemperature`
+     is now a *mixture* of core and skin values under one set of bounds — and the
+     reconstructor learns its baseline from whatever absolutes exist, so a user
+     with a real 36.8 °C reading gets skin deviations added to a **core**
+     baseline.
+
+  **Root cause is provenance loss**: `reconstruct()` writes its output as
+  `.bodyTemperature` and erases the fact that it is skin-derived, after which no
+  consumer can tell the two apart. The fix is to give skin its own identity — a
+  `.skinTemperature` `MetricType`, or a `basis` flag on `HealthMetricSample` — so
+  the `bodyTemperature` spec only ever sees genuine core readings. Whoop
+  (`WhoopResponseParser.swift:48`) and Withings type 73
+  (`WithingsResponseParser.swift:65`) route there too.
+
+  **No test would catch any of it.** The only `bodyTemperature` fixture in the
+  Vitals suite is 36.6 °C (`VitalSignsTests.swift:80`) — a genuine core reading,
+  precisely the one shape where the bounds behave. `NewInsightsTests.swift:23-25`
+  even builds the −0.3 deviation case whose reconstruction would be flagged
+  `.unusual`, then stops at the arithmetic assertion.
+- **`BloodPressureEstimator.maintenanceReadingsPerMonth = 2` is dead code.**
+  Declared at `BloodPressureEstimator.swift:22` and never read. `CalibrationStatus.required`
+  (:76) hard-wires to `initialCalibrationReadings` (5) forever, so the app demands
+  five readings every thirty days rather than five once and two a month after.
+  That is item 8's "drift counter" half, and it is a small fix.
+- **Cholesterol renewal is 12 months in code, 6 in the spec.**
+  `GroundingInput.swift:44-45` sets `365 * 24 * 3600`. One-line value change.
+- **Cardiovascular Risk still has a step-function score.** `riskBand`
+  (`CardiovascularRiskInsight.swift:189-195`) maps the whole risk range onto
+  {90, 72, 45, 20} — 4.9% dials 90 and 5.1% dials 72, an 18-point drop across two
+  tenths of a percentage point. Exactly the defect fixed in Vitals Check and
+  Heart Age; this card was missed.
+- **Body Composition is the only unconditional `score: nil`**
+  (`AdditionalInsights.swift:305`). The comment says the card "narrates rather
+  than scores", which may be the right call — but it means the card can never
+  show a dial even with a full smart-scale dataset. Decide deliberately.
+- **Blood pressure scores nil on most days.** The score is set only from a cuff
+  reading under 24 hours old, or from the experimental estimate when it is
+  grounded. Anyone who cuffs weekly sees an empty bubble six days in seven. The
+  24-hour rule is right for *trusting* a reading; it may be wrong for *showing*
+  one, and that is a product decision, not a bug.
+- **Substance Impact is not an `InsightModel`.** It ships as a card but is built
+  by a free function and is invisible to `InsightEngine` (which registers
+  eleven models; `.substanceImpact` is not among them). It also passes
+  `score: nil`. Anything applied "to every insight" silently skips it.
+
+### 2. Score-and-reader audit, every insight
+
+Audited card by card. "Done" means it produces a defensible score **and** reads
+its inputs through `VitalReader`.
+
+| Insight | Score | Reads via `VitalReader` |
+| --- | --- | --- |
+| Readiness | ✅ continuous composite | ✅ |
+| Heart Health | ✅ continuous, age-adjusted | ✅ |
+| Sleep Quality | ✅ five weighted components | ✅ |
+| Resting HR Trend | ✅ level + drift | ✅ |
+| Vitals Check | ✅ Gaussian, worst-dominant | ❌ re-implements it inline |
+| Cardio Fitness | ✅ ratio to age/sex norm | ❌ `vo2Series.last?.value` |
+| Cardio Trajectory | ✅ net-of-ageing slope | ⚠️ de-dupes, but fits over raw samples |
+| Cardiovascular Risk | ❌ four-step function | ❌ `latestValue` |
+| Heart & Fitness Age | ✅ logistic | ❌ `latestValue` |
+| Blood Pressure | ⚠️ nil on most days | ❌ raw throughout |
+| Body Composition | ❌ unconditional `score: nil` | ❌ |
+| Substance Impact | ❌ `score: nil` | ❌ — **not an `InsightModel` at all** |
+
+### 3. Still to read through `VitalReader`
+
+Four insights moved onto it; six did not, and each hand-rolls the reads it
+replaces:
+
+- `CardioFitnessInsight` — `vo2Series.last?.value`, no de-duplication.
+- `CardioTrajectoryInsight` — de-duplicates and checks staleness, but fits its
+  regression over raw samples rather than daily values.
+- `CardiovascularRiskInsight`, `HeartAgeInsight` — `samples.latestValue(...)`.
+- `BloodPressureInsight` — raw throughout.
+- `VitalSignsInsight` — **re-implements `VitalReader` inline.** It is where the
+  fix came from, so the two agree today; they are still two copies of one rule.
+
+### 4. Greenfield, in the user's priority order
+
+- **Item 1 — Today summary refresh.** Nothing gates it: `RootView.swift:24`
+  refreshes on every appearance and `AppModel.swift:354` summarises
+  unconditionally, so every app open pays a full FoundationModels round-trip.
+  Three `.refreshable` modifiers call `refresh()` with no cooldown. Needs a data
+  fingerprint compared against the one stored with the last summary, plus a
+  30-second floor on manual refresh.
+- **Item 2 — "Improve Your Health" suggestions.** Greenfield: a case-insensitive
+  grep for `suggest` across the repo returns zero matches. The closest existing
+  pattern to model it on is `InsightEngine.outstandingGrounding`, which already
+  does "requirement → satisfied/stale/missing" and hides what's satisfied.
+- **Item 3 — grounding and renewal.** `InsightModel.requirementStatuses(profile:now:)`
+  (`Insight.swift:199-204`) already returns `.satisfied`/`.stale`/`.missing` per
+  requirement and every caller throws away everything but `.missing`. The
+  *display* side is what's absent: nothing computes `recordedAt + freshness - now`
+  or renders a countdown. To scale, `GroundingRequirement` needs a cadence
+  ("N readings within W, then M per P"); today it carries only kind, mandatory
+  and rationale, so blood pressure's rule lives in bespoke statics.
+- **Item 7 — substance intake.** `SubstanceLogView.swift:27-30` logs immediately
+  on tap with no date/time sheet, and `DataStore` offers no update path (only
+  load/delete), so a mis-timed entry can only be deleted. `afterWindow = 18h`
+  exists in the analyzer but is never plotted. The watched set is six metrics and
+  has not changed since it was written. Nothing is reachable from the Vitals tab.
+
+### 5. Charts — the dash rule is only half applied
+
+An audit of every chart in the app target found the identity change landed
+cleanly (no `dash:` anywhere carries series identity any more) but the *other*
+half of the rule — dash means "not measured" — is not enforced:
+
+- **`ScoreHistoryChart`'s regression fit line is drawn solid**
+  (`ScoreHistoryChart.swift:109-110`). It is a value for days that were never
+  scored, in `Theme.accent` at 0.5 opacity — the same hue as the *measured*
+  score line at full opacity. Its ±SD envelope is correctly dashed. This is the
+  one inferred line in the app and it is the one place the new rule is broken.
+- **`Theme.projectedStroke` is defined and never used** (`Theme.swift:100-102`).
+  Wire it to the fit line above, or delete it.
+- **Three hand-rolled dash patterns express the one meaning**: `[4, 3]`
+  (`MetricOverlayChart.swift:254`), `[3, 3]` (`ScoreHistoryChart.swift:110, 147`),
+  `[3, 4]` (`Theme.swift:102`). A `Theme.referenceStroke` sibling would stop the
+  fourth being invented.
+- **Hue collisions that are not hypothetical.** Three surfaces call
+  `Theme.metricColor` **without** slots — `InsightDetailView.swift:461, 486, 531`
+  ("What comes first", "What changed", "Full history") — which falls back to the
+  preferred slot. The colliding pairs are real: RMSSD/SDNN both 1, systolic/
+  diastolic both 4, heart rate/respiratory rate both 0, SpO₂/perfusion index
+  both 2, body/skin temperature both 3.
+- **`Theme.insightTint` has four colliding pairs** (`Theme.swift:69-80`):
+  heartAge/bloodPressure, cardioFitness/bodyComposition, heartHealth/
+  restingHeartRateTrend, cardioTrajectory/substanceImpact. The doc comment claims
+  safety because "never more than four are on screen at once" — but the user
+  chooses which four, so two of a pair can be picked together. Same class of
+  belief-about-co-occurrence that shipped wrong once already.
+- **Blood pressure paints from the *source* palette**
+  (`BloodPressureSections.swift:141-154` uses `Theme.sourceColor`), so systolic
+  and diastolic are red/blue there and magenta on every overlay chart.
+- **Its diastolic threshold rules are solid**, in the *same hue* as the measured
+  diastolic line (`:134` vs `:150`) — a reference level indistinguishable from a
+  measurement.
+
+Also outstanding:
+
+- **Gap bridging.** No smoothed or predicted bridging exists anywhere; every
+  `LineMark` is `.interpolationMethod(.linear)` and charts simply break. That is
+  currently deliberate and commented, but the user asked for a smoothed
+  prediction across gaps, and dash is now free to express it.
+- **`MultiSourceChart` shatters at zoomed-out ranges.** It buckets points
+  (`:92`) and then compares those *bucket* starts against `maxValidInterval`,
+  a *sample*-scale rule (`:88`, applied `:94`). Heart rate's interval is 1800 s;
+  a Week window's buckets are far wider, so every point becomes its own segment.
+  `NormalizedSeries.segments()` guards against exactly this with a two-day floor
+  (`NormalizedSeries.swift:86-89`); `MultiSourceChart` has no floor. **This is a
+  live bug, not a gap.**
+- **Reference bands exist only on blood pressure** — and the thresholds for the
+  other seventeen vitals are already written down, sourced and commented in
+  `VitalSignsInsight.Spec.specs` (`hardLow`/`hardHigh`). They are `internal`, so
+  the app target cannot see them; making `Spec` and `specs` public is most of the
+  work. Metrics with well-known ranges and no bands today: SpO₂, respiratory
+  rate, body temperature, blood glucose, resting/heart rate, heart-rate recovery,
+  walking steadiness.
+- **`ScoreComparisonChart` omits the score bands** `ScoreHistoryChart` draws, so
+  65 sits in a shaded context on one screen and a bare plot on the other.
+- **`OtherDataDetailView` sets no `foregroundStyle`** (`VitalsView.swift:203-212`),
+  so Swift Charts supplies its own blue — off the validated palette.
+- **`AgeHistoryChart` borrows slots 0 and 2**, which are heart rate's and blood
+  oxygen's preferred hues. Low severity (the two ages aren't `MetricType`s and
+  never share a chart with them), but worth a dedicated pair.
+
+### 6. On-device walkthrough
+
+CI proves it compiles, not that it behaves — and both regressions this session
+were caught by the user's screenshots, not by CI. Newest first:
+
+- **The overlay chart.** No two drawn lines share a colour. Steady signals
+  (body temperature, skin temperature) are *off* the chart by default and appear
+  in the list below it. The list is ordered most-departed first and every row is
+  tappable on and off. Selecting more than eight shows the "colours repeat"
+  warning rather than silently repeating them.
+- **Heart & Fitness Age** opens with both ages plotted against the chronological
+  line, and the pace sentence reads as "gaining on it" / "running ahead" rather
+  than a bare slope.
+- **Blood pressure** shows shaded systolic bands with the diastolic limits as
+  thin rules, and the caption explaining which is which.
+- **"What's driving this"** leads with departures and folds the routine lines
+  behind the disclosure.
+
+Then the older batches:
+
+  - The **Vitals Check** card on Today — confirm it reads
     "All normal" on a quiet day and names the outlier when there is one; that
     **Other data** renders Oura's resilience `level` as text with a States tally
     rather than an empty chart; that Cardio Fitness now shows two sources (Apple

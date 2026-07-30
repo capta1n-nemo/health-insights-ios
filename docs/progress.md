@@ -73,6 +73,40 @@ about confidence.**
 - [x] Apple's own event flags read as events, not metrics — irregular rhythm,
       high/low heart rate, low cardio fitness, unsteady walking.
 
+### Every card held to the same standard
+The Vitals Check fix, applied everywhere it was also true.
+
+- [x] `VitalReader` — one way to read a vital: the day's representative value per
+      source, de-duplicated, over a 28-day window, with freshness attached.
+      Readiness, Heart Health, Sleep Quality and RHR Trend all moved onto it.
+      Readiness was reading a single artefact reading as a whole night's HRV;
+      Heart Health took resting heart rate from the mean of *every sample ever
+      recorded*, which over a 180-day lookback cannot move.
+- [x] Four scores that were wrong: sleep consistency stuck at 0/100 (it was
+      measuring fragmentation, not sleep), sleep's respiratory rate coming from
+      the last ten minutes rather than the night, blood pressure carrying
+      `score: nil` unconditionally, and heart age bottoming out at exactly zero
+      from fifteen years of excess onward.
+- [x] Resting Heart Rate Trend scores from two terms that can disagree — today's
+      departure from baseline and the drift in bpm per week — because a single
+      high morning and a month of upward drift are not the same finding.
+- [x] "What's driving this" leads with departures and folds the routine majority
+      behind a disclosure, with `isNotable` tri-state so an insight that doesn't
+      classify its lines still shows all of them.
+- [x] Both ages charted over time on Heart & Fitness Age, replayed weekly, with
+      the pace reported against the one year per year everybody gets.
+- [x] ACC/AHA bands shaded behind the blood-pressure chart — systolic only, with
+      the diastolic limits as separate rules, because the two numbers share an
+      axis but not a set of thresholds.
+- [x] Charts: dash retired as identity. Every measured series is solid; dash now
+      means "not measured" only. Hues resolve per chart, series are ranked by how
+      far they've moved, and each one is individually tappable on and off.
+      "Away from baseline" became recent-or-sustained rather than ever, so a flat
+      signal with one old blip stops being drawn as notable.
+- [x] Patterns stop reporting their own arithmetic — HRV against heart rate came
+      off the same beat-to-beat intervals and was reaching the card as the top
+      finding.
+
 ### Insights tab: the deep dive
 - [x] Lagged correlation — a signal at day *d* against the score at *d+1…d+3*,
       reported only when it beats same-day. The one question Today can't ask.
@@ -147,6 +181,15 @@ about confidence.**
       treat the CI run on the push as the gate.
 
 ## In progress / not yet device-verified
+- [ ] **Body temperature is judged in the wrong domain — the highest-value fix
+      available.** Audited and confirmed: `hardLow` (35.5) is exactly the
+      reconstructor's default baseline, so *any* negative skin deviation trips it
+      and tanks a worst-offender-dominant score; `hardHigh` needs +2.3 °C and can
+      never fire; and both temperature rows are always present with mathematically
+      identical z-scores, so the same signal is counted twice. Root cause is
+      provenance loss — reconstruction writes skin values as `.bodyTemperature`.
+      No existing test would catch any of it. Full detail and the fix design in
+      `activeContext.md`.
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
 - [ ] Heart & fitness age and Fitness trajectory on the phone: both are new cards
@@ -189,6 +232,38 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] Foundation Models structured extraction for arbitrary lab analytes.
 - [ ] ECG photo/PDF import with metadata (no automated interpretation — that's
       a regulated medical-device claim, out of scope by design).
+
+### The ten-item feedback list (the working agenda)
+Status audited against the code, not recalled — see `activeContext.md` ▸
+"Immediate next steps" for the file references behind each line.
+
+- [x] 5. Every contributing source listed in the drill-down; the Sleep Quality
+      "five components, four metrics" gap explained rather than hidden.
+- [x] 6. Sleep Quality — respiratory rate from the night rather than the last ten
+      minutes, and consistency no longer stuck at 0/100.
+- [x] 8. Blood pressure scores from the AHA bands (the *drift counter* half is
+      still outstanding — see below).
+- [x] 9. Heart & Fitness Age scores from a logistic, and both ages are charted
+      over time.
+- [x] 4a. Colour bands on the blood-pressure chart.
+- [ ] 4b. Smoothed predicted values across data gaps. `Theme.projectedStroke`
+      exists for this and is unused; charts still break the line and draw nothing.
+- [ ] 4c. Reference bands on the other charts that have well-known ranges.
+- [ ] 1. Gate the Today summary on a data-state diff; 30-second floor on manual
+      refresh. Nothing gates it today — every app open pays a full summariser
+      round-trip.
+- [ ] 2. "Improve Your Health" suggestions. Greenfield — zero matches for
+      `suggest` anywhere in the repo.
+- [ ] 3. Grounding and renewal display. `requirementStatuses` already computes
+      satisfied/stale/missing and every caller discards all but `.missing`;
+      nothing renders a renewal countdown.
+- [ ] 7. Substance intake: date/time prompt, an edit path (`DataStore` has no
+      update), the intake window drawn on the chart, more correlated vitals, and
+      a section in the Vitals tab.
+- [ ] 10. QA sweep: six insights still bypass `VitalReader`; Cardiovascular Risk
+      still has a four-step score function; Body Composition is an unconditional
+      `score: nil`; Substance Impact isn't an `InsightModel` at all, so anything
+      applied "to every insight" skips it.
 
 ### Charts
 - [ ] Filled `AreaMark` min/max bands (currently shipped as outlined
