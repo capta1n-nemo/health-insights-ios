@@ -48,6 +48,14 @@ struct MetricDetailView: View {
     /// timeframe picker stays available even when the chosen window is empty.
     private var hasAnyData: Bool { !allData.sources.isEmpty }
 
+    /// Whether a dashed connector can appear at this zoom at all, so the key is
+    /// only shown when the encoding is actually in play. O(1) — no history scan.
+    private var canBridge: Bool {
+        let bucket = BucketSize.forWindow(window)
+        return SeriesBridging.maxBridgeableGap(for: allData.type, bucket: bucket, window: window)
+            > allData.type.maxPlottableGap(bucket: bucket)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacing) {
@@ -132,6 +140,10 @@ struct MetricDetailView: View {
                                  selection: $scrubbed)
                 Text("Drag across the chart to read individual points; swipe it sideways to move back through your history.")
                     .font(.caption2).foregroundStyle(.tertiary)
+                if canBridge {
+                    Text("A dashed stretch joins two readings across a gap — nothing was measured along it.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
                 if subject.presentation.allowsLogScale {
                 HStack {
                     Picker("Scale", selection: $logScale) {

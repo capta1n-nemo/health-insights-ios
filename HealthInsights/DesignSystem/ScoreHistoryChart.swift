@@ -100,14 +100,21 @@ struct ScoreHistoryChart: View {
     /// A slope on its own reads as a promise. Shown against the spread of the
     /// days it was drawn from, it reads as what it is — which is the same
     /// standard `VO2Trajectory` already holds itself to.
+    ///
+    /// **Dashed, because it is inferred.** It was drawn solid, in `Theme.accent`
+    /// at half opacity — the same hue as the *measured* score line at full
+    /// opacity — which made a value for days that were never scored look like a
+    /// measurement. That was the one place in the app where the rule "every
+    /// measured series is solid, and dash means not measured" was still broken.
+    /// Fit and envelope are the same kind of thing, so they share the stroke and
+    /// differ only in opacity.
     @ChartContentBuilder
     private func trendMarks(_ visible: [ScorePoint]) -> some ChartContent {
         ForEach(trendLine(visible)) { point in
             LineMark(x: .value("Day", point.date), y: .value("Score", point.score),
                      series: .value("Band", point.band))
                 .foregroundStyle(Theme.accent.opacity(point.band == "fit" ? 0.5 : 0.18))
-                .lineStyle(StrokeStyle(lineWidth: point.band == "fit" ? 1.5 : 1,
-                                       dash: point.band == "fit" ? [] : [3, 3]))
+                .lineStyle(Theme.projectedStroke)
                 .interpolationMethod(.linear)
         }
     }
@@ -144,7 +151,7 @@ struct ScoreHistoryChart: View {
         ForEach([50.0, 70.0], id: \.self) { level in
             RuleMark(y: .value("Band", level))
                 .foregroundStyle(Color.secondary.opacity(0.18))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                .lineStyle(Theme.referenceStroke)
         }
     }
 

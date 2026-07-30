@@ -83,21 +83,14 @@ public struct NormalizedSeries: Sendable, Equatable, Identifiable {
     /// join them with a line. Purely interval-based, so no calendar is needed —
     /// the points are already snapped to day boundaries by the bucketing.
     public func segments() -> [[NormalizedPoint]] {
-        // A daily grid needs a daily-scale gap rule. `maxValidInterval` is 30
-        // minutes for heart rate, which would shatter a daily series into single
-        // points, so two days is the floor here.
-        let maxGap = Swift.max(metric.maxValidInterval, 2 * 86_400)
-        var out: [[NormalizedPoint]] = []
-        var run: [NormalizedPoint] = []
-        for point in points {
-            if let last = run.last, point.date.timeIntervalSince(last.date) > maxGap {
-                out.append(run)
-                run = []
-            }
-            run.append(point)
-        }
-        if !run.isEmpty { out.append(run) }
-        return out
+        // A daily grid needs a daily-scale gap rule — `maxValidInterval` is
+        // thirty minutes for heart rate, which shatters a daily series into
+        // single points. This file already knew that and carried its own two-day
+        // floor; `maxPlottableGap(bucket:)` is that floor, generalised to every
+        // bucket width and shared with the charts that didn't have it.
+        SeriesSegmentation.split(points,
+                                 maxGap: metric.maxPlottableGap(bucket: .day),
+                                 date: \.date)
     }
 }
 

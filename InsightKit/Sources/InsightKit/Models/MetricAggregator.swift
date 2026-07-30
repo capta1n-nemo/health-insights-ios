@@ -139,40 +139,18 @@ public extension SourceSeries {
     /// Each run is drawn as its own line, so nothing bridges a period when
     /// nothing was measured.
     func segments(maxGap: TimeInterval) -> [[HealthMetricSample]] {
-        guard !samples.isEmpty else { return [] }
-        var out: [[HealthMetricSample]] = []
-        var current: [HealthMetricSample] = [samples[0]]
-        for sample in samples.dropFirst() {
-            if let previous = current.last,
-               sample.start.timeIntervalSince(previous.start) > maxGap {
-                out.append(current)
-                current = [sample]
-            } else {
-                current.append(sample)
-            }
-        }
-        out.append(current)
-        return out
+        SeriesSegmentation.split(samples, maxGap: maxGap, date: \.start)
     }
 }
 
 public extension Array where Element == AggregatedPoint {
-    /// Contiguous runs of buckets, split on gaps — the aggregated equivalent of
-    /// `SourceSeries.segments(maxGap:)`.
+    /// Contiguous runs of buckets under an explicit gap.
+    ///
+    /// Prefer `segments(for:bucket:)`, which derives the gap from the metric and
+    /// the bucket width instead of asking the caller to get it right. This is the
+    /// escape hatch, and passing a *sample*-scale interval here against bucketed
+    /// dates is exactly the mistake that shattered the metric-detail chart.
     func segments(maxGap: TimeInterval) -> [[AggregatedPoint]] {
-        guard !isEmpty else { return [] }
-        var out: [[AggregatedPoint]] = []
-        var current: [AggregatedPoint] = [self[0]]
-        for point in dropFirst() {
-            if let previous = current.last,
-               point.date.timeIntervalSince(previous.date) > maxGap {
-                out.append(current)
-                current = [point]
-            } else {
-                current.append(point)
-            }
-        }
-        out.append(current)
-        return out
+        SeriesSegmentation.split(self, maxGap: maxGap, date: \.date)
     }
 }

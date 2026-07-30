@@ -251,7 +251,7 @@ struct MetricOverlayChart: View {
         ForEach(scale == .zScore ? [0.0] : [], id: \.self) { level in
             RuleMark(y: .value("Your normal", level))
                 .foregroundStyle(Color.secondary.opacity(0.35))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .lineStyle(Theme.referenceStroke)
         }
     }
 

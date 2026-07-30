@@ -79,42 +79,53 @@ struct MultiSourceChart: View {
         let points: [Point]
     }
 
+    /// What one visible range draws: the measured runs, plus the inferred
+    /// connectors between runs close enough to join dashed.
+    private struct Plot {
+        let segments: [Segment]
+        let bridges: [Bridge]
+    }
+
+    /// A gap short enough to infer across. Two points and its own series id, so
+    /// it draws as one dashed span and never merges with the measured line.
+    private struct Bridge: Identifiable {
+        let gap: GapBridge
+        let source: String
+        var id: String { "\(source)~\(gap.id)" }
+        var ends: [Point] {
+            [Point(date: gap.start, value: gap.startValue, source: source),
+             Point(date: gap.end, value: gap.endValue, source: source)]
+        }
+    }
+
     /// Only what's on screen, plus a window either side, bucketed and split on
     /// gaps. Charting a decade of high-frequency readings mark-for-mark is what
     /// made this hang; bucketing also stops long ranges aliasing the way plain
     /// decimation did.
-    private func plotted(in range: ClosedRange<Date>) -> [Segment] {
+    ///
+    /// The gap rule is `maxPlottableGap(bucket:)`, never `maxValidInterval`. The
+    /// dates being compared here are *bucket starts*, and heart rate's
+    /// thirty-minute sample rule against day-wide buckets breaks the line between
+    /// every adjacent pair — which is what shattered this chart into loose dots
+    /// at every zoom past three days.
+    private func plot(in range: ClosedRange<Date>) -> Plot {
         let bucket = BucketSize.forWindow(window)
-        let maxGap = breakdown.type.maxValidInterval
-        var out: [Segment] = []
+        var segments: [Segment] = []
+        var bridges: [Bridge] = []
         for series in breakdown.restricted(to: range).sources {
             let name = series.displayName
-            let points = series.bucketed(by: bucket, for: breakdown.type)
-                .map { Point(date: $0.date, value: $0.value, source: name) }
-            for (index, run) in split(points, maxGap: maxGap).enumerated() {
-                out.append(Segment(id: "\(name)#\(index)", points: run))
+            let runs = series.bucketed(by: bucket, for: breakdown.type)
+                .segments(for: breakdown.type, bucket: bucket)
+            for (index, run) in runs.enumerated() {
+                segments.append(Segment(
+                    id: "\(name)#\(index)",
+                    points: run.map { Point(date: $0.date, value: $0.value, source: name) }))
             }
+            bridges += SeriesBridging.bridges(across: runs, metric: breakdown.type,
+                                              bucket: bucket, window: window)
+                .map { Bridge(gap: $0, source: name) }
         }
-        return out
-    }
-
-    /// Breaks a run wherever the gap exceeds `maxGap`, so no line bridges a
-    /// period when nothing was measured.
-    private func split(_ points: [Point], maxGap: TimeInterval) -> [[Point]] {
-        guard !points.isEmpty else { return [] }
-        var out: [[Point]] = []
-        var current: [Point] = [points[0]]
-        for point in points.dropFirst() {
-            if let previous = current.last,
-               point.date.timeIntervalSince(previous.date) > maxGap {
-                out.append(current)
-                current = [point]
-            } else {
-                current.append(point)
-            }
-        }
-        out.append(current)
-        return out
+        return Plot(segments: segments, bridges: bridges)
     }
 
     private var domain: [String] { breakdown.sources.map(\.displayName) }
@@ -185,17 +196,28 @@ struct MultiSourceChart: View {
             selection: selectionBinding,
             logarithmic: logarithmic,
             isEmpty: { range in
-                plotted(in: range).allSatisfy { $0.points.isEmpty }
+                plot(in: range).segments.isEmpty
             },
             yDomain: { range in
-                paddedYDomain(plotted(in: range).flatMap { $0.points.map(\.value) },
+                // Bridge endpoints are real bucket values already present in the
+                // segments, so bridging never widens the domain.
+                paddedYDomain(plot(in: range).segments.flatMap { $0.points.map(\.value) },
                               logarithmic: logarithmic)
             },
             onVisibleRangeChange: onVisibleRangeChange
         ) { range in
-            seriesMarks(plotted(in: range))
+            allMarks(in: range)
         }
         .chartForegroundStyleScale(domain: domain, range: self.range)
+    }
+
+    /// Everything one visible range draws. Inferred content first, so the
+    /// measured lines sit on top of it — the order `ScoreHistoryChart` uses too.
+    @ChartContentBuilder
+    private func allMarks(in range: ClosedRange<Date>) -> some ChartContent {
+        let plot = plot(in: range)
+        bridgeMarks(plot.bridges)
+        seriesMarks(plot.segments)
     }
 
     /// One line per contiguous run.
@@ -203,16 +225,38 @@ struct MultiSourceChart: View {
     private func seriesMarks(_ segments: [Segment]) -> some ChartContent {
         ForEach(segments) { segment in
             ForEach(segment.points) { point in
-                marks(for: point)
+                marks(for: point, run: segment.id)
+            }
+        }
+    }
+
+    /// The dashed connectors. Same hue as the line they join — hue is identity —
+    /// and dashed because nothing along them was measured.
+    @ChartContentBuilder
+    private func bridgeMarks(_ bridges: [Bridge]) -> some ChartContent {
+        ForEach(bridges) { bridge in
+            ForEach(bridge.ends) { end in
+                LineMark(x: .value("Time", end.date),
+                         y: .value(breakdown.type.unit, end.value),
+                         series: .value("Run", bridge.id))
+                    .foregroundStyle(by: .value("Source", end.source))
+                    .lineStyle(Theme.projectedStroke)
+                    .interpolationMethod(.linear)
             }
         }
     }
 
     /// Kept in its own function with an explicit return type: it pins the marks
     /// to 2D chart content and keeps each expression small enough to type-check.
+    ///
+    /// `series:` is what makes the gap split visible at all. Without it Swift
+    /// Charts groups every `LineMark` sharing a `foregroundStyle(by:)` value into
+    /// one line, so each source's runs get joined straight back together and the
+    /// split draws nothing.
     @ChartContentBuilder
-    private func marks(for p: Point) -> some ChartContent {
-        LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value))
+    private func marks(for p: Point, run: String) -> some ChartContent {
+        LineMark(x: .value("Time", p.date), y: .value(breakdown.type.unit, p.value),
+                 series: .value("Run", run))
             .foregroundStyle(by: .value("Source", p.source))
             // Straight segments between readings: a curve invents values between
             // samples that were never measured.

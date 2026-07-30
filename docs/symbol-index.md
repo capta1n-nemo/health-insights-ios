@@ -160,10 +160,14 @@ the place to look.
 - `Presentation/NormalizedSeries.swift`
   - `NormalizedPoint` :21
   - `NormalizedSeries` :54
-  - `SeriesNormalizer` :104
+  - `SeriesNormalizer` :97
   - `SeriesScale` :4
 - `Presentation/OverlaySelection.swift`
   - `OverlaySelection` :10
+- `Presentation/SeriesSegmentation.swift`
+  - `GapBridge` :90
+  - `SeriesBridging` :121
+  - `SeriesSegmentation` :53
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`
