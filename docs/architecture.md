@@ -737,11 +737,15 @@ parsers, which is where the bugs have actually been.
 
 ## Verification
 
-- `cd InsightKit && swift test` — checks the risk equations against published
-  worked examples and the statistics against hand-computed fixtures. This is
-  the primary local gate: no Swift toolchain runs in most agent sandboxes, so
-  final compile/behaviour verification happens via the CI workflow's
-  `swift test` + `xcodebuild` steps on push.
+- **`./scripts/verify.sh --tests`** — the gate. Lints the traps this repo has
+  been broken by, then runs the 330-test InsightKit suite: the risk equations
+  against published worked examples, the statistics against hand-computed
+  fixtures. It **installs a Swift toolchain itself** if the sandbox has none,
+  so it works anywhere — see "Running the tests anywhere" above.
+- **`./scripts/ci-status.sh --wait`** after pushing. Never the GitHub Actions
+  API; its smallest response is over 100K tokens.
+- The **app target** is still CI-only: `xcodebuild` needs the iOS SDK, so the
+  SwiftUI, HealthKit and SwiftData code is compiled on push and nowhere else.
 - Open `HealthInsights.xcodeproj` in Xcode 16+ and run on a device/simulator
   with Health data. (If the project won't open, regenerate it with
   `xcodegen generate`.)
