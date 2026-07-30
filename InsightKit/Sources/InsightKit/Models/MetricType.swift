@@ -39,6 +39,16 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case bodyTemperature           // °C absolute (reconstructed or measured)
     case skinTemperatureDeviation  // °C deviation from personal baseline (Oura/Whoop/Hume)
 
+    // Vitals Apple Health has always collected and the app imported only as raw
+    // "other data" — measurements with real units and real baselines, so they
+    // belong here rather than in the untyped layer.
+    case bloodGlucose              // mmol/L
+    case peripheralPerfusionIndex  // % — perfusion, off the same sensor as SpO2
+    case atrialFibrillationBurden  // % of time in AFib (Apple Watch)
+    case heartRateRecovery         // bpm drop one minute after exertion
+    case walkingSteadiness         // % — Apple's fall-risk measure
+    case walkingAsymmetry          // % of walking time with uneven gait
+
     /// Human-readable label for UI.
     public var displayName: String {
         switch self {
@@ -66,6 +76,12 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .sleepDurationHours: return "Sleep Duration"
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
+        case .bloodGlucose: return "Blood Glucose"
+        case .peripheralPerfusionIndex: return "Perfusion Index"
+        case .atrialFibrillationBurden: return "AFib Burden"
+        case .heartRateRecovery: return "Heart Rate Recovery"
+        case .walkingSteadiness: return "Walking Steadiness"
+        case .walkingAsymmetry: return "Walking Asymmetry"
         }
     }
 
@@ -87,6 +103,10 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "kcal"
         case .sleepDurationHours: return "h"
         case .bodyTemperature, .skinTemperatureDeviation: return "°C"
+        case .bloodGlucose: return "mmol/L"
+        case .peripheralPerfusionIndex, .atrialFibrillationBurden,
+             .walkingSteadiness, .walkingAsymmetry: return "%"
+        case .heartRateRecovery: return "bpm"
         }
     }
 

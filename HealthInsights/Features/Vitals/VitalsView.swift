@@ -18,12 +18,15 @@ struct VitalsView: View {
     private static let categories: [(String, [MetricType])] = [
         ("Heart & circulation", [.heartRate, .restingHeartRate, .walkingHeartRateAverage,
                                  .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
-                                 .vo2Max, .respiratoryRate, .oxygenSaturation]),
+                                 .heartRateRecovery, .atrialFibrillationBurden,
+                                 .vo2Max, .respiratoryRate, .oxygenSaturation,
+                                 .peripheralPerfusionIndex]),
         ("Body", [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-                  .boneMass, .bodyWaterPercentage, .height]),
+                  .boneMass, .bodyWaterPercentage, .height, .bloodGlucose]),
         ("Sleep & recovery", [.sleepDurationHours, .bodyTemperature,
                               .skinTemperatureDeviation, .dayStrain]),
-        ("Activity", [.stepCount, .activeEnergyBurned])
+        ("Activity & mobility", [.stepCount, .activeEnergyBurned,
+                                 .walkingSteadiness, .walkingAsymmetry])
     ]
 
     private var groups: [MetricGroup] {

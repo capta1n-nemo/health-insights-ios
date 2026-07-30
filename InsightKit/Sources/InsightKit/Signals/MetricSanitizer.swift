@@ -17,10 +17,17 @@ public extension MetricType {
              .respiratoryRate, .oxygenSaturation,
              .bloodPressureSystolic, .bloodPressureDiastolic,
              .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage, .height, .bodyTemperature:
+             .boneMass, .bodyWaterPercentage, .height, .bodyTemperature,
+             // A living person cannot read zero on any of these; a zero is a
+             // provider placeholder.
+             .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
+             .walkingSteadiness:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
-             .sleepDurationHours, .skinTemperatureDeviation:
+             .sleepDurationHours, .skinTemperatureDeviation,
+             // Zero is the *good* value for both of these: no time in atrial
+             // fibrillation, and a perfectly symmetric gait.
+             .atrialFibrillationBurden, .walkingAsymmetry:
             return false
         }
     }

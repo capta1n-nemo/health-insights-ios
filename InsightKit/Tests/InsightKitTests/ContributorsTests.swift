@@ -149,34 +149,137 @@ final class ContributorsTests: XCTestCase {
 /// from a file that never mentions colour. That is deliberate.
 final class MetricColourSlotTests: XCTestCase {
 
-    func testNoInsightPutsTwoMetricsOfTheSameHueOnOneChart() {
-        for model in InsightEngine().models {
-            var bySlot: [Int: MetricType] = [:]
-            for metric in model.candidateMetrics {
-                let slot = metric.colourSlot
-                if let clash = bySlot[slot] {
-                    XCTFail("\(model.id) charts \(metric) and \(clash) in the same hue (slot \(slot))")
-                }
-                bySlot[slot] = metric
+    /// The invariant that makes every chart safe without a per-insight rule:
+    /// identity is (hue, dash), and it is unique across the whole catalogue — so
+    /// *any* subset of metrics is collision-free on any chart.
+    ///
+    /// The earlier scheme reused a hue between metrics believed never to share a
+    /// chart, and checked that belief per insight. It shipped two greens onto
+    /// one chart anyway.
+    func testEveryMetricHasAUniqueHueAndDashPair() {
+        var seen: [String: MetricType] = [:]
+        for metric in MetricType.allCases {
+            let key = "\(metric.colourSlot)/\(metric.dashIndex)"
+            if let clash = seen[key] {
+                XCTFail("\(metric) and \(clash) share hue \(metric.colourSlot) and dash \(metric.dashIndex)")
             }
+            seen[key] = metric
         }
+        XCTAssertEqual(seen.count, MetricType.allCases.count)
     }
 
-    /// Substance impact isn't an engine model but drives the same chart.
-    func testSubstanceImpactMetricsAlsoAvoidACollision() {
-        var bySlot: [Int: MetricType] = [:]
-        for metric in SubstanceResponseAnalyzer.comparedMetrics {
-            let slot = metric.colourSlot
-            XCTAssertNil(bySlot[slot],
-                         "\(metric) collides with \(String(describing: bySlot[slot])) in slot \(slot)")
-            bySlot[slot] = metric
-        }
+    func testStyleIndicesAreContiguousFromZero() {
+        // Contiguity is what guarantees the first eight metrics take eight
+        // distinct hues before any dash is reused.
+        let indices = MetricType.allCases.map(\.chartStyleIndex).sorted()
+        XCTAssertEqual(indices, Array(0..<MetricType.allCases.count))
     }
 
     func testEverySlotIsWithinThePalette() {
         for metric in MetricType.allCases {
             XCTAssertTrue((0..<8).contains(metric.colourSlot),
                           "\(metric) has slot \(metric.colourSlot), outside the eight-hue palette")
+            XCTAssertTrue((0..<4).contains(metric.dashIndex),
+                          "\(metric) has dash \(metric.dashIndex), outside the four stroke styles")
         }
+    }
+
+    /// The chart that carries the most series at once must not have to reuse a
+    /// dash before it has spent all eight hues.
+    func testVitalsCheckSpendsEveryHueBeforeReusingADash() {
+        let hues = Set(VitalSignsInsight().candidateMetrics.map(\.colourSlot))
+        XCTAssertEqual(hues.count, 8)
+    }
+}
+
+final class VitalEventTests: XCTestCase {
+
+    private let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private func rawEvent(_ identifier: String, value: Double, hoursAgo: Double) -> RawMetricSample {
+        RawMetricSample(identifier: identifier, displayName: identifier,
+                        value: value, unit: "",
+                        start: Date(timeIntervalSince1970: 1_700_000_000 - hoursAgo * 3600),
+                        source: .appleHealthDevice("Apple Watch"))
+    }
+
+    /// A category sample whose value is `notApplicable` (0) and which has a
+    /// duration is stored by the importer as **minutes**, not the enum. So a
+    /// zero is not "no event" and a positive number is not necessarily a
+    /// category value — the sample's existence is the signal.
+    func testAnEventIsReadFromItsExistenceNotItsValue() {
+        let raw = [rawEvent("HKCategoryTypeIdentifierIrregularHeartRhythmEvent", value: 0, hoursAgo: 3),
+                   rawEvent("HKCategoryTypeIdentifierHighHeartRateEvent", value: 17, hoursAgo: 5)]
+        let events = VitalEventReader.events(from: raw)
+        XCTAssertEqual(events.map(\.kind), [.irregularRhythm, .highHeartRate])
+    }
+
+    func testUnrelatedRawSamplesAreIgnored() {
+        let raw = [rawEvent("HKQuantityTypeIdentifierDietaryCaffeine", value: 95, hoursAgo: 1),
+                   rawEvent("HKCategoryTypeIdentifierToothbrushingEvent", value: 2, hoursAgo: 1)]
+        XCTAssertTrue(VitalEventReader.events(from: raw).isEmpty)
+    }
+
+    func testOnlyRecentEventsDescribeToday() {
+        let events = [VitalEvent(kind: .irregularRhythm, date: now.addingTimeInterval(-3 * 3600),
+                                 sourceName: "Apple Watch"),
+                      VitalEvent(kind: .highHeartRate, date: now.addingTimeInterval(-20 * 86_400),
+                                 sourceName: "Apple Watch")]
+        XCTAssertEqual(events.recent(within: VitalSignsCheck.eventWindow, of: now).map(\.kind),
+                       [.irregularRhythm])
+    }
+
+    /// The whole reason events exist as their own input: Apple has already made
+    /// the judgement, so it flags with no baseline and no z-score.
+    func testAnIrregularRhythmFlagsOnItsOwn() {
+        let event = VitalEvent(kind: .irregularRhythm, date: now.addingTimeInterval(-3600),
+                               sourceName: "Apple Watch")
+        let result = VitalSignsInsight().evaluate(samples: [], events: [event],
+                                                  profile: UserHealthProfile(), now: now)
+        XCTAssertEqual(result.headline, "Irregular rhythm")
+        XCTAssertLessThan(result.score ?? 100, 50)
+        XCTAssertTrue(result.explanation.contains("irregular rhythm"))
+    }
+
+    /// A watch notification must outrank a day of ordinary numbers.
+    func testAnEventDominatesAnOtherwiseNormalDay() {
+        let samples = (0..<14).map { i in
+            HealthMetricSample(type: .restingHeartRate, value: 55 + Double(i % 3) - 1,
+                               start: now.addingTimeInterval(-Double(13 - i) * 86_400),
+                               source: .appleHealth)
+        }
+        let clean = VitalSignsInsight().evaluate(samples: samples, events: [],
+                                                 profile: UserHealthProfile(), now: now)
+        let flagged = VitalSignsInsight().evaluate(
+            samples: samples,
+            events: [VitalEvent(kind: .irregularRhythm, date: now.addingTimeInterval(-3600),
+                                sourceName: "Apple Watch")],
+            profile: UserHealthProfile(), now: now)
+        XCTAssertGreaterThan(clean.score ?? 0, flagged.score ?? 100)
+    }
+
+    /// Three notifications of the same thing is one finding.
+    func testRepeatedEventsOfOneKindAreCountedOnce() {
+        let dates = [1.0, 4, 9].map { now.addingTimeInterval(-$0 * 3600) }
+        let many = dates.map { VitalEvent(kind: .irregularRhythm, date: $0, sourceName: "Apple Watch") }
+        let one = [VitalEvent(kind: .irregularRhythm, date: dates[0], sourceName: "Apple Watch")]
+        XCTAssertEqual(VitalSignsCheck.score(readings: [], events: many, coverage: 1),
+                       VitalSignsCheck.score(readings: [], events: one, coverage: 1))
+    }
+
+    /// Models that don't read events must be untouched by their presence.
+    func testInsightsThatIgnoreEventsAreUnaffected() {
+        let samples = (0..<14).map { i in
+            HealthMetricSample(type: .restingHeartRate, value: 55 + Double(i % 3) - 1,
+                               start: now.addingTimeInterval(-Double(13 - i) * 86_400),
+                               source: .oura)
+        }
+        let event = VitalEvent(kind: .irregularRhythm, date: now, sourceName: "Apple Watch")
+        let without = RestingHeartRateTrendInsight().evaluate(
+            samples: samples, profile: UserHealthProfile(), now: now)
+        let with = RestingHeartRateTrendInsight().evaluate(
+            samples: samples, events: [event], profile: UserHealthProfile(), now: now)
+        XCTAssertEqual(without.headline, with.headline)
+        XCTAssertEqual(without.explanation, with.explanation)
     }
 }

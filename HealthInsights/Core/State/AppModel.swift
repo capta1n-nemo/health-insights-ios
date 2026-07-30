@@ -51,7 +51,10 @@ final class AppModel {
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
     private(set) var otherSamples: [RawMetricSample] = [] {
-        didSet { otherGroupCache = nil }
+        didSet {
+            otherGroupCache = nil
+            vitalEventCache = nil
+        }
     }
     /// Everything the app has learned about provider schemas — every field ever
     /// ingested, its type, whether it feeds a vital, and what it might map to.
@@ -471,7 +474,7 @@ final class AppModel {
     }
 
     private func recompute() {
-        var out = engine.evaluateAll(samples: samples, profile: profile)
+        var out = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
         // Substance impact is data-shaped differently (needs the event log), so
         // it's computed alongside the engine and appended to the card list.
         out.append(SubstanceResponseAnalyzer.insightResult(events: substanceEvents, samples: samples))
@@ -489,6 +492,20 @@ final class AppModel {
         // so the sample-set invalidation hook won't have fired.
         invalidateDerivedCaches()
     }
+
+    /// Device-raised notifications (irregular rhythm, high/low heart rate…)
+    /// lifted out of the untyped imported layer.
+    ///
+    /// Derived rather than stored: `otherSamples` is already persisted, and these
+    /// are a reading of it. Cached because `recompute()` runs on every launch,
+    /// refresh, grounding save and substance log.
+    var vitalEvents: [VitalEvent] {
+        if let cached = vitalEventCache { return cached }
+        let built = VitalEventReader.events(from: otherSamples)
+        vitalEventCache = built
+        return built
+    }
+    @ObservationIgnored private var vitalEventCache: [VitalEvent]?
 
     // MARK: - Score history
 
@@ -525,11 +542,13 @@ final class AppModel {
         scoreHistoryTasks.insert(id)
 
         let samples = self.samples
+        let events = self.vitalEvents
         let profile = self.profile
         let stored = dataStore.scoreHistory(for: id)
         let generation = scoreHistoryGeneration
         Task.detached(priority: .userInitiated) {
             let replayed = ScoreHistory.replay(model: model, samples: samples,
+                                               events: events,
                                                profile: profile, days: days)
             let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
             await MainActor.run { [weak self] in

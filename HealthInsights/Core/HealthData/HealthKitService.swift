@@ -41,9 +41,30 @@ final class HealthKitService {
             (.leanBodyMass, .leanBodyMass, .gramUnit(with: .kilo)),
             (.height, .height, .meter()),
             (.stepCount, .stepCount, .count()),
-            (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie())
+            (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie()),
+            // Promoted out of the raw "other data" pile: these are measurements
+            // with real units and real baselines, and Vitals Check now reads
+            // them. Body temperature in particular was arriving only as a
+            // *reconstructed* skin temperature, so the check was judging a skin
+            // series against core-temperature bounds.
+            (.bodyTemperature, .bodyTemperature, .degreeCelsius()),
+            (.bloodGlucose, .bloodGlucose,
+             HKUnit.moleUnit(withMolarMass: HKUnitMolarMassBloodGlucose)
+                .unitDivided(by: .liter())),
+            (.peripheralPerfusionIndex, .peripheralPerfusionIndex, .percent()),
+            (.atrialFibrillationBurden, .atrialFibrillationBurden, .percent()),
+            (.heartRateRecoveryOneMinute, .heartRateRecovery,
+             HKUnit.count().unitDivided(by: .minute())),
+            (.appleWalkingSteadiness, .walkingSteadiness, .percent()),
+            (.walkingAsymmetryPercentage, .walkingAsymmetry, .percent())
         ]
     }
+
+    /// Metrics HealthKit hands over as a 0–1 fraction and we store as 0–100.
+    private static let percentageMetrics: Set<MetricType> = [
+        .bodyFatPercentage, .oxygenSaturation, .peripheralPerfusionIndex,
+        .atrialFibrillationBurden, .walkingSteadiness, .walkingAsymmetry
+    ]
 
     /// Additional quantity types we import as raw "other" data (not yet modelled
     /// as canonical metrics). Listed as raw identifier strings so unknown ones on
@@ -58,21 +79,18 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierAppleStandTime", "HKQuantityTypeIdentifierAppleMoveTime",
         "HKQuantityTypeIdentifierPushCount", "HKQuantityTypeIdentifierSwimmingStrokeCount",
         "HKQuantityTypeIdentifierWalkingSpeed", "HKQuantityTypeIdentifierWalkingStepLength",
-        "HKQuantityTypeIdentifierWalkingAsymmetryPercentage", "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage",
+        "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage",
         "HKQuantityTypeIdentifierSixMinuteWalkTestDistance", "HKQuantityTypeIdentifierStairAscentSpeed",
         "HKQuantityTypeIdentifierStairDescentSpeed", "HKQuantityTypeIdentifierRunningSpeed",
         "HKQuantityTypeIdentifierRunningPower", "HKQuantityTypeIdentifierRunningStrideLength",
         "HKQuantityTypeIdentifierRunningVerticalOscillation", "HKQuantityTypeIdentifierRunningGroundContactTime",
         "HKQuantityTypeIdentifierCyclingSpeed", "HKQuantityTypeIdentifierCyclingPower",
         "HKQuantityTypeIdentifierCyclingCadence", "HKQuantityTypeIdentifierPhysicalEffort",
-        "HKQuantityTypeIdentifierAppleWalkingSteadiness", "HKQuantityTypeIdentifierNumberOfTimesFallen",
+        "HKQuantityTypeIdentifierNumberOfTimesFallen",
         // Cardio / respiratory / other vitals
-        "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute", "HKQuantityTypeIdentifierAtrialFibrillationBurden",
-        "HKQuantityTypeIdentifierPeripheralPerfusionIndex", "HKQuantityTypeIdentifierForcedVitalCapacity",
+        "HKQuantityTypeIdentifierForcedVitalCapacity",
         "HKQuantityTypeIdentifierForcedExpiratoryVolume1", "HKQuantityTypeIdentifierPeakExpiratoryFlowRate",
-        "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBodyTemperature",
-        "HKQuantityTypeIdentifierBasalBodyTemperature", "HKQuantityTypeIdentifierBloodGlucose",
-        "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
+        "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBasalBodyTemperature", "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
         "HKQuantityTypeIdentifierInsulinDelivery", "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages",
         // Body
         "HKQuantityTypeIdentifierBodyMassIndex", "HKQuantityTypeIdentifierWaistCircumference",
@@ -330,7 +348,11 @@ final class HealthKitService {
                 let mapped: [HealthMetricSample] = (samples as? [HKQuantitySample])?.compactMap { s in
                     guard s.quantity.`is`(compatibleWith: unit) else { return nil }
                     var value = s.quantity.doubleValue(for: unit)
-                    if metric == .bodyFatPercentage || metric == .oxygenSaturation { value *= 100 } // fraction → %
+                    // HealthKit reports `.percent()` as a 0–1 fraction. Every
+                    // metric we store as a percentage needs the same scaling —
+                    // missing one here shows up as "0 %" on a card rather than
+                    // as an obvious error.
+                    if Self.percentageMetrics.contains(metric) { value *= 100 }
                     // Preserve the underlying device (Apple Watch, Oura, iPhone…)
                     // so the app can overlay and de-duplicate sources.
                     return HealthMetricSample(type: metric, value: value,

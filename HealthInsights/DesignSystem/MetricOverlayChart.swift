@@ -36,11 +36,67 @@ struct MetricOverlayChart: View {
         let value: Double
         let metric: MetricType
         let label: String
+        /// How far from baseline this day was, in SDs, regardless of the scale
+        /// being displayed — opacity always tracks the anomaly, not the axis.
+        let z: Double
     }
 
     private struct Segment: Identifiable {
         let id: String
         let points: [Point]
+    }
+
+    /// One drawn span between two adjacent readings, carrying the opacity that
+    /// span has earned.
+    ///
+    /// A line is emitted per *pair* rather than per run because opacity has to
+    /// vary along it: the flat, ordinary stretches recede almost to nothing and
+    /// the peaks and troughs come forward, so seventeen overlaid signals read as
+    /// a handful of interesting moments rather than as spaghetti. Swift Charts
+    /// applies one style per mark, so varying it means more marks.
+    private struct Span: Identifiable {
+        let id: String
+        let from: Point
+        let to: Point
+        let opacity: Double
+    }
+
+    /// Baseline is nearly invisible; |z| ≥ 3 is fully opaque.
+    static func opacity(forZ z: Double) -> Double {
+        let magnitude = Swift.min(abs(z), 3) / 3
+        return 0.12 + 0.88 * pow(magnitude, 1.4)
+    }
+
+    /// Dots only where something happened, so they mark notable days rather
+    /// than decorating every one.
+    static let pointThreshold = 1.5
+
+    /// Most points one series may contribute to one screen.
+    ///
+    /// Varying opacity costs a mark per span rather than per run, so seventeen
+    /// series over two years would be tens of thousands of marks. This is the
+    /// ceiling that keeps "All" openable.
+    static let maxPointsPerSeries = 110
+
+    /// Thin a run to at most `maxPointsPerSeries`, **keeping the extremes**.
+    ///
+    /// Not an even stride: a stride drops exactly the days this chart exists to
+    /// show. Each bucket contributes its most anomalous reading, so a spike
+    /// survives thinning even when a fortnight around it does not.
+    static func thinned(_ points: [NormalizedPoint],
+                        limit: Int = maxPointsPerSeries) -> [NormalizedPoint] {
+        guard points.count > limit, limit > 0 else { return points }
+        let bucketSize = Double(points.count) / Double(limit)
+        var kept: [NormalizedPoint] = []
+        kept.reserveCapacity(limit)
+        for bucket in 0..<limit {
+            let start = Int(Double(bucket) * bucketSize)
+            let end = Swift.min(points.count, Swift.max(start + 1, Int(Double(bucket + 1) * bucketSize)))
+            guard start < end,
+                  let peak = points[start..<end].max(by: { abs($0.z) < abs($1.z) }) else { continue }
+            kept.append(peak)
+        }
+        return kept
     }
 
     private var span: ClosedRange<Date>? {
@@ -54,11 +110,30 @@ struct MetricOverlayChart: View {
         for one in series {
             let label = one.metric.displayName
             for (index, run) in one.segments().enumerated() {
-                let points = run.filter { range.contains($0.date) }
+                let points = Self.thinned(run.filter { range.contains($0.date) })
                     .map { Point(date: $0.date, value: $0.value(scale),
-                                 metric: one.metric, label: label) }
+                                 metric: one.metric, label: label, z: $0.z) }
                 guard !points.isEmpty else { continue }
                 out.append(Segment(id: "\(one.metric.rawValue)#\(index)", points: points))
+            }
+        }
+        return out
+    }
+
+    /// Every drawn span, with the opacity each has earned. A span is as
+    /// prominent as its more anomalous end.
+    private func spans(in range: ClosedRange<Date>) -> [Span] {
+        var out: [Span] = []
+        for segment in plotted(in: range) {
+            for (index, pair) in zip(segment.points, segment.points.dropFirst()).enumerated() {
+                let peak = Swift.max(abs(pair.0.z), abs(pair.1.z))
+                out.append(Span(id: "\(segment.id)|\(index)", from: pair.0, to: pair.1,
+                                opacity: Self.opacity(forZ: peak)))
+            }
+            // A run of one has no span, so give it a visible dot regardless.
+            if segment.points.count == 1, let only = segment.points.first {
+                out.append(Span(id: "\(segment.id)|solo", from: only, to: only,
+                                opacity: Self.opacity(forZ: only.z)))
             }
         }
         return out
@@ -128,18 +203,19 @@ struct MetricOverlayChart: View {
                               logarithmic: scale == .raw && logarithmic)
             }
         ) { range in
-            overlayMarks(plotted(in: range))
+            overlayMarks(spans(in: range))
         }
-        .chartForegroundStyleScale(domain: domain, range: colours)
     }
 
+    /// No `chartForegroundStyleScale` any more: each span needs its own opacity,
+    /// which a domain/range scale keyed on metric name cannot express. Charts'
+    /// own legend was already hidden in favour of `MetricOverlayLegend`, so
+    /// styling marks directly costs nothing.
     @ChartContentBuilder
-    private func overlayMarks(_ segments: [Segment]) -> some ChartContent {
+    private func overlayMarks(_ spans: [Span]) -> some ChartContent {
         baselineMark
-        ForEach(segments) { segment in
-            ForEach(segment.points) { point in
-                marks(for: point)
-            }
+        ForEach(spans) { span in
+            marks(for: span)
         }
     }
 
@@ -158,16 +234,38 @@ struct MetricOverlayChart: View {
         }
     }
 
+    /// One span of one series.
+    ///
     /// Explicit return type, as every mark builder here must have — without it
-    /// this chain can resolve to 3D chart content and drop its modifiers.
+    /// this chain can resolve to 3D chart content and silently drop `.lineStyle`,
+    /// which is now load-bearing: dash is half of each series' identity.
     @ChartContentBuilder
-    private func marks(for p: Point) -> some ChartContent {
-        LineMark(x: .value("Day", p.date), y: .value("Value", p.value))
-            .foregroundStyle(by: .value("Metric", p.label))
+    private func marks(for span: Span) -> some ChartContent {
+        let colour = Theme.metricColor(span.from.metric).opacity(span.opacity)
+        LineMark(x: .value("Day", span.from.date), y: .value("Value", span.from.value),
+                 series: .value("Span", span.id))
+            .foregroundStyle(colour)
+            .lineStyle(Theme.metricStroke(span.from.metric))
             .interpolationMethod(.linear)
-        PointMark(x: .value("Day", p.date), y: .value("Value", p.value))
-            .foregroundStyle(by: .value("Metric", p.label))
-            .symbolSize(20)
+        LineMark(x: .value("Day", span.to.date), y: .value("Value", span.to.value),
+                 series: .value("Span", span.id))
+            .foregroundStyle(colour)
+            .lineStyle(Theme.metricStroke(span.from.metric))
+            .interpolationMethod(.linear)
+        // Dots only on days worth noticing, so the eye lands on the departures.
+        ForEach(notableEnds(of: span)) { point in
+            PointMark(x: .value("Day", point.date), y: .value("Value", point.value))
+                .foregroundStyle(Theme.metricColor(point.metric))
+                .symbolSize(24)
+        }
+    }
+
+    private func notableEnds(of span: Span) -> [Point] {
+        var out: [Point] = []
+        if abs(span.to.z) >= Self.pointThreshold { out.append(span.to) }
+        // The first point of a series has no preceding span to draw it.
+        if span.from.id == span.to.id, out.isEmpty { out.append(span.from) }
+        return out
     }
 }
 
@@ -206,7 +304,9 @@ struct MetricOverlayLegend: View {
             onSelect?(one.metric)
         } label: {
             HStack(spacing: 8) {
-                Circle().fill(Theme.metricColor(one.metric)).frame(width: 9, height: 9)
+                // A dashed swatch, not a dot: dash is half of a series'
+                // identity on the chart, so the key has to show it.
+                swatch(one.metric)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(one.metric.displayName)
                         .font(.subheadline)
@@ -236,10 +336,25 @@ struct MetricOverlayLegend: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// A short stroke drawn in the metric's own colour *and* dash, so the legend
+    /// and the chart are unambiguously the same key.
+    private func swatch(_ metric: MetricType) -> some View {
+        Path { path in
+            path.move(to: CGPoint(x: 0, y: 5))
+            path.addLine(to: CGPoint(x: 18, y: 5))
+        }
+        .stroke(Theme.metricColor(metric), style: Theme.metricStroke(metric))
+        .frame(width: 18, height: 10)
+    }
+
     private func missingRow(_ metric: MetricType) -> some View {
         HStack(spacing: 8) {
-            Circle().strokeBorder(Color.secondary.opacity(0.4), lineWidth: 1)
-                .frame(width: 9, height: 9)
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 5))
+                path.addLine(to: CGPoint(x: 18, y: 5))
+            }
+            .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [2, 3]))
+            .frame(width: 18, height: 10)
             Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
             Spacer()
             Text("No data").font(.caption).foregroundStyle(.tertiary)

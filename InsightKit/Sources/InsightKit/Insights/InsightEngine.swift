@@ -25,8 +25,12 @@ public struct InsightEngine: Sendable {
     }
 
     /// Evaluate every registered insight.
-    public func evaluateAll(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date = Date()) -> [InsightResult] {
-        models.map { $0.evaluate(samples: samples, profile: profile, now: now) }
+    ///
+    /// `events` are device-raised notifications rather than measurements; models
+    /// that don't read them get the defaulted overload and are unaffected.
+    public func evaluateAll(samples: [HealthMetricSample], events: [VitalEvent] = [],
+                            profile: UserHealthProfile, now: Date = Date()) -> [InsightResult] {
+        models.map { $0.evaluate(samples: samples, events: events, profile: profile, now: now) }
     }
 
     public func result(for id: InsightID, samples: [HealthMetricSample], profile: UserHealthProfile, now: Date = Date()) -> InsightResult? {

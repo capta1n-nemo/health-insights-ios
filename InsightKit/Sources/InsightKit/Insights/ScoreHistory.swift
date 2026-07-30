@@ -43,6 +43,7 @@ public enum ScoreHistory {
 
     public static func replay(model: any InsightModel,
                               samples: [HealthMetricSample],
+                              events: [VitalEvent] = [],
                               profile: UserHealthProfile,
                               days: Int = 90,
                               calendar: Calendar = .current,
@@ -80,7 +81,12 @@ public enum ScoreHistory {
             let present = Set(visible.map(\.type)).count
             guard present >= minimumContributors else { continue }
 
-            let result = model.evaluate(samples: visible, profile: profile, now: asOf)
+            // Events are truncated on the same contract as samples: a
+            // notification raised after the day being replayed cannot have
+            // affected the score the user was shown on it.
+            let result = model.evaluate(samples: visible,
+                                        events: events.filter { $0.date < asOf },
+                                        profile: profile, now: asOf)
             guard let score = result.score else { continue }
 
             // Having the data isn't the same as having *used* it: readiness needs

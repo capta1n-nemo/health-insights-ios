@@ -59,6 +59,24 @@ enum Theme {
     /// Which hue each metric wears. The slot assignment itself lives in
     /// InsightKit (`MetricType.colourSlot`) so its collision-safety can be
     /// tested — see the note there.
+    /// Line dash, the second half of a series' identity.
+    ///
+    /// Needed because hue alone cannot carry seventeen series: eight validated
+    /// hues is the ceiling for a categorical palette, and when any pair may be
+    /// compared — as on an overlay where the eye picks its own two lines — no
+    /// seven-hue subset of this palette clears the colour-blind separation
+    /// floor. That was measured, not assumed. `MetricType.chartStyleIndex` gives
+    /// every metric a unique (hue, dash) pair, so no chart can show two series
+    /// that look alike.
+    static func metricStroke(_ metric: MetricType) -> StrokeStyle {
+        switch metric.dashIndex {
+        case 0: return StrokeStyle(lineWidth: 2)
+        case 1: return StrokeStyle(lineWidth: 2, dash: [5, 3])
+        case 2: return StrokeStyle(lineWidth: 2, dash: [1.5, 3])
+        default: return StrokeStyle(lineWidth: 2, dash: [6, 3, 1.5, 3])
+        }
+    }
+
     static func metricColor(_ metric: MetricType) -> Color {
         let slot = metricPalette[metric.colourSlot % metricPalette.count]
         return Color(UIColor { traits in

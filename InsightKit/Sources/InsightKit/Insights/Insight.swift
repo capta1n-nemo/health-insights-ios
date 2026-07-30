@@ -130,9 +130,25 @@ public protocol InsightModel: Sendable {
     /// Compute the result from current data. Never throws — degrades gracefully
     /// to a low-confidence / not-yet-available result and reports what's missing.
     func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult
+
+    /// The same, for insights that also read device-raised events.
+    ///
+    /// Has a default implementation that ignores the events, so adding this did
+    /// not touch the other ten models. Only Vitals Check overrides it — an
+    /// irregular-rhythm notification is a judgement Apple already made, with no
+    /// unit and no baseline, so it could not be modelled as a `MetricType`
+    /// without inventing both.
+    func evaluate(samples: [HealthMetricSample], events: [VitalEvent],
+                  profile: UserHealthProfile, now: Date) -> InsightResult
 }
 
 public extension InsightModel {
+    /// Most insights read measurements only.
+    func evaluate(samples: [HealthMetricSample], events: [VitalEvent],
+                  profile: UserHealthProfile, now: Date) -> InsightResult {
+        evaluate(samples: samples, profile: profile, now: now)
+    }
+
     /// Status of each requirement against the profile — shared helper.
     func requirementStatuses(profile: UserHealthProfile, now: Date) -> [(GroundingRequirement, RequirementStatus)] {
         requirements.map { req in

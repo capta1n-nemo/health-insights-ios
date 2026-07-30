@@ -73,6 +73,8 @@ public enum VitalSignsCheck {
         public let readings: [Reading]
         /// Vitals this user records, but not lately.
         public let stale: [StaleReading]
+        /// Device-raised notifications inside the event window.
+        public let events: [VitalEvent]
         /// 0–100, or nil when nothing was fresh enough to score.
         public let score: Double?
         /// Fraction of the vitals this user normally records that were
@@ -84,6 +86,9 @@ public enum VitalSignsCheck {
         public var unknown: [Reading] { readings.filter { $0.status == .insufficientHistory } }
 
         public var headline: String {
+            // A device notification outranks anything a z-score found: the
+            // watch has already decided this was worth interrupting you for.
+            if let event = events.first { return event.kind.displayName }
             if !unusual.isEmpty { return "\(unusual.count) unusual" }
             if !watch.isEmpty { return "\(watch.count) to watch" }
             if readings.isEmpty { return "Nothing measured" }
@@ -172,7 +177,47 @@ public enum VitalSignsCheck {
         // a real signal a rolling z-score cannot see.
         Spec(metric: .heartRateVariabilityRMSSD, concernWhenHigh: false, concernWhenLow: true,
              hardLow: nil, hardHigh: nil, hardTolerance: 1, relativeFloor: 0.6,
-             freshWithin: 1.5 * day, format: "%.0f")
+             freshWithin: 1.5 * day, format: "%.0f"),
+        // SDNN is the HRV *Apple Watch* actually records — rMSSD only ever
+        // arrives from Oura or Whoop. Its absence meant an Apple-only user got
+        // no HRV row at all, and so fell below the confidence threshold too.
+        Spec(metric: .heartRateVariabilitySDNN, concernWhenHigh: false, concernWhenLow: true,
+             hardLow: nil, hardHigh: nil, hardTolerance: 1, relativeFloor: 0.6,
+             freshWithin: 1.5 * day, format: "%.0f"),
+        // Blood pressure has the least ambiguous bounds in medicine and was
+        // missing entirely. A week's freshness because nobody cuffs daily.
+        Spec(metric: .bloodPressureSystolic, concernWhenHigh: true, concernWhenLow: true,
+             hardLow: 90, hardHigh: 140, hardTolerance: 40, relativeFloor: nil,
+             freshWithin: 7 * day, format: "%.0f"),
+        Spec(metric: .bloodPressureDiastolic, concernWhenHigh: true, concernWhenLow: true,
+             hardLow: 60, hardHigh: 90, hardTolerance: 30, relativeFloor: nil,
+             freshWithin: 7 * day, format: "%.0f"),
+        // Judged on the deviation itself, which is what it is: no absolute
+        // bound, because the zero point is already the personal baseline.
+        Spec(metric: .skinTemperatureDeviation, concernWhenHigh: true, concernWhenLow: true,
+             hardLow: -1.5, hardHigh: 1.5, hardTolerance: 1, relativeFloor: nil,
+             freshWithin: 1.5 * day, format: "%+.1f"),
+        Spec(metric: .bloodGlucose, concernWhenHigh: true, concernWhenLow: true,
+             hardLow: 3.9, hardHigh: 10, hardTolerance: 4, relativeFloor: nil,
+             freshWithin: 1.5 * day, format: "%.1f"),
+        Spec(metric: .peripheralPerfusionIndex, concernWhenHigh: false, concernWhenLow: true,
+             hardLow: 0.5, hardHigh: nil, hardTolerance: 0.5, relativeFloor: nil,
+             freshWithin: 1.5 * day, format: "%.1f"),
+        // Zero is the healthy value, so any burden at all is worth surfacing.
+        Spec(metric: .atrialFibrillationBurden, concernWhenHigh: true, concernWhenLow: false,
+             hardLow: nil, hardHigh: 2, hardTolerance: 20, relativeFloor: nil,
+             freshWithin: 7 * day, format: "%.1f"),
+        Spec(metric: .heartRateRecovery, concernWhenHigh: false, concernWhenLow: true,
+             hardLow: 12, hardHigh: nil, hardTolerance: 10, relativeFloor: nil,
+             freshWithin: 3 * day, format: "%.0f"),
+        // Apple publishes its own bands: below 50% is Low, below 20% Very Low.
+        // Computed over a rolling window, so a fortnight is not staleness.
+        Spec(metric: .walkingSteadiness, concernWhenHigh: false, concernWhenLow: true,
+             hardLow: 50, hardHigh: nil, hardTolerance: 30, relativeFloor: nil,
+             freshWithin: 14 * day, format: "%.0f"),
+        Spec(metric: .walkingAsymmetry, concernWhenHigh: true, concernWhenLow: false,
+             hardLow: nil, hardHigh: 10, hardTolerance: 20, relativeFloor: nil,
+             freshWithin: 14 * day, format: "%.0f")
     ]
 
     /// z beyond this is "unusual"; beyond the smaller one is "watch".
@@ -189,7 +234,11 @@ public enum VitalSignsCheck {
 
     // MARK: - Evaluation
 
+    /// How recently a device-raised event still describes "today".
+    public static let eventWindow: TimeInterval = 36 * 3600
+
     public static func evaluate(samples: [HealthMetricSample],
+                                events: [VitalEvent] = [],
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output {
         var readings: [Reading] = []
@@ -242,8 +291,10 @@ public enum VitalSignsCheck {
 
         let expected = readings.count + stale.count
         let coverage = expected == 0 ? 0 : Double(readings.count) / Double(expected)
-        return Output(readings: readings, stale: stale,
-                      score: score(readings: readings, coverage: coverage),
+        let recentEvents = events.recent(within: eventWindow, of: now)
+        return Output(readings: readings, stale: stale, events: recentEvents,
+                      score: score(readings: readings, events: recentEvents,
+                                   coverage: coverage),
                       coverage: coverage)
     }
 
@@ -358,10 +409,17 @@ public enum VitalSignsCheck {
     /// Then capped by coverage, which is what makes 100 hard: it requires
     /// everything this person normally records to have been measured *and* to
     /// sit on its baseline.
-    static func score(readings: [Reading], coverage: Double) -> Double? {
-        guard !readings.isEmpty else { return nil }
-        let penalties = readings.map { 100 - $0.normality }.sorted(by: >)
-        let worst = penalties[0]
+    static func score(readings: [Reading], events: [VitalEvent] = [],
+                      coverage: Double) -> Double? {
+        guard !readings.isEmpty || !events.isEmpty else { return nil }
+        // An event enters the pool as a penalty in its own right, so a watch
+        // notification can dominate a day of otherwise ordinary numbers — which
+        // is exactly what it should do. De-duplicated by kind: three
+        // notifications of the same thing is one finding.
+        var penalties = readings.map { 100 - $0.normality }
+        penalties += Set(events.map(\.kind)).map(\.severity)
+        penalties.sort(by: >)
+        guard let worst = penalties.first else { return nil }
         let rest = penalties.dropFirst().reduce(0) { $0 + $1 * $1 }
         let raw = worst + 0.35 * rest.squareRoot()
         let cap = 100 * (0.6 + 0.4 * coverage)
@@ -395,8 +453,13 @@ public struct VitalSignsInsight: InsightModel {
     public var candidateMetrics: [MetricType] { VitalSignsCheck.specs.map(\.metric) }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
-        let output = VitalSignsCheck.evaluate(samples: samples, now: now)
-        guard let score = output.score, !output.readings.isEmpty else {
+        evaluate(samples: samples, events: [], profile: profile, now: now)
+    }
+
+    public func evaluate(samples: [HealthMetricSample], events: [VitalEvent],
+                         profile: UserHealthProfile, now: Date) -> InsightResult {
+        let output = VitalSignsCheck.evaluate(samples: samples, events: events, now: now)
+        guard let score = output.score, !output.readings.isEmpty || !output.events.isEmpty else {
             return InsightResult(
                 id: id, title: title, primaryValue: nil,
                 headline: output.stale.isEmpty ? "No data yet" : "Nothing measured lately",
@@ -410,7 +473,15 @@ public struct VitalSignsInsight: InsightModel {
 
         let flagged = output.unusual + output.watch
         var explanation: String
-        if flagged.isEmpty {
+        if let event = output.events.first {
+            // Said first and plainly. This is the one thing on the card the user
+            // may need to act on, and burying it under seven normal readings
+            // would be the wrong call.
+            explanation = "Your \(event.sourceName) flagged \(event.kind.displayName.lowercased()) — \(event.kind.note). "
+            explanation += flagged.isEmpty
+                ? "Your other vitals look ordinary."
+                : "\(flagged.count) other vital\(flagged.count == 1 ? " is" : "s are") also away from your usual pattern."
+        } else if flagged.isEmpty {
             explanation = "\(output.readings.count) vital\(output.readings.count == 1 ? "" : "s") measured recently, all sitting in your normal range."
         } else {
             let names = flagged.map { $0.metric.displayName.lowercased() }
@@ -439,8 +510,9 @@ public struct VitalSignsInsight: InsightModel {
             headline: output.headline, score: score, confidence: confidence,
             explanation: explanation,
             // Flagged vitals first — the point of a vitals panel is the outlier.
-            drivers: (flagged + output.readings.filter { $0.status != .unusual && $0.status != .watch })
-                .map(VitalSignsCheck.describe)
+            drivers: output.events.map { "\($0.kind.displayName): \($0.kind.note)" }
+                + (flagged + output.readings.filter { $0.status != .unusual && $0.status != .watch })
+                    .map(VitalSignsCheck.describe)
                 + output.stale.map { VitalSignsCheck.describe($0, now: now) },
             unmetRequirements: [],
             // Weight 0 throughout: this insight deliberately doesn't average its
