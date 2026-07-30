@@ -615,12 +615,26 @@ public struct HeartAgeInsight: InsightModel {
         return "Add your details"
     }
 
-    /// Dial score: level with your real age reads 75, every excess year costs 5,
-    /// every year in hand earns 5. Lower age = better, so the dial is inverted
-    /// relative to the raw number.
+    /// The dial figure, from how far the age runs ahead of your real one.
+    /// Lower age = better, so the dial is inverted relative to the raw number.
+    ///
+    /// Was `75 - excess * 5`, which hits exactly zero at a fifteen-year excess
+    /// and stays there. Two problems with that: fifteen years ahead is bad but
+    /// it is not "nothing measurable is working", and a *capped* fitness age
+    /// makes it trivial to reach — the model bounds its answer at 75, so a
+    /// 35-year-old with a low VO₂max can produce a forty-year excess on the
+    /// strength of the bound alone and floor the dial.
+    ///
+    /// A logistic instead: 0 excess still reads 75, but both ends are asymptotic,
+    /// so neither a perfect nor a hopeless score is reachable. That matches how
+    /// the rest of the app is scored — a 100 has to be earned, and a 0 should
+    /// have to be too.
     static func score(_ analysis: Analysis) -> Double? {
         guard let excess = analysis.headlineExcessYears else { return nil }
-        return Swift.max(0, Swift.min(100, 75 - excess * 5))
+        // Centre and steepness chosen so f(0) = 75; f(10) ≈ 50, f(30) ≈ 10.
+        let steepness = 9.0
+        let centre = 9.89
+        return Swift.max(1, Swift.min(99, 100 / (1 + exp((excess - centre) / steepness))))
     }
 
     static func confidence(_ analysis: Analysis, profile: UserHealthProfile,

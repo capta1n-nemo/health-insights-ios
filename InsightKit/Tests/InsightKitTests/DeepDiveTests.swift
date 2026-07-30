@@ -234,3 +234,93 @@ final class TrendInsightContributorsTests: XCTestCase {
             .contributors.map(\.metric), [.restingHeartRate])
     }
 }
+
+/// The three scoring bugs reported from the phone.
+final class ScoreCorrectnessTests: XCTestCase {
+
+    private let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+    // MARK: - Blood pressure had no score at all
+
+    func testBloodPressureScoresFallWithTheAHABands() {
+        let normal = BloodPressureEstimator.score(systolic: 112, diastolic: 72)
+        let elevated = BloodPressureEstimator.score(systolic: 126, diastolic: 78)
+        let stage1 = BloodPressureEstimator.score(systolic: 135, diastolic: 85)
+        let stage2 = BloodPressureEstimator.score(systolic: 155, diastolic: 95)
+        let crisis = BloodPressureEstimator.score(systolic: 190, diastolic: 125)
+        XCTAssertGreaterThan(normal, elevated)
+        XCTAssertGreaterThan(elevated, stage1)
+        XCTAssertGreaterThan(stage1, stage2)
+        XCTAssertGreaterThan(stage2, crisis)
+    }
+
+    /// Graded within a band, so a reading drifting upward shows it rather than
+    /// sitting on a flat step until it crosses a threshold.
+    func testScoreMovesWithinABand() {
+        XCTAssertGreaterThan(BloodPressureEstimator.score(systolic: 121, diastolic: 78),
+                             BloodPressureEstimator.score(systolic: 129, diastolic: 78))
+    }
+
+    /// The card shipped with `score: nil` hard-coded, so its bubble was empty.
+    func testACuffReadingFromTodayGivesTheCardAScore() {
+        let samples = [
+            HealthMetricSample(type: .bloodPressureSystolic, value: 118,
+                               start: now.addingTimeInterval(-3600), source: .manual),
+            HealthMetricSample(type: .bloodPressureDiastolic, value: 76,
+                               start: now.addingTimeInterval(-3600), source: .manual)
+        ]
+        let result = BloodPressureInsight().evaluate(samples: samples,
+                                                     profile: UserHealthProfile(), now: now)
+        XCTAssertNotNil(result.score, "a cuff reading from today must score the card")
+        XCTAssertGreaterThan(result.score ?? 0, 80)
+    }
+
+    /// Beyond 24 hours a cuff reading describes a day that has passed, so it
+    /// stops driving the score.
+    func testAnOldCuffReadingDoesNotScoreTheCard() {
+        let samples = [
+            HealthMetricSample(type: .bloodPressureSystolic, value: 118,
+                               start: now.addingTimeInterval(-5 * 86_400), source: .manual),
+            HealthMetricSample(type: .bloodPressureDiastolic, value: 76,
+                               start: now.addingTimeInterval(-5 * 86_400), source: .manual)
+        ]
+        let result = BloodPressureInsight().evaluate(samples: samples,
+                                                     profile: UserHealthProfile(), now: now)
+        XCTAssertNil(result.score)
+        XCTAssertNotNil(result.primaryValue, "the reading is still shown, just not scored")
+    }
+
+    // MARK: - Heart age bottomed out at zero
+
+    /// `75 - excess * 5` reached exactly zero at fifteen years and stayed there,
+    /// and a capped fitness age can manufacture a forty-year excess on its own.
+    func testHeartAgeScoreNeverBottomsOutAtZero() {
+        for excess in stride(from: 0.0, through: 60.0, by: 5.0) {
+            let analysis = HeartAgeInsight.Analysis(
+                chronologicalAge: 35, heart: nil,
+                fitness: FitnessAgeModel.Output(fitnessAge: 35 + excess, vo2: 30,
+                                                referenceForOwnAge: 44,
+                                                yearsYounger: -excess, isCapped: excess > 30),
+                projections: [], assumedCholesterol: false, systolicUsed: nil)
+            let score = HeartAgeInsight.score(analysis)
+            XCTAssertNotNil(score)
+            XCTAssertGreaterThan(score!, 0, "a \(Int(excess))-year excess should not read as zero")
+        }
+    }
+
+    func testHeartAgeScoreIsMonotonicAndCentredOnYourRealAge() {
+        func score(_ excess: Double) -> Double {
+            HeartAgeInsight.score(HeartAgeInsight.Analysis(
+                chronologicalAge: 40, heart: nil,
+                fitness: FitnessAgeModel.Output(fitnessAge: 40 + excess, vo2: 40,
+                                                referenceForOwnAge: 42,
+                                                yearsYounger: -excess, isCapped: false),
+                projections: [], assumedCholesterol: false, systolicUsed: nil))!
+        }
+        XCTAssertEqual(score(0), 75, accuracy: 1)
+        XCTAssertGreaterThan(score(-10), score(0))
+        XCTAssertGreaterThan(score(0), score(10))
+        XCTAssertGreaterThan(score(10), score(25))
+        XCTAssertLessThan(score(-30), 100, "a perfect score stays out of reach at both ends")
+    }
+}

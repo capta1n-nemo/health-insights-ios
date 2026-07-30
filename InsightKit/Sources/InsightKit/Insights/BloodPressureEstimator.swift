@@ -249,6 +249,30 @@ public enum BloodPressureEstimator {
         Category.of(systolic: systolic, diastolic: diastolic).displayName
     }
 
+    /// A 0–100 dial figure for a reading, from the ACC/AHA band it falls in.
+    ///
+    /// The card previously passed `score: nil` unconditionally, so blood
+    /// pressure was the one insight with a measured value and no score on its
+    /// bubble. The bands are the honest basis for one: they're published
+    /// thresholds, not a weighting this app invented.
+    ///
+    /// Graded within each band rather than flat, so 121/79 and 129/79 don't read
+    /// identically — a reading drifting up through "elevated" should show it.
+    public static func score(systolic: Double, diastolic: Double) -> Double {
+        let band = Category.of(systolic: systolic, diastolic: diastolic)
+        let (top, bottom, low, high): (Double, Double, Double, Double)
+        switch band {
+        case .normal:  (top, bottom, low, high) = (100, 85, 90, 120)
+        case .elevated:(top, bottom, low, high) = (80, 65, 120, 130)
+        case .stage1:  (top, bottom, low, high) = (60, 40, 130, 140)
+        case .stage2:  (top, bottom, low, high) = (35, 15, 140, 180)
+        case .crisis:  return 5
+        }
+        // Position within the band, by whichever number put it there.
+        let progress = Swift.max(0, Swift.min(1, (systolic - low) / Swift.max(1, high - low)))
+        return top - (top - bottom) * progress
+    }
+
     /// The ACC/AHA bands as data rather than a string, so the UI can colour a
     /// reading and show where it sits among the rest.
     public enum Category: String, Sendable, CaseIterable, Comparable {
@@ -364,10 +388,18 @@ public struct BloodPressureInsight: InsightModel {
         var explanation = "Log a blood-pressure reading from a real cuff. That measured value is what the app trusts and trends over time."
         var confidence: InsightConfidence = .low
 
+        // A cuff reading from the last 24 hours is what the score should reflect;
+        // beyond that it describes a day that has passed, and the experimental
+        // estimate — clearly labelled as such — is the better current answer.
+        var score: Double?
         if let s = sys, let d = dia {
             let cat = BloodPressureEstimator.category(systolic: s, diastolic: d)
             headline = "\(Int(s.rounded()))/\(Int(d.rounded()))"
             primary = s
+            if let latest = BloodPressureEstimator.pairedReadings(from: samples).first,
+               now.timeIntervalSince(latest.date) <= 24 * 3600 {
+                score = BloodPressureEstimator.score(systolic: s, diastolic: d)
+            }
             confidence = unmet.isEmpty ? .high : .moderate
             drivers.append(InsightDriver(
                 text: "Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))",
@@ -399,6 +431,10 @@ public struct BloodPressureInsight: InsightModel {
                     confidence = .experimental
                     explanation = "Experimental estimate only — not a measurement. Log a cuff reading for a value you can trust."
                 }
+                if score == nil {
+                    score = BloodPressureEstimator.score(systolic: est.systolic,
+                                                         diastolic: est.diastolic)
+                }
             } else if status.isGrounded {
                 // Enough recent readings exist, but too few line up with a nearby
                 // resting-HR sample to fit the model yet.
@@ -408,7 +444,7 @@ public struct BloodPressureInsight: InsightModel {
 
         return InsightResult(
             id: id, title: title, primaryValue: primary,
-            headline: headline, score: nil, confidence: confidence,
+            headline: headline, score: score, confidence: confidence,
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
