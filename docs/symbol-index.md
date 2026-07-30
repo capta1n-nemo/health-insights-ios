@@ -169,6 +169,11 @@ the place to look.
 - `Substances/Substance.swift`
   - `SubstanceClass` :12
   - `SubstanceEvent` :60
+- `Substances/SubstanceImpactInsight.swift`
+  - `SubstanceImpactInsight` :16
+- `Substances/SubstanceLoad.swift`
+  - `SubstanceLoad` :39
+  - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
 - `Text/PlainText.swift`
@@ -252,9 +257,11 @@ the place to look.
   - `ScrollableMetricChart` :13
 - `DesignSystem/SourceBreakdownCard.swift`
   - `SourceBreakdown` :13
+- `DesignSystem/SubstanceLoadChart.swift`
+  - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :135
-  - `ConfidenceBadge` :151
+  - `Card` :144
+  - `ConfidenceBadge` :160
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :211

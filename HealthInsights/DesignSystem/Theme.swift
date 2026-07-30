@@ -98,8 +98,17 @@ enum Theme {
         StrokeStyle(lineWidth: 2)
     }
 
-    /// For a stretch the chart inferred rather than measured.
+    /// For a stretch the chart inferred rather than measured — a fitted line, a
+    /// projection, a bridged gap.
     static let projectedStroke = StrokeStyle(lineWidth: 1.5, dash: [3, 4])
+
+    /// For a level that was never measured at all: a threshold, a band edge, a
+    /// published reference range.
+    ///
+    /// A sibling to `projectedStroke` rather than a fourth hand-rolled dash.
+    /// Three patterns — `[4, 3]`, `[3, 3]` and `[3, 4]` — were expressing this
+    /// one meaning across three files, which is how a fourth gets invented.
+    static let referenceStroke = StrokeStyle(lineWidth: 1, dash: [3, 3])
 
     /// A hue by slot, for the few charts whose series aren't metrics —
     /// the two computed ages, for instance. Drawn from the same validated

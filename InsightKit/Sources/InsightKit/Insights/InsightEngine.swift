@@ -20,8 +20,25 @@ public struct InsightEngine: Sendable {
             HeartAgeInsight(),
             BloodPressureInsight(),
             RestingHeartRateTrendInsight(),
-            BodyCompositionInsight()
+            BodyCompositionInsight(),
+            // Bound to an empty log; the app rebinds it on every recompute via
+            // `withSubstanceLog(_:)`. Registering it here is what finally puts it
+            // in front of everything that iterates `models` — score recording,
+            // score replay, the comparison chart — all of which skipped it
+            // silently while it was built by a free function.
+            SubstanceImpactInsight()
         ]
+    }
+
+    /// The same registry with the substance model bound to a log.
+    ///
+    /// Idempotent — it *replaces* the substance model rather than appending one —
+    /// so a caller may apply it on every recompute without compounding. A caller
+    /// that injected its own `SubstanceImpactInsight` will have it rebound.
+    public func withSubstanceLog(_ events: [SubstanceEvent]) -> InsightEngine {
+        InsightEngine(models: models.map { model in
+            model is SubstanceImpactInsight ? SubstanceImpactInsight(events: events) : model
+        })
     }
 
     /// Evaluate every registered insight.

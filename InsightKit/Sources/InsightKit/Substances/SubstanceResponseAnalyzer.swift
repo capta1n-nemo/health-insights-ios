@@ -15,6 +15,8 @@ public enum SubstanceResponseAnalyzer {
     public static let afterWindow: TimeInterval = 18 * 3600
     /// Window for the cumulative recent-load indicator.
     public static let loadWindowDays = 14
+    /// Weighted units over `loadWindowDays` that saturate the load indicator.
+    public static let loadSaturationUnits = 8.0
 
     public struct MetricEffect: Sendable, Equatable {
         public let metric: MetricType
@@ -26,6 +28,16 @@ public enum SubstanceResponseAnalyzer {
         public let baselineNights: Int
         /// True when the change is in the physiologically-worse direction.
         public let isAdverse: Bool
+        /// Spread of the clean-night baseline this delta is judged against.
+        public let baselineSD: Double
+
+        /// The delta in baseline standard deviations.
+        ///
+        /// nil when the baseline had no spread to divide by — a delta against a
+        /// flat baseline is unjudgeable, not infinitely severe.
+        public var effectSize: Double? {
+            baselineSD > 0 ? abs(deltaAbsolute) / baselineSD : nil
+        }
     }
 
     public struct Analysis: Sendable, Equatable {
@@ -88,23 +100,37 @@ public enum SubstanceResponseAnalyzer {
         return MetricEffect(metric: metric, baseline: b, afterUse: a,
                             deltaAbsolute: deltaAbs, deltaPercent: deltaPct,
                             affectedNights: affected.count, baselineNights: baseline.count,
-                            isAdverse: adverse)
+                            isAdverse: adverse,
+                            baselineSD: Baseline.standardDeviation(baseline) ?? 0)
     }
 
+    /// The word for a load figure.
+    ///
+    /// Shared, so the fortnight count and the daily series can never band the
+    /// same number differently.
+    public static func band(for load: Double) -> String {
+        switch load {
+        case ..<20: return "light"
+        case ..<50: return "moderate"
+        case ..<80: return "considerable"
+        default: return "high"
+        }
+    }
+
+    /// Today's load, the count behind it, and the word for it.
+    ///
+    /// The count still says "N logs in `loadWindowDays` days" — a plain fact
+    /// about the log, unchanged. The *load* is now the decaying figure from
+    /// `SubstanceLoad`, so the number on the card and the line on its chart are
+    /// one quantity rather than two takes on it. This does move the number on
+    /// real data: a heavy weekend peaks higher and then tails off, where before
+    /// it held flat for a fortnight and vanished overnight.
     static func recentLoad(events: [SubstanceEvent], now: Date) -> (Double, String, Int) {
         let cutoff = now.addingTimeInterval(-Double(loadWindowDays) * 24 * 3600)
-        let recent = events.filter { $0.timestamp >= cutoff }
-        // Weighted sum of acute cardiac load, saturating around a "heavy" fortnight.
-        let raw = recent.reduce(0.0) { $0 + $1.substance.acuteCardiacLoad }
-        let load = min(100, raw / 8.0 * 100)   // ~8 weighted units over 2 weeks → 100
-        let band: String
-        switch load {
-        case ..<20: return (load, "light", recent.count)
-        case ..<50: band = "moderate"
-        case ..<80: band = "considerable"
-        default: band = "high"
-        }
-        return (load, band, recent.count)
+        let visible = events.filter { $0.timestamp <= now }
+        let count = visible.filter { $0.timestamp >= cutoff }.count
+        let load = SubstanceLoad.load(events: visible, at: now)
+        return (load, band(for: load), count)
     }
 
     /// The metrics this analyser compares before and after logged use — the
@@ -123,6 +149,42 @@ public enum SubstanceResponseAnalyzer {
         default:
             return nil   // skin-temp deviation: nearest baseline is best
         }
+    }
+
+    // MARK: - The dial
+
+    /// How far an adverse response must move to count as a full-strength
+    /// finding — measured in the user's *own* baseline spread rather than in
+    /// invented per-metric thresholds. A 4 bpm shift means one thing for someone
+    /// whose clean-night resting heart rate varies by 2, and another for someone
+    /// it varies by 8; a fixed table cannot tell them apart.
+    static let fullStrengthEffectSize = 2.0
+
+    static func severity(_ effect: MetricEffect) -> Double {
+        guard effect.isAdverse, let size = effect.effectSize else { return 0 }
+        return Swift.min(100, size / fullStrengthEffectSize * 100)
+    }
+
+    /// 0–100, higher is better — the same direction as every other dial in the
+    /// app, including Cardiovascular *Risk*, which maps low risk to a high score.
+    /// A raw load passed straight through would paint a heavy fortnight green.
+    ///
+    /// Worst-offender-dominant, using the identical combiner `VitalSignsCheck`
+    /// applies to its penalty pool: one large heart-rate response is the finding
+    /// and must not be averaged away by five signals that didn't move, while a
+    /// week where everything shifted a little still scores below a clean one. The
+    /// fortnight's load enters the same pool as a penalty in its own right, so
+    /// heavy use scores low before any biometric response is even measurable.
+    ///
+    /// nil for an empty log — no dial, and the card stays hidden.
+    static func score(load: Double, effects: [MetricEffect]) -> Double? {
+        guard !effects.isEmpty || load > 0 else { return nil }
+        var penalties = effects.map(severity)
+        penalties.append(load)
+        penalties.sort(by: >)
+        guard let worst = penalties.first else { return nil }
+        let rest = penalties.dropFirst().reduce(0) { $0 + $1 * $1 }
+        return Swift.max(0, Swift.min(100, 100 - (worst + 0.35 * rest.squareRoot())))
     }
 
     // MARK: - Insight surface
@@ -209,7 +271,9 @@ public enum SubstanceResponseAnalyzer {
 
         return InsightResult(
             id: id, title: title, primaryValue: analysis.recentLoad,
-            headline: headline, score: nil, confidence: confidence,
+            headline: headline,
+            score: Self.score(load: analysis.recentLoad, effects: analysis.effects),
+            confidence: confidence,
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },

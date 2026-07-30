@@ -13,7 +13,9 @@ final class AppModel {
     let dataStore: DataStore
     let healthService: HealthKitService
     let registry: IntegrationRegistry
-    let engine: InsightEngine
+    /// The insight registry. A `var` because `SubstanceImpactInsight` is bound
+    /// to the user's substance log, which changes without `samples` changing.
+    private(set) var engine: InsightEngine
     let summarizer: FoundationModelSummarizer
 
     // Rendered state
@@ -61,7 +63,25 @@ final class AppModel {
     /// Everything the app has learned about provider schemas — every field ever
     /// ingested, its type, whether it feeds a vital, and what it might map to.
     private(set) var fieldCatalogue = FieldCatalogue()
-    private(set) var substanceEvents: [SubstanceEvent] = []
+    private(set) var substanceEvents: [SubstanceEvent] = [] {
+        didSet { substanceLoadCache = nil }
+    }
+
+    /// Decaying daily cardiovascular load from the substance log.
+    ///
+    /// Cached for the same reason the overlay is: a detail view re-evaluates its
+    /// body on every pan frame, and this walks the whole log once per day of
+    /// history. Invalidated by `substanceEvents` above rather than by
+    /// `invalidateDerivedCaches()` — it is a function of the log, not of samples.
+    @ObservationIgnored private var substanceLoadCache: [SubstanceLoadPoint]?
+
+    /// The load series the Substance Impact detail screen charts.
+    func substanceLoadSeries(days: Int = 90) -> [SubstanceLoadPoint] {
+        if let substanceLoadCache { return substanceLoadCache }
+        let built = SubstanceLoad.series(events: substanceEvents, days: days)
+        substanceLoadCache = built
+        return built
+    }
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
@@ -478,16 +498,18 @@ final class AppModel {
     }
 
     private func recompute() {
-        var out = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
-        // Substance impact is data-shaped differently (needs the event log), so
-        // it's computed alongside the engine and appended to the card list.
-        out.append(SubstanceResponseAnalyzer.insightResult(events: substanceEvents, samples: samples))
-        results = out
+        // The substance model reads a log that isn't in `samples`, so it is
+        // rebound before every evaluation. Idempotent — it replaces rather than
+        // appends — and it is what puts Substance Impact in front of score
+        // recording, score replay and the cross-insight comparison chart, all of
+        // which iterate `engine.models` and so had been skipping it silently.
+        engine = engine.withSubstanceLog(substanceEvents)
+        results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
 
         // Today's scores become tomorrow's history. `recordScore` upserts by
         // day, so running this on every recompute costs one row per insight per
         // day rather than one per call.
-        for result in out {
+        for result in results {
             guard let score = result.score else { continue }
             dataStore.recordScore(result.id, score: score, confidence: result.confidence,
                                   contributorCount: result.contributors.count)

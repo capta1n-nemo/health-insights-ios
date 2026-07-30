@@ -43,6 +43,9 @@ struct InsightDetailView: View {
                         bloodPressureLogLink
                     }
                     scoreHistoryCard
+                    if insightID == .substanceImpact {
+                        substanceLoadCard
+                    }
                     contributorsCard(result)
                     patternsCard(result)
                     // The deep-dive pair belongs to the Insights tab's question
@@ -269,8 +272,8 @@ struct InsightDetailView: View {
 
     /// How this insight's own number has moved. Part reconstructed from the raw
     /// samples, part read back from what the app recorded on the day — see
-    /// `ScoreHistory`. Absent for insights that don't produce a score (substance
-    /// impact reports a load figure, not a 0–100).
+    /// `ScoreHistory`. Absent for any insight whose replay can't clear the
+    /// two-signal floor.
     @ViewBuilder private var scoreHistoryCard: some View {
         let history = model.scoreHistory(for: insightID)
         if history.count >= 2 {
@@ -298,6 +301,31 @@ struct InsightDetailView: View {
                     Text("Days before you had at least two signals recording aren't shown — a score resting on one measurement isn't one.")
                         .font(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Cumulative cardiovascular load from the log, decaying over time.
+    ///
+    /// Deliberately separate from "Score over time" above: the score is a
+    /// judgement about the body's *response*, this is a running total of what
+    /// was put in. They move together and are not the same quantity.
+    @ViewBuilder private var substanceLoadCard: some View {
+        let series = model.substanceLoadSeries()
+        if series.count >= 7 {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Cardiovascular load").font(.headline)
+                        Spacer()
+                        if let perWeek = series.trendPerWeek, abs(perWeek) >= 1 {
+                            Text(String(format: "%@%.0f a week",
+                                        perWeek > 0 ? "+" : "−", abs(perWeek)))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    SubstanceLoadChart(points: series)
                 }
             }
         }
@@ -385,11 +413,9 @@ struct InsightDetailView: View {
     private func candidateMetrics(for id: InsightID) -> [MetricType] {
         // Not named `model` — that's the AppModel in this scope, and shadowing it
         // here has bitten this codebase before.
-        if let insight = model.engine.models.first(where: { $0.id == id }) {
-            return insight.candidateMetrics
-        }
-        // Substance impact isn't an engine model — it needs the event log.
-        return id == .substanceImpact ? SubstanceResponseAnalyzer.comparedMetrics : []
+        // Substance Impact used to need a special case here, because it wasn't
+        // an engine model at all. It is one now.
+        model.engine.models.first { $0.id == id }?.candidateMetrics ?? []
     }
 
     // MARK: - Patterns across those metrics
