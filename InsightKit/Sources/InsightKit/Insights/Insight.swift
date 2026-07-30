@@ -62,6 +62,28 @@ public enum RequirementStatus: Sendable, Equatable {
     case missing
 }
 
+/// One line of "what's driving this".
+///
+/// Carries whether the line is worth looking at, so a detail screen can lead
+/// with the departures and keep the reassuring majority one tap away. Vitals
+/// Check is why: it scans seventeen signals, and on an ordinary day sixteen of
+/// them say "normal" — which buries the one that doesn't.
+public struct InsightDriver: Sendable, Equatable {
+    public let text: String
+    /// `true` for something to look at, `false` for the reassuring background.
+    ///
+    /// `nil` means this insight doesn't draw the distinction — and that is not
+    /// the same as "everything is routine". A screen must show an unclassified
+    /// list in full rather than hiding all of it behind a disclosure, so the
+    /// two cases have to stay distinguishable.
+    public let isNotable: Bool?
+
+    public init(text: String, isNotable: Bool? = nil) {
+        self.text = text
+        self.isNotable = isNotable
+    }
+}
+
 /// A finished insight ready for display.
 public struct InsightResult: Sendable, Equatable {
     public let id: InsightID
@@ -76,7 +98,12 @@ public struct InsightResult: Sendable, Equatable {
     /// Short, plain-language explanation of what drove the result.
     public let explanation: String
     /// Machine-readable drivers, for detail views and the on-device summariser.
-    public let drivers: [String]
+    ///
+    /// Notable lines first, where an insight distinguishes them — the card
+    /// preview on Today shows `drivers.first`, so the ordering is load-bearing.
+    public let driverLines: [InsightDriver]
+    /// The same lines as plain text, which is all most callers want.
+    public var drivers: [String] { driverLines.map(\.text) }
     /// Grounding requirements still unmet, so the UI can prompt.
     public let unmetRequirements: [GroundingRequirement]
     /// The metrics that actually fed this result, emitted by the scoring code as
@@ -84,6 +111,7 @@ public struct InsightResult: Sendable, Equatable {
     /// cannot drift from the maths the way a hand-written list does.
     public let contributors: [MetricContribution]
 
+    /// For insights that don't distinguish notable lines from routine ones.
     public init(
         id: InsightID,
         title: String,
@@ -96,6 +124,24 @@ public struct InsightResult: Sendable, Equatable {
         unmetRequirements: [GroundingRequirement],
         contributors: [MetricContribution] = []
     ) {
+        self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
+                  score: score, confidence: confidence, explanation: explanation,
+                  driverLines: drivers.map { InsightDriver(text: $0) },
+                  unmetRequirements: unmetRequirements, contributors: contributors)
+    }
+
+    public init(
+        id: InsightID,
+        title: String,
+        primaryValue: Double?,
+        headline: String,
+        score: Double?,
+        confidence: InsightConfidence,
+        explanation: String,
+        driverLines: [InsightDriver],
+        unmetRequirements: [GroundingRequirement],
+        contributors: [MetricContribution] = []
+    ) {
         self.id = id
         self.title = title
         self.primaryValue = primaryValue
@@ -103,7 +149,7 @@ public struct InsightResult: Sendable, Equatable {
         self.score = score
         self.confidence = confidence
         self.explanation = explanation
-        self.drivers = drivers
+        self.driverLines = driverLines
         self.unmetRequirements = unmetRequirements
         self.contributors = contributors
     }

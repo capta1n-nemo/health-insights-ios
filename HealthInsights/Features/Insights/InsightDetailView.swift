@@ -9,6 +9,7 @@ struct InsightDetailView: View {
     @State private var timeframe: Timeframe = .month
     @State private var scale: SeriesScale = .zScore
     @State private var logarithmic = false
+    @State private var showsRoutineDrivers = false
 
     /// Resolved against the data being charted, so `.all` doesn't squash a short
     /// history into a sliver of a decade-wide viewport.
@@ -152,18 +153,71 @@ struct InsightDetailView: View {
         return Theme.warn
     }
 
+    /// What's driving this — departures first, the reassuring majority behind a
+    /// disclosure.
+    ///
+    /// Vitals Check scans seventeen signals. On an ordinary day sixteen of them
+    /// say "in your normal range", which buries the one that doesn't and makes
+    /// the card a wall. Hiding the detail entirely would make it a black box, so
+    /// the routine lines are one tap away rather than gone.
+    ///
+    /// An insight that doesn't classify its lines (`isNotable == nil`) still
+    /// shows all of them — absent information is not the same as "all routine".
     private func driversCard(_ result: InsightResult) -> some View {
-        Card {
+        let lines = result.driverLines
+        let upfront = lines.filter { $0.isNotable != false }
+        let routine = lines.filter { $0.isNotable == false }
+
+        return Card {
             VStack(alignment: .leading, spacing: 8) {
                 Text("What's driving this").font(.headline)
-                ForEach(result.drivers, id: \.self) { d in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "circle.fill").font(.system(size: 5)).padding(.top, 6)
-                            .foregroundStyle(Theme.accent)
-                        Text(d).font(.subheadline)
+
+                if upfront.isEmpty {
+                    Label("Nothing is away from your usual pattern.",
+                          systemImage: "checkmark.circle")
+                        .font(.subheadline).foregroundStyle(Theme.good)
+                } else {
+                    ForEach(Array(upfront.enumerated()), id: \.offset) { _, line in
+                        driverRow(line.text, tint: line.isNotable == true ? Theme.warn : Theme.accent)
+                    }
+                }
+
+                if !routine.isEmpty {
+                    Divider()
+                    Button {
+                        withAnimation(.snappy) { showsRoutineDrivers.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(showsRoutineDrivers
+                                 ? "Hide the rest"
+                                 : "Show \(routine.count) more in your normal range")
+                                .font(.caption.weight(.medium))
+                            Image(systemName: "chevron.down")
+                                .font(.caption2)
+                                .rotationEffect(.degrees(showsRoutineDrivers ? 180 : 0))
+                            Spacer()
+                        }
+                        .foregroundStyle(Theme.accent)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if showsRoutineDrivers {
+                        ForEach(Array(routine.enumerated()), id: \.offset) { _, line in
+                            driverRow(line.text, tint: .secondary)
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private func driverRow(_ text: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "circle.fill").font(.system(size: 5)).padding(.top, 6)
+                .foregroundStyle(tint)
+            Text(text).font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

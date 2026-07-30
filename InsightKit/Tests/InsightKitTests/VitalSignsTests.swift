@@ -89,6 +89,53 @@ final class VitalSignsTests: XCTestCase {
         XCTAssertEqual(result.headline, "No data yet")
     }
 
+    // MARK: - Driver lines
+
+    /// The detail card leads with departures and folds the rest away, so the
+    /// classification has to be right — and every line must survive, because
+    /// hiding detail is the point but losing it isn't.
+    func testDriverLinesSeparateDeparturesFromTheReassuringMajority() {
+        var samples = series(.restingHeartRate, settled(.restingHeartRate, 55) + [78])
+        samples += series(.heartRate, settled(.heartRate, 70) + [70])
+        samples += series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5) + [97])
+        let result = VitalSignsInsight().evaluate(samples: samples,
+                                                  profile: UserHealthProfile(), now: vitalsNow)
+
+        let notable = result.driverLines.filter { $0.isNotable == true }
+        let routine = result.driverLines.filter { $0.isNotable == false }
+        XCTAssertEqual(notable.count, 1)
+        XCTAssertTrue(notable.first?.text.contains("Resting Heart Rate") ?? false)
+        XCTAssertEqual(routine.count, 2, "the normal vitals are kept, just folded away")
+        XCTAssertEqual(result.driverLines.count, 3, "no vital is dropped, only deferred")
+    }
+
+    /// Notable lines come first, because the Today card previews `drivers.first`
+    /// and must not show "in your normal range" while the headline says otherwise.
+    func testTheFirstDriverIsTheOneWorthSeeing() {
+        var samples = series(.heartRate, settled(.heartRate, 70) + [70])
+        samples += series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5) + [88])
+        let result = VitalSignsInsight().evaluate(samples: samples,
+                                                  profile: UserHealthProfile(), now: vitalsNow)
+        XCTAssertTrue(result.drivers.first?.contains("Blood Oxygen") ?? false)
+    }
+
+    /// A vital we couldn't judge is something to know, not reassurance.
+    func testAVitalWithoutEnoughHistoryIsNotFoldedAway() {
+        let result = VitalSignsInsight().evaluate(samples: series(.restingHeartRate, [55, 56]),
+                                                  profile: UserHealthProfile(), now: vitalsNow)
+        XCTAssertEqual(result.driverLines.filter { $0.isNotable == true }.count, 1)
+    }
+
+    /// An insight that doesn't classify must not have its whole list hidden —
+    /// absent information is not the same as "all routine".
+    func testUnclassifiedDriversStayUnclassified() {
+        let result = InsightResult(id: .heartHealth, title: "t", primaryValue: 1, headline: "h",
+                                   score: 50, confidence: .high, explanation: "e",
+                                   drivers: ["one", "two"], unmetRequirements: [])
+        XCTAssertTrue(result.driverLines.allSatisfy { $0.isNotable == nil })
+        XCTAssertEqual(result.drivers, ["one", "two"])
+    }
+
     func testVitalSignsIsATodayCard() {
         XCTAssertEqual(InsightID.vitalSigns.cadence, .daily)
         XCTAssertTrue(InsightEngine().models.contains { $0.id == .vitalSigns })

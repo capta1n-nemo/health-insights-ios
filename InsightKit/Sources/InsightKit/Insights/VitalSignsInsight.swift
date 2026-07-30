@@ -510,10 +510,22 @@ public struct VitalSignsInsight: InsightModel {
             headline: output.headline, score: score, confidence: confidence,
             explanation: explanation,
             // Flagged vitals first — the point of a vitals panel is the outlier.
-            drivers: output.events.map { "\($0.kind.displayName): \($0.kind.note)" }
-                + (flagged + output.readings.filter { $0.status != .unusual && $0.status != .watch })
-                    .map(VitalSignsCheck.describe)
-                + output.stale.map { VitalSignsCheck.describe($0, now: now) },
+            // Notable first, and marked as such: seventeen vitals of which
+            // sixteen read "normal" buries the one that doesn't, so the detail
+            // screen leads with the departures and keeps the rest one tap away.
+            // A vital we couldn't judge counts as notable — "not enough history"
+            // is a thing to know, not reassurance.
+            driverLines: output.events.map {
+                InsightDriver(text: "\($0.kind.displayName): \($0.kind.note)", isNotable: true)
+            } + flagged.map {
+                InsightDriver(text: VitalSignsCheck.describe($0), isNotable: true)
+            } + output.unknown.map {
+                InsightDriver(text: VitalSignsCheck.describe($0), isNotable: true)
+            } + output.readings.filter { $0.status == .normal }.map {
+                InsightDriver(text: VitalSignsCheck.describe($0), isNotable: false)
+            } + output.stale.map {
+                InsightDriver(text: VitalSignsCheck.describe($0, now: now), isNotable: false)
+            },
             unmetRequirements: [],
             // Weight 0 throughout: this insight deliberately doesn't average its
             // vitals, so claiming a share of the score would be inventing one.
