@@ -64,6 +64,19 @@ before acting on any of those.
   and installs to the pinned phone. This is the one that needs the phone
   reachable; CI does not.
 
+### `main` is the deploy trigger — so don't stop short of it
+
+`deploy.yml` is `on: push: branches: [main]`. Nothing else installs anything.
+A feature branch, however green, produces a CI run and no phone install; a pull
+request left open produces exactly the same nothing. The intended shape of a
+session is: **ask questions first, make the change, push to `main`, tell the user
+the deploy is running.** See the no-pull-requests rule in `CLAUDE.md`, which
+deliberately overrides the web harness's default branch-and-PR workflow.
+
+One consequence worth knowing: because the trigger is any push to `main`, a
+docs-only commit also builds and installs. That's cheap (incremental builds
+reuse DerivedData, see below) and harmless, not something to work around.
+
 ## Incremental builds
 
 The `xcodebuild` invocation in `deploy.yml` passes `-derivedDataPath build`,
