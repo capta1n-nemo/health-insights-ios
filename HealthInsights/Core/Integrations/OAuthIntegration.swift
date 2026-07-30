@@ -90,15 +90,31 @@ private struct ProviderAPIError {
         return lines.joined(separator: "\n")
     }
 
+    /// The scope named in a missing-scope rejection, if that's what this is.
+    ///
+    /// Oura phrases it as "Token is not authorized access heart_health scope."
+    /// Recognising the shape matters: a scope 401 is permanent, so refreshing
+    /// the token and retrying only spends a single-use refresh token, doubles
+    /// the failures in the log, and fails again identically.
+    static func missingScope(in detail: String?) -> String? {
+        guard let detail else { return nil }
+        let pattern = "not authorized (?:to )?access\\s+([A-Za-z0-9_.-]+)\\s+scope"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: detail, range: NSRange(detail.startIndex..., in: detail)),
+              let range = Range(match.range(at: 1), in: detail)
+        else { return nil }
+        return String(detail[range])
+    }
+
     static func remedy(for status: Int, provider: String) -> String? {
         switch status {
         case 401:
             return """
                 What to do: a 401 on one endpoint while others succeed in the same \
                 sync means the saved permission grant doesn't cover this collection — \
-                \(provider) returns 401 (not 403) for missing scopes and names the ones \
-                it wants in the message above. Reconnect \(provider) in Settings ▸ Data \
-                sources and tick every permission on its consent screen.
+                \(provider) returns 401 (not 403) for missing scopes and names the one \
+                it wants in the message above. Enable that permission on your \(provider) \
+                developer application, then reconnect in Settings ▸ Data sources.
                 """
         case 403:
             return "What to do: 403 from \(provider) means the account's subscription has lapsed — the data still shows in \(provider)'s own app but isn't served over the API."
@@ -456,11 +472,19 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         do {
             return try await send(url, accessToken: accessToken)
         } catch IntegrationError.http(401, let detail) {
+            // A missing scope is not something a fresh token fixes — it carries
+            // exactly the same grant. Retrying would just log the failure twice.
+            if let scope = ProviderAPIError.missingScope(in: detail) {
+                DiagnosticsLog.shared.info(displayName,
+                                           "Not retrying \(Self.endpointLabel(url)) — it needs the \u{201C}\(scope)\u{201D} permission, which a new token won't add",
+                                           detail: "Only re-consenting with that scope enabled can fix this, so the sync moves on to the next collection.")
+                throw IntegrationError.http(status: 401, detail: detail)
+            }
             guard let retryToken = await refreshedAccessToken(replacing: accessToken) else {
                 throw IntegrationError.http(status: 401, detail: detail)
             }
             DiagnosticsLog.shared.info(displayName,
-                                       "Refreshed the access token after a 401 — retrying \(Self.endpointLabel(url))")
+                                       "Retrying \(Self.endpointLabel(url)) with a refreshed access token")
             return try await send(url, accessToken: retryToken)
         }
     }
@@ -525,8 +549,15 @@ final class OuraProvider: OAuthIntegration {
                 // prose docs still say `spo2`. Ask for both — an unrecognised
                 // scope is ignored, whereas guessing wrong silently loses the
                 // SpO2 collection.
+                //
+                // `stress` and `heart_health` appear in neither the scope table
+                // nor the OpenAPI spec (both stop at eight scopes) — they came
+                // from Oura's own 401 bodies, which name the scope they want.
+                // Without them Resilience, Cardiovascular Age and VO₂ Max are
+                // permanently unreachable.
                 scopes: ["daily", "heartrate", "workout", "session",
-                         "spo2", "spo2Daily", "personal"],
+                         "spo2", "spo2Daily", "personal",
+                         "stress", "heart_health"],
                 usesPKCE: true),
             credentials: credentials, webFlow: webFlow)
     }
@@ -539,6 +570,18 @@ final class OuraProvider: OAuthIntegration {
     private static let mappedCollections = ["sleep", "daily_readiness", "daily_spo2", "daily_activity"]
     private static var collectionCount: Int { rawCollections.count + mappedCollections.count }
 
+    /// The scope Oura demands for a collection, where it isn't just `daily`.
+    /// Learned from Oura's own 401 bodies — its published scope table and
+    /// OpenAPI spec both stop at eight scopes and say nothing about which
+    /// endpoint needs which. Used to skip a call we already know will be
+    /// refused, so a missing permission reads as one clear line instead of a
+    /// round-trip and a 401.
+    private static let requiredScope: [String: String] = [
+        "daily_resilience": "stress",
+        "daily_cardiovascular_age": "heart_health",
+        "vO2_max": "heart_health"
+    ]
+
     override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
@@ -546,8 +589,25 @@ final class OuraProvider: OAuthIntegration {
         let start = df.string(from: since), end = df.string(from: Date())
         let diag = DiagnosticsLog.shared
         var failures: [(endpoint: String, status: Int?, detail: String?)] = []
+        // Only trustworthy once a token has been granted by a build that records
+        // the scope list; `nil` means "unknown", so try the call and let Oura
+        // answer rather than skipping data we might well be entitled to.
+        let granted = credentials.tokens(for: id)?.grantedScopes
 
         func fetch(_ endpoint: String) async -> Data? {
+            if let need = Self.requiredScope[endpoint], let granted, !granted.contains(need) {
+                diag.null(displayName, "\(endpoint): skipped — the \u{201C}\(need)\u{201D} permission isn't in the saved grant",
+                          detail: """
+                              Oura granted: \(granted.joined(separator: " "))
+                              Enable \u{201C}\(need)\u{201D} on your Oura application at \
+                              cloud.ouraring.com ▸ OAuth Applications, then reconnect in \
+                              Settings ▸ Data sources.
+                              """)
+                // Phrased like Oura's own rejection so the summary picks the
+                // scope name out of it by the same route as a real 401.
+                failures.append((endpoint, nil, "Not attempted — token is not authorized access \(need) scope."))
+                return nil
+            }
             var comps = URLComponents(string: "https://api.ouraring.com/v2/usercollection/\(endpoint)")!
             comps.queryItems = [
                 URLQueryItem(name: "start_date", value: start),
@@ -629,23 +689,24 @@ final class OuraProvider: OAuthIntegration {
         }
         let names = failures.map(\.endpoint).joined(separator: ", ")
         var lines = failures.map { f in
-            "· \(f.endpoint) → \(f.status.map { "HTTP \($0)" } ?? "no response"): \(f.detail ?? "no reason given")"
+            "· \(f.endpoint) → \(f.status.map { "HTTP \($0)" } ?? "not attempted"): \(f.detail ?? "no reason given")"
         }
-        if failures.allSatisfy({ $0.status == 401 }) && failures.count < attempted {
-            // Some calls worked with the same bearer token, so the token itself
-            // is fine — these endpoints need a permission it doesn't carry.
+        // Name the exact permissions to switch on, rather than "tick everything".
+        let missing = Set(failures.compactMap { ProviderAPIError.missingScope(in: $0.detail) }).sorted()
+        if !missing.isEmpty {
+            let succeeded = attempted - failures.count
+            let preamble = succeeded > 0
+                ? "\(succeeded) other collections succeeded, so the token itself is fine — these \(failures.count) need permissions the saved grant doesn't include."
+                : "These \(failures.count) collections need permissions the saved grant doesn't include."
             lines.append("")
             lines.append("""
-                \(attempted - failures.count) other collections succeeded with the same access token, \
-                so the token is valid — these \(failures.count) need a permission the saved grant \
-                doesn't include. Oura answers missing scopes with 401 (it reserves 403 for a lapsed \
-                subscription). Fix: Settings ▸ Data sources ▸ Oura ▸ reconnect, and tick every \
-                permission on Oura's consent screen.
+                \(preamble) Fix: open cloud.ouraring.com ▸ OAuth Applications ▸ your app, enable \
+                \(missing.map { "\u{201C}\($0)\u{201D}" }.joined(separator: " and ")), save, then \
+                reconnect in Settings ▸ Data sources. Re-consent is required — the permissions \
+                aren't added to a token that already exists.
                 """)
         }
-        if let granted = credentials.tokens(for: id)?.scopeSummary {
-            lines.append("Permissions this token carries: \(granted)")
-        }
+        lines.append("Permissions this token carries: \(credentials.tokens(for: id)?.scopeSummary ?? "no token stored")")
         diag.fail(displayName, "\(failures.count) of \(attempted) collections failed — \(names)",
                   detail: lines.joined(separator: "\n"))
     }

@@ -251,6 +251,27 @@ Two more things make a partial grant visible rather than mysterious:
   endpoints each refreshing on their own 401 would revoke the grant instead of
   repairing it.
 
+**The scopes Oura doesn't document.** Its published scope table and OpenAPI
+spec both list eight scopes (`email`, `personal`, `daily`, `heartrate`,
+`workout`, `tag`, `session`, `spo2`/`spo2Daily`) and say nothing about which
+endpoint needs which. Three collections need scopes that appear on neither
+list, discovered only from the text of Oura's own 401 bodies:
+
+| Collection | Scope |
+| --- | --- |
+| `daily_resilience` | `stress` |
+| `daily_cardiovascular_age` | `heart_health` |
+| `vO2_max` | `heart_health` |
+
+`OuraProvider.requiredScope` holds that mapping and skips a call whose scope is
+known to be absent from `grantedScopes`, so a missing permission reads as one
+clear line rather than a round-trip and a 401. A scope 401 is also never
+retried — `ProviderAPIError.missingScope` recognises Oura's "Token is not
+authorized access <scope> scope" phrasing, and a fresh token carries the same
+grant, so retrying only spends a single-use refresh token and logs the failure
+twice. Enabling a scope on the Oura application does nothing by itself: the
+grant is baked into the token, so the user must re-consent.
+
 Known gap, surfaced in the log rather than silently swallowed: Oura paginates
 with `next_token` and the client reads only the first page, so
 `OuraProvider.describeResponse` logs a warning naming the collection whenever

@@ -247,9 +247,10 @@ struct ProviderSetupView: View {
                 "You'll land on the OAuth Applications page. Click \u{201C}Create New Application\u{201D}.",
                 "Give it any name (e.g. \u{201C}My Health Insights\u{201D}).",
                 "In \u{201C}Redirect URIs\u{201D}, paste the address below with the Copy button, then press Enter/Add so it's saved in the list.",
-                "Tick every data scope Oura offers — Daily, Heart Rate, Personal, Session, Workout, SpO2 and anything else listed. A scope left unticked doesn't fail loudly: the endpoints that need it just return \u{201C}401\u{201D} on every sync.",
+                "Tick EVERY data scope Oura offers — Daily, Heart Rate, Personal, Session, Workout, SpO2, Stress and Heart Health included. A scope left unticked doesn't fail loudly: the collections that need it just return \u{201C}401\u{201D} on every sync. Stress covers Resilience; Heart Health covers Cardiovascular Age and VO\u{2082} Max.",
                 "Save the application. Copy the \u{201C}Client ID\u{201D} and \u{201C}Client Secret\u{201D} it shows.",
-                "Paste both below and tap Save & Connect."
+                "Paste both below and tap Save & Connect.",
+                "Already connected and seeing 401s in Troubleshooting? Enabling a scope on the Oura application isn't enough on its own — come back here and tap Save & Connect again, so Oura issues a token that carries it."
             ]
         case "withings":
             return [
