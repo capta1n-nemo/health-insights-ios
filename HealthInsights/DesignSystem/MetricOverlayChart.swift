@@ -22,10 +22,9 @@ struct MetricOverlayChart: View {
     var window: TimeInterval = 30 * 24 * 3600
     var selection: Binding<Date?>?
 
-    /// Whether to draw every series or only the ones away from baseline. Owned
-    /// by the screen rather than here, because the legend carries the toggle
-    /// and the two must agree about what is on the chart.
-    var showsAllSeries: Bool = false
+    /// Exactly which series to draw. Owned by the screen, because the legend is
+    /// the picker and the two must agree about what is on the chart.
+    var selectedMetrics: Set<MetricType> = []
 
     @State private var localSelection: Date?
 
@@ -36,12 +35,10 @@ struct MetricOverlayChart: View {
     /// without a running view — it decides whether two lines can look alike,
     /// and the first version of it shipped from here and got that wrong.
     private var visibleSeries: [NormalizedSeries] {
-        OverlaySelection.visible(series, showingAll: showsAllSeries)
+        OverlaySelection.visible(series, selected: selectedMetrics)
     }
 
-    private var isFiltering: Bool {
-        OverlaySelection.filters(series, showingAll: showsAllSeries)
-    }
+    private var isFiltering: Bool { visibleSeries.count < series.count }
 
     /// Hues resolved across the series actually on screen, so no two share one.
     private var slots: [MetricType: Int] {
@@ -216,9 +213,11 @@ struct MetricOverlayChart: View {
             selection: selectionBinding,
             logarithmic: scale == .raw && logarithmic,
             height: 190,
-            emptyMessage: isFiltering
-                ? "Nothing is away from your usual pattern here — turn on \"Show every signal\" to see them all."
-                : "No readings in this window",
+            emptyMessage: visibleSeries.isEmpty
+                ? "Nothing selected — tap a signal below to put it on the chart."
+                : isFiltering
+                    ? "Nothing selected here is away from your usual pattern in this window."
+                    : "No readings in this window",
             isEmpty: { range in plotted(in: range).isEmpty },
             yDomain: { range in
                 paddedYDomain(plotted(in: range).flatMap { $0.points.map(\.value) },
@@ -304,71 +303,85 @@ struct MetricOverlayLegend: View {
     let contributions: [MetricContribution]
     /// Declared inputs with nothing to plot — shown dimmed rather than omitted.
     let missing: [MetricType]
-    /// Shared with the chart, so the key and the plot never disagree about
-    /// what's on screen.
-    var showsAllSeries: Binding<Bool>?
+    /// Which series are on the chart. Shared with it, so the key and the plot
+    /// can never disagree about what's drawn.
+    var selection: Binding<Set<MetricType>>?
     var onSelect: ((MetricType) -> Void)?
 
-    /// The list expands independently of the chart: you can read about a signal
-    /// without adding a line to a crowded plot.
-    @State private var showsRoutineRows = false
+    /// Unselected signals stay one tap away rather than filling the card. The
+    /// list expands independently of the chart: you can read what a signal did
+    /// without adding a line to a busy plot.
+    @State private var showsUnselected = false
 
-    private var showingAll: Bool { showsAllSeries?.wrappedValue ?? true }
-    private var charted: [NormalizedSeries] {
-        OverlaySelection.visible(series, showingAll: showingAll)
+    private var selected: Set<MetricType> {
+        selection?.wrappedValue ?? Set(series.map(\.metric))
     }
-    /// Rows for series the chart isn't currently drawing.
-    private var offChart: [NormalizedSeries] {
-        let shown = Set(charted.map(\.metric))
-        return series.filter { !shown.contains($0.metric) }
-    }
+
+    /// Most-departed first, so choosing the interesting signals out of thirteen
+    /// is a matter of reading from the top.
+    private var ranked: [NormalizedSeries] { OverlaySelection.ranked(series) }
+    private var onChart: [NormalizedSeries] { ranked.filter { selected.contains($0.metric) } }
+    private var offChart: [NormalizedSeries] { ranked.filter { !selected.contains($0.metric) } }
+
+    /// Hues resolved over the drawn set, in the chart's own drawing order.
     private var slots: [MetricType: Int] {
-        MetricPalette.slots(for: charted.map(\.metric))
+        MetricPalette.slots(for: OverlaySelection.visible(series, selected: selected).map(\.metric))
     }
 
     private func contribution(for metric: MetricType) -> MetricContribution? {
         contributions.first { $0.metric == metric }
     }
 
-    /// Rows hidden from the chart that are nonetheless away from baseline —
-    /// squeezed out by the colour cap rather than by being unremarkable. The
-    /// disclosure must not call these "in your normal range".
-    private var departingButHidden: Int {
+    private func toggle(_ metric: MetricType) {
+        guard let selection else {
+            onSelect?(metric)
+            return
+        }
+        var next = selection.wrappedValue
+        if next.contains(metric) { next.remove(metric) } else { next.insert(metric) }
+        withAnimation(.snappy) { selection.wrappedValue = next }
+    }
+
+    /// Unselected signals that are nonetheless doing something — so the
+    /// disclosure never calls a departing signal "in your normal range".
+    private var departingButOff: Int {
         offChart.filter { OverlaySelection.isNotable($0) }.count
     }
 
     private var disclosureLabel: String {
-        if showsRoutineRows { return "Hide the rest" }
-        if departingButHidden > 0 {
-            return "Show \(offChart.count) more, \(departingButHidden) away from baseline"
+        if showsUnselected { return "Hide the rest" }
+        if departingButOff > 0 {
+            return "Show \(offChart.count) more, \(departingButOff) away from baseline"
         }
         return "Show \(offChart.count) more in your normal range"
     }
 
-    private var toggleExplanation: String {
-        let cap = Swift.min(MetricPalette.hueCount, charted.count)
-        return departingButHidden > 0
-            ? "\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so the \(cap) furthest from your baseline are drawn. Turning this on repeats colours."
-            : "\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so only the ones away from your baseline are drawn."
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(charted) { one in
-                row(one, slot: slots[one.metric])
+            ForEach(onChart) { one in
+                row(one, slot: slots[one.metric], isOn: true)
+            }
+
+            // Past the palette the reader has asked for more lines than there
+            // are colours. Allowed — it's their chart — but said out loud,
+            // because two series in the same red is exactly the confusion the
+            // automatic selection exists to avoid.
+            if onChart.count > MetricPalette.hueCount {
+                Text("\(onChart.count) signals selected. Past \(MetricPalette.hueCount) the colours repeat.")
+                    .font(.caption2).foregroundStyle(Theme.warn)
             }
 
             if !offChart.isEmpty {
                 Divider()
                 Button {
-                    withAnimation(.snappy) { showsRoutineRows.toggle() }
+                    withAnimation(.snappy) { showsUnselected.toggle() }
                 } label: {
                     HStack(spacing: 6) {
                         Text(disclosureLabel)
                             .font(.caption.weight(.medium))
                         Image(systemName: "chevron.down")
                             .font(.caption2)
-                            .rotationEffect(.degrees(showsRoutineRows ? 180 : 0))
+                            .rotationEffect(.degrees(showsUnselected ? 180 : 0))
                         Spacer()
                     }
                     .foregroundStyle(Theme.accent)
@@ -376,46 +389,48 @@ struct MetricOverlayLegend: View {
                 }
                 .buttonStyle(.plain)
 
-                if showsRoutineRows {
-                    // No swatch: these aren't on the chart, so there is no line
-                    // for them to be the key to.
+                if showsUnselected {
                     ForEach(offChart) { one in
-                        row(one, slot: nil)
+                        row(one, slot: nil, isOn: false)
                     }
                 }
             }
 
-            // Before the toggle, not after it: these are signals, and a "No
-            // data" row sitting under a switch reads as belonging to it.
+            // Before any controls: these are signals, and a "No data" row under
+            // a button reads as belonging to it.
             ForEach(missing, id: \.self) { metric in
                 missingRow(metric)
             }
 
-            // Only offered where it changes something. Below the comfortable
-            // count every series is drawn anyway, and a toggle that does
-            // nothing is worse than no toggle.
-            if let binding = showsAllSeries,
-               series.count > MetricPalette.comfortableSeriesCount {
+            if let selection, series.count > MetricPalette.comfortableSeriesCount {
                 Divider()
-                Toggle(isOn: binding) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Show every signal in the graph").font(.caption)
-                        Text(toggleExplanation)
-                            .font(.caption2).foregroundStyle(.tertiary)
-                            .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text("Tap a signal to put it on the chart or take it off.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    Button(selected.count == series.count ? "Reset" : "All") {
+                        withAnimation(.snappy) {
+                            selection.wrappedValue = selected.count == series.count
+                                ? OverlaySelection.defaultSelection(series)
+                                : Set(series.map(\.metric))
+                        }
                     }
+                    .font(.caption.weight(.medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
                 }
             }
         }
     }
 
-    /// `slot` is the hue the chart gave this series, or nil when the chart
-    /// isn't drawing it — in which case the row is dimmed and carries no
-    /// swatch, because there is no line for it to be the key to.
-    private func row(_ one: NormalizedSeries, slot: Int?) -> some View {
+    /// `slot` is the hue the chart gave this series, or nil when it isn't being
+    /// drawn — in which case the swatch is hollow, because there is no line for
+    /// it to be the key to.
+    private func row(_ one: NormalizedSeries, slot: Int?, isOn: Bool) -> some View {
         let contribution = contribution(for: one.metric)
         return Button {
-            onSelect?(one.metric)
+            toggle(one.metric)
         } label: {
             HStack(spacing: 8) {
                 swatch(slot: slot)
@@ -445,7 +460,11 @@ struct MetricOverlayLegend: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(isOn ? 1 : 0.55)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isOn ? [.isSelected, .isButton] : .isButton)
+        .accessibilityHint(isOn ? "Double tap to remove from the chart"
+                                : "Double tap to add to the chart")
     }
 
     /// A short solid stroke in the hue the chart assigned, so the legend and the

@@ -10,9 +10,11 @@ struct InsightDetailView: View {
     @State private var scale: SeriesScale = .zScore
     @State private var logarithmic = false
     @State private var showsRoutineDrivers = false
-    /// Whether the overlay draws every input or only the ones away from
-    /// baseline. Held here so the chart and its legend share one answer.
-    @State private var showsAllSeries = false
+    /// Which signals the overlay draws. Nil until the reader picks — the
+    /// default is derived from the data, and pinning it in state on appear
+    /// would freeze a selection made before the series finished loading.
+    /// Held here so the chart and its legend share one answer.
+    @State private var chartSelection: Set<MetricType>?
 
     /// Resolved against the data being charted, so `.all` doesn't squash a short
     /// history into a sliver of a decade-wide viewport.
@@ -336,7 +338,7 @@ struct InsightDetailView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("What goes into this").font(.headline)
                     Text(scale == .zScore
-                         ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average."
+                         ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average. The list below is ordered by how far each signal has moved — tap any of them to add or remove it."
                          : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -350,7 +352,8 @@ struct InsightDetailView: View {
                         series: series, scale: scale, logarithmic: logarithmic,
                         window: window(spanning: model.overlayRange(for: contributions.metrics,
                                                                     timeframe: timeframe)),
-                        showsAllSeries: showsAllSeries)
+                        selectedMetrics: chartSelection
+                            ?? OverlaySelection.defaultSelection(series))
 
                     if scale == .raw && series.supportsLogScale {
                         Toggle("Logarithmic axis", isOn: $logarithmic)
@@ -358,9 +361,12 @@ struct InsightDetailView: View {
                     }
 
                     Divider()
-                    MetricOverlayLegend(series: series, contributions: contributions,
-                                        missing: missing,
-                                        showsAllSeries: $showsAllSeries)
+                    MetricOverlayLegend(
+                        series: series, contributions: contributions,
+                        missing: missing,
+                        selection: Binding(
+                            get: { chartSelection ?? OverlaySelection.defaultSelection(series) },
+                            set: { chartSelection = $0 }))
                 }
             }
         }
