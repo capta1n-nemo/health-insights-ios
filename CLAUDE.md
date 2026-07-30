@@ -21,4 +21,4 @@
 When the user says "handover", "wrap up", or runs `/handover`:
 1. Update `docs/activeContext.md` with recent changes, architectural choices, and next technical steps.
 2. Update `docs/progress.md` checklist items.
-3. Commit docs to git with message `docs: update session handover state`.
+3. Commit docs to git with message `docs: update active context and progress state`.
