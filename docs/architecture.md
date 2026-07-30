@@ -105,10 +105,111 @@ treat, or prevent disease and are not a substitute for professional medical
 advice. Users should consult a clinician for health decisions and seek emergency
 care for acute symptoms.
 
+## Swift patterns (going forward)
+
+New code should follow: Swift 6, SwiftUI, `@Observable` for view-model-shaped
+state (not `ObservableObject`), `NavigationStack` (not `NavigationView`),
+`@MainActor` on anything that touches UI state. `AppModel`
+(`HealthInsights/Core/State/AppModel.swift`) is the reference — `@Observable`,
+`@MainActor`, with `@ObservationIgnored` caches for derived data that must not
+retrigger a view update when filled mid-render.
+
+One existing exception, not yet migrated: `OAuthIntegration`
+(`HealthInsights/Core/Integrations/OAuthIntegration.swift`) is
+`ObservableObject`/`@Published`, predating this convention. Left as-is rather
+than refactored opportunistically — touch it only as part of a task that
+already needs to change that file.
+
+## Provenance and source merging
+
+`MetricSource.deviceFamily` (`InsightKit/.../HealthMetricSample.swift`)
+deliberately collapses the same physical device arriving via two paths — e.g.
+Oura synced directly via its API *and* mirrored into Apple Health — into one
+series, so a reading is never double-counted. `MetricSource.origin` /
+`SourceOrigin` records *which* path each reading actually took (direct API vs.
+Apple Health bridge vs. Apple Watch vs. manual/document), derived from the
+source `id` so it survives losing the friendly display name on a persistence
+round-trip. Use `origin` for labelling ("Oura via Apple Health"); use
+`deviceFamily` for grouping/deduplication. Don't conflate the two.
+
+## Static attributes vs. time-series vitals
+
+Not every `MetricType` is a trend. `MetricType.presentation`
+(`InsightKit/.../Presentation/MetricPresentation.swift`) is an **exhaustive**
+switch (no `default:`) classifying each metric — adding a case fails to compile
+until it's categorised:
+
+- `.staticAttribute` — a standing fact (height). No chart, no timeframe picker,
+  no log/linear toggle; rendered by `StaticAttributeCard`, formatted via
+  `MetricValueFormatter` (locale-aware — `185 cm` / `6 ft 1 in`, never a bare
+  metre count rounded to an integer).
+- `.cumulativeTrend` — weight, body composition. Start/current/delta + a
+  least-squares weekly velocity (`TrendSummary`), never first-minus-last.
+- `.fluctuatingRange` — heart rate, HRV, SpO₂, sleep, etc. Min/max/mean/percentile
+  (`RangeSummary`).
+- `.cumulativeTotal` — steps, active energy. Bucketed **per source** and
+  summed per day (`DailyTotals`) — never summed *across* sources, which would
+  double-count a step taken with a phone in your pocket and a watch on your wrist.
+- `.discreteBivariate` — blood pressure. The only metric addressed as a pair
+  (`MetricSubject.bloodPressure`) rather than a single `MetricType`; carries its
+  own AHA category bands, mean arterial pressure, and 30-day grounding split
+  (`BloodPressureEstimator`).
+
+`MetricDetailView` routes on `MetricSubject.presentation` via
+`MetricViewStrategy` — a compiler-checked switch with one concrete `View` per
+case, not a protocol returning `some View` (that would force `AnyView` and lose
+SwiftUI's structural identity on a screen that re-renders every pan frame).
+
+## Chart gap interpolation
+
+`MetricType.maxValidInterval` (same file) sets the longest gap a chart line may
+bridge before it breaks into a separate segment: 30 min for high-frequency
+signals (heart rate, SpO₂), 24 h for daily-cadence ones (resting HR, HRV,
+sleep), 14 days for infrequent ones (weight, VO₂max, blood pressure). Joining
+two readings across a longer gap with a straight line asserts a trend that was
+never measured, so `ScrollableMetricChart` draws one `LineMark` run per segment
+from `SourceSeries.segments(maxGap:)` rather than one continuous line per
+source.
+
+Long ranges are **bucketed**, not decimated: `SourceSeries.bucketed(by:for:)`
+(`InsightKit/.../Models/MetricAggregator.swift`) reduces a window to
+mean/median/min/max per bucket using each metric's own rule (`bucketStatistic`
+— median for weight so one water-weight day can't move the line, sum for
+step-like totals, mean otherwise), which is what feeds the chart at `6M`/`Y`/`All`
+zoom levels.
+
+## BYO-Key direct API integrations (Oura / Withings / Whoop)
+
+No backend: OAuth runs entirely on-device via `ASWebAuthenticationSession`
+(`OAuthWebFlow`), and the user supplies their own developer Client ID (+ secret
+where required) pasted into `ProviderSetupView`. Only the client ID is
+required — `ProviderCredentialStore.credentials(for:)` treats an absent secret
+as `""` rather than requiring both, because Oura's flow is PKCE and has no
+secret; requiring one made that provider permanently unable to report having
+credentials. Pasted values are sanitised with `.whitespacesAndNewlines` (not
+just `.whitespaces` — a console copy usually carries a trailing newline) both
+in the view and again in the store, so a stray character can't reach the
+Keychain by either path. `CredentialValidator` gives inline feedback before the
+network round-trip (catches pasting the redirect URI or console URL by
+mistake) without being strict about actual key shape, since providers issue
+UUIDs, hex strings and opaque tokens interchangeably.
+
+## Keychain storage
+
+Two layers: `KeychainStore` (`HealthInsights/Core/Persistence/KeychainStore.swift`)
+is a generic get/set/delete wrapper over a `kSecClassGenericPassword` item,
+`kSecAttrAccessibleAfterFirstUnlock`. `ProviderCredentialStore` is the typed
+layer on top, namespacing keys by provider id (`"\(providerID).clientID"`,
+`.clientSecret`, `.tokens`). Nothing health-related is stored here — only OAuth
+client credentials and tokens.
+
 ## Verification
 
 - `cd InsightKit && swift test` — checks the risk equations against published
-  worked examples and the statistics against hand-computed fixtures.
+  worked examples and the statistics against hand-computed fixtures. This is
+  the primary local gate: no Swift toolchain runs in most agent sandboxes, so
+  final compile/behaviour verification happens via the CI workflow's
+  `swift test` + `xcodebuild` steps on push.
 - Open `HealthInsights.xcodeproj` in Xcode 16+ and run on a device/simulator
   with Health data. (If the project won't open, regenerate it with
   `xcodegen generate`.)
