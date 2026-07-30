@@ -13,7 +13,7 @@ struct GroundingSheet: View {
         switch kind {
         case .cuffSystolic, .cuffDiastolic:
             NavigationStack {
-                BloodPressureLogView()
+                MetricDetailView(subject: .bloodPressure)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Done") { dismiss() }

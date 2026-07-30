@@ -138,7 +138,7 @@ struct InsightDetailView: View {
 
     private var bloodPressureLogLink: some View {
         NavigationLink {
-            BloodPressureLogView()
+            MetricDetailView(subject: .bloodPressure)
         } label: {
             Card {
                 HStack {

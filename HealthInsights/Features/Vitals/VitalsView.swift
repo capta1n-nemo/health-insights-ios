@@ -73,7 +73,7 @@ struct VitalsView: View {
         if let latest = bloodPressure.first {
             Section {
                 NavigationLink {
-                    BloodPressureLogView()
+                    MetricDetailView(subject: .bloodPressure)
                 } label: {
                     HStack {
                         Text("Blood Pressure")

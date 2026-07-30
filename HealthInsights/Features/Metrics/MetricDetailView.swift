@@ -6,7 +6,18 @@ import InsightKit
 /// breakdown. Every card links here so multi-source data is treated the same way
 /// everywhere.
 struct MetricDetailView: View {
-    let metric: MetricType
+    /// What this screen is about. Blood pressure is a systolic/diastolic pair,
+    /// so it can't be addressed by a single metric.
+    let subject: MetricSubject
+
+    init(subject: MetricSubject) { self.subject = subject }
+    /// Source-compatible with every existing call site. Normalising means either
+    /// half of a cuff reading opens the paired screen rather than a
+    /// systolic-only chart.
+    init(metric: MetricType) { self.subject = MetricSubject(metric: metric) }
+
+    private var metric: MetricType { subject.primaryMetric }
+
     @Environment(AppModel.self) private var model
     @State private var logScale = false
     @State private var timeframe: Timeframe = .month
@@ -40,6 +51,27 @@ struct MetricDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacing) {
+                switch subject.presentation {
+                case .staticAttribute:
+                    // A standing fact: no chart, no timeframe, no log toggle.
+                    StaticAttributeCard(metric: metric)
+                case .discreteBivariate:
+                    BloodPressureSections(timeframe: $timeframe)
+                default:
+                    standardSections
+                }
+            }
+            .padding()
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(subject.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// The chart-based layout every metric except blood pressure and the static
+    /// attributes uses, with a presentation-specific summary card on top.
+    @ViewBuilder private var standardSections: some View {
+        Group {
                 if !hasAnyData {
                     ContentUnavailableView(
                         "No \(metric.displayName.lowercased()) yet",
@@ -47,6 +79,10 @@ struct MetricDetailView: View {
                         description: Text("Connect a device or Apple Health, then pull to refresh."))
                         .padding(.top, 40)
                 } else {
+                    MetricViewStrategy.summary(for: MetricDetailContext(
+                        subject: subject,
+                        timeframe: timeframe,
+                        visibleRange: visibleRange))
                     overlayCard
                     if breakdown.sources.isEmpty {
                         Card {
@@ -63,12 +99,7 @@ struct MetricDetailView: View {
                         if breakdown.hasMultipleSources { statsCard }
                     }
                 }
-            }
-            .padding()
         }
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle(metric.displayName)
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Names the span on screen: the timeframe's own label until the user pans
@@ -101,6 +132,7 @@ struct MetricDetailView: View {
                                  selection: $scrubbed)
                 Text("Drag across the chart to read individual points; swipe it sideways to move back through your history.")
                     .font(.caption2).foregroundStyle(.tertiary)
+                if subject.presentation.allowsLogScale {
                 HStack {
                     Picker("Scale", selection: $logScale) {
                         Text("Linear").tag(false)
@@ -109,6 +141,7 @@ struct MetricDetailView: View {
                     .pickerStyle(.segmented)
                     .frame(width: 160)
                     Spacer()
+                }
                 }
                 if logScale {
                     Text("Logarithmic scale — useful when your sources differ by a wide margin.")
