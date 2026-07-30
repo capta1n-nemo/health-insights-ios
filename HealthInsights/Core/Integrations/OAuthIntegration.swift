@@ -20,16 +20,92 @@ struct OAuthConfig {
 enum IntegrationError: LocalizedError {
     case missingCredentials
     case notConnected
-    case http(Int)
+    case http(status: Int, detail: String?)
     case tokenParse
     case provider(String)
     var errorDescription: String? {
         switch self {
         case .missingCredentials: return "Add your API keys first."
         case .notConnected: return "Not connected."
-        case .http(let code): return "The provider returned an error (HTTP \(code)). Check your Client ID/Secret and redirect URL."
+        case .http(let code, let detail):
+            let base: String
+            switch code {
+            case 401:
+                base = "The provider refused the request (HTTP 401) — the saved sign-in is expired, revoked, or missing a permission. Reconnect to grant it again."
+            case 403:
+                base = "The provider blocked the request (HTTP 403). This usually means the account's subscription has lapsed, so its data isn't served over the API."
+            case 429:
+                base = "The provider is rate-limiting us (HTTP 429). Wait a few minutes and sync again."
+            default:
+                base = "The provider returned an error (HTTP \(code)). Check your Client ID/Secret and redirect URL."
+            }
+            guard let detail = detail?.nilIfBlank else { return base }
+            return "\(base) It said: \(detail)"
         case .tokenParse: return "Couldn't read the provider's sign-in response. Double-check your Client Secret."
         case .provider(let detail): return detail
+        }
+    }
+}
+
+/// A provider's error body, unpacked for the diagnostics log.
+///
+/// Oura answers errors with RFC7807 (`status` / `title` / `detail`) and puts the
+/// actionable part — including *which scopes a token is missing* — in `detail`.
+/// The app used to throw the body away and log a bare "HTTP 401", which is why
+/// three endpoints failing every sync was impossible to diagnose from the log.
+private struct ProviderAPIError {
+    let status: Int
+    let title: String?
+    let detail: String?
+    let traceID: String?
+    let bodySnippet: String?
+
+    init(status: Int, body: Data, response: HTTPURLResponse?) {
+        struct Problem: Decodable {
+            let title: String?
+            let detail: String?
+            let error: String?
+            let error_description: String?
+        }
+        // A FastAPI validation error puts an array in `detail`, which fails this
+        // decode — the raw snippet below is the fallback for those.
+        let problem = try? JSONDecoder().decode(Problem.self, from: body)
+        self.status = status
+        self.title = problem?.title ?? problem?.error
+        self.detail = (problem?.detail ?? problem?.error_description)?.nilIfBlank
+        self.traceID = response?.value(forHTTPHeaderField: "x-trace-id")
+        self.bodySnippet = self.detail == nil
+            ? String(data: body.prefix(500), encoding: .utf8)?.nilIfBlank
+            : nil
+    }
+
+    /// The multi-line block written under the log's one-line headline.
+    func diagnosticDetail(url: URL, milliseconds: Int, provider: String) -> String {
+        var lines = ["GET \(url.absoluteString)", "\(milliseconds) ms · HTTP \(status)"]
+        if let title { lines.append("Title: \(title)") }
+        if let detail { lines.append("\(provider) says: \(detail)") }
+        if let bodySnippet { lines.append("Body: \(bodySnippet)") }
+        if let traceID { lines.append("Trace ID: \(traceID)   (quote this to \(provider) support)") }
+        if let hint = Self.remedy(for: status, provider: provider) { lines.append(hint) }
+        return lines.joined(separator: "\n")
+    }
+
+    static func remedy(for status: Int, provider: String) -> String? {
+        switch status {
+        case 401:
+            return """
+                What to do: a 401 on one endpoint while others succeed in the same \
+                sync means the saved permission grant doesn't cover this collection — \
+                \(provider) returns 401 (not 403) for missing scopes and names the ones \
+                it wants in the message above. Reconnect \(provider) in Settings ▸ Data \
+                sources and tick every permission on its consent screen.
+                """
+        case 403:
+            return "What to do: 403 from \(provider) means the account's subscription has lapsed — the data still shows in \(provider)'s own app but isn't served over the API."
+        case 429:
+            return "What to do: \(provider) is throttling us. Wait a few minutes and sync again — Oura's ceiling is 5000 requests per 5 minutes."
+        default:
+            return nil
         }
     }
 }
@@ -64,6 +140,15 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     private let webFlow: OAuthWebFlow
 
     @Published private(set) var status: IntegrationStatus
+
+    /// Coalesces token refreshes. Oura's refresh tokens are single-use, so nine
+    /// endpoints each reacting to their own 401 by refreshing would revoke the
+    /// grant instead of repairing it. Not `@Published` — it's plumbing, not state
+    /// any view renders.
+    private var refreshInFlight: Task<String?, Never>?
+    /// Set when a refresh has already failed this sync — don't burn the (now
+    /// probably consumed) refresh token again on every remaining endpoint.
+    private var refreshFailedThisSync = false
 
     init(id: String, displayName: String, iconSystemName: String,
          capabilities: IntegrationCapabilities, config: OAuthConfig,
@@ -116,9 +201,16 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
             let authURL = buildAuthorizeURL(clientID: creds.clientID, state: state, challenge: pkce?.challenge)
             let callback = try await webFlow.start(authorizeURL: authURL, callbackScheme: config.callbackScheme)
             guard let code = Self.queryValue(callback, "code") else { throw IntegrationError.tokenParse }
-            let tokens = try await exchangeCode(code, credentials: creds, verifier: pkce?.verifier)
+            // The callback carries the scopes the user actually granted, which
+            // the provider warns may differ from the ones we asked for. Capture
+            // them: without this the app can never tell "permission withheld"
+            // from "token broken", and both look like a bare 401 at sync time.
+            let granted = Self.grantedScopes(from: callback)
+            var tokens = try await exchangeCode(code, credentials: creds, verifier: pkce?.verifier)
+            tokens.grantedScopes = granted
             credentials.setTokens(tokens, for: id)
             status = .connected(lastSync: nil)
+            logScopeGrant(granted)
             DiagnosticsLog.shared.ok(displayName, "Connected")
         } catch {
             status = .error(error.localizedDescription)
@@ -133,12 +225,60 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     }
 
     func sync() async throws -> SyncedData {
+        refreshFailedThisSync = false
+        let started = Date()
         let token = try await validAccessToken()
         // Pull a long history so trends and future insights have depth to work with.
         let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
+        logSyncPreamble(since: since)
         let data = try await fetchData(accessToken: token, since: since)
         status = .connected(lastSync: Date())
+        let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
+        DiagnosticsLog.shared.ok(displayName,
+                                 "Sync finished in \(seconds)s — \(data.samples.count) vital sample(s), \(data.other.count) other value(s)")
         return data
+    }
+
+    /// Everything needed to interpret the API calls that follow: the window we
+    /// asked for, and the permissions the token actually carries.
+    private func logSyncPreamble(since: Date) {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        var lines = ["Requested permissions at sign-in: \(config.scopes.joined(separator: " "))"]
+        if let tokens = credentials.tokens(for: id) {
+            lines.append("Permissions the provider granted: \(tokens.scopeSummary)")
+            lines.append("Access token expires: \(tokens.expiresAt?.formatted(date: .abbreviated, time: .standard) ?? "not reported by provider")")
+            lines.append("Refresh token stored: \(tokens.refreshToken == nil ? "no — a rejected token can only be fixed by reconnecting" : "yes")")
+        }
+        DiagnosticsLog.shared.info(displayName,
+                                   "Sync started — window \(df.string(from: since)) → \(df.string(from: Date()))",
+                                   detail: lines.joined(separator: "\n"))
+    }
+
+    /// Record what the consent screen handed back, and flag anything withheld —
+    /// a withheld scope shows up much later as a 401 on just the endpoints that
+    /// needed it, which reads like a broken token unless you know this.
+    private func logScopeGrant(_ granted: [String]) {
+        let diag = DiagnosticsLog.shared
+        let withheld = config.scopes.filter { !granted.contains($0) }
+        let lists = "Requested: \(config.scopes.joined(separator: " "))\nGranted: \(granted.isEmpty ? "(none reported)" : granted.joined(separator: " "))"
+        if granted.isEmpty {
+            diag.null(displayName, "Sign-in didn't report which permissions were granted",
+                      detail: "\(lists)\nThe provider omitted the `scope` parameter on the callback, so the app can't verify the grant up front.")
+        } else if withheld.isEmpty {
+            diag.ok(displayName, "Granted all \(granted.count) requested permission(s)", detail: lists)
+        } else {
+            diag.null(displayName, "\(withheld.count) requested permission(s) were not granted",
+                      detail: """
+                          \(lists)
+                          Withheld: \(withheld.joined(separator: " "))
+                          Endpoints needing a withheld permission will fail with HTTP 401. \
+                          Reconnect and tick every box on the \(displayName) consent screen. \
+                          (A provider may also rename a scope, so a name listed here can be \
+                          a rename rather than a refusal — check the 401s below.)
+                          """)
+        }
     }
 
     // MARK: Token flow
@@ -195,11 +335,17 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         request.httpBody = comps.percentEncodedQuery?.data(using: .utf8)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        if let code = (response as? HTTPURLResponse)?.statusCode, code >= 400 {
-            DiagnosticsLog.shared.fail(displayName, "Token exchange → HTTP \(code)")
-            throw IntegrationError.http(code)
+        let http = response as? HTTPURLResponse
+        if let code = http?.statusCode, code >= 400 {
+            let failure = ProviderAPIError(status: code, body: data, response: http)
+            DiagnosticsLog.shared.fail(displayName, "Token exchange → HTTP \(code)",
+                                       detail: failure.diagnosticDetail(url: config.tokenURL,
+                                                                        milliseconds: 0,
+                                                                        provider: displayName))
+            throw IntegrationError.http(status: code, detail: failure.detail)
         }
-        DiagnosticsLog.shared.ok(displayName, "Token exchange OK")
+        DiagnosticsLog.shared.ok(displayName, "Token exchange OK",
+                                 detail: "grant_type=\(params["grant_type"] ?? "?") · \(data.count) bytes back")
         return try parseTokenResponse(data)
     }
 
@@ -207,10 +353,57 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         guard var tokens = credentials.tokens(for: id) else { throw IntegrationError.notConnected }
         if tokens.isExpired, let refresh = tokens.refreshToken,
            let creds = credentials.credentials(for: id) {
+            DiagnosticsLog.shared.info(displayName, "Access token expired — refreshing before sync")
+            let grants = tokens.grantedScopes
             tokens = try await refreshTokens(refresh, credentials: creds)
+            // The refresh reply carries no scope list; carry the grant forward
+            // so the log doesn't forget what the user consented to.
+            tokens.grantedScopes = grants
             credentials.setTokens(tokens, for: id)
         }
         return tokens.accessToken
+    }
+
+    /// Exchange a rejected access token for a fresh one, at most once per sync.
+    ///
+    /// `validAccessToken()` alone isn't enough: it trusts the locally-stored
+    /// expiry, and `isExpired` is `false` whenever the provider omitted
+    /// `expires_in`. A token revoked (or aged out) server-side therefore looked
+    /// permanently valid and every call 401'd forever with no self-repair.
+    /// Returns `nil` when no refresh is possible — the caller then reports the
+    /// original 401 rather than pretending it recovered.
+    private func refreshedAccessToken(replacing stale: String) async -> String? {
+        // Another endpoint in this same sync may have refreshed already.
+        if let current = credentials.tokens(for: id)?.accessToken, current != stale {
+            return current
+        }
+        if refreshFailedThisSync { return nil }
+        if let refreshInFlight { return await refreshInFlight.value }
+
+        let task = Task { @MainActor () -> String? in
+            guard let tokens = self.credentials.tokens(for: self.id),
+                  let refresh = tokens.refreshToken,
+                  let creds = self.credentials.credentials(for: self.id) else {
+                DiagnosticsLog.shared.fail(self.displayName, "Can't refresh the sign-in — no refresh token stored",
+                                           detail: "Reconnect \(self.displayName) in Settings ▸ Data sources to get a new one.")
+                return nil
+            }
+            do {
+                var fresh = try await self.refreshTokens(refresh, credentials: creds)
+                fresh.grantedScopes = tokens.grantedScopes
+                self.credentials.setTokens(fresh, for: self.id)
+                return fresh.accessToken
+            } catch {
+                DiagnosticsLog.shared.fail(self.displayName, "Token refresh failed: \(error.localizedDescription)",
+                                           detail: "The refresh token is single-use and is now spent. Reconnect \(self.displayName) in Settings ▸ Data sources.")
+                return nil
+            }
+        }
+        refreshInFlight = task
+        let result = await task.value
+        refreshInFlight = nil
+        if result == nil { refreshFailedThisSync = true }
+        return result
     }
 
     // MARK: Overridable provider specifics
@@ -245,26 +438,69 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
             .queryItems?.first { $0.name == name }?.value
     }
 
+    /// The scopes an OAuth callback reports as granted. Space-separated per the
+    /// spec, but tolerate commas too.
+    static func grantedScopes(from callback: URL) -> [String] {
+        guard let raw = queryValue(callback, "scope") else { return [] }
+        return raw.split(whereSeparator: { $0 == " " || $0 == "," || $0 == "+" }).map(String.init)
+    }
+
+    /// GET a JSON endpoint, refreshing the access token once and retrying if the
+    /// provider answers 401.
+    ///
+    /// A 401 has two very different causes that look identical in a log: a token
+    /// the provider no longer accepts, and a token whose grant doesn't cover
+    /// this particular collection. Retrying after a refresh separates them —
+    /// if the retry also 401s, it's the grant, and the logged detail says so.
     func getJSON(_ url: URL, accessToken: String) async throws -> Data {
+        do {
+            return try await send(url, accessToken: accessToken)
+        } catch IntegrationError.http(401, let detail) {
+            guard let retryToken = await refreshedAccessToken(replacing: accessToken) else {
+                throw IntegrationError.http(status: 401, detail: detail)
+            }
+            DiagnosticsLog.shared.info(displayName,
+                                       "Refreshed the access token after a 401 — retrying \(Self.endpointLabel(url))")
+            return try await send(url, accessToken: retryToken)
+        }
+    }
+
+    private func send(_ url: URL, accessToken: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let endpoint = url.lastPathComponent
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let endpoint = Self.endpointLabel(url)
+        let started = Date()
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let http = response as? HTTPURLResponse
+            let code = http?.statusCode ?? 0
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
             if code >= 400 {
-                DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) → HTTP \(code)")
-                throw IntegrationError.http(code)
+                let failure = ProviderAPIError(status: code, body: data, response: http)
+                DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) → HTTP \(code)",
+                                           detail: failure.diagnosticDetail(url: url,
+                                                                            milliseconds: ms,
+                                                                            provider: displayName))
+                throw IntegrationError.http(status: code, detail: failure.detail)
             }
-            DiagnosticsLog.shared.ok(displayName, "GET \(endpoint) → \(data.count) bytes")
+            DiagnosticsLog.shared.ok(displayName, "GET \(endpoint) → \(data.count) bytes",
+                                     detail: "\(url.absoluteString)\n\(ms) ms · HTTP \(code)")
             return data
         } catch let e as IntegrationError {
             throw e   // HTTP failure already logged above
         } catch {
-            DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) failed: \(error.localizedDescription)")
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let ns = error as NSError
+            DiagnosticsLog.shared.fail(displayName, "GET \(endpoint) failed: \(error.localizedDescription)",
+                                       detail: "\(url.absoluteString)\n\(ms) ms\n\(ns.domain) code \(ns.code)")
             throw error
         }
     }
+
+    /// The collection name, which is what the log is about — never the token or
+    /// the full query string.
+    static func endpointLabel(_ url: URL) -> String { url.lastPathComponent }
 }
 
 // MARK: - Oura
@@ -285,16 +521,31 @@ final class OuraProvider: OAuthIntegration {
                 tokenURL: URL(string: "https://api.ouraring.com/oauth/token")!,
                 consoleURL: URL(string: "https://cloud.ouraring.com/oauth/applications")!,
                 redirectURI: "healthinsights://oauth/oura",
-                scopes: ["daily", "heartrate", "workout", "session", "spo2", "personal"],
+                // `spo2Daily` is the name in Oura's current OpenAPI spec; the
+                // prose docs still say `spo2`. Ask for both — an unrecognised
+                // scope is ignored, whereas guessing wrong silently loses the
+                // SpO2 collection.
+                scopes: ["daily", "heartrate", "workout", "session",
+                         "spo2", "spo2Daily", "personal"],
                 usesPKCE: true),
             credentials: credentials, webFlow: webFlow)
     }
+
+    /// Collections captured wholesale as raw "other" data. The four that also
+    /// feed canonical metrics are fetched individually below, because each needs
+    /// its own parser.
+    private static let rawCollections = ["daily_sleep", "daily_stress", "daily_resilience",
+                                         "daily_cardiovascular_age", "vO2_max"]
+    private static let mappedCollections = ["sleep", "daily_readiness", "daily_spo2", "daily_activity"]
+    private static var collectionCount: Int { rawCollections.count + mappedCollections.count }
 
     override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
         df.dateFormat = "yyyy-MM-dd"
         let start = df.string(from: since), end = df.string(from: Date())
+        let diag = DiagnosticsLog.shared
+        var failures: [(endpoint: String, status: Int?, detail: String?)] = []
 
         func fetch(_ endpoint: String) async -> Data? {
             var comps = URLComponents(string: "https://api.ouraring.com/v2/usercollection/\(endpoint)")!
@@ -302,8 +553,24 @@ final class OuraProvider: OAuthIntegration {
                 URLQueryItem(name: "start_date", value: start),
                 URLQueryItem(name: "end_date", value: end)
             ]
-            guard let url = comps.url else { return nil }
-            return try? await getJSON(url, accessToken: accessToken)
+            guard let url = comps.url else {
+                failures.append((endpoint, nil, "Couldn't build the request URL."))
+                return nil
+            }
+            do {
+                let data = try await getJSON(url, accessToken: accessToken)
+                describeResponse(endpoint, data)
+                return data
+            } catch IntegrationError.http(let status, let detail) {
+                // Already logged in full by `send`; recorded here so the sync
+                // can end with one summary line instead of leaving the user to
+                // spot three unrelated-looking failures.
+                failures.append((endpoint, status, detail))
+                return nil
+            } catch {
+                failures.append((endpoint, nil, error.localizedDescription))
+                return nil
+            }
         }
 
         // Pull every collection we can; a single endpoint failing (e.g. a scope
@@ -326,14 +593,61 @@ final class OuraProvider: OAuthIntegration {
             out.samples += (try? OuraResponseParser.parseDailyActivity(d)) ?? []
             out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_activity")
         }
-        // Additional collections captured wholesale as raw "other" data.
-        for endpoint in ["daily_sleep", "daily_stress", "daily_resilience",
-                         "daily_cardiovascular_age", "vO2_max"] {
+        for endpoint in Self.rawCollections {
             if let d = await fetch(endpoint) {
                 out.other += OuraResponseParser.parseRawDaily(d, endpoint: endpoint)
             }
         }
+        summarise(failures, of: Self.collectionCount, diag: diag)
         return out
+    }
+
+    /// Log what a successful collection actually contained. "538006 bytes" says
+    /// the call worked; "314 record(s)" says whether the data is there.
+    private func describeResponse(_ endpoint: String, _ data: Data) {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        let records = (obj["data"] as? [[String: Any]])?.count ?? 0
+        let nextToken = (obj["next_token"] as? String)?.nilIfBlank
+        if records == 0 {
+            DiagnosticsLog.shared.null(displayName, "\(endpoint): no records in the requested window",
+                                       detail: "The call succeeded, so this is Oura reporting no data for \(endpoint) — not a permission problem.")
+        } else {
+            DiagnosticsLog.shared.ok(displayName, "\(endpoint): \(records) record(s)")
+        }
+        if let nextToken {
+            DiagnosticsLog.shared.null(displayName, "\(endpoint): more pages available — only the first was read",
+                                       detail: "Oura returned next_token=\(nextToken.prefix(12))…, meaning this collection is longer than one page and the app is not yet following pagination. History older than the first page is missing for \(endpoint).")
+        }
+    }
+
+    /// One line the user can act on, instead of three scattered failures.
+    private func summarise(_ failures: [(endpoint: String, status: Int?, detail: String?)],
+                           of attempted: Int, diag: DiagnosticsLog) {
+        guard !failures.isEmpty else {
+            diag.ok(displayName, "All \(attempted) collections fetched")
+            return
+        }
+        let names = failures.map(\.endpoint).joined(separator: ", ")
+        var lines = failures.map { f in
+            "· \(f.endpoint) → \(f.status.map { "HTTP \($0)" } ?? "no response"): \(f.detail ?? "no reason given")"
+        }
+        if failures.allSatisfy({ $0.status == 401 }) && failures.count < attempted {
+            // Some calls worked with the same bearer token, so the token itself
+            // is fine — these endpoints need a permission it doesn't carry.
+            lines.append("")
+            lines.append("""
+                \(attempted - failures.count) other collections succeeded with the same access token, \
+                so the token is valid — these \(failures.count) need a permission the saved grant \
+                doesn't include. Oura answers missing scopes with 401 (it reserves 403 for a lapsed \
+                subscription). Fix: Settings ▸ Data sources ▸ Oura ▸ reconnect, and tick every \
+                permission on Oura's consent screen.
+                """)
+        }
+        if let granted = credentials.tokens(for: id)?.scopeSummary {
+            lines.append("Permissions this token carries: \(granted)")
+        }
+        diag.fail(displayName, "\(failures.count) of \(attempted) collections failed — \(names)",
+                  detail: lines.joined(separator: "\n"))
     }
 }
 

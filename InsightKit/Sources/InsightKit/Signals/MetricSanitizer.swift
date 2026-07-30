@@ -31,9 +31,24 @@ public extension Array where Element == HealthMetricSample {
     /// resting-heart-rate tiles (e.g. from an Oura day with no HR data) and stops
     /// placeholder zeros from dragging multi-source averages and graphs down.
     func sanitizedVitals() -> [HealthMetricSample] {
-        filter { sample in
-            guard sample.type.requiresPositiveValue else { return true }
-            return sample.value > 0
+        partitionedVitals().kept
+    }
+
+    /// The same split, but keeping what was thrown away so the diagnostics log
+    /// can say *which* metric from *which* source sent placeholder zeros. A bare
+    /// "dropped 77 samples" can't tell a harmless provider quirk from a metric
+    /// that has quietly stopped reporting.
+    func partitionedVitals() -> (kept: [HealthMetricSample], dropped: [HealthMetricSample]) {
+        var kept: [HealthMetricSample] = []
+        var dropped: [HealthMetricSample] = []
+        kept.reserveCapacity(count)
+        for sample in self {
+            if !sample.type.requiresPositiveValue || sample.value > 0 {
+                kept.append(sample)
+            } else {
+                dropped.append(sample)
+            }
         }
+        return (kept, dropped)
     }
 }

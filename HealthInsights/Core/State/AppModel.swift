@@ -281,7 +281,9 @@ final class AppModel {
         isSyncing = true
         defer { isSyncing = false }
         let diag = DiagnosticsLog.shared
-        diag.info("Sync", "Refresh started")
+        let startedAt = Date()
+        diag.info("Sync", "Refresh started",
+                  detail: "Build \(BuildInfo.summary), built \(BuildInfo.formattedDate)")
 
         let manual = dataStore.loadManualSamples()
         let synced = await registry.syncAllConnected()
@@ -319,14 +321,10 @@ final class AppModel {
             diag.ok("Import", "\(freshOther.count) other data point(s) imported")
         }
 
-        var merged = manual + nonManual
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
-        let beforeSanitise = merged.count
-        merged = merged.sanitizedVitals()
-        if beforeSanitise != merged.count {
-            diag.null("Sanitiser", "Dropped \(beforeSanitise - merged.count) empty/invalid vital sample(s)")
-        }
+        let (merged, dropped) = (manual + nonManual).partitionedVitals()
+        logSanitiserDrops(dropped, diag: diag)
         // Creative reconstruction: turn wearable skin-temperature *deviations*
         // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
         // be trended and fed to the insights.
@@ -336,18 +334,66 @@ final class AppModel {
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
         todaySummary = await summarizer.summarize(results: results)
-        diag.info("Sync", "Refresh complete — \(samples.count) samples, \(results.count) insights")
+        let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
+        let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })
+            .map { "· \($0.key): \($0.value.count) sample(s)" }
+            .sorted()
+        let failures = diag.entries
+            .prefix { $0.date >= startedAt }
+            .filter { $0.status == .fail }
+        diag.info("Sync", "Refresh complete in \(elapsed)s — \(samples.count) samples, \(results.count) insights",
+                  detail: (bySource + [
+                    "Other (unmodelled) values held: \(otherSamples.count)",
+                    failures.isEmpty
+                        ? "No failures this sync."
+                        : "\(failures.count) failure(s) this sync — see the red entries above."
+                  ]).joined(separator: "\n"))
     }
 
     /// Record how many samples of each metric were imported this sync — the
     /// per-field pass/fail the Troubleshooting view surfaces.
+    ///
+    /// Each metric also carries its per-source split as detail: "66185 × Heart
+    /// Rate" doesn't say whether Oura contributed any, and "which device stopped
+    /// reporting" is the question the log usually gets opened for.
     private func logMetricCounts(_ diag: DiagnosticsLog) {
-        let counts = Dictionary(grouping: samples, by: { $0.type }).mapValues(\.count)
+        let byType = Dictionary(grouping: samples, by: { $0.type })
         for type in MetricType.allCases {
-            if let c = counts[type], c > 0 {
-                diag.ok("Import", "\(c) × \(type.displayName)")
+            guard let ofType = byType[type], !ofType.isEmpty else {
+                diag.null("Import", "0 × \(type.displayName)",
+                          detail: "No source produced this metric in this sync.")
+                continue
             }
+            let bySource = Dictionary(grouping: ofType, by: { $0.source.displayName })
+                .map { "\($0.key): \($0.value.count)" }
+                .sorted()
+            let newest = ofType.map(\.start).max()
+            var lines = ["By source — \(bySource.joined(separator: ", "))"]
+            if let newest {
+                lines.append("Most recent: \(newest.formatted(date: .abbreviated, time: .shortened))")
+            }
+            diag.ok("Import", "\(ofType.count) × \(type.displayName)",
+                    detail: lines.joined(separator: "\n"))
         }
+    }
+
+    /// Say *what* the sanitiser dropped, not just how many. A bare count can't
+    /// distinguish "a provider sent placeholder zeros" from "a metric vanished".
+    private func logSanitiserDrops(_ dropped: [HealthMetricSample], diag: DiagnosticsLog) {
+        guard !dropped.isEmpty else { return }
+        let breakdown = Dictionary(grouping: dropped) {
+            "\($0.type.displayName) from \($0.source.displayName)"
+        }
+        .map { "· \($0.value.count) × \($0.key)" }
+        .sorted()
+        let span = dropped.map(\.start)
+        var lines = ["A source sent a non-positive value for a metric that can't legitimately be zero (usually a missing-data placeholder), so it was dropped rather than charted as 0."]
+        lines += breakdown
+        if let first = span.min(), let last = span.max() {
+            lines.append("Dates affected: \(first.formatted(date: .abbreviated, time: .omitted)) → \(last.formatted(date: .abbreviated, time: .omitted))")
+        }
+        diag.null("Sanitiser", "Dropped \(dropped.count) empty/invalid vital sample(s)",
+                  detail: lines.joined(separator: "\n"))
     }
 
     private func recompute() {

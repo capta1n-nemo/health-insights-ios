@@ -223,6 +223,39 @@ network round-trip (catches pasting the redirect URI or console URL by
 mistake) without being strict about actual key shape, since providers issue
 UUIDs, hex strings and opaque tokens interchangeably.
 
+### Scopes, 401s, and why the log must carry the response body
+
+Oura returns **401, not 403, when a token is missing a scope** — it reserves 403
+for a lapsed subscription — and names the scopes it wanted in the RFC7807
+`detail` field of the body. So a token that fetches `daily_sleep` happily can
+401 on `daily_resilience` in the same sync, and a log line that reads only
+`HTTP 401` is undiagnosable. `ProviderAPIError` therefore unpacks every ≥400
+body (`title` / `detail` / `error_description`, plus Oura's `x-trace-id`
+header) into the diagnostics detail, along with a plain-English remedy per
+status code.
+
+Two more things make a partial grant visible rather than mysterious:
+
+- The OAuth **callback** carries the scopes actually granted (`?code=…&scope=…`),
+  which Oura warns "may be different than the scopes that were requested" —
+  its consent screen lets the user switch scopes off individually. `connect()`
+  captures that list into `OAuthTokens.grantedScopes`, logs anything withheld,
+  and every sync re-states it. The token *response* has no scope field, so a
+  refresh carries the stored list forward rather than losing it.
+- `getJSON` refreshes the access token **once** on a 401 and retries. Without
+  it, `validAccessToken()` only ever refreshed against the locally-stored
+  expiry — and `isExpired` is `false` whenever the provider omitted
+  `expires_in`, so a server-side revocation was unrecoverable. Refreshes are
+  coalesced through a single in-flight `Task` and disabled for the rest of a
+  sync once one fails, because Oura's refresh tokens are single-use: nine
+  endpoints each refreshing on their own 401 would revoke the grant instead of
+  repairing it.
+
+Known gap, surfaced in the log rather than silently swallowed: Oura paginates
+with `next_token` and the client reads only the first page, so
+`OuraProvider.describeResponse` logs a warning naming the collection whenever
+more pages exist.
+
 ## Keychain storage
 
 Two layers: `KeychainStore` (`HealthInsights/Core/Persistence/KeychainStore.swift`)

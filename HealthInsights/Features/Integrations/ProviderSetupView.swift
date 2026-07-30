@@ -247,7 +247,7 @@ struct ProviderSetupView: View {
                 "You'll land on the OAuth Applications page. Click \u{201C}Create New Application\u{201D}.",
                 "Give it any name (e.g. \u{201C}My Health Insights\u{201D}).",
                 "In \u{201C}Redirect URIs\u{201D}, paste the address below with the Copy button, then press Enter/Add so it's saved in the list.",
-                "Make sure the data scopes are ticked: Daily, Heart Rate, Personal, Session, Workout (tick all available).",
+                "Tick every data scope Oura offers — Daily, Heart Rate, Personal, Session, Workout, SpO2 and anything else listed. A scope left unticked doesn't fail loudly: the endpoints that need it just return \u{201C}401\u{201D} on every sync.",
                 "Save the application. Copy the \u{201C}Client ID\u{201D} and \u{201C}Client Secret\u{201D} it shows.",
                 "Paste both below and tap Save & Connect."
             ]

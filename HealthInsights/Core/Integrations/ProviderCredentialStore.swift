@@ -5,11 +5,24 @@ struct OAuthTokens: Codable {
     var accessToken: String
     var refreshToken: String?
     var expiresAt: Date?
+    /// The scopes the provider actually granted, as reported on the OAuth
+    /// callback. Oura warns that this "may be different than the scopes that
+    /// were requested" — the consent screen lets the user switch individual
+    /// scopes off — and a token missing a scope fails only the endpoints that
+    /// need it, with a 401. Optional so tokens stored by earlier builds still
+    /// decode.
+    var grantedScopes: [String]? = nil
 
     var isExpired: Bool {
         guard let expiresAt else { return false }
         // Refresh a little early to avoid edge-of-expiry failures.
         return Date() >= expiresAt.addingTimeInterval(-60)
+    }
+
+    /// A human-readable summary for the diagnostics log.
+    var scopeSummary: String {
+        guard let grantedScopes else { return "unknown (granted before this build recorded them)" }
+        return grantedScopes.isEmpty ? "none reported" : grantedScopes.joined(separator: " ")
     }
 }
 

@@ -12,10 +12,17 @@ struct TroubleshootingView: View {
     @State private var filter: DiagnosticsLog.Status?
     @State private var copied = false
     @State private var resetCopied: Task<Void, Never>?
+    /// Which entries have their evidence expanded. Details are long (a server's
+    /// error body plus what to do about it), so they stay folded until asked for.
+    @State private var expanded: Set<UUID> = []
 
     private var shown: [DiagnosticsLog.Entry] {
         guard let filter else { return log.entries }
         return log.entries.filter { $0.status == filter }
+    }
+
+    private var failures: [DiagnosticsLog.Entry] {
+        log.entries.filter { $0.status == .fail }
     }
 
     var body: some View {
@@ -29,7 +36,23 @@ struct TroubleshootingView: View {
                 }
                 .pickerStyle(.segmented)
             } footer: {
-                Text("A running record of syncs, API calls and imported data. Nothing here leaves your phone.")
+                Text("A running record of syncs, API calls and imported data. Tap any line with a \u{201C}Details\u{201D} arrow to see the exact request, the provider's own error message, and what to do about it. Nothing here leaves your phone unless you copy it.")
+            }
+
+            // Anything red gets its own summary at the top, so a problem doesn't
+            // have to be hunted for among hundreds of successful imports. Skipped
+            // when already filtered to failures — that list is the same thing.
+            if !failures.isEmpty, filter != .fail {
+                Section {
+                    ForEach(failures.prefix(5)) { entry in row(entry) }
+                    if failures.count > 5 {
+                        Button("Show all \(failures.count) failures") { filter = .fail }
+                            .font(.subheadline)
+                    }
+                } header: {
+                    Label("\(failures.count) failure\(failures.count == 1 ? "" : "s")", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Theme.bad)
+                }
             }
 
             if shown.isEmpty {
@@ -53,8 +76,12 @@ struct TroubleshootingView: View {
                     Button {
                         copyLog()
                     } label: { Label(copied ? "Copied" : "Copy log", systemImage: "doc.on.doc") }
+                    ShareLink(item: log.exportText()) {
+                        Label("Share log", systemImage: "square.and.arrow.up")
+                    }
                     Button(role: .destructive) {
                         log.clear()
+                        expanded.removeAll()
                     } label: { Label("Clear", systemImage: "trash") }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -73,7 +100,37 @@ struct TroubleshootingView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text("\(entry.category) · \(entry.date.formatted(date: .omitted, time: .standard))")
                     .font(.caption2).foregroundStyle(.secondary)
+                if let detail = entry.detail {
+                    detailDisclosure(entry, detail)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func detailDisclosure(_ entry: DiagnosticsLog.Entry, _ detail: String) -> some View {
+        let isOpen = expanded.contains(entry.id)
+        Button {
+            Haptics.tap()
+            withAnimation(.snappy) {
+                if isOpen { expanded.remove(entry.id) } else { expanded.insert(entry.id) }
+            }
+        } label: {
+            Label(isOpen ? "Hide details" : "Details",
+                  systemImage: isOpen ? "chevron.down" : "chevron.right")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(Theme.accent)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 2)
+
+        if isOpen {
+            Text(detail)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
         }
     }
 
