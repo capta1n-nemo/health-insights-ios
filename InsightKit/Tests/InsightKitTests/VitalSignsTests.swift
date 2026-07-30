@@ -1,78 +1,258 @@
 import XCTest
 @testable import InsightKit
 
+/// A pinned "now" and a UTC calendar: the check buckets by calendar day, so a
+/// machine in another zone (or a DST boundary) would bucket differently.
+private let vitalsNow = Date(timeIntervalSince1970: 1_700_000_000)
+private let vitalsCalendar: Calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = TimeZone(identifier: "UTC")!
+    return c
+}()
+
+/// Midday `n` days before the pinned now, so a reading can't straddle midnight.
+private func vitalsDay(_ n: Int) -> Date {
+    vitalsCalendar.startOfDay(for: vitalsNow.addingTimeInterval(-Double(n) * 86_400))
+        .addingTimeInterval(12 * 3600)
+}
+
 final class VitalSignsTests: XCTestCase {
+
+    /// One reading per day, newest last, ending today.
     private func series(_ type: MetricType, _ values: [Double],
                         source: MetricSource = .appleHealth) -> [HealthMetricSample] {
         values.enumerated().map { index, value in
             HealthMetricSample(type: type, value: value,
-                               start: Date().addingTimeInterval(Double(index - values.count) * 86_400),
-                               source: source)
+                               start: vitalsDay(values.count - 1 - index), source: source)
         }
     }
 
+    /// A settled fortnight, so there is enough history to judge against.
+    private func settled(_ type: MetricType, _ level: Double, days: Int = 14,
+                         jitter: Double = 1) -> [Double] {
+        (0..<days).map { level + Double($0 % 3) * jitter - jitter }
+    }
+
+    private func evaluate(_ samples: [HealthMetricSample]) -> VitalSignsCheck.Output {
+        VitalSignsCheck.evaluate(samples: samples, now: vitalsNow, calendar: vitalsCalendar)
+    }
+
+    private func reading(_ output: VitalSignsCheck.Output,
+                         _ metric: MetricType) -> VitalSignsCheck.Reading? {
+        output.readings.first { $0.metric == metric }
+    }
+
+    // MARK: - Behaviour that must not regress
+
     func testStableVitalReadsNormal() {
-        let samples = series(.restingHeartRate, [55, 56, 54, 55, 56, 55])
-        let reading = VitalSignsCheck.evaluate(samples: samples).readings.first
-        XCTAssertEqual(reading?.metric, .restingHeartRate)
-        XCTAssertEqual(reading?.status, .normal)
+        let output = evaluate(series(.restingHeartRate, settled(.restingHeartRate, 55)))
+        XCTAssertEqual(reading(output, .restingHeartRate)?.status, .normal)
     }
 
     func testSpikeInAConcerningDirectionIsUnusual() {
-        // Resting HR jumping well above a tight baseline.
-        let samples = series(.restingHeartRate, [55, 56, 54, 55, 56, 78])
-        let output = VitalSignsCheck.evaluate(samples: samples)
-        XCTAssertEqual(output.readings.first?.status, .unusual)
+        let output = evaluate(series(.restingHeartRate, settled(.restingHeartRate, 55) + [78]))
+        XCTAssertEqual(reading(output, .restingHeartRate)?.status, .unusual)
         XCTAssertEqual(output.headline, "1 unusual")
     }
 
     func testDropInAGoodDirectionIsNotAlarming() {
         // The same magnitude of departure, downwards — recovery, not a problem.
-        let samples = series(.restingHeartRate, [60, 61, 59, 60, 61, 45])
-        let reading = VitalSignsCheck.evaluate(samples: samples).readings.first
-        XCTAssertEqual(reading?.status, .watch)
-        XCTAssertTrue(reading?.note.contains("below") ?? false)
+        let output = evaluate(series(.restingHeartRate, settled(.restingHeartRate, 60) + [42]))
+        let r = reading(output, .restingHeartRate)
+        XCTAssertEqual(r?.status, .watch)
+        XCTAssertTrue(r?.note.contains("below") ?? false)
     }
 
     func testAbsoluteFloorOverridesAPermissiveBaseline() {
-        // A baseline built from consistently low saturation must not make 89%
+        // A baseline built from consistently low saturation must not make it
         // read as normal.
-        let samples = series(.oxygenSaturation, [89, 89, 90, 89, 89, 89])
-        let reading = VitalSignsCheck.evaluate(samples: samples).readings.first
-        XCTAssertEqual(reading?.status, .unusual)
-        XCTAssertTrue(reading?.note.contains("healthy range") ?? false)
+        let output = evaluate(series(.oxygenSaturation, settled(.oxygenSaturation, 90, jitter: 0.5)))
+        let r = reading(output, .oxygenSaturation)
+        XCTAssertEqual(r?.status, .unusual)
+        XCTAssertTrue(r?.note.contains("healthy range") ?? false)
     }
 
     func testPreviouslyOrphanedMetricsAreNowRead() {
-        // Heart rate, walking heart rate, blood oxygen and body temperature had
-        // no reader at all before this insight existed.
         var samples: [HealthMetricSample] = []
-        samples += series(.heartRate, [70, 72, 71, 69, 70, 71])
-        samples += series(.walkingHeartRateAverage, [95, 96, 94, 95, 96, 95])
-        samples += series(.oxygenSaturation, [97, 98, 97, 97, 98, 97])
-        samples += series(.bodyTemperature, [36.6, 36.7, 36.6, 36.5, 36.6, 36.6])
-        let covered = Set(VitalSignsCheck.evaluate(samples: samples).readings.map(\.metric))
+        samples += series(.heartRate, settled(.heartRate, 70))
+        samples += series(.walkingHeartRateAverage, settled(.walkingHeartRateAverage, 95))
+        samples += series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5))
+        samples += series(.bodyTemperature, settled(.bodyTemperature, 36.6, jitter: 0.1))
+        let covered = Set(evaluate(samples).readings.map(\.metric))
         XCTAssertTrue(covered.isSuperset(of: [.heartRate, .walkingHeartRateAverage,
                                               .oxygenSaturation, .bodyTemperature]))
     }
 
     func testNoDataProducesAGracefulResult() {
-        let result = VitalSignsInsight().evaluate(samples: [], profile: UserHealthProfile(), now: Date())
+        let result = VitalSignsInsight().evaluate(samples: [], profile: UserHealthProfile(), now: vitalsNow)
         XCTAssertNil(result.primaryValue)
         XCTAssertEqual(result.headline, "No data yet")
-    }
-
-    func testAllNormalScoresFull() {
-        let samples = series(.restingHeartRate, [55, 56, 54, 55, 56, 55])
-            + series(.oxygenSaturation, [97, 98, 97, 97, 98, 97])
-        let result = VitalSignsInsight().evaluate(samples: samples, profile: UserHealthProfile(), now: Date())
-        XCTAssertEqual(result.score, 100)
-        XCTAssertEqual(result.headline, "All normal")
     }
 
     func testVitalSignsIsATodayCard() {
         XCTAssertEqual(InsightID.vitalSigns.cadence, .daily)
         XCTAssertTrue(InsightEngine().models.contains { $0.id == .vitalSigns })
+    }
+
+    // MARK: - The defects that made 100 trivial
+
+    /// The old baseline was `suffix(60)` — sixty *readings*. For a vital sampled
+    /// hundreds of times a day that is a few hours, so the baseline tracked the
+    /// very episode it was supposed to detect and a sustained elevation was
+    /// undetectable. Every old fixture was one sample per day, the one shape
+    /// where that bug is invisible.
+    func testASustainedElevationIsFlaggedEvenWhenDenselySampled() {
+        var samples: [HealthMetricSample] = []
+        // A fortnight of settled days, 24 readings each. The day-to-day term
+        // matters: without it every daily mean is identical, the baseline has
+        // no spread, and no z-score can be formed at all.
+        for day in 1...14 {
+            for hour in 0..<24 {
+                samples.append(HealthMetricSample(
+                    type: .heartRate,
+                    value: 62 + Double(hour % 5) + Double(day % 3),
+                    start: vitalsDay(day).addingTimeInterval(Double(hour) * 3600),
+                    source: .appleHealth))
+            }
+        }
+        // Today: elevated all day, so the last 60 readings are all high.
+        for hour in 0..<24 {
+            samples.append(HealthMetricSample(
+                type: .heartRate, value: 96 + Double(hour % 5),
+                start: vitalsDay(0).addingTimeInterval(Double(hour) * 3600),
+                source: .appleHealth))
+        }
+        let r = reading(evaluate(samples), .heartRate)
+        XCTAssertEqual(r?.status, .unusual,
+                       "a day-long elevation must not be normalised by its own readings")
+        // And the value reported is the day's mean, not one raw sample.
+        XCTAssertEqual(r?.value ?? 0, 98, accuracy: 1.0)
+    }
+
+    /// `now` used to be accepted and never read, so a months-old reading was
+    /// reported as today's vital, counted toward "All normal", and bought high
+    /// confidence.
+    func testAStaleReadingIsExcludedRatherThanCountedNormal() {
+        // Ten days back: past its 3-day freshness window, but still inside the
+        // 30-day window that says this is a vital the user does record.
+        let old = series(.walkingHeartRateAverage, settled(.walkingHeartRateAverage, 95))
+            .map { HealthMetricSample(type: $0.type, value: $0.value,
+                                      start: $0.start.addingTimeInterval(-10 * 86_400),
+                                      source: $0.source) }
+        let fresh = series(.restingHeartRate, settled(.restingHeartRate, 55))
+        let output = evaluate(old + fresh)
+
+        XCTAssertNil(reading(output, .walkingHeartRateAverage))
+        XCTAssertEqual(output.stale.map(\.metric), [.walkingHeartRateAverage])
+        XCTAssertNotEqual(output.headline, "All normal")
+    }
+
+    func testStaleReadingsDropCoverageAndTheScoreWithIt() {
+        let stale = series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5))
+            .map { HealthMetricSample(type: $0.type, value: $0.value,
+                                      start: $0.start.addingTimeInterval(-10 * 86_400),
+                                      source: $0.source) }
+        let fresh = series(.restingHeartRate, settled(.restingHeartRate, 55))
+
+        let full = evaluate(fresh + series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5)))
+        let partial = evaluate(fresh + stale)
+
+        XCTAssertEqual(full.coverage, 1, accuracy: 1e-9)
+        XCTAssertEqual(partial.coverage, 0.5, accuracy: 1e-9)
+        XCTAssertGreaterThan(full.score ?? 0, partial.score ?? 0,
+                             "half the vitals missing must not score the same as all of them")
+    }
+
+    /// Two paths for the same physical device disagreeing by a few bpm used to
+    /// set the standard deviation, swamping the physiological variance the
+    /// z-score is supposed to measure — so nothing ever cleared the threshold.
+    func testASecondSourceDoesNotInflateVarianceIntoSilence() {
+        let watch = series(.restingHeartRate, settled(.restingHeartRate, 55) + [75],
+                           source: .appleHealth)
+        // A second instrument reading systematically ~7 bpm higher.
+        let ring = series(.restingHeartRate, settled(.restingHeartRate, 62) + [82],
+                          source: .oura)
+        XCTAssertEqual(reading(evaluate(watch + ring), .restingHeartRate)?.status, .unusual)
+    }
+
+    /// One reading is not a clean bill of health.
+    func testTooLittleHistoryIsNotReportedAsNormal() {
+        let output = evaluate(series(.restingHeartRate, [55, 56]))
+        let r = reading(output, .restingHeartRate)
+        XCTAssertEqual(r?.status, .insufficientHistory)
+        XCTAssertNotEqual(output.headline, "All normal")
+    }
+
+    /// The score was `100 - (unusual*25 + watch*10)`, so z = 1.2499 cost nothing
+    /// and z = 1.2500 cost ten. Normality is now continuous.
+    func testNormalityIsContinuousAcrossTheOldThreshold() {
+        let spec = VitalSignsCheck.specs.first { $0.metric == .restingHeartRate }!
+        let a = VitalSignsCheck.normality(z: 1.24, spec: spec)
+        let b = VitalSignsCheck.normality(z: 1.26, spec: spec)
+        XCTAssertLessThan(abs(a - b), 1, "no cliff at the old watch threshold")
+        // And it is monotonic in |z| rather than flat inside the band.
+        XCTAssertGreaterThan(VitalSignsCheck.normality(z: 0, spec: spec),
+                             VitalSignsCheck.normality(z: 1, spec: spec))
+        XCTAssertGreaterThan(VitalSignsCheck.normality(z: 1, spec: spec),
+                             VitalSignsCheck.normality(z: 2, spec: spec))
+    }
+
+    /// A card headlined "All normal" used to carry a driver line reading
+    /// "a little above your baseline".
+    func testStatusAndNoteNeverContradict() {
+        // 58.75 lands at z ≈ -1.42 against this baseline: inside the old
+        // watch band, but downward on a metric where down is good. That kept
+        // `.normal` and still rewrote the note, which is the contradiction.
+        let output = evaluate(series(.restingHeartRate, settled(.restingHeartRate, 60) + [58.75]))
+        let r = reading(output, .restingHeartRate)
+        XCTAssertEqual(r?.status, .normal)
+        XCTAssertEqual(r?.note, "in your normal range")
+    }
+
+    /// 100 should require everything you normally record to have been measured
+    /// today *and* to sit on its baseline.
+    func testAPerfectScoreNeedsFullCoverageAndCentredReadings() {
+        var samples: [HealthMetricSample] = []
+        for (metric, level, jitter) in [(MetricType.restingHeartRate, 55.0, 1.0),
+                                        (.heartRate, 70.0, 1.0),
+                                        (.oxygenSaturation, 98.0, 0.5),
+                                        (.respiratoryRate, 15.0, 0.5)] {
+            var values = settled(metric, level, jitter: jitter)
+            values.append(level)             // today: exactly on the mean
+            samples += series(metric, values)
+        }
+        let output = evaluate(samples)
+        XCTAssertEqual(output.coverage, 1, accuracy: 1e-9)
+        XCTAssertGreaterThan(output.score ?? 0, 90)
+    }
+
+    func testARelativeCollapseIsCaughtWhereAZScoreCannotSeeIt() {
+        // HRV drifting down for weeks: each day is unremarkable against the
+        // days before it, but the level has halved.
+        let drifting = (0..<20).map { 90 - Double($0) * 3 }
+        let output = evaluate(series(.heartRateVariabilityRMSSD, drifting))
+        XCTAssertEqual(reading(output, .heartRateVariabilityRMSSD)?.status, .unusual)
+    }
+
+    func testWalkingHeartRateBoundCanActuallyFire() {
+        // The old hardHigh of 130 sat above any real walking heart rate.
+        let output = evaluate(series(.walkingHeartRateAverage,
+                                     settled(.walkingHeartRateAverage, 118, jitter: 0.5)))
+        XCTAssertEqual(reading(output, .walkingHeartRateAverage)?.status, .unusual)
+    }
+
+    func testScoreIsDominatedByTheWorstSignalNotAveragedAway() {
+        var healthy: [HealthMetricSample] = []
+        for (metric, level, jitter) in [(MetricType.restingHeartRate, 55.0, 1.0),
+                                        (.heartRate, 70.0, 1.0),
+                                        (.respiratoryRate, 15.0, 0.5)] {
+            healthy += series(metric, settled(metric, level, jitter: jitter) + [level])
+        }
+        // One clearly abnormal vital alongside three clean ones.
+        let withOutlier = healthy + series(.oxygenSaturation,
+                                           settled(.oxygenSaturation, 98, jitter: 0.5) + [88])
+        let score = evaluate(withOutlier).score ?? 100
+        XCTAssertLessThan(score, 50, "an abnormal SpO2 must not be averaged away")
     }
 }
 

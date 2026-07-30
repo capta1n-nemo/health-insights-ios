@@ -44,6 +44,8 @@ final class AppModel {
         vitalsSummaryCache = nil
         bloodPressureCache = nil
         scoreHistories.removeAll()
+        scoreHistoryTasks.removeAll()
+        scoreHistoryGeneration &+= 1
         overlayCache.removeAll()
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -483,30 +485,60 @@ final class AppModel {
             dataStore.recordScore(result.id, score: score, confidence: result.confidence,
                                   contributorCount: result.contributors.count)
         }
-        scoreHistories.removeAll()
-        overlayCache.removeAll()
+        // Grounding and substance edits reach here without touching `samples`,
+        // so the sample-set invalidation hook won't have fired.
+        invalidateDerivedCaches()
     }
 
     // MARK: - Score history
 
-    /// Replayed-and-merged score history per insight, built on first request.
+    /// Replayed-and-merged score history per insight, filled in the background.
     ///
     /// Not computed in `recompute()`: a replay walks the sample set once per day
     /// of history, and doing that for eleven insights on every refresh would
     /// cost far more than the two or three screens the user actually opens.
-    @ObservationIgnored private var scoreHistories: [InsightID: [ScorePoint]] = [:]
+    ///
+    /// Observable, unlike the other derived caches, because it is written from a
+    /// background task *after* the view body has returned rather than during it
+    /// — so publishing the result is what makes the chart appear, and there is
+    /// no mid-render mutation to guard against.
+    private(set) var scoreHistories: [InsightID: [ScorePoint]] = [:]
+    /// Replays already in flight, so a view that re-renders while one is running
+    /// doesn't start a second.
+    @ObservationIgnored private var scoreHistoryTasks: Set<InsightID> = []
+    /// Bumped whenever the sample set changes. A replay that started before the
+    /// bump is discarded on arrival rather than writing a chart built from data
+    /// that has since been replaced.
+    @ObservationIgnored private var scoreHistoryGeneration = 0
 
     /// Score over time for one insight — stored days where we have them, laid
     /// over days reconstructed from the raw samples.
+    ///
+    /// Returns empty and computes off the main actor on first request. Vitals
+    /// Check is why: its baseline is now built per source from daily buckets,
+    /// which means de-duplicating tens of thousands of heart-rate samples once
+    /// per replayed day. Correct, but far too slow to run inside a view body.
     func scoreHistory(for id: InsightID, days: Int = 90) -> [ScorePoint] {
         if let cached = scoreHistories[id] { return cached }
+        guard !scoreHistoryTasks.contains(id) else { return [] }
+        guard let model = engine.models.first(where: { $0.id == id }) else { return [] }
+        scoreHistoryTasks.insert(id)
+
+        let samples = self.samples
+        let profile = self.profile
         let stored = dataStore.scoreHistory(for: id)
-        let replayed = engine.models.first { $0.id == id }
-            .map { ScoreHistory.replay(model: $0, samples: samples, profile: profile, days: days) }
-            ?? []
-        let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
-        scoreHistories[id] = merged
-        return merged
+        let generation = scoreHistoryGeneration
+        Task.detached(priority: .userInitiated) {
+            let replayed = ScoreHistory.replay(model: model, samples: samples,
+                                               profile: profile, days: days)
+            let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
+            await MainActor.run { [weak self] in
+                guard let self, self.scoreHistoryGeneration == generation else { return }
+                self.scoreHistories[id] = merged
+                self.scoreHistoryTasks.remove(id)
+            }
+        }
+        return []
     }
 
     /// Standardised daily series for an insight's inputs, cached per insight and

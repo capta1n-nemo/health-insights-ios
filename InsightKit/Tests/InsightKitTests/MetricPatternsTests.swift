@@ -153,13 +153,53 @@ final class PatternFinderTests: XCTestCase {
     }
 
     func testWeakCorrelationsAreSuppressed() {
-        // Same direction (so no divergence) but unrelated day to day.
+        // Same direction (so no divergence) but unrelated day to day. Two
+        // different families, so the suppression under test is the r floor and
+        // not the family rule.
         let a = (0..<30).map { Double($0 % 7) + Double($0) * 0.01 }
         let b = (0..<30).map { Double(($0 * 3) % 5) + Double($0) * 0.01 }
         let found = PatternFinder.patterns(
-            in: [series(.respiratoryRate, a), series(.oxygenSaturation, b)],
+            in: [series(.respiratoryRate, a), series(.restingHeartRate, b)],
             minimumMagnitude: 0.95, calendar: patternCalendar)
         XCTAssertTrue(found.filter { $0.kind == .coMovement }.isEmpty)
+    }
+
+    /// "On days when heart rate changes, resting heart rate tends to as well
+    /// (r = 0.75)" reached the screen. It is a fact about how resting heart rate
+    /// is derived, not an observation about the person, and it displaced real
+    /// cross-system findings.
+    func testTautologicalSameFamilyPairsAreNotReported() {
+        let base = (0..<30).map { Double(($0 * 7) % 11) }
+        let found = PatternFinder.patterns(
+            in: [series(.heartRate, base),
+                 series(.restingHeartRate, base.map { $0 * 0.8 + 40 })],
+            calendar: patternCalendar)
+        XCTAssertTrue(found.filter { $0.kind == .coMovement }.isEmpty,
+                      "heart rate and resting heart rate are one family")
+    }
+
+    /// The sentence claims a superlative, so only one metric may carry it.
+    /// Two were being emitted, both saying "more closely than the others".
+    func testOnlyTheStrongestDriverIsReported() {
+        let a = (0..<30).map { Double(($0 * 5) % 13) }
+        let b = (0..<30).map { Double(($0 * 5) % 13) * 0.9 + 1 }
+        let scores = a.enumerated().map { offset, value in
+            ScorePoint(date: patternDay(a.count - 1 - offset), score: 40 + value * 3,
+                       confidence: .high, contributorCount: 4)
+        }
+        let found = PatternFinder.patterns(
+            in: [series(.sleepDurationHours, a), series(.oxygenSaturation, b)],
+            against: scores, calendar: patternCalendar)
+        XCTAssertEqual(found.filter { $0.kind == .driver }.count, 1)
+    }
+
+    func testAcronymsSurviveMidSentence() {
+        XCTAssertEqual(MetricType.heartRateVariabilityRMSSD.inSentence, "HRV (rMSSD)")
+        XCTAssertEqual(MetricType.heartRateVariabilitySDNN.inSentence, "HRV (SDNN)")
+        XCTAssertEqual(MetricType.oxygenSaturation.inSentence, "blood oxygen")
+        XCTAssertEqual(MetricType.restingHeartRate.inSentence, "resting heart rate")
+        // Ordinary words fall to lower case; the bracketed acronym does not.
+        XCTAssertEqual(MetricType.vo2Max.inSentence, "cardio fitness (VO₂max)")
     }
 
     func testCoMovementIsFoundBetweenTwoSignalsThatTrackEachOther() {

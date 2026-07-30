@@ -89,4 +89,19 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bodyTemperature, .skinTemperatureDeviation: return "°C"
         }
     }
+
+    /// The display name as it should read mid-sentence.
+    ///
+    /// Not `displayName.lowercased()`, which mangles the acronyms — that is how
+    /// "on days when hrv (rmssd) changes" reached the screen. A word is
+    /// lowercased only when it looks like ordinary prose; anything carrying an
+    /// inner capital or a digit (HRV, rMSSD, SDNN, VO₂max) is left as written.
+    public var inSentence: String {
+        displayName.split(separator: " ").map { word -> String in
+            let letters = word.drop { !$0.isLetter && !$0.isNumber }
+            let looksLikeAnAcronym = letters.dropFirst().contains { $0.isUppercase || $0.isNumber }
+            return looksLikeAnAcronym ? String(word) : word.lowercased()
+        }
+        .joined(separator: " ")
+    }
 }

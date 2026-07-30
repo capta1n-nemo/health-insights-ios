@@ -29,7 +29,46 @@ public enum MetricPresentation: String, Sendable, CaseIterable {
     public var showsChart: Bool { self != .staticAttribute }
 }
 
+/// Metrics that measure the same underlying system.
+///
+/// Two uses, both of which need the same grouping. It stops the patterns card
+/// reporting tautologies — "on days when heart rate changes, resting heart rate
+/// tends to as well" is a fact about how resting heart rate is derived, not an
+/// observation about the person — and it is what an overlay chart colours by
+/// once there are more metrics than there are distinguishable hues.
+public enum MetricFamily: String, Sendable, CaseIterable {
+    case cardiac, autonomic, respiratory, thermal, circulatory, body, activity, sleep
+
+    public var displayName: String {
+        switch self {
+        case .cardiac: return "Heart rate"
+        case .autonomic: return "Heart rate variability"
+        case .respiratory: return "Breathing"
+        case .thermal: return "Temperature"
+        case .circulatory: return "Circulation"
+        case .body: return "Body composition"
+        case .activity: return "Activity"
+        case .sleep: return "Sleep"
+        }
+    }
+}
+
 public extension MetricType {
+    /// Which system this metric measures. Exhaustive, like the rest of this file.
+    var family: MetricFamily {
+        switch self {
+        case .heartRate, .restingHeartRate, .walkingHeartRateAverage: return .cardiac
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN: return .autonomic
+        case .respiratoryRate, .oxygenSaturation: return .respiratory
+        case .bodyTemperature, .skinTemperatureDeviation: return .thermal
+        case .bloodPressureSystolic, .bloodPressureDiastolic, .vascularAge: return .circulatory
+        case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
+             .boneMass, .bodyWaterPercentage, .height: return .body
+        case .stepCount, .activeEnergyBurned, .vo2Max, .dayStrain: return .activity
+        case .sleepDurationHours: return .sleep
+        }
+    }
+
     /// Which slot of the eight-hue categorical palette this metric wears on an
     /// overlay chart.
     ///

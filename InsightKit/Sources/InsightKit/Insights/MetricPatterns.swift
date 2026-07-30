@@ -83,9 +83,13 @@ public enum PatternFinder {
             }
         }
 
-        // Co-movement between two metrics.
+        // Co-movement between two metrics — but never within one family.
+        // "On days when heart rate changes, resting heart rate tends to as
+        // well (r = 0.75)" is a fact about how resting heart rate is derived,
+        // and it crowded genuine cross-system observations off the card.
         for i in series.indices {
             for j in series.indices where j > i {
+                guard series[i].metric.family != series[j].metric.family else { continue }
                 let paired = align(series[i], series[j], calendar: calendar)
                 guard paired.count >= minimumPairs,
                       let r = Baseline.correlation(x: paired.map { $0.0 }, y: paired.map { $0.1 }),
@@ -98,18 +102,27 @@ public enum PatternFinder {
             }
         }
 
-        // What moves the score itself.
+        // What moves the score itself. Only the strongest is reported: the
+        // sentence claims a superlative ("more closely than the others"), and
+        // emitting it per metric put two signals on screen both claiming to be
+        // the closest, with the same r.
         if let score, score.count >= minimumPairs {
             let scoreSeries = score.map { (calendar.startOfDay(for: $0.date), $0.score) }
+            var best: (metric: MetricType, r: Double, n: Int)?
             for one in series {
                 let paired = align(one, to: scoreSeries, calendar: calendar)
                 guard paired.count >= minimumPairs,
                       let r = Baseline.correlation(x: paired.map { $0.0 }, y: paired.map { $0.1 }),
                       abs(r) >= minimumMagnitude else { continue }
+                if best == nil || abs(r) > abs(best!.r) {
+                    best = (one.metric, r, paired.count)
+                }
+            }
+            if let best {
                 found.append(MetricPattern(
-                    kind: .driver, a: one.metric, b: nil,
-                    statistic: r, sampleCount: paired.count,
-                    sentence: driverSentence(one.metric, r: r, n: paired.count)))
+                    kind: .driver, a: best.metric, b: nil,
+                    statistic: best.r, sampleCount: best.n,
+                    sentence: driverSentence(best.metric, r: best.r, n: best.n)))
             }
         }
 
@@ -145,7 +158,7 @@ public enum PatternFinder {
     static func divergenceSentence(rising: NormalizedSeries, falling: NormalizedSeries) -> String {
         let up = changePhrase(rising, rising: true)
         let down = changePhrase(falling, rising: false)
-        return "\(rising.metric.displayName) has been \(up) while \(falling.metric.displayName.lowercased()) has been \(down)."
+        return "\(rising.metric.displayName) has been \(up) while \(falling.metric.inSentence) has been \(down)."
     }
 
     /// Describes a trend in the metric's own units, because "+0.4 SD a week"
@@ -165,12 +178,12 @@ public enum PatternFinder {
 
     static func coMovementSentence(_ a: MetricType, _ b: MetricType, r: Double, n: Int) -> String {
         let together = r > 0 ? "rise and fall together" : "move in opposite directions"
-        return "On days when \(a.displayName.lowercased()) changes, \(b.displayName.lowercased()) tends to as well — they \(together) (r = \(formatR(r)) over \(n) days). That's an association, not a cause."
+        return "On days when \(a.inSentence) changes, \(b.inSentence) tends to as well — they \(together) (r = \(formatR(r)) over \(n) days). That's an association, not a cause."
     }
 
     static func driverSentence(_ metric: MetricType, r: Double, n: Int) -> String {
         let direction = r > 0 ? "higher" : "lower"
-        return "\(metric.displayName) tracks this score more closely than the others — \(direction) \(metric.displayName.lowercased()) days tend to be better ones (r = \(formatR(r)) over \(n) days)."
+        return "\(metric.displayName) tracks this score more closely than any other signal — \(direction) \(metric.inSentence) days tend to be better ones (r = \(formatR(r)) over \(n) days)."
     }
 
     static func formatR(_ r: Double) -> String {
