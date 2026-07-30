@@ -47,3 +47,31 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
+
+  # Publishes the verdict as a git ref, so an agent can ask "did CI pass for
+  # this SHA" with `git ls-remote` — a few hundred bytes — instead of the
+  # GitHub Actions API, whose smallest run listing is ~450 KB (>100K tokens).
+  # That single call was the largest avoidable token cost in an agent session.
+  #
+  # Read it with: scripts/ci-status.sh [sha]
+  record-status:
+    name: Record CI result
+    needs: [unit-tests, app-build]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push verdict to refs/ci/<result>/<sha>
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.unit-tests.result }}" = "success" ] \
+             && [ "${{ needs.app-build.result }}" = "success" ]; then
+            result=passed
+          else
+            result=failed
+          fi
+          echo "CI $result for $GITHUB_SHA"
+          # A ref under refs/ci/ cannot trigger a workflow, so this cannot loop.
+          git push -f origin "HEAD:refs/ci/$result/$GITHUB_SHA"

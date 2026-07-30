@@ -1,18 +1,25 @@
 # Health Insights iOS App
 
 ## Primary Verification Commands
-- Unit Tests: `cd InsightKit && swift test`
-- Build Check: `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
+- **The gate, before every push:** `./scripts/verify.sh --tests`
+- No Swift in the sandbox? `./scripts/bootstrap-swift.sh && source scripts/swift-env.sh`
+  (~2 min, once). **InsightKit's full 330-test suite runs on Linux** — do not
+  assume otherwise.
+- After pushing: `./scripts/ci-status.sh --wait`. Never use the GitHub Actions
+  API for this; its smallest response is over 100K tokens.
+- Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
+  (the app target needs the iOS SDK, so CI is still the only gate for it).
 
 ## Automation Rules
 - Fully manage all files, including Xcode project structures, Swift files, and configurations.
 - Architecture: Swift 6, SwiftUI, `@Observable` view models (NO `ObservableObject`), `NavigationStack` (NO `NavigationView`), `@MainActor` on view models.
 - Treat static attributes (Height, Sex) separately from time-series vitals (Heart Rate, Weight).
-- Run `cd InsightKit && swift test` before every commit **when a Swift toolchain
-  exists**. Most agent sandboxes (Claude Code on the web) have none — `swift` is
-  simply absent, and no amount of retrying conjures it. Don't stall on it and
-  don't quietly skip it: say plainly in the reply that it couldn't run locally,
-  and treat the CI run triggered by the push as the gate instead.
+- Run `./scripts/verify.sh --tests` before every commit. A sandbox without Swift
+  is no longer an excuse — `scripts/bootstrap-swift.sh` installs one, and the two
+  Darwin-only APIs that used to make InsightKit unbuildable on Linux are behind
+  `#if canImport(Darwin)`. If the download genuinely fails (no network), say so
+  plainly in the reply and treat CI as the gate; never claim a check ran when it
+  didn't.
 - **Push finished work straight to `main`. Do not open pull requests.** The user
   does not want a review/approval step and will not log in to GitHub to merge
   one. Ask a pull request's worth of questions *before* writing code, not after.
@@ -30,6 +37,13 @@
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
 - `docs/progress.md` -> Feature roadmap checklist.
+
+## Skills — load these instead of re-deriving the rules
+- `verify-before-push` -> toolchain bootstrap, the local gate, reading CI cheaply.
+- `add-metric-type` -> the seven exhaustive switches a new `MetricType` feeds.
+  This is the most frequent way the build breaks; the skill lists all of them.
+- `add-chart` -> the `Chart3DContent` overload hazard, the dash-means-inferred
+  rule, per-chart hue resolution, and gap handling.
 
 ## End of Session Protocol
 When the user says "handover", "wrap up", or runs `/handover`:

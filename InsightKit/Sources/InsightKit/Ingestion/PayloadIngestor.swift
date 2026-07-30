@@ -175,7 +175,7 @@ public enum PayloadDate {
     }
 
     public static func parse(_ any: Any) -> Date? {
-        if let n = any as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() {
+        if let n = any as? NSNumber, !isJSONBoolean(n) {
             let seconds = n.doubleValue
             // Reject obvious non-timestamps so a numeric field named like a date
             // can't produce a sample in 1970 or the year 5000.

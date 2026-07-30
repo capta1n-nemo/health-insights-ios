@@ -308,11 +308,18 @@ final class PresentationTests: XCTestCase {
         XCTAssertFalse(text.hasPrefix("2"), "height was rounded to a whole metre: \(text)")
     }
 
+    /// Darwin only. Per-locale unit choice comes from `Measurement.formatted`,
+    /// which swift-corelibs-foundation does not have — see the note on
+    /// `MetricValueFormatter.lengthString`. The Linux fallback reports
+    /// centimetres so the other 330 tests can run in a sandbox; asserting
+    /// imperial output there would be asserting against a stub.
+    #if canImport(Darwin)
     func testHeightUsesFeetAndInchesInImperialLocales() {
         let text = MetricValueFormatter.string(1.85, .height, locale: Locale(identifier: "en_US"))
         XCTAssertTrue(text.contains("ft") || text.contains("′") || text.contains("foot"),
                       "expected an imperial height, got \(text)")
     }
+    #endif
 
     func testOtherMetricsKeepTheirExistingFormatting() {
         XCTAssertEqual(MetricValueFormatter.string(62.4, .heartRate), "62")

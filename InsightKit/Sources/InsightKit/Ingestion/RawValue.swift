@@ -84,7 +84,7 @@ public extension RawValue {
     init?(json: Any) {
         switch json {
         case let n as NSNumber:
-            if CFGetTypeID(n) == CFBooleanGetTypeID() { self = .flag(n.boolValue) }
+            if isJSONBoolean(n) { self = .flag(n.boolValue) }
             else { self = .number(n.doubleValue) }
         case let s as String:
             self = .text(s)

@@ -56,10 +56,27 @@ public enum MetricValueFormatter {
     /// The `.personHeight` usage is what produces "6 ft 1 in" rather than
     /// "6.07 ft" in imperial locales, and centimetres rather than metres in
     /// metric ones — which is also what keeps 1.85 m from collapsing to "2 m".
+    ///
+    /// `Measurement.formatted(_:)` is Darwin-only — swift-corelibs-foundation
+    /// has no `FormatStyle` for `Measurement`. This one expression was the sole
+    /// reason the whole package would not build on Linux, which meant no agent
+    /// sandbox could run `swift test` and every logic error had to be found by
+    /// pushing and waiting for CI. The device path is untouched; the fallback
+    /// exists so the other 400-odd tests can run anywhere.
     private static func lengthString(metres: Double, locale: Locale) -> String {
-        Measurement(value: metres, unit: UnitLength.meters)
+        #if canImport(Darwin)
+        return Measurement(value: metres, unit: UnitLength.meters)
             .formatted(.measurement(width: .abbreviated, usage: .personHeight)
                 .locale(locale))
+        #else
+        // Deliberately not a reimplementation of `.personHeight`: matching
+        // Apple's per-locale unit choice and "6 ft 1 in" splitting is not
+        // something to guess at, and `MeasurementFormatter` is itself
+        // unavailable here. Metric, to the centimetre — enough for a test to
+        // assert on, and never shipped to a device.
+        _ = locale
+        return String(format: "%.0f cm", metres * 100)
+        #endif
     }
 
     private static func grouped(_ value: Double) -> String {

@@ -690,6 +690,51 @@ layer on top, namespacing keys by provider id (`"\(providerID).clientID"`,
 `.clientSecret`, `.tokens`). Nothing health-related is stored here — only OAuth
 client credentials and tokens.
 
+## Running the tests anywhere
+
+`InsightKit` is a platform-free package, which was always the intent — but two
+Darwin-only Foundation APIs quietly broke it on Linux, and nobody noticed because
+CI runs on macOS. The consequence was expensive: agent sandboxes ship no Swift,
+so **every logic error had to be found by pushing and waiting ~90 s for CI**, and
+each status check cost a ~450 KB API response.
+
+Both are now behind `#if canImport(Darwin)`:
+
+- **`Measurement.formatted(_:)`** (`MetricValueFormatter.lengthString`) — there
+  is no `FormatStyle` for `Measurement` in swift-corelibs-foundation, and
+  `MeasurementFormatter` is explicitly unavailable there too. The Linux fallback
+  reports centimetres rather than guessing at Apple's `.personHeight` splitting;
+  the one test asserting imperial output is `#if canImport(Darwin)`.
+- **`CFBooleanGetTypeID`** (`Ingestion/JSONBoolean.swift`) — corelibs has no
+  `CFBoolean`. The Linux branch keys on the encoded `objCType`, verified
+  empirically rather than assumed: a JSON `true` is `c`, an integer is `i`, a
+  double is `d`. `boolValue` is no help — it is true for any non-zero number.
+
+Result: **330/330 tests pass on Swift 6.0.3 / Ubuntu 24.04.** The tooling is:
+
+| Script | What it does |
+| --- | --- |
+| `scripts/bootstrap-swift.sh` | Installs a Linux toolchain (~2 min, once per sandbox) |
+| `scripts/swift-env.sh` | `source` it to put `swift` on `PATH` |
+| `scripts/verify.sh` | Sub-second lint of the traps this repo has been broken by; `--tests` also runs the suite |
+| `scripts/ci-status.sh` | "Did CI pass for this SHA?" via `git ls-remote` |
+
+`verify.sh` exists because the compiler is the only thing that catches an
+unhandled `MetricType` case, and the compiler is what a sandbox lacks. It checks
+each exhaustive switch **by name** — grouped `case .a, .b:` arms make counting
+useless — and reports exactly which metric each one is missing.
+
+`ci-status.sh` reads a git ref rather than the Actions API. `ci.yml`'s
+`record-status` job pushes the verdict to `refs/ci/passed/<sha>` or
+`refs/ci/failed/<sha>`; refs under `refs/ci/` cannot trigger a workflow, so it
+cannot loop. A `git ls-remote` filtered to those two refs is a few hundred bytes
+against the API's ~450 KB.
+
+The **app target still needs CI**: `xcodebuild` requires the iOS SDK, so all the
+SwiftUI, HealthKit and SwiftData code is compiled only there. Local green means
+InsightKit is green — the clinical maths, the scoring, the baselines and the
+parsers, which is where the bugs have actually been.
+
 ## Verification
 
 - `cd InsightKit && swift test` — checks the risk equations against published

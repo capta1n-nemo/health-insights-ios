@@ -151,7 +151,7 @@ public enum JSONFlattener {
         // A numeric series — Oura's `heart_rate.items`, `hrv.items`, `met.items`.
         // Nulls inside these are gaps in the recording, not values.
         let numbers = array.compactMap { element -> Double? in
-            guard let n = element as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() else { return nil }
+            guard let n = element as? NSNumber, !isJSONBoolean(n) else { return nil }
             return n.doubleValue
         }
         let nulls = nullCount(array)
