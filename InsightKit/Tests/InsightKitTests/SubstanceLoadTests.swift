@@ -1,15 +1,11 @@
 import XCTest
 @testable import InsightKit
 
-private let loadNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let loadCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-private func loadDay(_ daysAgo: Double) -> Date {
-    loadNow.addingTimeInterval(-daysAgo * 86_400)
-}
+private let loadNow = TestClock.now
+private let loadCalendar = TestClock.utc
+// Exact hours back rather than day-snapped: the decay kernel is continuous, and
+// snapping to midday would quantise every half-life assertion.
+private func loadDay(_ daysAgo: Double) -> Date { TestClock.hours(daysAgo * 24) }
 
 private func event(_ substance: SubstanceClass, daysAgo: Double) -> SubstanceEvent {
     SubstanceEvent(substance: substance, timestamp: loadDay(daysAgo))

@@ -1,20 +1,9 @@
 import XCTest
 @testable import InsightKit
 
-/// A fixed "now" and a UTC calendar, because the replay walks calendar days and
-/// a machine in a different zone would bucket them differently.
-private let referenceNow = Date(timeIntervalSince1970: 1_700_000_000)
-private var utc: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-
-/// `daysAgo` before the reference, at midday so a day boundary can't straddle it.
-private func daysAgo(_ n: Int) -> Date {
-    utc.startOfDay(for: referenceNow.addingTimeInterval(-Double(n) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+private let referenceNow = TestClock.now
+private let utc = TestClock.utc
+private func daysAgo(_ n: Int) -> Date { TestClock.day(n) }
 
 final class ScoreHistoryTests: XCTestCase {
 

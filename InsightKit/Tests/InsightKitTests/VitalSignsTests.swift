@@ -1,20 +1,11 @@
 import XCTest
 @testable import InsightKit
 
-/// A pinned "now" and a UTC calendar: the check buckets by calendar day, so a
-/// machine in another zone (or a DST boundary) would bucket differently.
-private let vitalsNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let vitalsCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-
-/// Midday `n` days before the pinned now, so a reading can't straddle midnight.
-private func vitalsDay(_ n: Int) -> Date {
-    vitalsCalendar.startOfDay(for: vitalsNow.addingTimeInterval(-Double(n) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+// The shared backward-looking fixture clock — see `Support/TestClock.swift`.
+// Local names kept so no test body changes.
+private let vitalsNow = TestClock.now
+private let vitalsCalendar = TestClock.utc
+private func vitalsDay(_ n: Int) -> Date { TestClock.day(n) }
 
 final class VitalSignsTests: XCTestCase {
 

@@ -1,0 +1,50 @@
+import Foundation
+
+/// The one anchor and calendar the backward-looking fixtures share.
+///
+/// Twenty-six test files built their own, and four `day()` helpers were
+/// character-identical. This is the *narrow* consolidation: only the files that
+/// already anchor at `1_700_000_000` and look backward from a fixed `now`.
+///
+/// The obvious version — one `Clock` for the whole target — was audited and
+/// rejected, and the reasons are worth keeping because they will look like
+/// oversights otherwise:
+///
+/// - `CardioTrajectoryTests` and `NewInsightsTests` model a *forward* study
+///   timeline with a movable `now` (`day(9)`, `day(60)`, `afterAYear`). A
+///   backward-only helper renders "after a year" as `day(-364)`, which
+///   reintroduces the exact sign footgun it claims to remove.
+/// - `SharedBaselineTests` uses `Calendar.current` on purpose: it never passes a
+///   calendar, and `VitalReader` defaults to `.current`, so fixture and bucketing
+///   calendar are coupled by construction. Moving it to UTC while production
+///   reads `.current` would *decouple* them.
+/// - `PresentationTests` needs a fractional `daysAgo: 29.9` to probe a boundary,
+///   which an `Int` helper cannot express — hence the `Double` overload here.
+///
+/// Named `TestClock`, not `Clock`: the latter would shadow the stdlib protocol
+/// module-wide.
+enum TestClock {
+    /// 2023-11-14T22:13:20Z. Arbitrary, fixed, and shared.
+    static let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+    /// UTC, because almost everything here buckets by calendar day and a machine
+    /// in another zone — or on a DST boundary — would bucket differently.
+    static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }()
+
+    /// Midday, `n` days before `now`, so a reading can never straddle midnight.
+    static func day(_ n: Int) -> Date { day(Double(n)) }
+
+    /// The fractional variant, for probing a boundary that falls inside a day.
+    static func day(_ n: Double) -> Date {
+        utc.startOfDay(for: now.addingTimeInterval(-n * 86_400))
+            .addingTimeInterval(12 * 3600)
+    }
+
+    /// An exact offset from `now`, with no day-snapping — for the fixtures that
+    /// care about hours rather than calendar days.
+    static func hours(_ n: Double) -> Date { now.addingTimeInterval(-n * 3600) }
+}

@@ -259,7 +259,8 @@ the place to look.
   - `Haptics` :10
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
-  - `MetricOverlayLegend` :301
+- `DesignSystem/MetricOverlayLegend.swift`
+  - `MetricOverlayLegend` :11
 - `DesignSystem/MultiSourceChart.swift`
   - `MultiSourceChart` :37
 - `DesignSystem/ScoreComparisonChart.swift`

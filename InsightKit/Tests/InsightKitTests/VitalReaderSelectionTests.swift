@@ -1,16 +1,9 @@
 import XCTest
 @testable import InsightKit
 
-private let readerNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let readerCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-private func readerDay(_ daysAgo: Int) -> Date {
-    readerCalendar.startOfDay(for: readerNow.addingTimeInterval(-Double(daysAgo) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+private let readerNow = TestClock.now
+private let readerCalendar = TestClock.utc
+private func readerDay(_ daysAgo: Int) -> Date { TestClock.day(daysAgo) }
 
 /// Which device's reading `VitalReader` speaks for, when several measured the
 /// same vital.

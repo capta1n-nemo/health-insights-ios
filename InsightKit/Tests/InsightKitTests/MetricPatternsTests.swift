@@ -1,17 +1,9 @@
 import XCTest
 @testable import InsightKit
 
-private let patternNow = Date(timeIntervalSince1970: 1_700_000_000)
-private var patternCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-
-private func patternDay(_ i: Int) -> Date {
-    patternCalendar.startOfDay(for: patternNow.addingTimeInterval(-Double(i) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+private let patternNow = TestClock.now
+private let patternCalendar = TestClock.utc
+private func patternDay(_ i: Int) -> Date { TestClock.day(i) }
 
 final class CorrelationTests: XCTestCase {
     func testPerfectPositiveAndNegativeRelations() {

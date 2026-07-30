@@ -1,16 +1,9 @@
 import XCTest
 @testable import InsightKit
 
-private let sugNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let sugCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-private func sugDay(_ daysAgo: Int) -> Date {
-    sugCalendar.startOfDay(for: sugNow.addingTimeInterval(-Double(daysAgo) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+private let sugNow = TestClock.now
+private let sugCalendar = TestClock.utc
+private func sugDay(_ daysAgo: Int) -> Date { TestClock.day(daysAgo) }
 
 /// The hard part of "Improve Your Health" is refusing to generate the wrong
 /// suggestions. This app is not a medical device, so every line has to be one of

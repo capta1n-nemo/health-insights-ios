@@ -23,18 +23,9 @@ import XCTest
 ///    normal".
 final class ThermalProvenanceTests: XCTestCase {
 
-    private let now = Date(timeIntervalSince1970: 1_700_000_000)
-    private let calendar: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "UTC")!
-        return c
-    }()
-
-    /// Midday `n` days back, so a reading can't straddle midnight.
-    private func day(_ n: Int) -> Date {
-        calendar.startOfDay(for: now.addingTimeInterval(-Double(n) * 86_400))
-            .addingTimeInterval(12 * 3600)
-    }
+    private let now = TestClock.now
+    private let calendar = TestClock.utc
+    private func day(_ n: Int) -> Date { TestClock.day(n) }
 
     /// One reading per day, newest last, ending today.
     private func series(_ type: MetricType, _ values: [Double],

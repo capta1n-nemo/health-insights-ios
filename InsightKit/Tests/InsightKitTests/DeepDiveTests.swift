@@ -1,18 +1,9 @@
 import XCTest
 @testable import InsightKit
 
-private let deepNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let deepCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
-
-/// Midday, `n` days before the reference.
-private func deepDay(_ n: Int) -> Date {
-    deepCalendar.startOfDay(for: deepNow.addingTimeInterval(-Double(n) * 86_400))
-        .addingTimeInterval(12 * 3600)
-}
+private let deepNow = TestClock.now
+private let deepCalendar = TestClock.utc
+private func deepDay(_ n: Int) -> Date { TestClock.day(n) }
 
 final class LagFinderTests: XCTestCase {
 

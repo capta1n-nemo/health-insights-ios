@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsightKit
 
-private let renewNow = Date(timeIntervalSince1970: 1_700_000_000)
+private let renewNow = TestClock.now
 private let day: TimeInterval = 86_400
 
 /// `requirementStatuses` has always returned `.satisfied` / `.stale` /

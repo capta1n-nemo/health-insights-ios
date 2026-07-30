@@ -1,12 +1,8 @@
 import XCTest
 @testable import InsightKit
 
-private let gateNow = Date(timeIntervalSince1970: 1_700_000_000)
-private let gateCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone(identifier: "UTC")!
-    return c
-}()
+private let gateNow = TestClock.now
+private let gateCalendar = TestClock.utc
 
 /// Nothing gated the Today summariser: every appearance of the root view, and
 /// all three pull-to-refresh gestures, paid for a full on-device model
