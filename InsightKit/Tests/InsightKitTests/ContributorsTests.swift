@@ -28,7 +28,7 @@ final class ContributorsTests: XCTestCase {
             .muscleMass: 58, .boneMass: 3.2, .bodyWaterPercentage: 58,
             .height: 1.83, .stepCount: 9000, .activeEnergyBurned: 520,
             .sleepDurationHours: 7.4, .bodyTemperature: 36.6,
-            .skinTemperatureDeviation: 0.1,
+            .skinTemperature: 33.8, .skinTemperatureDeviation: 0.1,
             // The vitals promoted out of the raw layer. Present here so
             // "full coverage" stays literally true — without them Vitals Check
             // correctly charts only what it measured, and the equality below
@@ -121,8 +121,22 @@ final class ContributorsTests: XCTestCase {
     func testVitalsCheckChartsEveryVitalItScanned() {
         let result = VitalSignsInsight().evaluate(samples: fullCoverage(),
                                                   profile: profile, now: contributorNow)
-        XCTAssertEqual(Set(result.contributors.map(\.metric)),
-                       Set(VitalSignsCheck.specs.map(\.metric)))
+        // Every spec except the ones deliberately standing down. The fixture
+        // supplies data for all of them, so a spec that is scanned must chart.
+        let expected = VitalSignsCheck.specs.filter { $0.supersededBy == nil }.map(\.metric)
+        XCTAssertEqual(Set(result.contributors.map(\.metric)), Set(expected))
+    }
+
+    /// The other half of the rule above: a derived metric standing down is not
+    /// the same as the app forgetting to chart it. Absolute skin temperature is
+    /// an affine shift of the deviation it was reconstructed from, so charting
+    /// both would draw one signal as two lines and score it twice.
+    func testADerivedVitalStandsDownWhenItsSourceSignalSpoke() {
+        let result = VitalSignsInsight().evaluate(samples: fullCoverage(),
+                                                  profile: profile, now: contributorNow)
+        let charted = Set(result.contributors.map(\.metric))
+        XCTAssertTrue(charted.contains(.skinTemperatureDeviation))
+        XCTAssertFalse(charted.contains(.skinTemperature))
     }
 
     /// Respiratory rate and body temperature are a concern in *both* directions,

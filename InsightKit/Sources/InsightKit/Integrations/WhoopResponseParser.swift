@@ -45,7 +45,10 @@ public enum WhoopResponseParser {
             add(.restingHeartRate, s.resting_heart_rate)
             add(.heartRateVariabilityRMSSD, s.hrv_rmssd_milli)
             add(.oxygenSaturation, s.spo2_percentage)
-            add(.bodyTemperature, s.skin_temp_celsius)   // WHOOP reports absolute °C
+            // Absolute *skin* °C, around 33–35. Routed to `.bodyTemperature` it
+            // sat below the 35.5 core floor every single night, which pinned a
+            // Whoop user's Vitals Check score at zero.
+            add(.skinTemperature, s.skin_temp_celsius)
         }
         return samples
     }

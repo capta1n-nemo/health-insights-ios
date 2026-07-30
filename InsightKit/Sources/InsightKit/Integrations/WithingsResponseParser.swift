@@ -62,7 +62,11 @@ public enum WithingsResponseParser {
         case 10: return .bloodPressureSystolic   // mmHg
         case 11: return .heartRate               // bpm (heart pulse)
         case 54: return .oxygenSaturation        // % SpO2
-        case 71, 73: return .bodyTemperature     // °C (body / skin temperature)
+        // 71 and 73 are different measurements and were sharing a type. A skin
+        // reading is two to three degrees cooler than a core one, so through the
+        // core bounds every type-73 value read as hypothermia.
+        case 71: return .bodyTemperature         // °C body temperature (core)
+        case 73: return .skinTemperature         // °C skin temperature
         case 76: return .muscleMass              // kg
         case 77: return .bodyWaterPercentage     // %
         case 88: return .boneMass                // kg

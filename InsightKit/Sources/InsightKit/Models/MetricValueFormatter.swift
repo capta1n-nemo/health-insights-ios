@@ -18,7 +18,8 @@ public enum MetricValueFormatter {
         case .height:
             return lengthString(metres: value, locale: locale)
         case .bodyMass, .leanBodyMass, .muscleMass, .boneMass,
-             .sleepDurationHours, .bodyTemperature, .skinTemperatureDeviation,
+             .sleepDurationHours, .bodyTemperature, .skinTemperature,
+             .skinTemperatureDeviation,
              .dayStrain:
             return String(format: "%.1f", value)
         // Only these two carry their own "%" — matching what callers already

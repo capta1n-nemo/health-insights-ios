@@ -24,7 +24,8 @@ struct VitalsView: View {
         ("Body", [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
                   .boneMass, .bodyWaterPercentage, .height, .bloodGlucose]),
         ("Sleep & recovery", [.sleepDurationHours, .bodyTemperature,
-                              .skinTemperatureDeviation, .dayStrain]),
+                              .skinTemperature, .skinTemperatureDeviation,
+                              .dayStrain]),
         ("Activity & mobility", [.stepCount, .activeEnergyBurned,
                                  .walkingSteadiness, .walkingAsymmetry])
     ]

@@ -666,12 +666,14 @@ unused despite tens of thousands of samples.
 
 | Metric | Read by |
 | --- | --- |
-| heartRate, walkingHeartRateAverage, bodyTemperature | Vitals Check |
+| heartRate, walkingHeartRateAverage | Vitals Check |
+| bodyTemperature | Vitals Check — **core only**: a thermometer, Withings 71/12 |
+| skinTemperature | Vitals Check, when no deviation spoke — Whoop, Withings 73, Apple wrist, and reconstruction |
 | restingHeartRate | Readiness, RHR Trend, Heart Health, Heart Age, Vitals Check |
 | HRV (SDNN / rMSSD) | Readiness, Heart Health, Vitals Check |
 | oxygenSaturation | Readiness, Sleep Quality, Vitals Check |
 | respiratoryRate | Readiness, Sleep Quality, Vitals Check |
-| skinTemperatureDeviation | Readiness, Sleep Quality |
+| skinTemperatureDeviation | Readiness, Sleep Quality, Vitals Check |
 | sleepDurationHours | Readiness, Sleep Quality |
 | vo2Max | Cardio Fitness, Cardio Trajectory, Heart Age |
 | vascularAge | Heart Age (as a second opinion, never merged into ours) |

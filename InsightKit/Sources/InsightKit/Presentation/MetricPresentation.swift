@@ -65,7 +65,7 @@ public extension MetricType {
         case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
              .heartRateRecovery: return .autonomic
         case .respiratoryRate, .oxygenSaturation: return .respiratory
-        case .bodyTemperature, .skinTemperatureDeviation: return .thermal
+        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return .thermal
         case .bloodPressureSystolic, .bloodPressureDiastolic, .vascularAge,
              .peripheralPerfusionIndex: return .circulatory
         case .bloodGlucose: return .metabolic
@@ -128,6 +128,12 @@ public extension MetricType {
         case .stepCount: return 27
         case .activeEnergyBurned: return 28
         case .dayStrain: return 29
+        // Appended rather than slotted next to `.bodyTemperature`, because
+        // `testStyleIndicesAreContiguousFromZero` pins this list to 0..<count
+        // and inserting would renumber twenty-seven cases for no gain. The cost
+        // is a preferred hue shared with resting heart rate, which
+        // `MetricPalette.slots` resolves per chart.
+        case .skinTemperature: return 30
         }
     }
 
@@ -166,7 +172,8 @@ public extension MetricType {
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
-             .bodyTemperature, .skinTemperatureDeviation, .sleepDurationHours,
+             .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             .sleepDurationHours,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry:
             // Sleep belongs here, not with the daily totals: it already arrives
@@ -208,7 +215,8 @@ public extension MetricType {
             return 30 * minute
         case .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
-             .sleepDurationHours, .bodyTemperature, .skinTemperatureDeviation,
+             .sleepDurationHours, .bodyTemperature, .skinTemperature,
+             .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day

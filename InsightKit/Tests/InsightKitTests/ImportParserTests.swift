@@ -16,7 +16,11 @@ final class WhoopParserTests: XCTestCase {
         XCTAssertEqual(samples.latestValue(.restingHeartRate), 52)
         XCTAssertEqual(samples.latestValue(.heartRateVariabilityRMSSD), 64.2)
         XCTAssertEqual(samples.latestValue(.oxygenSaturation), 96.0)
-        XCTAssertEqual(samples.latestValue(.bodyTemperature), 33.6)
+        // 33.6 °C is a *skin* figure. As `.bodyTemperature` it sat below the
+        // 35.5 °C core floor on every sync, which held Vitals Check at zero for
+        // anyone wearing a Whoop.
+        XCTAssertEqual(samples.latestValue(.skinTemperature), 33.6)
+        XCTAssertNil(samples.latestValue(.bodyTemperature))
     }
 
     func testParsesCyclesStrain() throws {

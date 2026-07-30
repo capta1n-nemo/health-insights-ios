@@ -44,10 +44,19 @@ final class HealthKitService {
             (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie()),
             // Promoted out of the raw "other data" pile: these are measurements
             // with real units and real baselines, and Vitals Check now reads
-            // them. Body temperature in particular was arriving only as a
-            // *reconstructed* skin temperature, so the check was judging a skin
-            // series against core-temperature bounds.
+            // them.
+            //
+            // A genuine core reading — an oral or temporal thermometer. This is
+            // the only route into `.bodyTemperature` from Apple Health, which is
+            // what lets that metric keep clinical bounds.
             (.bodyTemperature, .bodyTemperature, .degreeCelsius()),
+            // Apple Watch Series 8 and later records an absolute wrist
+            // temperature every night, and the app read it nowhere — not in this
+            // map, not in the raw identifiers below, dropped entirely. Skin, so
+            // `.skinTemperature`: through core bounds it would report every
+            // wearer as hypothermic, which is precisely the bug this change
+            // exists to fix.
+            (.appleSleepingWristTemperature, .skinTemperature, .degreeCelsius()),
             (.bloodGlucose, .bloodGlucose,
              HKUnit.moleUnit(withMolarMass: HKUnitMolarMassBloodGlucose)
                 .unitDivided(by: .liter())),

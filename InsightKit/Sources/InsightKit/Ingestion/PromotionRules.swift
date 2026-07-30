@@ -120,7 +120,11 @@ public struct PromotionRuleSet: Sendable {
             "spo2_percentage": .oxygenSaturation,
             "oxygen_saturation": .oxygenSaturation,
             "temperature_deviation": .skinTemperatureDeviation,
-            "skin_temperature": .skinTemperatureDeviation,
+            // A field named `skin_temperature` carries an absolute, not a
+            // deviation. Mapping it to the deviation metric labelled ~33 °C
+            // readings as if they were "+33 °C away from your baseline".
+            "skin_temperature": .skinTemperature,
+            "skin_temp_celsius": .skinTemperature,
             "body_temperature": .bodyTemperature,
             "steps": .stepCount,
             "active_calories": .activeEnergyBurned,

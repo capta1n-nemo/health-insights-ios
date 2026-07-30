@@ -11,18 +11,33 @@ final class TemperatureReconstructorTests: XCTestCase {
         }
         let out = TemperatureReconstructor.reconstruct(from: devs)
         XCTAssertEqual(out.count, 3)
-        XCTAssertTrue(out.allSatisfy { $0.type == .bodyTemperature })
+        // Skin, not core. Writing these as `.bodyTemperature` is what put a
+        // 35.4 °C reconstruction under a 35.5 °C core floor.
+        XCTAssertTrue(out.allSatisfy { $0.type == .skinTemperature })
         XCTAssertEqual(out.first!.value, TemperatureReconstructor.defaultBaselineCelsius + 0.2, accuracy: 1e-9)
     }
 
     func testLearnsBaselineFromAbsolutes() {
         var samples: [HealthMetricSample] = [
-            HealthMetricSample(type: .bodyTemperature, value: 36.6, start: day(0), source: .manual),
-            HealthMetricSample(type: .bodyTemperature, value: 36.6, start: day(1), source: .manual)
+            HealthMetricSample(type: .skinTemperature, value: 33.8, start: day(0), source: .whoop),
+            HealthMetricSample(type: .skinTemperature, value: 33.8, start: day(1), source: .whoop)
         ]
         samples.append(HealthMetricSample(type: .skinTemperatureDeviation, value: -0.3, start: day(2), source: .oura))
         let recon = TemperatureReconstructor.reconstruct(from: samples)
-        XCTAssertEqual(recon.first!.value, 36.3, accuracy: 1e-9)   // 36.6 − 0.3
+        XCTAssertEqual(recon.first!.value, 33.5, accuracy: 1e-9)   // 33.8 − 0.3
+    }
+
+    /// A thermometer reading says nothing about where this person's *skin* sits.
+    /// Learning the skin baseline from core absolutes shifted every night of
+    /// ring data about a degree and a half too warm.
+    func testCoreReadingsDoNotSetTheSkinBaseline() {
+        let samples: [HealthMetricSample] = [
+            HealthMetricSample(type: .bodyTemperature, value: 36.6, start: day(0), source: .manual),
+            HealthMetricSample(type: .skinTemperatureDeviation, value: -0.3, start: day(1), source: .oura)
+        ]
+        let recon = TemperatureReconstructor.reconstruct(from: samples)
+        XCTAssertEqual(recon.first!.value,
+                       TemperatureReconstructor.defaultBaselineCelsius - 0.3, accuracy: 1e-9)
     }
 }
 

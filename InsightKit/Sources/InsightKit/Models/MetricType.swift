@@ -36,8 +36,13 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case stepCount                 // count
     case activeEnergyBurned        // kcal
     case sleepDurationHours        // hours
-    case bodyTemperature           // °C absolute (reconstructed or measured)
-    case skinTemperatureDeviation  // °C deviation from personal baseline (Oura/Whoop/Hume)
+    // Three thermal metrics, deliberately distinct. Core and skin are measured
+    // in different places, sit two to three degrees apart, and mean different
+    // things — judging one against the other's bounds was reporting every
+    // wearable user as hypothermic and hiding real fevers.
+    case bodyTemperature           // °C absolute CORE (thermometer, Withings 71/12)
+    case skinTemperature           // °C absolute SKIN (Whoop, Withings 73, Apple wrist, reconstructed)
+    case skinTemperatureDeviation  // °C deviation from personal baseline (Oura/Hume)
 
     // Vitals Apple Health has always collected and the app imported only as raw
     // "other data" — measurements with real units and real baselines, so they
@@ -75,6 +80,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "Active Energy"
         case .sleepDurationHours: return "Sleep Duration"
         case .bodyTemperature: return "Body Temperature"
+        case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
         case .bloodGlucose: return "Blood Glucose"
         case .peripheralPerfusionIndex: return "Perfusion Index"
@@ -102,7 +108,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .sleepDurationHours: return "h"
-        case .bodyTemperature, .skinTemperatureDeviation: return "°C"
+        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .walkingSteadiness, .walkingAsymmetry: return "%"

@@ -344,8 +344,10 @@ final class AppModel {
         let (merged, dropped) = (manual + nonManual).partitionedVitals()
         logSanitiserDrops(dropped, diag: diag)
         // Creative reconstruction: turn wearable skin-temperature *deviations*
-        // (Oura/Whoop/Hume) into absolute body-temperature samples so they can
-        // be trended and fed to the insights.
+        // (Oura/Hume) into absolute *skin*-temperature samples so they can be
+        // trended and charted. Deliberately not body temperature: these are skin
+        // readings, and labelling them as core is what had Vitals Check judging
+        // them against fever and hypothermia bounds.
         samples = TemperatureReconstructor.withReconstructedTemperature(merged)
         logMetricCounts(diag)
         profile = dataStore.loadProfile()

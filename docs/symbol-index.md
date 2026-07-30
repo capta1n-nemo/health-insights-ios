@@ -107,7 +107,7 @@ the place to look.
   - `VitalEventReader` :103
 - `Insights/VitalSignsInsight.swift`
   - `VitalSignsCheck` :39
-  - `VitalSignsInsight` :447
+  - `VitalSignsInsight` :500
 - `Integrations/OuraResponseParser.swift`
   - `OuraResponseParser` :13
 - `Integrations/WhoopResponseParser.swift`
@@ -148,7 +148,7 @@ the place to look.
   - `Timeframe` :5
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :259
+  - `MetricPalette` :267
   - `MetricPresentation` :8
 - `Presentation/MetricSubject.swift`
   - `MetricSubject` :10
@@ -165,7 +165,7 @@ the place to look.
 - `Presentation/OverlaySelection.swift`
   - `OverlaySelection` :10
 - `Signals/TemperatureReconstructor.swift`
-  - `TemperatureReconstructor` :12
+  - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`
   - `SubstanceClass` :12
   - `SubstanceEvent` :60
@@ -306,6 +306,6 @@ the place to look.
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :6
 - `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :156
+  - `OtherDataDetailView` :157
   - `VitalsView` :8
 

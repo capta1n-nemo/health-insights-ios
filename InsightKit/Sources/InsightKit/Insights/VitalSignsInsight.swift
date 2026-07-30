@@ -130,6 +130,24 @@ public enum VitalSignsCheck {
         /// morning, and demanding it would permanently cap the score.
         let freshWithin: TimeInterval
         let format: String
+        /// A metric that reports this same physiological signal better. When
+        /// that one produced a reading on this pass, this spec is skipped.
+        ///
+        /// One signal, one row. A skin temperature reconstructed from a nightly
+        /// deviation is an affine shift of that deviation — adding a constant
+        /// moves the mean and leaves the spread alone — so the two carry
+        /// *mathematically identical* z-scores. Scanning both put one signal
+        /// into the penalty pool twice, and because `score` is
+        /// worst-offender-dominant an ordinary +0.35 °C night scored 26.8 as one
+        /// row and 1.1 as two.
+        ///
+        /// Declared last, `var`, and defaulted, on purpose. `Spec` has no
+        /// explicit initialiser, so the memberwise one is synthesised in
+        /// declaration order — and a `let` that already carries a value is
+        /// omitted from it entirely, because it could never be assigned. Only
+        /// `var … = nil` yields the optional trailing argument the eighteen
+        /// `Spec` literals below rely on.
+        var supersededBy: MetricType? = nil
 
         /// Which direction is the good one, for a chart legend. `nil` when both
         /// directions are a concern (respiratory rate, body temperature) — there
@@ -169,6 +187,14 @@ public enum VitalSignsCheck {
         Spec(metric: .respiratoryRate, concernWhenHigh: true, concernWhenLow: true,
              hardLow: 10, hardHigh: 20, hardTolerance: 6, relativeFloor: nil,
              freshWithin: 1.5 * day, format: "%.0f"),
+        // CORE temperature only. 37.8 °C is the oral fever line (Mackowiak's 1992
+        // re-appraisal of 98.6 °F put the 99th centile of normal oral
+        // temperature at 37.7 °C), and 35.5 sits half a degree above the <35.0
+        // definition of accidental hypothermia. Neither bound means anything
+        // applied to *skin*, which runs two to three degrees cooler — and 35.5
+        // was identical to `TemperatureReconstructor.defaultBaselineCelsius`, so
+        // a reconstructed value read "below the usual healthy range" on every
+        // night the deviation happened to be negative. Roughly half of them.
         Spec(metric: .bodyTemperature, concernWhenHigh: true, concernWhenLow: true,
              hardLow: 35.5, hardHigh: 37.8, hardTolerance: 1.5, relativeFloor: nil,
              freshWithin: 1.5 * day, format: "%.1f"),
@@ -197,6 +223,21 @@ public enum VitalSignsCheck {
         Spec(metric: .skinTemperatureDeviation, concernWhenHigh: true, concernWhenLow: true,
              hardLow: -1.5, hardHigh: 1.5, hardTolerance: 1, relativeFloor: nil,
              freshWithin: 1.5 * day, format: "%+.1f"),
+        // Absolute skin temperature: Whoop's nightly figure, Withings type 73,
+        // Apple's sleeping wrist temperature, and deviations reconstructed onto
+        // a learned baseline. No hard bound is defensible — nightly wrist skin
+        // temperature tracks ambient warmth, bedding and vasomotor tone across
+        // roughly 31–36 °C in ordinary sleep, which is precisely why Oura, Apple
+        // and Hume publish a deviation rather than a number. Judged on the
+        // personal z-score alone, like the two HRV specs above.
+        //
+        // Must stay *after* the deviation spec: `supersededBy` is resolved
+        // against the readings collected so far, and `testASupersededSpecComesAfterTheOneThatSupersedesIt`
+        // pins the ordering.
+        Spec(metric: .skinTemperature, concernWhenHigh: true, concernWhenLow: true,
+             hardLow: nil, hardHigh: nil, hardTolerance: 1, relativeFloor: nil,
+             freshWithin: 1.5 * day, format: "%.1f",
+             supersededBy: .skinTemperatureDeviation),
         Spec(metric: .bloodGlucose, concernWhenHigh: true, concernWhenLow: true,
              hardLow: 3.9, hardHigh: 10, hardTolerance: 4, relativeFloor: nil,
              freshWithin: 1.5 * day, format: "%.1f"),
@@ -245,6 +286,18 @@ public enum VitalSignsCheck {
         var stale: [StaleReading] = []
 
         for spec in specs {
+            // One row per physiological signal. A metric that is a derived view
+            // of another — an absolute skin temperature reconstructed from a
+            // deviation — stands down when the signal it came from already spoke
+            // this pass, rather than entering the same z-score twice.
+            //
+            // Keyed on a reading actually being produced, not merely on samples
+            // existing: when the better signal is stale or too short to judge,
+            // the derived row stays and the user keeps a thermal reading instead
+            // of losing it to a technicality.
+            if let better = spec.supersededBy,
+               readings.contains(where: { $0.metric == better }) { continue }
+
             // One line per device, de-duplicated: the same ring arriving
             // directly and through Apple Health is one instrument, and counting
             // it twice was inflating the variance it is measured against.

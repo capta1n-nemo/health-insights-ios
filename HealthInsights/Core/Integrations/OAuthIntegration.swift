@@ -809,8 +809,10 @@ final class WhoopProvider: OAuthIntegration {
             displayName: "Whoop",
             iconSystemName: "bolt.heart",
             capabilities: .init(
+                // Whoop's nightly figure is absolute *skin* temperature, so the
+                // connect screen no longer promises a core reading it can't give.
                 metrics: [.restingHeartRate, .heartRateVariabilityRMSSD,
-                          .oxygenSaturation, .bodyTemperature, .dayStrain],
+                          .oxygenSaturation, .skinTemperature, .dayStrain],
                 requiresBackend: false),
             config: .init(
                 authorizeURL: URL(string: "https://api.prod.whoop.com/oauth/oauth2/auth")!,

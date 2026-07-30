@@ -17,7 +17,8 @@ public extension MetricType {
              .respiratoryRate, .oxygenSaturation,
              .bloodPressureSystolic, .bloodPressureDiastolic,
              .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage, .height, .bodyTemperature,
+             .boneMass, .bodyWaterPercentage, .height,
+             .bodyTemperature, .skinTemperature,
              // A living person cannot read zero on any of these; a zero is a
              // provider placeholder.
              .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
