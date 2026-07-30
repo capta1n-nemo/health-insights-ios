@@ -48,23 +48,10 @@ public enum WithingsResponseParser {
         return samples
     }
 
-    /// Capture measure types we don't yet model as canonical metrics into the
-    /// "Other data" bucket, so no Withings measurement is silently dropped.
-    public static func parseOtherMeasures(_ data: Data) -> [RawMetricSample] {
-        guard let response = try? JSONDecoder().decode(Response.self, from: data),
-              response.status == 0, let groups = response.body?.measuregrps else { return [] }
-        var out: [RawMetricSample] = []
-        for group in groups {
-            let date = Date(timeIntervalSince1970: group.date)
-            for measure in group.measures where metricType(for: measure.type) == nil {
-                let real = measure.value * pow(10, Double(measure.unit))
-                out.append(RawMetricSample(identifier: "withings.measure.\(measure.type)",
-                                           displayName: "Withings measure type \(measure.type)",
-                                           value: real, unit: "", start: date, source: .withings))
-            }
-        }
-        return out
-    }
+    // The "other measures" capture that used to live here is now
+    // `WithingsMeasureIngestor`, which keeps every measure type — not only the
+    // unmapped ones — along with the group metadata (`attrib`, `category`,
+    // `deviceid`) and the free-text `comment` this could not represent.
 
     static func metricType(for withingsType: Int) -> MetricType? {
         switch withingsType {

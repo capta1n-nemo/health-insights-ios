@@ -8,14 +8,24 @@ import InsightKit
 struct SyncedData {
     var samples: [HealthMetricSample] = []
     var other: [RawMetricSample] = []
+    /// Unparsed provider responses, handed to `IngestionPipeline` before
+    /// insights run. A provider's job is to fetch bytes and normalise the
+    /// handful of fields it has unit knowledge about; deciding what *else* the
+    /// payload contained is the pipeline's, so a field the provider has never
+    /// heard of still reaches the vitals layer.
+    var payloads: [IngestPayload] = []
 
-    init(samples: [HealthMetricSample] = [], other: [RawMetricSample] = []) {
+    init(samples: [HealthMetricSample] = [],
+         other: [RawMetricSample] = [],
+         payloads: [IngestPayload] = []) {
         self.samples = samples
         self.other = other
+        self.payloads = payloads
     }
 
     mutating func append(_ o: SyncedData) {
         samples += o.samples
         other += o.other
+        payloads += o.payloads
     }
 }

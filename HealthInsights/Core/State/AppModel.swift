@@ -49,6 +49,9 @@ final class AppModel {
     private(set) var otherSamples: [RawMetricSample] = [] {
         didSet { otherGroupCache = nil }
     }
+    /// Everything the app has learned about provider schemas — every field ever
+    /// ingested, its type, whether it feeds a vital, and what it might map to.
+    private(set) var fieldCatalogue = FieldCatalogue()
     private(set) var substanceEvents: [SubstanceEvent] = []
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
@@ -297,10 +300,16 @@ final class AppModel {
             default: break
             }
         }
+        // Ingest every captured payload before anything else looks at the data.
+        // This is what guarantees the vitals layer holds 100% of what the
+        // providers sent — including fields nobody has written code for — and it
+        // has to finish before the cache merge and the insight pass, not after.
+        let ingested = ingestPayloads(synced.payloads, diag: diag)
+
         // Cache-merge: a source that returned data this sync replaces its cached
         // copy; sources that returned nothing (disconnected/offline) keep their
         // last-known cache, so their data never disappears from the app.
-        let freshSamples = synced.samples
+        let freshSamples = synced.samples + ingested.promoted
         let cached = dataStore.loadCachedSamples()
         let freshSourceIDs = Set(freshSamples.map { $0.source.id })
         let retained = cached.filter { !freshSourceIDs.contains($0.source.id) }
@@ -311,7 +320,7 @@ final class AppModel {
         }
 
         // Same cache-merge for the raw "other" data.
-        let freshOther = synced.other
+        let freshOther = synced.other + ingested.raw
         let cachedOther = dataStore.loadCachedOther()
         let freshOtherSourceIDs = Set(freshOther.map { $0.source.id })
         let retainedOther = cachedOther.filter { !freshOtherSourceIDs.contains($0.source.id) }
@@ -348,6 +357,67 @@ final class AppModel {
                         ? "No failures this sync."
                         : "\(failures.count) failure(s) this sync — see the red entries above."
                   ]).joined(separator: "\n"))
+    }
+
+    /// Run every captured provider payload through the ingestion pipeline,
+    /// updating the persisted field catalogue and reporting what changed.
+    ///
+    /// Deliberately loud about schema drift: a provider adding, renaming or
+    /// retyping a field is the single most common cause of data quietly going
+    /// missing, and the log is where that has to become visible.
+    private func ingestPayloads(_ payloads: [IngestPayload], diag: DiagnosticsLog) -> IngestionResult {
+        guard !payloads.isEmpty else { return IngestionResult() }
+        var catalogue = dataStore.loadFieldCatalogue()
+        let knownBefore = catalogue.fields.count
+        let result = IngestionPipeline.shipped.ingest(payloads, into: &catalogue)
+        dataStore.saveFieldCatalogue(catalogue)
+        fieldCatalogue = catalogue
+
+        diag.ok("Ingestion",
+                "\(result.fieldCount) field value(s) from \(result.documentCount) record(s) across \(result.payloadCount) payload(s)",
+                detail: """
+                    Known fields: \(knownBefore) → \(catalogue.fields.count)
+                    Promoted to canonical vitals: \(result.promoted.count) sample(s)
+                    Kept as raw values: \(result.raw.count)
+                    """)
+
+        if !result.newFields.isEmpty {
+            let listing = result.newFields.prefix(40).map { "· \($0.identifier)  [\($0.kind.rawValue)]" }
+            let overflow = result.newFields.count > 40 ? ["…and \(result.newFields.count - 40) more"] : []
+            diag.ok("Ingestion", "Discovered \(result.newFields.count) new provider field(s)",
+                    detail: (listing + overflow).joined(separator: "\n"))
+        }
+
+        if !result.proposals.isEmpty {
+            let listing = result.proposals.map { "· \($0.identifier) → looks like \($0.proposedMetric?.displayName ?? "?")" }
+            diag.null("Ingestion", "\(result.proposals.count) field(s) look like known vitals but aren't mapped",
+                      detail: (listing + [
+                        "",
+                        "These are catalogued and stored, but not feeding insights. Promoting one is a rule in PromotionRuleSet.default — no parser or store changes."
+                      ]).joined(separator: "\n"))
+        }
+
+        if !result.promoted.isEmpty {
+            let byMetric = Dictionary(grouping: result.promoted, by: { $0.type.displayName })
+                .map { "· \($0.value.count) × \($0.key)" }
+                .sorted()
+            diag.ok("Ingestion", "Promoted \(result.promoted.count) raw value(s) into canonical vitals",
+                    detail: byMetric.joined(separator: "\n"))
+        }
+
+        if !result.skipped.isEmpty {
+            let summary = result.skipSummary.map { "· \($0.count) × \($0.reason.rawValue)" }
+            diag.null("Ingestion", "\(result.skipped.count) payload node(s) not stored",
+                      detail: (summary + [
+                        "",
+                        "null: the provider sent no value. emptyArray: nothing to summarise. arrayTruncated / stringTruncated: kept the leading elements. depthLimit: nested deeper than the flatten policy allows."
+                      ]).joined(separator: "\n"))
+        }
+
+        for problem in result.unreadablePayloads {
+            diag.fail("Ingestion", "Couldn't read a payload — \(problem)")
+        }
+        return result
     }
 
     /// Record how many samples of each metric were imported this sync — the

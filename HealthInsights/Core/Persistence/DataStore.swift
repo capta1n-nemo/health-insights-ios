@@ -130,6 +130,29 @@ final class DataStore {
         try? data.write(to: otherCacheURL, options: .atomic)
     }
 
+    // MARK: - Discovered provider schema
+
+    private var fieldCatalogueURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? URL.temporaryDirectory
+        return base.appendingPathComponent("field_catalogue.json")
+    }
+
+    /// The catalogue of every provider field ever ingested. Persisted so that
+    /// "newly discovered" means new to the app rather than new to this launch —
+    /// which is what makes a provider's schema change visible in the log.
+    func loadFieldCatalogue() -> FieldCatalogue {
+        guard let data = try? Data(contentsOf: fieldCatalogueURL) else { return FieldCatalogue() }
+        return (try? JSONDecoder().decode(FieldCatalogue.self, from: data)) ?? FieldCatalogue()
+    }
+
+    func saveFieldCatalogue(_ catalogue: FieldCatalogue) {
+        guard let data = try? JSONEncoder().encode(catalogue) else { return }
+        try? data.write(to: fieldCatalogueURL, options: .atomic)
+    }
+
     // MARK: - Integration state
 
     func integrationRecord(_ id: String) -> IntegrationRecord? {

@@ -102,8 +102,9 @@ struct VitalsView: View {
                             Text(group.displayName).lineLimit(1)
                             Spacer()
                             if let latest = group.latest {
-                                Text(rawValue(latest))
+                                Text(latest.formattedValue)
                                     .foregroundStyle(.secondary).monospacedDigit()
+                                    .lineLimit(1).truncationMode(.tail)
                             }
                         }
                     }
@@ -114,11 +115,6 @@ struct VitalsView: View {
                 Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
             }
         }
-    }
-
-    private func rawValue(_ s: RawMetricSample) -> String {
-        let v = abs(s.value) >= 100 ? String(format: "%.0f", s.value) : String(format: "%.1f", s.value)
-        return s.unit.isEmpty ? v : "\(v) \(s.unit)"
     }
 
     /// The preview shows the single newest reading — not the average of each
@@ -160,14 +156,38 @@ struct OtherDataDetailView: View {
 
     private var samples: [RawMetricSample] { group.samples.within(timeframe) }
 
+    /// One plottable reading. A named type rather than a tuple so Swift Charts'
+    /// generics have something concrete and `Identifiable` to work with.
+    private struct Point: Identifiable {
+        let id: UUID
+        let date: Date
+        let value: Double
+    }
+
     /// Thinned for plotting — some imported identifiers carry tens of thousands
     /// of readings, and the extra marks are invisible at chart resolution.
-    private var charted: [RawMetricSample] {
+    /// Numeric readings only: a text field has nothing to plot.
+    private var charted: [Point] {
+        let all = samples.compactMap { s in
+            s.numericValue.map { Point(id: s.id, date: s.start, value: $0) }
+        }
         let limit = 300
-        let all = samples
         guard all.count > limit else { return all }
         let stride = Double(all.count - 1) / Double(limit - 1)
         return (0..<limit).map { all[Int((Double($0) * stride).rounded())] }
+    }
+
+    /// For a categorical field (Oura's resilience level, a sleep stage), the
+    /// useful summary is which states occurred and how often — a line chart of
+    /// text is meaningless.
+    private var stateCounts: [(state: String, count: Int)] {
+        let texts = samples.compactMap { s -> String? in
+            if case .text(let v) = s.value { return v }
+            return nil
+        }
+        return Dictionary(grouping: texts, by: { $0 })
+            .map { (state: $0.key, count: $0.value.count) }
+            .sorted { $0.count > $1.count }
     }
 
     var body: some View {
@@ -177,11 +197,13 @@ struct OtherDataDetailView: View {
                     ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                if samples.count > 1 {
-                    Chart(charted) { s in
-                        LineMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
+                if charted.count > 1 {
+                    Chart(charted) { point in
+                        LineMark(x: .value("Time", point.date),
+                                 y: .value(group.unit, point.value))
                             .interpolationMethod(.linear)
-                        PointMark(x: .value("Time", s.start), y: .value(group.unit, s.value))
+                        PointMark(x: .value("Time", point.date),
+                                  y: .value(group.unit, point.value))
                             .symbolSize(20)
                     }
                     .frame(height: 160)
@@ -192,10 +214,27 @@ struct OtherDataDetailView: View {
                 Text("Identifier: \(group.id)\nSources: \(group.sources.sorted().joined(separator: ", "))")
             }
 
+            // Text fields get a state tally instead of a chart.
+            if !stateCounts.isEmpty {
+                Section("States") {
+                    ForEach(stateCounts, id: \.state) { entry in
+                        HStack {
+                            Text(entry.state)
+                            Spacer()
+                            Text("\(entry.count)×")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
+            }
+
             Section("Readings · \(samples.count)") {
                 ForEach(samples) { s in
                     HStack {
-                        Text(valueLabel(s)).monospacedDigit()
+                        Text(s.formattedValue)
+                            .monospacedDigit()
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer()
                         Text(s.start.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary)
@@ -205,10 +244,5 @@ struct OtherDataDetailView: View {
         }
         .navigationTitle(group.displayName)
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func valueLabel(_ s: RawMetricSample) -> String {
-        let v = abs(s.value) >= 100 ? String(format: "%.0f", s.value) : String(format: "%.2f", s.value)
-        return s.unit.isEmpty ? v : "\(v) \(s.unit)"
     }
 }

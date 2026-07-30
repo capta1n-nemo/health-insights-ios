@@ -1,46 +1,49 @@
 import XCTest
 @testable import InsightKit
 
+/// The typed provider parsers keep the unit and semantic knowledge that turns
+/// specific fields into canonical vitals. Everything *else* in a payload is the
+/// ingestion pipeline's job — see `IngestionPipelineTests`.
 final class RawProviderParserTests: XCTestCase {
-    func testOuraRawCapturesUnmappedAndNestedFields() {
+
+    func testOuraSleepStillProducesCanonicalVitals() throws {
         let json = """
         {"data":[{
           "day":"2026-01-10",
-          "score":78,
+          "lowest_heart_rate":48,
           "average_hrv":45,
-          "contributors":{"activity_balance":81,"resting_heart_rate":90},
-          "tags":["a","b"],
-          "active":true
+          "average_breath":14.2,
+          "total_sleep_duration":25200
         }]}
         """.data(using: .utf8)!
-        let raw = OuraResponseParser.parseRawDaily(json, endpoint: "daily_readiness")
-        let ids = Set(raw.map(\.identifier))
-        // Top-level unmapped numeric captured.
-        XCTAssertTrue(ids.contains("oura.daily_readiness.score"))
-        // Nested contributor captured.
-        XCTAssertTrue(ids.contains("oura.daily_readiness.contributors.activity_balance"))
-        // Already-mapped field skipped.
-        XCTAssertFalse(ids.contains("oura.daily_readiness.average_hrv"))
-        // Booleans and arrays are not numeric → skipped.
-        XCTAssertFalse(ids.contains("oura.daily_readiness.active"))
-        XCTAssertFalse(ids.contains("oura.daily_readiness.tags"))
-        // Value is correct.
-        XCTAssertEqual(raw.first(where: { $0.identifier == "oura.daily_readiness.score" })?.value, 78)
+        let samples = try OuraResponseParser.parseSleep(json)
+        let byType = Dictionary(grouping: samples, by: \.type).mapValues { $0.first!.value }
+
+        XCTAssertEqual(byType[.restingHeartRate], 48)
+        XCTAssertEqual(byType[.heartRateVariabilityRMSSD], 45)
+        XCTAssertEqual(try XCTUnwrap(byType[.respiratoryRate]), 14.2, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(byType[.sleepDurationHours]), 7, accuracy: 1e-9)
     }
 
-    func testWithingsOtherMeasuresCapturesUnknownTypes() {
-        // Type 12 (temperature) isn't in our canonical map → should be "other".
+    func testWithingsCanonicalMeasuresAreConverted() throws {
+        // value × 10^unit — 70.5 kg, and a systolic reading.
         let json = """
         {"status":0,"body":{"measuregrps":[
           {"date":1736500000,"measures":[
-            {"value":365,"type":12,"unit":-1},
-            {"value":70,"type":1,"unit":0}
+            {"value":705,"type":1,"unit":-1},
+            {"value":118,"type":10,"unit":0}
           ]}
         ]}}
         """.data(using: .utf8)!
-        let other = WithingsResponseParser.parseOtherMeasures(json)
-        XCTAssertEqual(other.count, 1)                  // only the unknown type
-        XCTAssertEqual(other.first?.identifier, "withings.measure.12")
-        XCTAssertEqual(other.first?.value ?? 0, 36.5, accuracy: 1e-9)
+        let samples = try WithingsResponseParser.parseMeasures(json)
+        let byType = Dictionary(grouping: samples, by: \.type).mapValues { $0.first!.value }
+
+        XCTAssertEqual(try XCTUnwrap(byType[.bodyMass]), 70.5, accuracy: 1e-9)
+        XCTAssertEqual(byType[.bloodPressureSystolic], 118)
+    }
+
+    func testWithingsRejectsNonZeroApiStatus() {
+        let json = #"{"status":401,"body":null}"#.data(using: .utf8)!
+        XCTAssertThrowsError(try WithingsResponseParser.parseMeasures(json))
     }
 }

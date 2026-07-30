@@ -637,26 +637,32 @@ final class OuraProvider: OAuthIntegration {
         // the user didn't grant) must not abort the rest. Mapped endpoints feed
         // canonical metrics AND are raw-captured for any extra fields.
         var out = SyncedData()
+        /// Every response is handed to the pipeline verbatim, whether or not a
+        /// typed parser also reads it. The typed parsers contribute unit-aware
+        /// canonical vitals; the pipeline contributes everything else in the
+        /// document, including fields added since this code was written.
+        func capture(_ endpoint: String, _ data: Data) {
+            out.payloads.append(IngestPayload(source: .oura, endpoint: endpoint, data: data))
+        }
+
         if let d = await fetch("sleep") {
             out.samples += (try? OuraResponseParser.parseSleep(d)) ?? []
-            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "sleep")
+            capture("sleep", d)
         }
         if let d = await fetch("daily_readiness") {
             out.samples += (try? OuraResponseParser.parseDailyReadiness(d)) ?? []
-            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_readiness")
+            capture("daily_readiness", d)
         }
         if let d = await fetch("daily_spo2") {
             out.samples += (try? OuraResponseParser.parseDailySpo2(d)) ?? []
-            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_spo2")
+            capture("daily_spo2", d)
         }
         if let d = await fetch("daily_activity") {
             out.samples += (try? OuraResponseParser.parseDailyActivity(d)) ?? []
-            out.other += OuraResponseParser.parseRawDaily(d, endpoint: "daily_activity")
+            capture("daily_activity", d)
         }
         for endpoint in Self.rawCollections {
-            if let d = await fetch(endpoint) {
-                out.other += OuraResponseParser.parseRawDaily(d, endpoint: endpoint)
-            }
+            if let d = await fetch(endpoint) { capture(endpoint, d) }
         }
         summarise(failures, of: Self.collectionCount, diag: diag)
         return out
@@ -788,7 +794,7 @@ final class WithingsProvider: OAuthIntegration {
         let data = try await getJSON(comps.url!, accessToken: accessToken)
         var out = SyncedData()
         out.samples += (try? WithingsResponseParser.parseMeasures(data)) ?? []
-        out.other += WithingsResponseParser.parseOtherMeasures(data)
+        out.payloads.append(IngestPayload(source: .withings, endpoint: "measure", data: data))
         return out
     }
 }
@@ -818,14 +824,23 @@ final class WhoopProvider: OAuthIntegration {
     }
 
     override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {
-        func fetch(_ path: String) async -> Data? {
-            guard let url = URL(string: "https://api.prod.whoop.com/developer/v2/\(path)?limit=25") else { return nil }
-            return try? await getJSON(url, accessToken: accessToken)
-        }
         var out = SyncedData()
-        if let d = await fetch("recovery") { out.samples += (try? WhoopResponseParser.parseRecovery(d)) ?? [] }
-        if let d = await fetch("cycle") { out.samples += (try? WhoopResponseParser.parseCycles(d)) ?? [] }
-        if let d = await fetch("activity/sleep") { out.samples += (try? WhoopResponseParser.parseSleep(d)) ?? [] }
+        func fetch(_ path: String, endpoint: String) async -> Data? {
+            guard let url = URL(string: "https://api.prod.whoop.com/developer/v2/\(path)?limit=25") else { return nil }
+            guard let data = try? await getJSON(url, accessToken: accessToken) else { return nil }
+            // Whoop previously contributed nothing to the raw layer at all.
+            out.payloads.append(IngestPayload(source: .whoop, endpoint: endpoint, data: data))
+            return data
+        }
+        if let d = await fetch("recovery", endpoint: "recovery") {
+            out.samples += (try? WhoopResponseParser.parseRecovery(d)) ?? []
+        }
+        if let d = await fetch("cycle", endpoint: "cycle") {
+            out.samples += (try? WhoopResponseParser.parseCycles(d)) ?? []
+        }
+        if let d = await fetch("activity/sleep", endpoint: "sleep") {
+            out.samples += (try? WhoopResponseParser.parseSleep(d)) ?? []
+        }
         return out
     }
 }

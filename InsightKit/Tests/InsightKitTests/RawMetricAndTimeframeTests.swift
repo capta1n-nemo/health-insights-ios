@@ -19,7 +19,35 @@ final class RawMetricAndTimeframeTests: XCTestCase {
         // Sorted by display name: Alpha, Bravo.
         XCTAssertEqual(groups.first?.displayName, "Alpha")
         // Newest sample first within a group.
-        XCTAssertEqual(groups.first?.latest?.value, 2)
+        XCTAssertEqual(groups.first?.latest?.numericValue, 2)
+    }
+
+    func testTextGroupIsNotPlottableButKeepsItsStates() {
+        let now = Date()
+        let samples = [
+            RawMetricSample(identifier: "oura.daily_resilience.level", displayName: "Level",
+                            value: .text("solid"), unit: "", start: now, source: .oura),
+            RawMetricSample(identifier: "oura.daily_resilience.level", displayName: "Level",
+                            value: .text("strong"), unit: "",
+                            start: now.addingTimeInterval(-86_400), source: .oura)
+        ]
+        let group = try? XCTUnwrap(samples.groupedByIdentifier().first)
+        XCTAssertEqual(group?.isPlottable, false)
+        XCTAssertEqual(group?.distinctTextValues, ["solid", "strong"])
+        XCTAssertEqual(group?.latest?.formattedValue, "solid")
+    }
+
+    func testLegacyNumericCacheStillDecodes() throws {
+        // Caches written before `value` became a typed RawValue stored a bare
+        // JSON number. They must keep loading, or a user's history vanishes.
+        let legacy = """
+        [{"id":"3F2504E0-4F89-11D3-9A0C-0305E82C3301","identifier":"a","displayName":"A",
+          "value":42.5,"unit":"kg","start":760000000,"end":760000000,
+          "source":{"id":"oura","displayName":"Oura"}}]
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode([RawMetricSample].self, from: legacy)
+        XCTAssertEqual(decoded.first?.value, .number(42.5))
+        XCTAssertEqual(decoded.first?.numericValue, 42.5)
     }
 
     func testTimeframeFilter() {

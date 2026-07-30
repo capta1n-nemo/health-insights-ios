@@ -111,72 +111,13 @@ public enum OuraResponseParser {
         return out
     }
 
-    // MARK: - Generic "scrape everything" raw capture
-
-    /// Fields already promoted to canonical metrics, so we don't also duplicate
-    /// them into the "Other data" bucket.
-    private static let mappedOuraKeys: Set<String> = [
-        "lowest_heart_rate", "average_heart_rate", "average_hrv", "average_breath",
-        "total_sleep_duration", "temperature_deviation", "spo2_percentage",
-        "steps", "active_calories"
-    ]
-
-    private static let ignoredOuraKeys: Set<String> = [
-        "id", "day", "timestamp", "bedtime_start", "bedtime_end"
-    ]
-
-    /// Capture **every** numeric field in an Oura daily document (top level and
-    /// one level of nested objects, e.g. `contributors`) as `RawMetricSample`s,
-    /// so nothing Oura returns is thrown away. Fields already modelled as
-    /// canonical metrics are skipped. Namespaced `oura.<endpoint>.<field>`.
-    public static func parseRawDaily(_ data: Data, endpoint: String) -> [RawMetricSample] {
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let records = obj["data"] as? [[String: Any]] else { return [] }
-        var out: [RawMetricSample] = []
-        for rec in records {
-            guard let date = rawDate(rec) else { continue }
-            func emit(_ key: String, _ subkey: String?, _ any: Any) {
-                guard let value = numericValue(any) else { return }
-                let idSuffix = subkey.map { "\(key).\($0)" } ?? key
-                let name = subkey.map { "\(humanize(key)): \(humanize($0))" } ?? humanize(key)
-                out.append(RawMetricSample(identifier: "oura.\(endpoint).\(idSuffix)",
-                                           displayName: "\(name) (Oura)",
-                                           value: value, unit: "", start: date, source: .oura))
-            }
-            for (key, val) in rec {
-                if ignoredOuraKeys.contains(key) || mappedOuraKeys.contains(key) { continue }
-                if numericValue(val) != nil {
-                    emit(key, nil, val)
-                } else if let nested = val as? [String: Any] {
-                    for (subkey, subval) in nested where numericValue(subval) != nil {
-                        emit(key, subkey, subval)
-                    }
-                }
-            }
-        }
-        return out
-    }
-
-    private static func numericValue(_ any: Any) -> Double? {
-        guard let n = any as? NSNumber else { return nil }
-        if CFGetTypeID(n) == CFBooleanGetTypeID() { return nil }   // exclude true/false
-        return n.doubleValue
-    }
-
-    private static func rawDate(_ rec: [String: Any]) -> Date? {
-        if let d = (rec["day"] as? String).flatMap({ dayFormatter.date(from: $0) }) { return d }
-        for key in ["timestamp", "bedtime_start"] {
-            if let s = rec[key] as? String, let d = ISO8601DateFormatter().date(from: s) { return d }
-        }
-        return nil
-    }
-
-    static func humanize(_ raw: String) -> String {
-        var out = ""
-        for (i, ch) in raw.enumerated() {
-            if i > 0, ch == "_" { out.append(" "); continue }
-            out.append(ch)
-        }
-        return out.prefix(1).uppercased() + out.dropFirst()
-    }
+    // NOTE: the "scrape everything" raw capture that used to live here has been
+    // replaced by `IngestionPipeline`. It only ever kept numbers, only descended
+    // one level, and hard-coded Oura's field names — so booleans, strings
+    // (resilience `level`, the sleep hypnogram) and every array were discarded,
+    // and each new Oura field needed a code change. The pipeline walks any JSON
+    // from any provider and keeps the type it arrived as. The typed parsers
+    // above stay: they carry the unit and semantic knowledge that turns specific
+    // Oura fields into canonical vitals, which is not something a generic walk
+    // can infer.
 }
