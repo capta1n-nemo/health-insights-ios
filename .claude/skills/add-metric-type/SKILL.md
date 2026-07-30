@@ -1,6 +1,6 @@
 ---
 name: add-metric-type
-description: Add a new MetricType to InsightKit correctly. Use whenever a new vital, measurement or body metric needs to become a first-class canonical metric — it feeds seven exhaustive switches and several tests, and missing one is this repo's most frequent CI break.
+description: Add a new MetricType to InsightKit correctly. Use whenever a new vital, measurement or body metric needs to become a first-class canonical metric — it feeds eight exhaustive switches and several tests, and missing one is this repo's most frequent CI break.
 ---
 
 # Adding a `MetricType`
@@ -20,9 +20,9 @@ still don't mention your new case, without needing a compiler.
 Canonical units are the app's vocabulary: metres, kilograms, °C, mmHg, hours.
 Convert at the provider boundary, never here.
 
-## 2. The seven exhaustive switches
+## 2. The eight exhaustive switches
 
-None has a `default:`, so all seven must be updated:
+None has a `default:`, so all eight must be updated:
 
 | Where | What it decides |
 | --- | --- |
@@ -32,10 +32,23 @@ None has a `default:`, so all seven must be updated:
 | `MetricPresentation.swift` ▸ `chartStyleIndex` | Hue order. **Must stay contiguous from zero** |
 | `MetricPresentation.swift` ▸ `presentation` | trend / range / total / bivariate / static layout |
 | `MetricPresentation.swift` ▸ `maxValidInterval` | Longest gap a chart line may bridge |
+| `MetricPresentation.swift` ▸ `referenceRange` | The published normal band, or `nil` — see below |
 | `Signals/MetricSanitizer.swift` ▸ `requiresPositiveValue` | Whether zero is a real reading |
 
 Safe (they have `default:` or are derived): `bucketStatistic`, `inSentence`,
-`colourSlot`, `sharesMeasurementBasis`, `MetricValueFormatter`.
+`colourSlot`, `sharesMeasurementBasis`, `maxPlottableGap`.
+
+⚠️ `MetricValueFormatter` has a `default:` that renders `Int(value.rounded())`,
+so omitting a new metric compiles cleanly and silently prints 33.6 °C as "34".
+Not compiler-enforced; do it anyway.
+
+### `referenceRange` is usually `nil`, and that is the honest answer
+
+Only eight of thirty metrics have a published normal range. Write
+`case .newThing: return nil  // because …` with the reason — a silent `nil` is
+the failure mode this repo keeps paying for. And do not reach for
+`VitalSignsCheck.Spec`'s `hardLow`/`hardHigh`: those are *alarm* bounds, not
+normal ranges, and a band drawn between them shades almost the whole plot.
 
 ### `chartStyleIndex` deserves thought
 

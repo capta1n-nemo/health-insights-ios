@@ -59,30 +59,20 @@ enum Theme {
     /// Which hue each metric wears. The slot assignment itself lives in
     /// InsightKit (`MetricType.colourSlot`) so its collision-safety can be
     /// tested — see the note there.
-    /// A stable tint per insight, for the cross-insight score comparison.
+    /// This insight's hue on a chart that has resolved its own slots.
     ///
-    /// Drawn from the same validated eight, and never more than four are on
-    /// screen at once — comfortably inside what the palette separates.
-    static func insightTint(_ id: InsightID) -> Color {
-        let slot: Int
-        switch id {
-        case .readiness: slot = 0
-        case .sleepQuality: slot = 2
-        case .vitalSigns: slot = 3
-        case .heartHealth: slot = 1
-        case .cardioFitness: slot = 5
-        case .cardioTrajectory: slot = 6
-        case .cardiovascularRisk: slot = 7
-        case .heartAge: slot = 4
-        case .bloodPressure: slot = 4
-        case .bodyComposition: slot = 5
-        case .restingHeartRateTrend: slot = 1
-        case .substanceImpact: slot = 6
-        }
-        let step = metricPalette[slot % metricPalette.count]
-        return Color(UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? step.dark : step.light)
-        })
+    /// Pass the assignment from `InsightPalette.slots(for:)` so two cards on one
+    /// chart can never share a hue. Without it an insight falls back to its
+    /// preferred slot, which is right for a single-card tint and only a
+    /// *preference* on a crowded comparison chart.
+    ///
+    /// This used to be a fixed table here in the view, with a doc comment
+    /// claiming safety because "never more than four are on screen at once" —
+    /// but the user chooses which four, and four pairs shared a hue. The slot
+    /// assignment now lives in InsightKit (`InsightID.colourSlot`) where its
+    /// collision-safety can be tested, exactly as `MetricType.colourSlot` is.
+    static func insightTint(_ id: InsightID, slots: [InsightID: Int]? = nil) -> Color {
+        paletteColour(slot: slots?[id] ?? id.colourSlot)
     }
 
     /// Every measured series is a solid line. **Dash now means one thing only:

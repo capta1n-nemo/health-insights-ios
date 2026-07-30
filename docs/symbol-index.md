@@ -146,10 +146,15 @@ the place to look.
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
+- `Presentation/InsightPalette.swift`
+  - `InsightPalette` :48
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :267
+  - `MetricPalette` :377
   - `MetricPresentation` :8
+- `Presentation/MetricReferenceRange.swift`
+  - `MetricReferenceBand` :88
+  - `MetricReferenceRange` :36
 - `Presentation/MetricSubject.swift`
   - `MetricSubject` :10
 - `Presentation/MetricSummaries.swift`
@@ -264,8 +269,8 @@ the place to look.
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :144
-  - `ConfidenceBadge` :160
+  - `Card` :134
+  - `ConfidenceBadge` :150
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :211

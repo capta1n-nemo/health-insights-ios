@@ -105,6 +105,7 @@ if [ -n "$metric_names" ]; then
     check_switch_covers InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift chartStyleIndex
     check_switch_covers InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift presentation
     check_switch_covers InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift maxValidInterval
+    check_switch_covers InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift referenceRange
     check_switch_covers InsightKit/Sources/InsightKit/Signals/MetricSanitizer.swift requiresPositiveValue
 fi
 

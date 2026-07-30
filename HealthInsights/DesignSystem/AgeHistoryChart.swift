@@ -13,6 +13,14 @@ import InsightKit
 /// than that is closing the gap even while its own number rises, which no chart
 /// of the age alone can show.
 struct AgeHistoryChart: View {
+    /// The two ages get hues of their own rather than borrowing slot 0 and slot
+    /// 2, which are heart rate's and blood oxygen's preferred ones. Low severity
+    /// — neither age is a `MetricType` and they never share a chart with those
+    /// two — but "it can't collide today" is the belief that shipped wrong once
+    /// already, and the far end of the palette is free.
+    static let heartSlot = 7
+    static let fitnessSlot = 5
+
     let points: [AgePoint]
     var window: TimeInterval = 365 * 24 * 3600
     var selection: Binding<Date?>?
@@ -50,8 +58,8 @@ struct AgeHistoryChart: View {
                 Text(hit.date.formatted(date: .abbreviated, time: .omitted))
                     .foregroundStyle(.tertiary)
                 value("You", hit.chronological, Self.chronologicalTint)
-                if let heart = hit.heart { value("Heart", heart, Theme.paletteColour(slot: 0)) }
-                if let fitness = hit.fitness { value("Fitness", fitness, Theme.paletteColour(slot: 2)) }
+                if let heart = hit.heart { value("Heart", heart, Theme.paletteColour(slot: AgeHistoryChart.heartSlot)) }
+                if let fitness = hit.fitness { value("Fitness", fitness, Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot)) }
                 Spacer()
             }
             .font(.caption2)
@@ -121,7 +129,7 @@ struct AgeHistoryChart: View {
             LineMark(x: .value("Day", point.date),
                      y: .value("Age", point.heart ?? 0),
                      series: .value("Series", "Heart"))
-                .foregroundStyle(Theme.paletteColour(slot: 0))
+                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.heartSlot))
                 .lineStyle(StrokeStyle(lineWidth: 2))
                 .interpolationMethod(.linear)
         }
@@ -129,7 +137,7 @@ struct AgeHistoryChart: View {
             LineMark(x: .value("Day", point.date),
                      y: .value("Age", point.fitness ?? 0),
                      series: .value("Series", "Fitness"))
-                .foregroundStyle(Theme.paletteColour(slot: 2))
+                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot))
                 .lineStyle(StrokeStyle(lineWidth: 2))
                 .interpolationMethod(.linear)
         }
@@ -139,10 +147,10 @@ struct AgeHistoryChart: View {
         HStack(spacing: 12) {
             legendKey("Your age", Self.chronologicalTint)
             if points.contains(where: { $0.heart != nil }) {
-                legendKey("Heart age", Theme.paletteColour(slot: 0))
+                legendKey("Heart age", Theme.paletteColour(slot: AgeHistoryChart.heartSlot))
             }
             if points.contains(where: { $0.fitness != nil }) {
-                legendKey("Fitness age", Theme.paletteColour(slot: 2))
+                legendKey("Fitness age", Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot))
             }
             Spacer()
         }

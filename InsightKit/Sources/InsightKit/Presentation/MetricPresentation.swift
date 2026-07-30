@@ -230,6 +230,116 @@ public extension MetricType {
         }
     }
 
+    /// The published range an ordinary reading sits in, or `nil` where no such
+    /// range exists — which is most metrics, and is the honest answer for them.
+    ///
+    /// Exhaustive with no `default:`, like the rest of this file. A silent `nil`
+    /// for a new metric is the failure mode this repo keeps paying for; being
+    /// made to write `case .newThing: return nil  // because …` is the point.
+    ///
+    /// Sex- and age-dependent ranges (body fat, VO₂max) are deliberately absent.
+    /// They need a `UserHealthProfile`, which a property on `MetricType` has no
+    /// access to; when they arrive they get a `referenceRange(for:)` rather than
+    /// a fudge here.
+    var referenceRange: MetricReferenceRange? {
+        typealias R = MetricReferenceRange
+        typealias B = MetricReferenceRange.Band
+        switch self {
+        case .oxygenSaturation:
+            return R(normal: B(low: 95, high: 100),
+                     cautionBelow: B(low: 90, high: 95),
+                     caption: "95–100% is the usual range for a healthy adult at sea level. Below 90% is low enough to act on.",
+                     provenance: "Standard clinical reference range — the same 95–100% Apple Health shows for Blood Oxygen. The Vitals check's own attention line is 94%.")
+
+        case .respiratoryRate:
+            return R(normal: B(low: 12, high: 20),
+                     cautionBelow: B(low: 9, high: 12),
+                     cautionAbove: B(low: 20, high: 25),
+                     caption: "12–20 breaths a minute at rest.",
+                     provenance: "Standard adult vital-sign range; NEWS2 scores 12–20 as normal and ≤8 or ≥25 as its highest-risk arms.")
+
+        case .bodyTemperature:
+            // CORE only. Skin runs two to three degrees cooler and gets no band.
+            return R(normal: B(low: 36.1, high: 37.2),
+                     cautionBelow: B(low: 35.0, high: 36.1),
+                     cautionAbove: B(low: 37.2, high: 38.0),
+                     caption: "36.1–37.2 °C is the ordinary core range. 38.0 °C and up is fever; below 35.0 °C is hypothermia.",
+                     provenance: "Conventional oral reference range. Mackowiak's 1992 re-appraisal of 98.6 °F put the 99th centile of normal oral temperature at 37.7 °C, which is where the Vitals check's 37.8 alarm line comes from.")
+
+        case .bloodGlucose:
+            return R(normal: B(low: 3.9, high: 10.0),
+                     cautionBelow: B(low: 3.0, high: 3.9),
+                     cautionAbove: B(low: 10.0, high: 13.9),
+                     caption: "3.9–10.0 mmol/L is the time-in-range target across the whole day, meals included. It is not a fasting normal — fasting normal is 3.9–5.5 mmol/L.",
+                     provenance: "Battelino et al., 'Clinical Targets for Continuous Glucose Monitoring Data Interpretation', Diabetes Care 2019 (70–180 mg/dL). Fasting figure from the ADA; level-2 hypo <3.0 and level-2 hyper >13.9 set the shoulders.")
+
+        case .restingHeartRate:
+            // No low shoulder on purpose: `concernWhenLow` is false for this
+            // spec, and shading under 60 would paint every trained user's chart
+            // as a problem.
+            return R(normal: B(low: 60, high: 100),
+                     cautionAbove: B(low: 100, high: 120),
+                     caption: "60–100 bpm is the standard adult resting range. Regularly trained people sit below it, which is why nothing is shaded underneath.",
+                     provenance: "American Heart Association adult resting heart-rate range. The Vitals check's 38 bpm floor is a bradycardia alarm, not a normal floor.")
+
+        case .heartRateRecovery:
+            return R(normal: B(low: 12),
+                     cautionBelow: B(high: 12),
+                     caption: "A drop of 12 bpm or more in the first minute after exertion is the normal response. Higher is better, and there is no upper limit worth drawing.",
+                     provenance: "Cole et al., New England Journal of Medicine 1999 — a one-minute recovery of ≤12 bpm predicted mortality. Apple Watch reports the one-minute figure.")
+
+        case .walkingSteadiness:
+            return R(normal: B(low: 50, high: 100),
+                     cautionBelow: B(low: 20, high: 50),
+                     caption: "Apple rates 50% and above as OK, 20–50% as Low, and below 20% as Very Low.",
+                     provenance: "Apple's published Walking Steadiness classification — the same bands Vitals Check already scores against.")
+
+        case .sleepDurationHours:
+            return R(normal: B(low: 7, high: 9),
+                     cautionBelow: B(low: 6, high: 7),
+                     cautionAbove: B(low: 9, high: 10),
+                     caption: "7–9 hours a night is the recommended range for an adult.",
+                     provenance: "National Sleep Foundation duration recommendations (2015); the AASM/SRS consensus states 7 hours or more.")
+
+        // The bounds that exist for heart rate (40–100) are for the *day's
+        // representative value*. This chart plots raw samples at any window up to
+        // a day and a half, workouts included, and a 60–100 band drawn over a run
+        // is a chart that lies.
+        case .heartRate: return nil
+        // Alarm ceiling only; no published normal floor.
+        case .walkingHeartRateAverage: return nil
+        // "No absolute bound is defensible — rMSSD spans roughly 15–150 ms with
+        // age, fitness and device." The same holds for SDNN.
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN: return nil
+        // Nightly wrist skin temperature tracks ambient warmth and bedding, which
+        // is exactly why every vendor publishes a deviation instead.
+        case .skinTemperature: return nil
+        // The zero point *is* the personal baseline, so a fixed band here would
+        // be a band around a moving target.
+        case .skinTemperatureDeviation: return nil
+        // 0.5% is an alarm floor; published perfusion index spans roughly 0.3–10%
+        // with no agreed normal band.
+        case .peripheralPerfusionIndex: return nil
+        // Zero is the healthy value, and a degenerate 0–0 band shades nothing.
+        case .atrialFibrillationBurden: return nil
+        // The 10% ceiling is this app's attention line; Apple publishes no
+        // classification for asymmetry the way it does for steadiness.
+        case .walkingAsymmetry: return nil
+        // The ACC/AHA bands live in exactly one place —
+        // `BloodPressureEstimator.Category` — and `BloodPressureSections` draws
+        // them from there. Two copies of a clinical threshold is one too many.
+        case .bloodPressureSystolic, .bloodPressureDiastolic: return nil
+        // Age- and sex-dependent. `HeartHealthScore` already holds reference
+        // tables for these and a fixed band here would contradict them.
+        case .vo2Max, .bodyFatPercentage: return nil
+        // No published "normal" that means anything without a person attached.
+        case .vascularAge, .bodyMass, .leanBodyMass, .muscleMass, .boneMass,
+             .bodyWaterPercentage, .height, .stepCount, .activeEnergyBurned,
+             .dayStrain:
+            return nil
+        }
+    }
+
     /// How several readings inside one bucket collapse to a single plotted point.
     var bucketStatistic: BucketStatistic {
         switch self {

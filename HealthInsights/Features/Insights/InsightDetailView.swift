@@ -482,9 +482,14 @@ struct InsightDetailView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("What comes first", systemImage: "clock.arrow.circlepath")
                         .font(.headline)
+                    // Resolved across this list. Without slots a metric falls
+                    // back to its *preferred* hue, and RMSSD and SDNN prefer the
+                    // same one — two identical dots in one list, which is the
+                    // collision class this app has already shipped once.
+                    let slots = MetricPalette.slots(for: leads.map(\.metric))
                     ForEach(leads) { lead in
                         HStack(alignment: .top, spacing: 8) {
-                            Circle().fill(Theme.metricColor(lead.metric))
+                            Circle().fill(Theme.metricColor(lead.metric, slots: slots))
                                 .frame(width: 8, height: 8).padding(.top, 6)
                             Text(lead.sentence).font(.subheadline)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -507,9 +512,10 @@ struct InsightDetailView: View {
                     Text("What changed").font(.headline)
                     Text("Your last four weeks against the four before them.")
                         .font(.caption).foregroundStyle(.secondary)
+                    let slots = MetricPalette.slots(for: changes.map(\.metric))
                     ForEach(changes) { change in
                         HStack(spacing: 8) {
-                            Circle().fill(Theme.metricColor(change.metric))
+                            Circle().fill(Theme.metricColor(change.metric, slots: slots))
                                 .frame(width: 9, height: 9)
                             Text(change.metric.displayName).font(.subheadline)
                             Spacer()
@@ -549,12 +555,13 @@ struct InsightDetailView: View {
             Card {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Full history").font(.headline)
+                    let slots = MetricPalette.slots(for: metrics)
                     ForEach(metrics, id: \.self) { metric in
                         NavigationLink {
                             MetricDetailView(metric: metric)
                         } label: {
                             HStack(spacing: 8) {
-                                Circle().fill(Theme.metricColor(metric))
+                                Circle().fill(Theme.metricColor(metric, slots: slots))
                                     .frame(width: 9, height: 9)
                                 Text(metric.displayName).font(.subheadline)
                                 Spacer()

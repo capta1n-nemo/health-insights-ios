@@ -57,6 +57,37 @@ struct MultiSourceChart: View {
     private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
     private var selected: Date? { selectionBinding.wrappedValue }
 
+    /// The window actually on screen, mirrored from the scroll owner so the
+    /// reference band clips against the same y-domain the axis is drawn from.
+    /// `ScrollableMetricChart` hands `yDomain:` the *visible* range but hands
+    /// `marks:` a plot range three windows wide, so the two must be tracked
+    /// separately or the band would clip against the wrong one.
+    @State private var visibleWindow: ClosedRange<Date>?
+
+    /// The published normal range for this metric, where one exists — which it
+    /// does for eight of thirty.
+    private var reference: MetricReferenceRange? { breakdown.type.referenceRange }
+
+    private func values(in range: ClosedRange<Date>) -> [Double] {
+        plot(in: range).segments.flatMap { $0.points.map(\.value) }
+    }
+
+    /// The stripes to shade. Empty until the first `onVisibleRangeChange`, which
+    /// `ScrollableMetricChart` fires on appear — so the band arrives the frame
+    /// after the data, never before it.
+    ///
+    /// Nothing is shaded on a log axis. The band's edges are linear values and
+    /// the stripe would be drawn at the wrong height — most of these metrics are
+    /// `.fluctuatingRange` and so *do* offer the log toggle, which makes this a
+    /// live case rather than a theoretical one.
+    private var referenceBands: [MetricReferenceBand] {
+        guard !logarithmic, let reference, let visibleWindow,
+              let domain = MetricReferenceRange.chartDomain(
+                  values: values(in: visibleWindow), reference: reference)
+        else { return [] }
+        return reference.bands(in: domain)
+    }
+
     private struct Point: Identifiable {
         /// Derived, not a fresh UUID: a new identity every render made SwiftUI
         /// rebuild every mark on each redraw.
@@ -200,11 +231,20 @@ struct MultiSourceChart: View {
             },
             yDomain: { range in
                 // Bridge endpoints are real bucket values already present in the
-                // segments, so bridging never widens the domain.
-                paddedYDomain(plot(in: range).segments.flatMap { $0.points.map(\.value) },
-                              logarithmic: logarithmic)
+                // segments, so bridging never widens the domain. A reference
+                // band can, though — an edge you cannot see conveys nothing —
+                // and `chartDomain` returns the plain padded domain untouched
+                // for the twenty-two metrics that have no band.
+                if let reference, !logarithmic {
+                    return MetricReferenceRange.chartDomain(values: values(in: range),
+                                                            reference: reference)
+                }
+                return paddedYDomain(values(in: range), logarithmic: logarithmic)
             },
-            onVisibleRangeChange: onVisibleRangeChange
+            onVisibleRangeChange: { range in
+                visibleWindow = range
+                onVisibleRangeChange?(range)
+            }
         ) { range in
             allMarks(in: range)
         }
@@ -216,8 +256,33 @@ struct MultiSourceChart: View {
     @ChartContentBuilder
     private func allMarks(in range: ClosedRange<Date>) -> some ChartContent {
         let plot = plot(in: range)
+        bandMarks(across: range)
         bridgeMarks(plot.bridges)
         seriesMarks(plot.segments)
+    }
+
+    /// The published range shaded behind the readings.
+    ///
+    /// Explicit `-> some ChartContent`, and a `ForEach` rather than an `if`: a
+    /// `RectangleMark` behind a conditional is exactly the shape that resolves
+    /// to `Chart3DContent` on this SDK and silently drops `.foregroundStyle`. An
+    /// empty `referenceBands` draws nothing, which is what a metric with no
+    /// published range wants.
+    ///
+    /// Lighter than the blood-pressure screen's 0.10, because that chart stacks
+    /// five thin stripes and this one draws at most three — the middle of which
+    /// can fill most of the plot. Both sit under the 0.18 the score rules use, so
+    /// a data line is never in doubt against the fill.
+    @ChartContentBuilder
+    private func bandMarks(across range: ClosedRange<Date>) -> some ChartContent {
+        ForEach(referenceBands) { band in
+            RectangleMark(xStart: .value("From", range.lowerBound),
+                          xEnd: .value("To", range.upperBound),
+                          yStart: .value("Low", band.lower),
+                          yEnd: .value("High", band.upper))
+                .foregroundStyle((band.kind == .normal ? Theme.good : Theme.warn)
+                    .opacity(band.kind == .normal ? 0.09 : 0.06))
+        }
     }
 
     /// One line per contiguous run.

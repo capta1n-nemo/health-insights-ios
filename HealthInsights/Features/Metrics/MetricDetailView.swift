@@ -144,6 +144,17 @@ struct MetricDetailView: View {
                     Text("A dashed stretch joins two readings across a gap — nothing was measured along it.")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
+                // A shaded band with no words is a coloured rectangle. The range
+                // carries its own sentence and its own attribution, so a number
+                // can't reach the screen without saying where it came from.
+                if let reference = allData.type.referenceRange {
+                    Text(reference.caption)
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(reference.provenance)
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if subject.presentation.allowsLogScale {
                 HStack {
                     Picker("Scale", selection: $logScale) {

@@ -60,16 +60,23 @@ struct InsightsListView: View {
     /// The scored insights that have enough history to plot, most-populated
     /// first, capped so the chart stays readable.
     private var comparisonSeries: [ScoreComparisonChart.Series] {
-        model.results
+        let candidates = model.results
             .filter { $0.score != nil }
-            .compactMap { result -> ScoreComparisonChart.Series? in
+            .compactMap { result -> (InsightID, String, [ScorePoint])? in
                 let points = model.scoreHistory(for: result.id)
                 guard points.count >= 8 else { return nil }
-                return .init(id: result.id, title: result.title, points: points,
-                             tint: Theme.insightTint(result.id))
+                return (result.id, result.title, points)
             }
-            .sorted { $0.points.count > $1.points.count }
+            .sorted { $0.2.count > $1.2.count }
             .prefix(4)
-            .map { $0 }
+        // Hues resolved across *this* chart's four, not read off a global table.
+        // Twelve insights share eight validated hues, so preferences collide by
+        // construction — and since the user chooses which four are drawn, a fixed
+        // table could and did put two of a colliding pair on screen together.
+        let slots = InsightPalette.slots(for: candidates.map { $0.0 })
+        return candidates.map { id, title, points in
+            .init(id: id, title: title, points: points,
+                  tint: Theme.insightTint(id, slots: slots))
+        }
     }
 }

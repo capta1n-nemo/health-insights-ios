@@ -106,11 +106,26 @@ struct ScoreComparisonChart: View {
     /// Explicit `some ChartContent`, as every mark builder in this app must have.
     @ChartContentBuilder
     private func marks(_ points: [Point]) -> some ChartContent {
+        bandMarks
         ForEach(points) { point in
             LineMark(x: .value("Day", point.date), y: .value("Score", point.score),
                      series: .value("Insight", point.title))
                 .foregroundStyle(point.tint)
                 .interpolationMethod(.linear)
+        }
+    }
+
+    /// The same band lines `ScoreHistoryChart` draws.
+    ///
+    /// Without them 65 sat in a shaded context on one screen and on a bare plot
+    /// on the other — the same number reading differently depending on which
+    /// chart you happened to be looking at.
+    @ChartContentBuilder
+    private var bandMarks: some ChartContent {
+        ForEach([50.0, 70.0], id: \.self) { level in
+            RuleMark(y: .value("Band", level))
+                .foregroundStyle(Color.secondary.opacity(0.18))
+                .lineStyle(Theme.referenceStroke)
         }
     }
 }

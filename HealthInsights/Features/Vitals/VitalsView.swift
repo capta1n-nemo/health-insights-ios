@@ -202,12 +202,17 @@ struct OtherDataDetailView: View {
                 }
                 .pickerStyle(.segmented)
                 if charted.count > 1 {
+                    // An explicit hue: without one Swift Charts supplies its
+                    // own blue, which is off the validated palette every other
+                    // chart in the app draws from.
                     Chart(charted) { point in
                         LineMark(x: .value("Time", point.date),
                                  y: .value(group.unit, point.value))
+                            .foregroundStyle(Theme.paletteColour(slot: 0))
                             .interpolationMethod(.linear)
                         PointMark(x: .value("Time", point.date),
                                   y: .value(group.unit, point.value))
+                            .foregroundStyle(Theme.paletteColour(slot: 0))
                             .symbolSize(20)
                     }
                     .frame(height: 160)

@@ -151,16 +151,7 @@ struct MetricYScale: ViewModifier {
     }
 }
 
-/// A padded Y-range so a single point or a flat line isn't glued to an edge.
-func paddedYDomain(_ values: [Double], logarithmic: Bool = false) -> ClosedRange<Double>? {
-    guard let lo = values.min(), let hi = values.max() else { return nil }
-    let useLog = logarithmic && values.allSatisfy { $0 > 0 }
-    if lo == hi {
-        let pad = Swift.max(abs(lo) * 0.05, 1)
-        let lower = useLog ? Swift.max(lo * 0.9, 0.0001) : lo - pad
-        return lower...(hi + pad)
-    }
-    let span = hi - lo
-    let lower = useLog ? Swift.max(lo * 0.7, 0.0001) : lo - span * 0.1
-    return lower...(hi + span * 0.1)
-}
+// `paddedYDomain` moved to InsightKit (`Presentation/MetricReferenceRange.swift`).
+// It decides what a chart's axis claims about the spread of the data — a
+// correctness question — and here nothing could test it. Every call site already
+// imports InsightKit, so the name still resolves.

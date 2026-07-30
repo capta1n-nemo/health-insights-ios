@@ -128,11 +128,23 @@ struct BloodPressureSections: View {
                 yEnd: .value("High", category.systolicRange.upper ?? 260))
                 .foregroundStyle(color(for: category).opacity(0.10))
         }
+        // Dashed, and in a neutral hue. These were solid and in the *same*
+        // colour as the measured diastolic line, so a reference level was
+        // indistinguishable from a measurement — which is the one thing the
+        // app's dash rule exists to prevent.
         ForEach([80.0, 90.0, 120.0], id: \.self) { threshold in
             RuleMark(y: .value("Diastolic threshold", threshold))
-                .foregroundStyle(Theme.sourceColor(1).opacity(0.30))
-                .lineStyle(StrokeStyle(lineWidth: 1))
+                .foregroundStyle(Color.secondary.opacity(0.35))
+                .lineStyle(Theme.referenceStroke)
         }
+    }
+
+    /// Systolic and diastolic wear their *metric* hues here, resolved against
+    /// each other. They used to be painted from the source palette — red and
+    /// blue on this screen and magenta on every overlay chart, for the same two
+    /// numbers.
+    private var pressureSlots: [MetricType: Int] {
+        MetricPalette.slots(for: [.bloodPressureSystolic, .bloodPressureDiastolic])
     }
 
     /// Kept in its own function with an explicit return type, which pins these
@@ -141,16 +153,16 @@ struct BloodPressureSections: View {
     private func marks(for r: BloodPressureEstimator.Reading) -> some ChartContent {
         LineMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic),
                  series: .value("Reading", "Systolic"))
-            .foregroundStyle(Theme.sourceColor(0))
+            .foregroundStyle(Theme.metricColor(.bloodPressureSystolic, slots: pressureSlots))
             .interpolationMethod(.linear)
         PointMark(x: .value("Date", r.date), y: .value("mmHg", r.systolic))
-            .foregroundStyle(Theme.sourceColor(0)).symbolSize(20)
+            .foregroundStyle(Theme.metricColor(.bloodPressureSystolic, slots: pressureSlots)).symbolSize(20)
         LineMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic),
                  series: .value("Reading", "Diastolic"))
-            .foregroundStyle(Theme.sourceColor(1))
+            .foregroundStyle(Theme.metricColor(.bloodPressureDiastolic, slots: pressureSlots))
             .interpolationMethod(.linear)
         PointMark(x: .value("Date", r.date), y: .value("mmHg", r.diastolic))
-            .foregroundStyle(Theme.sourceColor(1)).symbolSize(20)
+            .foregroundStyle(Theme.metricColor(.bloodPressureDiastolic, slots: pressureSlots)).symbolSize(20)
     }
 
     /// The reading under the finger, shown above the chart: in-chart annotations
