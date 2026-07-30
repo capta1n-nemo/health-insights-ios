@@ -188,53 +188,83 @@ final class ContributorsTests: XCTestCase {
     }
 }
 
-/// The overlay chart reuses eight hues across twenty-four metrics. That is only
-/// safe while no two metrics sharing a hue can appear on the same chart, and
-/// what appears together is decided by each insight's `candidateMetrics` — not
-/// by the colour table. So adding a metric to an insight can break this test
-/// from a file that never mentions colour. That is deliberate.
+/// Identity on a chart is hue alone now. Dash used to carry the overflow, which
+/// was measurably safe and practically wrong — a dashed line reads as an
+/// estimate or a gap, not as a different signal.
+///
+/// So the safety property moved: instead of "every metric is globally unique",
+/// it is "every chart resolves its own hues, and no chart shows more series than
+/// hue can carry". These tests pin both halves.
 final class MetricColourSlotTests: XCTestCase {
 
-    /// The invariant that makes every chart safe without a per-insight rule:
-    /// identity is (hue, dash), and it is unique across the whole catalogue — so
-    /// *any* subset of metrics is collision-free on any chart.
-    ///
-    /// The earlier scheme reused a hue between metrics believed never to share a
-    /// chart, and checked that belief per insight. It shipped two greens onto
-    /// one chart anyway.
-    func testEveryMetricHasAUniqueHueAndDashPair() {
-        var seen: [String: MetricType] = [:]
-        for metric in MetricType.allCases {
-            let key = "\(metric.colourSlot)/\(metric.dashIndex)"
-            if let clash = seen[key] {
-                XCTFail("\(metric) and \(clash) share hue \(metric.colourSlot) and dash \(metric.dashIndex)")
-            }
-            seen[key] = metric
-        }
-        XCTAssertEqual(seen.count, MetricType.allCases.count)
-    }
-
     func testStyleIndicesAreContiguousFromZero() {
-        // Contiguity is what guarantees the first eight metrics take eight
-        // distinct hues before any dash is reused.
+        // Contiguity is what makes the first eight metrics claim eight distinct
+        // hues before any preference has to be overridden.
         let indices = MetricType.allCases.map(\.chartStyleIndex).sorted()
         XCTAssertEqual(indices, Array(0..<MetricType.allCases.count))
     }
 
     func testEverySlotIsWithinThePalette() {
         for metric in MetricType.allCases {
-            XCTAssertTrue((0..<8).contains(metric.colourSlot),
-                          "\(metric) has slot \(metric.colourSlot), outside the eight-hue palette")
-            XCTAssertTrue((0..<4).contains(metric.dashIndex),
-                          "\(metric) has dash \(metric.dashIndex), outside the four stroke styles")
+            XCTAssertTrue((0..<MetricPalette.hueCount).contains(metric.colourSlot),
+                          "\(metric) has slot \(metric.colourSlot), outside the palette")
         }
     }
 
-    /// The chart that carries the most series at once must not have to reuse a
-    /// dash before it has spent all eight hues.
-    func testVitalsCheckSpendsEveryHueBeforeReusingADash() {
-        let hues = Set(VitalSignsInsight().candidateMetrics.map(\.colourSlot))
-        XCTAssertEqual(hues.count, 8)
+    /// The property the chart depends on: any set up to the palette size comes
+    /// back with every member on its own hue. This is what replaces the old
+    /// global-uniqueness guarantee, and it holds for *any* combination rather
+    /// than only the ones an insight happens to declare today.
+    func testAnySetUpToThePaletteSizeGetsDistinctHues() {
+        let all = MetricType.allCases
+        // Every contiguous window, plus a stride that mixes distant metrics —
+        // the shapes a real contributor list takes.
+        for size in 1...MetricPalette.hueCount {
+            for start in 0..<(all.count - size) {
+                let set = Array(all[start..<(start + size)])
+                let slots = MetricPalette.slots(for: set)
+                XCTAssertEqual(Set(slots.values).count, size,
+                               "\(set.map(\.rawValue)) collided")
+            }
+            let spread = Array(stride(from: 0, to: all.count, by: 3).prefix(size).map { all[$0] })
+            XCTAssertEqual(Set(MetricPalette.slots(for: spread).values).count, spread.count)
+        }
+    }
+
+    /// A metric keeps its own hue wherever that hue is free, so the same signal
+    /// usually looks the same from one card to the next.
+    func testAMetricKeepsItsPreferredHueWhenNothingContendsForIt() {
+        let slots = MetricPalette.slots(for: [.heartRate, .oxygenSaturation])
+        XCTAssertEqual(slots[.heartRate], MetricType.heartRate.colourSlot)
+        XCTAssertEqual(slots[.oxygenSaturation], MetricType.oxygenSaturation.colourSlot)
+    }
+
+    /// Two metrics preferring the same hue is the case global assignment could
+    /// not solve once dash was gone. The later one must move rather than clash.
+    func testAContendedHueIsResolvedRatherThanShared() {
+        let contending = MetricType.allCases.filter { $0.chartStyleIndex % MetricPalette.hueCount == 0 }
+        XCTAssertGreaterThan(contending.count, 1, "fixture assumes a genuine contention exists")
+        let pair = Array(contending.prefix(2))
+        let slots = MetricPalette.slots(for: pair)
+        XCTAssertEqual(Set(slots.values).count, 2)
+        XCTAssertEqual(slots[pair[0]], pair[0].colourSlot, "the first claimant keeps its own")
+    }
+
+    /// Vitals Check scans far more signals than hue can separate. That is
+    /// exactly why the chart draws only the ones away from baseline by default —
+    /// but the hues it does hand out must still all differ.
+    func testACrowdedChartStillSpendsEveryHueBeforeRepeating() {
+        let metrics = VitalSignsInsight().candidateMetrics
+        XCTAssertGreaterThan(metrics.count, MetricPalette.hueCount)
+        let slots = MetricPalette.slots(for: metrics)
+        XCTAssertEqual(Set(slots.values).count, MetricPalette.hueCount)
+    }
+
+    /// Past the palette the function must still answer for every metric handed
+    /// to it rather than dropping one on the floor.
+    func testEveryMetricGetsAnAnswerEvenPastThePalette() {
+        let slots = MetricPalette.slots(for: MetricType.allCases)
+        XCTAssertEqual(slots.count, MetricType.allCases.count)
     }
 }
 

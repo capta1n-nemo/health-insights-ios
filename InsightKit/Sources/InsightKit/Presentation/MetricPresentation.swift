@@ -77,28 +77,23 @@ public extension MetricType {
         }
     }
 
-    /// This metric's position in the chart's identity scale.
+    /// This metric's place in the ordering the palette assigns hues from.
     ///
-    /// Hue alone cannot carry identity here. Eight validated hues is the most a
-    /// categorical palette supports, and a Vitals Check chart now shows
-    /// seventeen signals — worse, when every pair may be compared freely rather
-    /// than only adjacent ones, **no** seven-hue subset of the palette clears
-    /// the colour-blind separation floor. That was measured, not assumed: the
-    /// first shipped version put two greens on one chart.
+    /// Eight validated hues is the ceiling for a categorical palette, and a
+    /// Vitals Check chart can hold seventeen signals — so identity was once a
+    /// (hue, dash) pair, which made every metric distinguishable from every
+    /// other by construction. It was measurably safe and practically wrong: a
+    /// dashed line reads as an estimate or a gap in the data, not as a different
+    /// signal. Charts now keep the number of visible series inside what hue
+    /// alone can carry instead (see `MetricPalette`).
     ///
-    /// So identity is a **pair**: hue from this index, line dash from it too.
-    /// Because the index is globally unique per metric, every metric has a
-    /// unique (hue, dash) — which means *any* subset of metrics is automatically
-    /// collision-free, on any chart, without a per-insight rule to maintain.
-    /// Adding a metric to an insight can no longer silently make two series
-    /// look alike.
+    /// The order below front-loads the vitals that share the Vitals Check chart,
+    /// so the signals most likely to appear together get first claim on the
+    /// eight hues and rarely have to be shifted off their own.
     ///
     /// Fixed per metric rather than assigned by position in whatever list is on
     /// screen: a chart that repaints its surviving series when one drops out for
     /// want of data can't be read across two glances.
-    ///
-    /// The order below front-loads the vitals that share the Vitals Check chart,
-    /// so they take the eight distinct hues before any dash is reused.
     ///
     /// Exhaustive with no `default:`, like the rest of this file.
     var chartStyleIndex: Int {
@@ -136,10 +131,9 @@ public extension MetricType {
         }
     }
 
-    /// Which of the eight hues this metric wears.
-    var colourSlot: Int { chartStyleIndex % 8 }
-    /// Which line dash it wears, so two metrics sharing a hue still differ.
-    var dashIndex: Int { chartStyleIndex / 8 }
+    /// The hue this metric prefers. Not necessarily the one it gets — see
+    /// `MetricPalette.slots(for:)`, which resolves collisions per chart.
+    var colourSlot: Int { chartStyleIndex % MetricPalette.hueCount }
 
     /// Deliberately exhaustive with no `default:` — adding a `MetricType` then
     /// fails to compile until someone decides how it should be presented.
@@ -222,5 +216,53 @@ public extension MetricType {
         default:
             return .mean
         }
+    }
+}
+
+/// Which hue each series on a chart wears.
+///
+/// Identity used to be a (hue, dash) pair, because eight validated hues cannot
+/// separate thirty metrics and a dash could carry the rest. That was measurably
+/// safe and practically wrong: a dashed line reads as an *estimate or a gap*,
+/// not as a different signal, so the dashes were being read as missing data.
+///
+/// So hue alone now, and the chart keeps the number of visible series inside
+/// what hue alone can carry — all of them when there are few, only the ones
+/// away from baseline when there are many, with the rest a toggle away.
+///
+/// Assignment is per chart rather than global. A metric keeps its own preferred
+/// hue wherever that hue is free, so the same signal usually looks the same from
+/// one card to the next; where two would collide, the later one steps to the
+/// next free hue. Global assignment alone could not promise distinctness once
+/// dash was gone, and distinctness within the chart in front of you is the
+/// property that actually matters.
+public enum MetricPalette {
+
+    /// Hues in the validated categorical palette.
+    public static let hueCount = 8
+
+    /// Comfortably distinguishable at once. Above this a chart shows only the
+    /// series away from baseline unless asked for all of them.
+    public static let comfortableSeriesCount = 6
+
+    /// Hue per metric for one chart, in the order the series are drawn.
+    ///
+    /// Beyond `hueCount` metrics a repeat is unavoidable; the caller is expected
+    /// not to get there, and this returns a usable answer rather than trapping
+    /// if it does.
+    public static func slots(for metrics: [MetricType]) -> [MetricType: Int] {
+        var used = Set<Int>()
+        var out: [MetricType: Int] = [:]
+        for metric in metrics where out[metric] == nil {
+            var slot = metric.colourSlot
+            var tried = 0
+            while used.contains(slot) && tried < hueCount {
+                slot = (slot + 1) % hueCount
+                tried += 1
+            }
+            used.insert(slot)
+            out[metric] = slot
+        }
+        return out
     }
 }

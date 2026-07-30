@@ -10,6 +10,9 @@ struct InsightDetailView: View {
     @State private var scale: SeriesScale = .zScore
     @State private var logarithmic = false
     @State private var showsRoutineDrivers = false
+    /// Whether the overlay draws every input or only the ones away from
+    /// baseline. Held here so the chart and its legend share one answer.
+    @State private var showsAllSeries = false
 
     /// Resolved against the data being charted, so `.all` doesn't squash a short
     /// history into a sliver of a decade-wide viewport.
@@ -346,7 +349,8 @@ struct InsightDetailView: View {
                     MetricOverlayChart(
                         series: series, scale: scale, logarithmic: logarithmic,
                         window: window(spanning: model.overlayRange(for: contributions.metrics,
-                                                                    timeframe: timeframe)))
+                                                                    timeframe: timeframe)),
+                        showsAllSeries: showsAllSeries)
 
                     if scale == .raw && series.supportsLogScale {
                         Toggle("Logarithmic axis", isOn: $logarithmic)
@@ -355,7 +359,8 @@ struct InsightDetailView: View {
 
                     Divider()
                     MetricOverlayLegend(series: series, contributions: contributions,
-                                        missing: missing)
+                                        missing: missing,
+                                        showsAllSeries: $showsAllSeries)
                 }
             }
         }

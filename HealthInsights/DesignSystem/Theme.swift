@@ -85,23 +85,21 @@ enum Theme {
         })
     }
 
-    /// Line dash, the second half of a series' identity.
+    /// Every measured series is a solid line. **Dash now means one thing only:
+    /// this value was not measured** — a gap, a projection, a reference level.
     ///
-    /// Needed because hue alone cannot carry seventeen series: eight validated
-    /// hues is the ceiling for a categorical palette, and when any pair may be
-    /// compared — as on an overlay where the eye picks its own two lines — no
-    /// seven-hue subset of this palette clears the colour-blind separation
-    /// floor. That was measured, not assumed. `MetricType.chartStyleIndex` gives
-    /// every metric a unique (hue, dash) pair, so no chart can show two series
-    /// that look alike.
+    /// Dash used to be the second half of a series' identity, because eight
+    /// hues cannot separate seventeen signals. That was measurably safe and
+    /// practically wrong: a dashed line reads as an estimate, so the dashes were
+    /// being read as missing data. Charts now keep the number of visible series
+    /// inside what hue alone carries (`MetricPalette`) rather than encoding the
+    /// overflow in a stroke that means something else.
     static func metricStroke(_ metric: MetricType) -> StrokeStyle {
-        switch metric.dashIndex {
-        case 0: return StrokeStyle(lineWidth: 2)
-        case 1: return StrokeStyle(lineWidth: 2, dash: [5, 3])
-        case 2: return StrokeStyle(lineWidth: 2, dash: [1.5, 3])
-        default: return StrokeStyle(lineWidth: 2, dash: [6, 3, 1.5, 3])
-        }
+        StrokeStyle(lineWidth: 2)
     }
+
+    /// For a stretch the chart inferred rather than measured.
+    static let projectedStroke = StrokeStyle(lineWidth: 1.5, dash: [3, 4])
 
     /// A hue by slot, for the few charts whose series aren't metrics —
     /// the two computed ages, for instance. Drawn from the same validated
@@ -113,11 +111,14 @@ enum Theme {
         })
     }
 
-    static func metricColor(_ metric: MetricType) -> Color {
-        let slot = metricPalette[metric.colourSlot % metricPalette.count]
-        return Color(UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? slot.dark : slot.light)
-        })
+    /// This metric's hue on a chart that has resolved its own slots.
+    ///
+    /// Pass the assignment from `MetricPalette.slots(for:)` so two series on one
+    /// chart can never share a hue. Without it a metric falls back to its
+    /// preferred slot, which is right for a single-series chart and only a
+    /// preference on a crowded one.
+    static func metricColor(_ metric: MetricType, slots: [MetricType: Int]? = nil) -> Color {
+        paletteColour(slot: slots?[metric] ?? metric.colourSlot)
     }
 }
 

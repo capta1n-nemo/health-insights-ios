@@ -22,10 +22,52 @@ struct MetricOverlayChart: View {
     var window: TimeInterval = 30 * 24 * 3600
     var selection: Binding<Date?>?
 
+    /// Whether to draw every series or only the ones away from baseline. Owned
+    /// by the screen rather than here, because the legend carries the toggle
+    /// and the two must agree about what is on the chart.
+    var showsAllSeries: Bool = false
+
     @State private var localSelection: Date?
 
     private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
     private var selected: Date? { selectionBinding.wrappedValue }
+
+    /// A series counts as away from baseline if any day in it reached the same
+    /// departure that earns a point marker — so "anomalous" means one thing on
+    /// this chart, not two.
+    static func isNotable(_ one: NormalizedSeries) -> Bool {
+        one.points.contains { abs($0.z) >= pointThreshold }
+    }
+
+    /// What to draw.
+    ///
+    /// Up to `comfortableSeriesCount` there are enough distinct hues for all of
+    /// them, so all of them are drawn. Above that, only the series away from
+    /// baseline — the same principle as the drivers card, which leads with what
+    /// departed and folds the routine majority away. Nothing is hidden
+    /// permanently: the legend's toggle brings the rest back.
+    ///
+    /// Static so the legend can ask the same question and get the same answer;
+    /// a legend keyed to a different set than the chart is worse than none.
+    static func visible(_ series: [NormalizedSeries], showingAll: Bool) -> [NormalizedSeries] {
+        guard filters(series, showingAll: showingAll) else { return series }
+        return series.filter { isNotable($0) }
+    }
+
+    static func filters(_ series: [NormalizedSeries], showingAll: Bool) -> Bool {
+        !showingAll && series.count > MetricPalette.comfortableSeriesCount
+    }
+
+    private var visibleSeries: [NormalizedSeries] {
+        Self.visible(series, showingAll: showsAllSeries)
+    }
+
+    private var isFiltering: Bool { Self.filters(series, showingAll: showsAllSeries) }
+
+    /// Hues resolved across the series actually on screen, so no two share one.
+    private var slots: [MetricType: Int] {
+        MetricPalette.slots(for: visibleSeries.map(\.metric))
+    }
 
     /// A flat point list: nesting a ForEach over series inside a ForEach over
     /// segments inside a ForEach over points exceeds what the chart builder's
@@ -107,7 +149,7 @@ struct MetricOverlayChart: View {
 
     private func plotted(in range: ClosedRange<Date>) -> [Segment] {
         var out: [Segment] = []
-        for one in series {
+        for one in visibleSeries {
             let label = one.metric.displayName
             for (index, run) in one.segments().enumerated() {
                 let points = Self.thinned(run.filter { range.contains($0.date) })
@@ -139,8 +181,6 @@ struct MetricOverlayChart: View {
         return out
     }
 
-    private var domain: [String] { series.map(\.metric.displayName) }
-    private var colours: [Color] { series.map { Theme.metricColor($0.metric) } }
 
     /// One row of the scrub read-out.
     private struct Callout: Identifiable {
@@ -150,7 +190,7 @@ struct MetricOverlayChart: View {
     }
 
     private func readings(at date: Date) -> [Callout] {
-        series.compactMap { one in
+        visibleSeries.compactMap { one in
             guard let nearest = one.points.min(by: {
                 abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
             }), abs(nearest.date.timeIntervalSince(date)) <= window / 8 else { return nil }
@@ -174,7 +214,7 @@ struct MetricOverlayChart: View {
                 HStack(spacing: 10) {
                     ForEach(rows) { row in
                         HStack(spacing: 5) {
-                            Circle().fill(Theme.metricColor(row.metric))
+                            Circle().fill(Theme.metricColor(row.metric, slots: slots))
                                 .frame(width: 7, height: 7)
                             Text(row.text).monospacedDigit()
                         }
@@ -196,7 +236,9 @@ struct MetricOverlayChart: View {
             selection: selectionBinding,
             logarithmic: scale == .raw && logarithmic,
             height: 190,
-            emptyMessage: "No readings in this window",
+            emptyMessage: isFiltering
+                ? "Nothing is away from your usual pattern here — turn on \"Show every signal\" to see them all."
+                : "No readings in this window",
             isEmpty: { range in plotted(in: range).isEmpty },
             yDomain: { range in
                 paddedYDomain(plotted(in: range).flatMap { $0.points.map(\.value) },
@@ -237,11 +279,12 @@ struct MetricOverlayChart: View {
     /// One span of one series.
     ///
     /// Explicit return type, as every mark builder here must have — without it
-    /// this chain can resolve to 3D chart content and silently drop `.lineStyle`,
-    /// which is now load-bearing: dash is half of each series' identity.
+    /// this chain can resolve to 3D chart content and silently drop
+    /// `.foregroundStyle`, which is load-bearing here: opacity per span is the
+    /// whole encoding.
     @ChartContentBuilder
     private func marks(for span: Span) -> some ChartContent {
-        let colour = Theme.metricColor(span.from.metric).opacity(span.opacity)
+        let colour = Theme.metricColor(span.from.metric, slots: slots).opacity(span.opacity)
         LineMark(x: .value("Day", span.from.date), y: .value("Value", span.from.value),
                  series: .value("Span", span.id))
             .foregroundStyle(colour)
@@ -255,7 +298,7 @@ struct MetricOverlayChart: View {
         // Dots only on days worth noticing, so the eye lands on the departures.
         ForEach(notableEnds(of: span)) { point in
             PointMark(x: .value("Day", point.date), y: .value("Value", point.value))
-                .foregroundStyle(Theme.metricColor(point.metric))
+                .foregroundStyle(Theme.metricColor(point.metric, slots: slots))
                 .symbolSize(24)
         }
     }
@@ -281,7 +324,27 @@ struct MetricOverlayLegend: View {
     let contributions: [MetricContribution]
     /// Declared inputs with nothing to plot — shown dimmed rather than omitted.
     let missing: [MetricType]
+    /// Shared with the chart, so the key and the plot never disagree about
+    /// what's on screen.
+    var showsAllSeries: Binding<Bool>?
     var onSelect: ((MetricType) -> Void)?
+
+    /// The list expands independently of the chart: you can read about a signal
+    /// without adding a line to a crowded plot.
+    @State private var showsRoutineRows = false
+
+    private var showingAll: Bool { showsAllSeries?.wrappedValue ?? true }
+    private var charted: [NormalizedSeries] {
+        MetricOverlayChart.visible(series, showingAll: showingAll)
+    }
+    /// Rows for series the chart isn't currently drawing.
+    private var offChart: [NormalizedSeries] {
+        let shown = Set(charted.map(\.metric))
+        return series.filter { !shown.contains($0.metric) }
+    }
+    private var slots: [MetricType: Int] {
+        MetricPalette.slots(for: charted.map(\.metric))
+    }
 
     private func contribution(for metric: MetricType) -> MetricContribution? {
         contributions.first { $0.metric == metric }
@@ -289,24 +352,70 @@ struct MetricOverlayLegend: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(series) { one in
-                row(one)
+            ForEach(charted) { one in
+                row(one, slot: slots[one.metric])
             }
+
+            if !offChart.isEmpty {
+                Divider()
+                Button {
+                    withAnimation(.snappy) { showsRoutineRows.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(showsRoutineRows
+                             ? "Hide the rest"
+                             : "Show \(offChart.count) more in your normal range")
+                            .font(.caption.weight(.medium))
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .rotationEffect(.degrees(showsRoutineRows ? 180 : 0))
+                        Spacer()
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if showsRoutineRows {
+                    // No swatch: these aren't on the chart, so there is no key
+                    // for them to be the key to.
+                    ForEach(offChart) { one in
+                        row(one, slot: nil)
+                    }
+                }
+            }
+
+            // Only offered where it changes something. Below the comfortable
+            // count every series is drawn anyway, and a toggle that does
+            // nothing is worse than no toggle.
+            if let binding = showsAllSeries,
+               series.count > MetricPalette.comfortableSeriesCount {
+                Toggle(isOn: binding) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Show every signal in the graph").font(.caption)
+                        Text("\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so only the ones away from your baseline are drawn.")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
             ForEach(missing, id: \.self) { metric in
                 missingRow(metric)
             }
         }
     }
 
-    private func row(_ one: NormalizedSeries) -> some View {
+    /// `slot` is the hue the chart gave this series, or nil when the chart
+    /// isn't drawing it — in which case the row is dimmed and carries no
+    /// swatch, because there is no line for it to be the key to.
+    private func row(_ one: NormalizedSeries, slot: Int?) -> some View {
         let contribution = contribution(for: one.metric)
         return Button {
             onSelect?(one.metric)
         } label: {
             HStack(spacing: 8) {
-                // A dashed swatch, not a dot: dash is half of a series'
-                // identity on the chart, so the key has to show it.
-                swatch(one.metric)
+                swatch(slot: slot)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(one.metric.displayName)
                         .font(.subheadline)
@@ -336,14 +445,16 @@ struct MetricOverlayLegend: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// A short stroke drawn in the metric's own colour *and* dash, so the legend
-    /// and the chart are unambiguously the same key.
-    private func swatch(_ metric: MetricType) -> some View {
+    /// A short solid stroke in the hue the chart assigned, so the legend and the
+    /// chart are unambiguously the same key. Hollow where the series isn't
+    /// drawn.
+    private func swatch(slot: Int?) -> some View {
         Path { path in
             path.move(to: CGPoint(x: 0, y: 5))
             path.addLine(to: CGPoint(x: 18, y: 5))
         }
-        .stroke(Theme.metricColor(metric), style: Theme.metricStroke(metric))
+        .stroke(slot.map { Theme.paletteColour(slot: $0) } ?? Color.secondary.opacity(0.25),
+                style: StrokeStyle(lineWidth: 2))
         .frame(width: 18, height: 10)
     }
 
@@ -353,7 +464,10 @@ struct MetricOverlayLegend: View {
                 path.move(to: CGPoint(x: 0, y: 5))
                 path.addLine(to: CGPoint(x: 18, y: 5))
             }
-            .stroke(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [2, 3]))
+            // Hollow rather than dashed. Dash now means "inferred, not
+            // measured" everywhere in the app, and a metric with no data at all
+            // has nothing inferred either.
+            .stroke(Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 2))
             .frame(width: 18, height: 10)
             Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
             Spacer()
