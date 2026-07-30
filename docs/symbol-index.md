@@ -101,6 +101,9 @@ the place to look.
   - `ScoreHistory` :38
   - `ScorePoint` :4
   - `ScoreTrend` :140
+- `Insights/Suggestions.swift`
+  - `Suggestion` :23
+  - `SuggestionEngine` :72
 - `Insights/SummaryFingerprint.swift`
   - `RefreshGate` :59
   - `SummaryFingerprint` :20

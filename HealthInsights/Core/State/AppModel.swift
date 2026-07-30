@@ -51,6 +51,7 @@ final class AppModel {
         ageHistory.removeAll()
         ageHistoryRunning = false
         overlayCache.removeAll()
+        suggestionCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
@@ -80,6 +81,20 @@ final class AppModel {
         if let substanceLoadCache { return substanceLoadCache }
         let built = SubstanceLoad.series(events: substanceEvents, days: days)
         substanceLoadCache = built
+        return built
+    }
+
+    /// "Improve your health", recomputed with the results and cached.
+    ///
+    /// Cached because it re-runs `VO2Trajectory` and the whole vitals scan, and
+    /// the Insights list asks for it on every redraw.
+    @ObservationIgnored private var suggestionCache: [Suggestion]?
+
+    var suggestions: [Suggestion] {
+        if let suggestionCache { return suggestionCache }
+        let built = SuggestionEngine.suggestions(results: results, samples: samples,
+                                                 profile: profile)
+        suggestionCache = built
         return built
     }
     private(set) var profile: UserHealthProfile

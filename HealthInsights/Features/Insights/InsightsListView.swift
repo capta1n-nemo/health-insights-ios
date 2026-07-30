@@ -18,6 +18,7 @@ struct InsightsListView: View {
                     Text("Deeper analysis of your trends over time.")
                         .font(.subheadline).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    suggestionsCard
                     scoreComparisonCard
                     ForEach(trendResults, id: \.id) { result in
                         NavigationLink {
@@ -33,6 +34,67 @@ struct InsightsListView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Insights")
             .refreshable { await model.refresh() }
+        }
+    }
+
+    /// "Improve Your Health".
+    ///
+    /// It lives here rather than on Today because this is where the evidence for
+    /// it comes from — the busier-versus-lighter-weeks contrast, the grounding
+    /// gaps, the signals off baseline are all derived rather than sensed, and a
+    /// derived finding belongs next to the analysis it came out of.
+    ///
+    /// Silent when there is nothing to say, which is often and correctly so.
+    @ViewBuilder private var suggestionsCard: some View {
+        let suggestions = model.suggestions
+        if !suggestions.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Improve your health", systemImage: "arrow.up.forward.circle")
+                        .font(.headline)
+                    Text("What your own data points at, strongest evidence first.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(suggestions) { suggestion in
+                        suggestionRow(suggestion)
+                    }
+                    Text("Observations from your own history, not medical advice. Talk to a clinician about anything that concerns you.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func suggestionRow(_ suggestion: Suggestion) -> some View {
+        let row = VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Circle().fill(colour(for: suggestion.basis)).frame(width: 7, height: 7)
+                Text(suggestion.title).font(.subheadline.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            Text(suggestion.detail)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+        if let insight = suggestion.insight {
+            NavigationLink { InsightDetailView(insightID: insight) } label: { row }
+                .buttonStyle(.plain)
+        } else {
+            row
+        }
+    }
+
+    /// Green where the evidence is the user's own history, amber where the app is
+    /// missing a fact, red where a signal has moved. The dot is a claim about how
+    /// well-founded the line is, not about how urgent it is.
+    private func colour(for basis: Suggestion.Basis) -> Color {
+        switch basis {
+        case .yourOwnData: return Theme.good
+        case .unlockAnInsight: return Theme.warn
+        case .signalOffBaseline: return Theme.accent
         }
     }
 
