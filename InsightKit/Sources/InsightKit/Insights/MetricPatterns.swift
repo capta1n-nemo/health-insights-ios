@@ -69,6 +69,10 @@ public enum PatternFinder {
             for j in series.indices where j > i {
                 let left = series[i]
                 let right = series[j]
+                // Two readings of the same measurement always diverge when one
+                // is the inverse of the other. That is arithmetic, not a
+                // finding — and it had no guard here at all.
+                guard !left.metric.sharesMeasurementBasis(with: right.metric) else { continue }
                 guard let s1 = left.trendPerWeek, let s2 = right.trendPerWeek,
                       abs(s1) >= minimumSlope, abs(s2) >= minimumSlope,
                       s1.sign != s2.sign else { continue }
@@ -83,13 +87,16 @@ public enum PatternFinder {
             }
         }
 
-        // Co-movement between two metrics — but never within one family.
-        // "On days when heart rate changes, resting heart rate tends to as
-        // well (r = 0.75)" is a fact about how resting heart rate is derived,
-        // and it crowded genuine cross-system observations off the card.
+        // Co-movement between two metrics — but never between two readings of
+        // the same measurement. "On days when heart rate changes, resting heart
+        // rate tends to as well (r = 0.75)" is a fact about how resting heart
+        // rate is derived, and it crowded genuine cross-system observations off
+        // the card. Family alone wasn't enough: HRV and resting heart rate sit
+        // in different families and still come off the same interval stream.
         for i in series.indices {
             for j in series.indices where j > i {
-                guard series[i].metric.family != series[j].metric.family else { continue }
+                guard !series[i].metric.sharesMeasurementBasis(with: series[j].metric)
+                else { continue }
                 let paired = align(series[i], series[j], calendar: calendar)
                 guard paired.count >= minimumPairs,
                       let r = Baseline.correlation(x: paired.map { $0.0 }, y: paired.map { $0.1 }),

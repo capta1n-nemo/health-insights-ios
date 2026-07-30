@@ -131,6 +131,26 @@ public extension MetricType {
         }
     }
 
+    /// Whether a relationship between these two metrics would describe how
+    /// they are *derived* rather than anything about the person.
+    ///
+    /// Same family is the obvious case — body temperature and skin-temperature
+    /// deviation are one measurement reported two ways. The non-obvious one is
+    /// heart rate against heart-rate variability: both are computed from the
+    /// same beat-to-beat interval stream, so a shorter interval is both a higher
+    /// rate and less room to vary. "HRV and resting heart rate move in opposite
+    /// directions (r = −0.71)" is arithmetic. It reads like a finding, and it
+    /// crowds real cross-system observations off the card.
+    ///
+    /// They stay in separate *families* because families also decide colour
+    /// grouping and how the app talks about systems, where the distinction is
+    /// real. This is the narrower question of shared origin.
+    func sharesMeasurementBasis(with other: MetricType) -> Bool {
+        if family == other.family { return true }
+        let beatToBeat: Set<MetricFamily> = [.cardiac, .autonomic]
+        return beatToBeat.contains(family) && beatToBeat.contains(other.family)
+    }
+
     /// The hue this metric prefers. Not necessarily the one it gets — see
     /// `MetricPalette.slots(for:)`, which resolves collisions per chart.
     var colourSlot: Int { chartStyleIndex % MetricPalette.hueCount }

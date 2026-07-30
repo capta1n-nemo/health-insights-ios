@@ -32,37 +32,16 @@ struct MetricOverlayChart: View {
     private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
     private var selected: Date? { selectionBinding.wrappedValue }
 
-    /// A series counts as away from baseline if any day in it reached the same
-    /// departure that earns a point marker — so "anomalous" means one thing on
-    /// this chart, not two.
-    static func isNotable(_ one: NormalizedSeries) -> Bool {
-        one.points.contains { abs($0.z) >= pointThreshold }
-    }
-
-    /// What to draw.
-    ///
-    /// Up to `comfortableSeriesCount` there are enough distinct hues for all of
-    /// them, so all of them are drawn. Above that, only the series away from
-    /// baseline — the same principle as the drivers card, which leads with what
-    /// departed and folds the routine majority away. Nothing is hidden
-    /// permanently: the legend's toggle brings the rest back.
-    ///
-    /// Static so the legend can ask the same question and get the same answer;
-    /// a legend keyed to a different set than the chart is worse than none.
-    static func visible(_ series: [NormalizedSeries], showingAll: Bool) -> [NormalizedSeries] {
-        guard filters(series, showingAll: showingAll) else { return series }
-        return series.filter { isNotable($0) }
-    }
-
-    static func filters(_ series: [NormalizedSeries], showingAll: Bool) -> Bool {
-        !showingAll && series.count > MetricPalette.comfortableSeriesCount
-    }
-
+    /// The selection rule lives in `OverlaySelection` so it can be tested
+    /// without a running view — it decides whether two lines can look alike,
+    /// and the first version of it shipped from here and got that wrong.
     private var visibleSeries: [NormalizedSeries] {
-        Self.visible(series, showingAll: showsAllSeries)
+        OverlaySelection.visible(series, showingAll: showsAllSeries)
     }
 
-    private var isFiltering: Bool { Self.filters(series, showingAll: showsAllSeries) }
+    private var isFiltering: Bool {
+        OverlaySelection.filters(series, showingAll: showsAllSeries)
+    }
 
     /// Hues resolved across the series actually on screen, so no two share one.
     private var slots: [MetricType: Int] {
@@ -110,8 +89,9 @@ struct MetricOverlayChart: View {
     }
 
     /// Dots only where something happened, so they mark notable days rather
-    /// than decorating every one.
-    static let pointThreshold = 1.5
+    /// than decorating every one. Same threshold that decides which series are
+    /// drawn at all, so "away from baseline" means one thing on this chart.
+    static let pointThreshold = OverlaySelection.notableZ
 
     /// Most points one series may contribute to one screen.
     ///
@@ -335,7 +315,7 @@ struct MetricOverlayLegend: View {
 
     private var showingAll: Bool { showsAllSeries?.wrappedValue ?? true }
     private var charted: [NormalizedSeries] {
-        MetricOverlayChart.visible(series, showingAll: showingAll)
+        OverlaySelection.visible(series, showingAll: showingAll)
     }
     /// Rows for series the chart isn't currently drawing.
     private var offChart: [NormalizedSeries] {
@@ -350,6 +330,28 @@ struct MetricOverlayLegend: View {
         contributions.first { $0.metric == metric }
     }
 
+    /// Rows hidden from the chart that are nonetheless away from baseline —
+    /// squeezed out by the colour cap rather than by being unremarkable. The
+    /// disclosure must not call these "in your normal range".
+    private var departingButHidden: Int {
+        offChart.filter { OverlaySelection.isNotable($0) }.count
+    }
+
+    private var disclosureLabel: String {
+        if showsRoutineRows { return "Hide the rest" }
+        if departingButHidden > 0 {
+            return "Show \(offChart.count) more, \(departingButHidden) away from baseline"
+        }
+        return "Show \(offChart.count) more in your normal range"
+    }
+
+    private var toggleExplanation: String {
+        let cap = Swift.min(MetricPalette.hueCount, charted.count)
+        return departingButHidden > 0
+            ? "\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so the \(cap) furthest from your baseline are drawn. Turning this on repeats colours."
+            : "\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so only the ones away from your baseline are drawn."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(charted) { one in
@@ -362,9 +364,7 @@ struct MetricOverlayLegend: View {
                     withAnimation(.snappy) { showsRoutineRows.toggle() }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(showsRoutineRows
-                             ? "Hide the rest"
-                             : "Show \(offChart.count) more in your normal range")
+                        Text(disclosureLabel)
                             .font(.caption.weight(.medium))
                         Image(systemName: "chevron.down")
                             .font(.caption2)
@@ -377,7 +377,7 @@ struct MetricOverlayLegend: View {
                 .buttonStyle(.plain)
 
                 if showsRoutineRows {
-                    // No swatch: these aren't on the chart, so there is no key
+                    // No swatch: these aren't on the chart, so there is no line
                     // for them to be the key to.
                     ForEach(offChart) { one in
                         row(one, slot: nil)
@@ -385,23 +385,26 @@ struct MetricOverlayLegend: View {
                 }
             }
 
+            // Before the toggle, not after it: these are signals, and a "No
+            // data" row sitting under a switch reads as belonging to it.
+            ForEach(missing, id: \.self) { metric in
+                missingRow(metric)
+            }
+
             // Only offered where it changes something. Below the comfortable
             // count every series is drawn anyway, and a toggle that does
             // nothing is worse than no toggle.
             if let binding = showsAllSeries,
                series.count > MetricPalette.comfortableSeriesCount {
+                Divider()
                 Toggle(isOn: binding) {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("Show every signal in the graph").font(.caption)
-                        Text("\(series.count) signals is past what \(MetricPalette.hueCount) distinguishable colours can carry, so only the ones away from your baseline are drawn.")
+                        Text(toggleExplanation)
                             .font(.caption2).foregroundStyle(.tertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-            }
-
-            ForEach(missing, id: \.self) { metric in
-                missingRow(metric)
             }
         }
     }
