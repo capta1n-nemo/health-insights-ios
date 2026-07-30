@@ -25,6 +25,17 @@ about confidence.**
       (holding level is a gain), 12-month projection with its residual spread,
       and "what would move it" levers drawn from the user's own busier-versus-
       lighter weeks before any general evidence.
+- [x] Vitals Check (Today card) — every sensed vital judged against the personal
+      baseline, reporting outliers rather than averaging them away, with absolute
+      clinical bounds overriding a permissive personal baseline. Gave heart rate,
+      walking heart rate, blood oxygen and body temperature their first reader.
+- [x] Every canonical vital now has at least one reader, and
+      `docs/architecture.md` carries the metric → insight table so a future gap
+      is visible. Readiness gained blood oxygen; Sleep Quality gained overnight
+      blood oxygen and skin temperature; Body Composition gained lean/muscle/bone
+      mass, body water and a fat-loss-versus-muscle-loss narrative; Heart Age
+      reports Oura's vascular age beside its own. Only `dayStrain` is unread —
+      Whoop isn't connected.
 
 ### Creative data use
 - [x] Temperature reconstruction from wearable nightly-deviation readings.
@@ -35,7 +46,22 @@ about confidence.**
 - [x] Oura, Whoop, Withings — on-device OAuth, BYO developer credentials,
       Keychain storage, no backend.
 - [x] "Other data" browser — imports every HealthKit/provider field, not just
-      the metrics the app has a first-class insight for.
+      the metrics the app has a first-class insight for. Renders text and boolean
+      values, tallies categorical states, and charts only numeric series.
+- [x] Provider-agnostic ingestion pipeline — `RawValue` (number/text/flag),
+      recursive `JSONFlattener` with array summarisation and audited skips,
+      `EnvelopeSpec`-driven ingestors, a persisted `FieldCatalogue` that makes a
+      provider's schema change a logged event, and data-driven `PromotionRuleSet`
+      mapping to canonical vitals. A new connector is a declaration, not a parser.
+- [x] Oura's undocumented `stress` and `heart_health` scopes — resilience,
+      cardiovascular age and VO₂ Max reachable for the first time. Console URL
+      updated to `developer.ouraring.com`.
+- [x] Diagnostics that can actually diagnose: provider error bodies (RFC7807
+      `detail` + `x-trace-id`) captured with a per-status remedy, granted scopes
+      recorded and re-stated each sync, refresh-and-retry-once on a 401 (skipped
+      for scope failures), per-collection record counts, and a per-metric,
+      per-source import breakdown. Expandable detail in Troubleshooting plus a
+      Share action.
 
 ### App structure
 - [x] Four-tab layout: Today / Vitals / Insights / Settings.
@@ -82,6 +108,9 @@ about confidence.**
       on the Insights tab. Worth checking the three-age comparison row renders on
       the narrowest device, and that a profile with no blood pressure shows the
       fitness half alone rather than an empty card.
+- [ ] The ingestion pipeline and Vitals Check on the phone — see
+      `activeContext.md` for the specific things to look at, including that the
+      Oura setup screen no longer raises the "Paste from your Mac?" prompt.
 
 ## Next
 
@@ -100,6 +129,13 @@ Listed cheapest-first — the second one can't start without new plumbing.
       plus parser work in all three providers.
 
 ### Integrations
+- [ ] Explain why Oura's API serves only ~4–6 months of history against years of
+      ring data mirrored through Apple Health. No `next_token`, byte counts match
+      record counts, so it isn't client-side truncation. Offered, not yet taken up.
+- [ ] Oura pagination (`next_token`) — logged as a warning when it appears, which
+      it hasn't yet. Implement on first sighting, not before.
+- [ ] Oura's `heartrate` endpoint is never called despite the scope being
+      requested; direct Oura contributes no heart-rate samples.
 - [ ] Hume Band direct API (today flows in via Apple Health only).
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 

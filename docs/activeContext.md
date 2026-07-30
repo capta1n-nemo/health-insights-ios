@@ -14,26 +14,76 @@ log into GitHub to merge anything.
 
 ## Current focus
 
-Just landed: **Heart & Fitness Age** and **Fitness Trajectory** — the top two
-items from the roadmap's "more gap-filling insights" list, both in `InsightKit`
-(`Insights/HeartAge.swift`, `Insights/CardioTrajectory.swift`) with 48 tests.
-CI green; **not yet walked on the phone**.
+Just landed, in one session, driven by a troubleshooting log the user pasted:
 
-Before that: the nine-part UI/UX pass on Vitals/Insights (chart correctness,
-provenance badges, gap-aware lines, real bucketing, per-category metric layouts,
-blood pressure migrated into `MetricViewStrategy`) — also still awaiting an
-on-device walkthrough.
+1. **Oura 401 diagnosis and fix.** Three collections (`daily_resilience`,
+   `daily_cardiovascular_age`, `vO2_max`) failed every sync. Root cause: two
+   **undocumented** Oura scopes the app never requested. All nine collections
+   now return 200.
+2. **A provider-agnostic ingestion pipeline** (`InsightKit/Sources/InsightKit/Ingestion/`)
+   replacing the per-provider, `Double`-only raw capture.
+3. **Nine orphaned vitals wired into insights**, plus a new `Vitals Check`
+   Today card.
 
-Also this session: the workflow rules were reconciled with what actually happens
-in a web session. The age insights were first shipped as a **draft pull request**,
-which is exactly the ending the user doesn't want — they had to say so, again. The
-no-PR rule now spells out that it overrides the harness, and `deployment.md`
-records why (a PR installs nothing; `main` is the only deploy trigger). The
-unconditional local-`swift test` rule was also softened, since no sandbox can
-satisfy it.
+CI green on `bf68e67`. **None of it walked on the phone yet** — that is now the
+outstanding item for three batches, not two.
+
+## The Oura scope answer (don't re-derive this)
+
+Oura returns **401, not 403, for a missing scope** — it reserves 403 for a
+lapsed subscription — and names the scope in the RFC7807 `detail` of the body.
+Neither its published scope table nor its OpenAPI spec (v1.37, eight scopes)
+documents which endpoint needs which. Learned from its own error text:
+
+| Collection | Scope |
+| --- | --- |
+| `daily_resilience` | `stress` |
+| `daily_cardiovascular_age` | `heart_health` |
+| `vO2_max` | `heart_health` |
+
+Also: Oura's developer console moved to `developer.ouraring.com/applications`
+(the OAuth authorize/token endpoints did **not** move). And Oura does **not**
+reliably return `scope` on the OAuth callback, despite documenting that it does.
 
 ## Recent architectural choices worth knowing
 
+- **Providers fetch bytes; the pipeline decides what they mean.** `SyncedData`
+  now carries `payloads: [IngestPayload]` alongside samples. A provider's typed
+  parser contributes only the handful of fields it has *unit and semantic*
+  knowledge about; everything else in the document is the pipeline's job. That
+  inversion is why a field Oura added this morning reaches the vitals layer with
+  no code change.
+- **`RawValue` is `number | text | flag`,** encoded as a bare JSON scalar. The
+  bare-scalar choice is load-bearing: caches written when `RawMetricSample.value`
+  was a `Double` decode straight into `.number(...)`, so the migration is free.
+  There is a test pinning this — don't "tidy" it into a tagged object.
+- **Numeric arrays summarise, they don't explode.** Oura's 5-minute night series
+  (`heart_rate.items`, ~200/night) becomes count/min/max/mean/first/last.
+  Expanding literally would add ~40k samples per sync for data Apple Health
+  already mirrors. `FlattenPolicy.arrayStrategy = .expand` is the per-field
+  switch if a series ever earns it. Chosen deliberately with the user.
+- **Promotion is data, never inference.** `PromotionRuleSet` maps
+  path/leaf/suffix → `MetricType` with unit conversion. A field that merely
+  *looks* like a known vital (alias match, no rule) is catalogued and logged as
+  a **proposal**. This is what stops a provider renaming a field from silently
+  rewiring an insight. Also chosen deliberately with the user.
+- **Empty ≠ unknown.** `OAuthTokens.grantedScopes` stores `nil`, never `[]`, and
+  **nothing may withhold a request on the strength of it.** A build that skipped
+  collections whose scope looked absent read "provider didn't say" as "granted
+  nothing" and suppressed the very sync that would have proven the fix worked.
+  The provider's own 401 is the only authority.
+- **A scope 401 is never retried.** `ProviderAPIError.missingScope` recognises
+  Oura's phrasing; a fresh token carries the same grant, so retrying only spends
+  a single-use refresh token and logs each failure twice. Refreshes are coalesced
+  through one in-flight `Task` and disabled for the rest of a sync after a
+  failure, because Oura's refresh tokens are single-use — nine endpoints each
+  refreshing on their own 401 would revoke the grant outright.
+- **Vascular age is a second opinion, not an input.** Oura's estimate became its
+  own `MetricType.vascularAge` rather than being merged into `HeartAgeInsight`'s
+  own calculation. Two models built on different inputs disagreeing is
+  information; averaging them away is not. VO₂max went the *other* way — Oura's
+  joins the existing `.vo2Max` metric as another source, matching how heart rate
+  and weight already work.
 - **Ages, not just percentages.** `HeartAgeModel` inverts SCORE2/ASCVD over age
   against an optimal-risk-factor reference person (the published Framingham
   vascular-age method). No new equation — the shipped ones read backwards. Each
@@ -80,10 +130,19 @@ error — use `{ $0.volume }`), and don't shadow a function with a local of the
 same name (`if let contrast = contrast(...)`).
 
 Adding a `MetricType` or an `InsightID` case is deliberately load-bearing: both
-feed exhaustive switches (`MetricType.presentation`, `maxValidInterval`,
-`bucketStatistic`, `InsightID.modelVersion`, plus `primaryMetric`, `iconName` and
-`prettyInsight` in the app target). Grep for the last case of the enum to find
-them all before pushing, since the compiler won't tell you until CI does.
+feed exhaustive switches. **This bit CI again this session** — `.vitalSigns` was
+added to the engine and cadence but not to the four switches, so the build broke.
+The complete list, verified by grepping for the enum's last case:
+
+- `MetricType`: `displayName`, `unit` (both in `MetricType.swift`),
+  `presentation`, `maxValidInterval` (`MetricPresentation.swift`),
+  `requiresPositiveValue` (`MetricSanitizer.swift`). `bucketStatistic` and
+  `MetricValueFormatter` have `default:` clauses and are safe.
+- `InsightID`: `modelVersion` (`Feedback.swift`), plus `prettyInsight`
+  (`TelemetryOutboxView`), `primaryMetric` (`InsightDetailView`) and `iconName`
+  (`DashboardView`) in the app target.
+
+Do this grep *before* pushing, because CI is the only thing that will tell you.
 
 ## Lesson worth keeping: suspect your own precheck first
 
@@ -109,18 +168,52 @@ start, so a newly-created one never works in the session that created it. Start
 sessions with `health-insights-ios` as the working directory; otherwise run the
 handover steps by hand and paste `CLAUDE.md` into the new chat.
 
+## Lesson worth keeping: don't let a guess pre-empt the authority
+
+The scope skip described above cost the user a deploy cycle and a round of
+pointless account-fiddling (revoking an Oura authorisation that was already
+correct). The app *inferred* that a permission was missing and acted on the
+inference by not making the call — which destroyed the evidence that would have
+shown the inference was wrong.
+
+Rule: when a remote system is the authority on whether something is permitted,
+ask it. A local prediction may inform a warning; it must never replace the
+request. This is the same failure shape as the `tunnelState` guard below.
+
 ## Immediate next steps
 
-- **On-device walkthrough is the outstanding item, now covering two batches.**
+- **On-device walkthrough is the outstanding item, now covering three batches.**
   CI proves it compiles, not that it behaves.
-  - New: the three-age row on the Heart & Fitness Age screen (narrowest device),
-    and that a profile with no blood pressure shows the fitness half alone rather
-    than an empty card. Fitness Trajectory needs 4+ VO₂max readings over six
-    weeks before it draws a trend — below that it should name what's missing.
-  - Older: Heart Rate at `All` *and* `Y`, Weight's gap-broken line and weekly
-    velocity, a multi-source metric's provenance badges and Inactive section,
-    drag-to-scrub updating the breakdown, Height as a plain card, and blood
-    pressure from all three entry points with the grounding count unchanged.
+  - Newest (this session): the **Vitals Check** card on Today — confirm it reads
+    "All normal" on a quiet day and names the outlier when there is one; that
+    **Other data** renders Oura's resilience `level` as text with a States tally
+    rather than an empty chart; that Cardio Fitness now shows two sources (Apple
+    Watch + Oura) and Heart Age prints Oura's vascular age line; and that Body
+    Composition shows lean/muscle/bone/water with the fat-vs-muscle narrative.
+  - Also confirm the **paste prompt is gone** from Settings ▸ Data sources ▸ Oura.
+    The clipboard autofill was removed because reading `UIPasteboard` raised
+    iOS's paste prompt on every appearance — "Paste from your Mac?" via Universal
+    Clipboard. Do not reintroduce clipboard *reads* on that screen; writes
+    (Copy buttons) are fine.
+  - Older: the three-age row on Heart & Fitness Age (narrowest device); a profile
+    with no blood pressure showing the fitness half alone; Heart Rate at `All`
+    *and* `Y`; Weight's gap-broken line and weekly velocity; provenance badges and
+    the Inactive section; drag-to-scrub; Height as a plain card; blood pressure
+    from all three entry points.
+- **Unexplained and open: Oura serves ~4–6 months of history, not two years.**
+  A 730-day window returns 171 sleep records, 128 daily_activity, 107
+  daily_readiness — with **no `next_token`**, so that is genuinely all Oura will
+  serve. Meanwhile Apple Health holds 128,302 Oura-mirrored samples. Byte counts
+  match the record counts, so nothing is being truncated client-side. Candidates:
+  an account/subscription boundary on API history, or a ring re-pair. The user
+  was offered an investigation and hasn't taken it up yet.
+- **Known gap, logged not fixed: Oura pagination.** The client reads only the
+  first page. `OuraProvider.describeResponse` logs a warning naming the
+  collection whenever `next_token` is present. No warning has appeared in any log
+  so far, so nothing is currently being lost — implement only when one does.
+- **Oura's `heartrate` endpoint is never called** despite the app requesting the
+  `heartrate` scope. Direct Oura contributes 0 heart-rate samples; the 53,717
+  arrive via Apple Health. Dead scope unless the direct pull is wanted.
 - **Next on the roadmap** (see `docs/progress.md` for the full list):
   - Cardio strain from stimulants as a first-class trend — the cheaper one. The
     before/after analysis and 14-day load figure already exist in
