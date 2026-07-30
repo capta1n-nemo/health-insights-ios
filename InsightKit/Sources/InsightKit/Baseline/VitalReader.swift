@@ -86,15 +86,80 @@ public enum VitalReader {
                 history: history, sourceName: series.displayName,
                 isFresh: now.timeIntervalSince(today.date) <= freshWithin)
 
-            // The device with the most history has the best-established spread,
-            // so its z is the one worth trusting. Pooling them instead — which is
-            // what the old code did — let the gap between two miscalibrated
-            // instruments become the variance.
-            if best == nil || history.count > best!.historyCount {
-                best = (reading, history.count)
-            }
+            // Freshness decides first, and then the tie-break depends on which
+            // side of it we're on.
+            //
+            // History alone used to be the whole rule, and it had this backwards
+            // at the top: a device that stopped reporting a week ago has the
+            // *most* established baseline and the *weakest* claim on describing
+            // today. A user with a quiet ring and an active watch got the ring's
+            // stale value, correctly labelled `isFresh: false` — and callers that
+            // drop a stale component, as Readiness does, lost the signal
+            // altogether rather than reading it off the watch. `VitalSignsCheck`
+            // had always dropped stale sources *before* choosing; this is that
+            // rule, made shared.
+            //
+            // Among fresh sources, the best-established spread wins: its z is the
+            // one worth trusting, and that half of the old rule was right.
+            // Among stale ones, the most recent wins instead — the caller's
+            // honest sentence is "last measured N days ago", and N has to be the
+            // true minimum, not whichever quiet device happens to have the
+            // longest memory.
+            //
+            // The winner is always one series, never a blend: pooling them is
+            // what let the gap between two miscalibrated instruments become the
+            // variance, so nothing ever cleared a threshold.
+            let wins: Bool = {
+                guard let best else { return true }
+                if reading.isFresh != best.reading.isFresh { return reading.isFresh }
+                if reading.isFresh {
+                    if history.count != best.historyCount { return history.count > best.historyCount }
+                    return reading.date > best.reading.date
+                }
+                if reading.date != best.reading.date { return reading.date > best.reading.date }
+                return history.count > best.historyCount
+            }()
+            if wins { best = (reading, history.count) }
         }
         return best?.reading
+    }
+
+    /// One day's representative value, with the day it represents.
+    public struct DailyValue: Sendable, Equatable {
+        public let date: Date
+        public let value: Double
+
+        public init(date: Date, value: Double) {
+            self.date = date
+            self.value = value
+        }
+    }
+
+    /// Daily values with their dates, oldest first, merged across devices.
+    ///
+    /// `dailyValues` is this with the dates thrown away. Anything fitting a line
+    /// needs them: a series with a twenty-week silence in the middle is not
+    /// evenly spaced, and regressing it against `0, 1, 2, …` does not produce a
+    /// slightly wrong slope — it produces a different quantity. Measured on a
+    /// real VO₂max series with such a gap: 160 mL/kg·min per year against a true
+    /// 10.1. Nothing at the type level catches that, which is why this exists.
+    public static func dailySeries(_ metric: MetricType,
+                                   from samples: [HealthMetricSample],
+                                   days: Int? = nil,
+                                   now: Date = Date(),
+                                   calendar: Calendar = .current) -> [DailyValue] {
+        let breakdown = MultiSource.breakdown(metric, from: samples)
+        let cutoff = days.map { now.addingTimeInterval(-Double($0) * 86_400) } ?? .distantPast
+        var byDay: [Date: [Double]] = [:]
+        for series in breakdown.sources {
+            for point in series.bucketed(by: .day, for: metric, calendar: calendar)
+            where point.date >= cutoff {
+                byDay[point.date, default: []].append(point.value)
+            }
+        }
+        return byDay.keys.sorted().compactMap { day in
+            byDay[day].flatMap { Baseline.mean($0) }.map { DailyValue(date: day, value: $0) }
+        }
     }
 
     /// Daily values for a metric over a window, oldest first, de-duplicated.
@@ -106,19 +171,7 @@ public enum VitalReader {
                                    days: Int,
                                    now: Date = Date(),
                                    calendar: Calendar = .current) -> [Double] {
-        let breakdown = MultiSource.breakdown(metric, from: samples)
-        let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
-        // Merged across devices by day so two sources reporting the same night
-        // contribute one value, not two.
-        var byDay: [Date: [Double]] = [:]
-        for series in breakdown.sources {
-            for point in series.bucketed(by: .day, for: metric, calendar: calendar)
-            where point.date >= cutoff {
-                byDay[point.date, default: []].append(point.value)
-            }
-        }
-        return byDay.keys.sorted().compactMap { day in
-            byDay[day].flatMap { Baseline.mean($0) }
-        }
+        dailySeries(metric, from: samples, days: days, now: now, calendar: calendar)
+            .map(\.value)
     }
 }
