@@ -143,6 +143,10 @@ public extension InsightID {
         case .bodyComposition: return "bodycomp-v1"
         case .restingHeartRateTrend: return "rhrtrend-v1"
         case .vitalSigns: return "vitalsigns-v1"
+        case .energy: return "energy-v1"
+        case .healthWatch: return "healthwatch-v1"
+        case .sleepDebt: return "sleepdebt-v1"
+        case .peerStanding: return "peerstanding-v1"
         }
     }
 }

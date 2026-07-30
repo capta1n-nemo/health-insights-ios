@@ -14,6 +14,10 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     case bodyComposition
     case restingHeartRateTrend
     case vitalSigns
+    case energy
+    case healthWatch
+    case sleepDebt
+    case peerStanding
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
@@ -24,7 +28,11 @@ public enum InsightCadence: Sendable { case daily, trend }
 public extension InsightID {
     var cadence: InsightCadence {
         switch self {
-        case .readiness, .substanceImpact, .sleepQuality, .vitalSigns: return .daily
+        case .readiness, .substanceImpact, .sleepQuality, .vitalSigns,
+             // Energy is a *right now* number and changes hour to hour; Health
+             // Watch and Sleep Debt are both claims about today.
+             .energy, .healthWatch, .sleepDebt:
+            return .daily
         default: return .trend
         }
     }

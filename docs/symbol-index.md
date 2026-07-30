@@ -61,8 +61,14 @@ the place to look.
   - `CardiovascularRiskInsight` :13
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
+- `Insights/Energy.swift`
+  - `EnergyInsight` :207
+  - `EnergyModel` :29
 - `Insights/GroundingRenewal.swift`
   - `GroundingRenewal` :12
+- `Insights/HealthWatch.swift`
+  - `HealthWatchInsight` :168
+  - `HealthWatchModel` :32
 - `Insights/HeartAge.swift`
   - `FitnessAgeModel` :16
   - `HeartAgeInsight` :363
@@ -74,14 +80,14 @@ the place to look.
   - `HeartHealthInsight` :129
   - `HeartHealthScore` :13
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :43
-  - `InsightCadence` :22
-  - `InsightConfidence` :35
-  - `InsightDriver` :71
+  - `GroundingRequirement` :51
+  - `InsightCadence` :26
+  - `InsightConfidence` :43
+  - `InsightDriver` :79
   - `InsightID` :4
-  - `InsightModel` :162
-  - `InsightResult` :88
-  - `RequirementStatus` :59
+  - `InsightModel` :170
+  - `InsightResult` :96
+  - `RequirementStatus` :67
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -93,6 +99,9 @@ the place to look.
   - `MetricPattern` :16
   - `PatternFinder` :48
   - `PatternKind` :4
+- `Insights/PeerStanding.swift`
+  - `PeerStandingInsight` :147
+  - `PeerStandingModel` :21
 - `Insights/PeriodContrast.swift`
   - `PeriodChange` :9
   - `PeriodContrast` :30
@@ -103,6 +112,9 @@ the place to look.
   - `ScoreHistory` :38
   - `ScorePoint` :4
   - `ScoreTrend` :140
+- `Insights/SleepDebt.swift`
+  - `SleepDebtInsight` :109
+  - `SleepDebtModel` :25
 - `Insights/Suggestions.swift`
   - `Suggestion` :23
   - `SuggestionEngine` :72
@@ -155,7 +167,7 @@ the place to look.
   - `AxisTickGranularity` :71
   - `Timeframe` :5
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :48
+  - `InsightPalette` :55
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
   - `MetricPalette` :377

@@ -26,7 +26,11 @@ public struct InsightEngine: Sendable {
             // in front of everything that iterates `models` — score recording,
             // score replay, the comparison chart — all of which skipped it
             // silently while it was built by a free function.
-            SubstanceImpactInsight()
+            SubstanceImpactInsight(),
+            EnergyInsight(),
+            HealthWatchInsight(),
+            SleepDebtInsight(),
+            PeerStandingInsight()
         ]
     }
 

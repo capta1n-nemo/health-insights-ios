@@ -33,6 +33,13 @@ public extension InsightID {
         case .bloodPressure: return 9
         case .restingHeartRateTrend: return 10
         case .bodyComposition: return 11
+        // The four newest. Energy and Health Watch are the two most likely to be
+        // compared against Readiness, so they take the slots after the daily
+        // block rather than the end of the list.
+        case .energy: return 12
+        case .healthWatch: return 13
+        case .sleepDebt: return 14
+        case .peerStanding: return 15
         }
     }
 }
