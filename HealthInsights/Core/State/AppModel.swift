@@ -46,6 +46,8 @@ final class AppModel {
         scoreHistories.removeAll()
         scoreHistoryTasks.removeAll()
         scoreHistoryGeneration &+= 1
+        ageHistory.removeAll()
+        ageHistoryRunning = false
         overlayCache.removeAll()
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -555,6 +557,33 @@ final class AppModel {
                 guard let self, self.scoreHistoryGeneration == generation else { return }
                 self.scoreHistories[id] = merged
                 self.scoreHistoryTasks.remove(id)
+            }
+        }
+        return []
+    }
+
+    /// Heart age and fitness age over time. Same shape and same reasons as
+    /// `scoreHistories`: a replay, off the main actor, discarded if the samples
+    /// changed under it.
+    private(set) var ageHistory: [AgePoint] = []
+    @ObservationIgnored private var ageHistoryRunning = false
+
+    /// Returns empty and computes in the background on first request. Fifty-two
+    /// weekly replays of the risk equations is not a view-body cost.
+    func heartAgeHistory(days: Int = 365) -> [AgePoint] {
+        if !ageHistory.isEmpty { return ageHistory }
+        guard !ageHistoryRunning else { return [] }
+        ageHistoryRunning = true
+
+        let samples = self.samples
+        let profile = self.profile
+        let generation = scoreHistoryGeneration
+        Task.detached(priority: .userInitiated) {
+            let points = HeartAgeHistory.replay(samples: samples, profile: profile, days: days)
+            await MainActor.run { [weak self] in
+                guard let self, self.scoreHistoryGeneration == generation else { return }
+                self.ageHistory = points
+                self.ageHistoryRunning = false
             }
         }
         return []

@@ -103,6 +103,16 @@ enum Theme {
         }
     }
 
+    /// A hue by slot, for the few charts whose series aren't metrics —
+    /// the two computed ages, for instance. Drawn from the same validated
+    /// eight so they sit beside the metric charts without clashing.
+    static func paletteColour(slot index: Int) -> Color {
+        let step = metricPalette[abs(index) % metricPalette.count]
+        return Color(UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? step.dark : step.light)
+        })
+    }
+
     static func metricColor(_ metric: MetricType) -> Color {
         let slot = metricPalette[metric.colourSlot % metricPalette.count]
         return Color(UIColor { traits in

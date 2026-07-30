@@ -26,6 +26,7 @@ struct InsightDetailView: View {
                     headerCard(result)
                     if insightID == .heartAge {
                         ageComparisonCard
+                        ageHistoryCard
                     }
                     if !result.unmetRequirements.isEmpty {
                         requirementsCard(result)
@@ -132,6 +133,44 @@ struct InsightDetailView: View {
                 }
             }
         }
+    }
+
+    /// The ages over time, which the three-number card structurally cannot show.
+    ///
+    /// The pace is the finding, not the level: your real age advances a year per
+    /// year regardless, so a heart age gaining 1.0 a year is holding station and
+    /// one gaining 0.6 is catching up even though its number keeps rising.
+    @ViewBuilder private var ageHistoryCard: some View {
+        let points = model.heartAgeHistory()
+        if points.count >= 3 {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Both ages over time").font(.headline)
+                    AgeHistoryChart(points: points)
+                    if let pace = points.yearsPerYear {
+                        Text(Self.pacePhrase(pace))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("Rebuilt from the readings as they stood on each day. Facts you entered once — cholesterol, smoking — are applied as they stand now, because the app has no history for them.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Stated against the pace of time rather than as a bare slope, which would
+    /// read as good news at 0.9 years a year when it is merely not-quite-losing.
+    static func pacePhrase(_ yearsPerYear: Double) -> String {
+        let gap = yearsPerYear - 1
+        if abs(gap) < 0.25 {
+            return String(format: "Ageing at about the pace of time — %.1f years per year, against the 1.0 everyone gets.", yearsPerYear)
+        }
+        if gap < 0 {
+            return String(format: "Gaining on it: %.1f years per year against the 1.0 of the calendar, so the gap is closing by about %.1f a year.", yearsPerYear, -gap)
+        }
+        return String(format: "Running ahead: %.1f years per year against the 1.0 of the calendar, so the gap is widening by about %.1f a year.", yearsPerYear, gap)
     }
 
     private func ageColumn(_ label: String, value: Double?, tint: Color) -> some View {
