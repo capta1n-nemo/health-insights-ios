@@ -26,16 +26,20 @@ case orphans stored history**. Choose the name once.
 | `InsightKit/.../Feedback/Feedback.swift` | `modelVersion` | **yes — compile error** |
 | `HealthInsights/Features/Settings/TelemetryOutboxView.swift` | `prettyInsight` | **yes — compile error** |
 | `HealthInsights/Features/Dashboard/DashboardView.swift` | `iconName` | has `default:` — silently gives the wrong icon |
-| `HealthInsights/DesignSystem/Theme.swift` | `insightTint` | has `default:` — silently shares a hue |
+| `InsightKit/.../Presentation/InsightPalette.swift` | `colourSlot` | **yes — compile error** |
 
 `cadence` decides the tab: `.daily` → Today, `.trend` → Insights. The deep-dive
 cards (lagged correlation, period contrast) are gated on `.trend`.
 
-⚠️ `insightTint` already has **four colliding pairs** (heartAge/bloodPressure,
-cardioFitness/bodyComposition, heartHealth/restingHeartRateTrend,
-cardioTrajectory/substanceImpact). Its comment claims safety because "never more
-than four are on screen at once" — but the *user* picks which four on the score
-comparison chart. Don't add a fifth collision; pick a free slot.
+`colourSlot` declares a *preference*, and `InsightPalette.slots(for:)` resolves
+collisions per chart — so two cards on one chart can no longer share a hue however
+crowded it gets. Give the new insight a slot number nothing else uses:
+`testEveryInsightHasADistinctPreference` fails otherwise. There are more insights
+than the palette's eight hues by design; the resolver is what makes that safe.
+
+This used to be a fixed table in `Theme.swift` with four colliding pairs and a
+comment claiming safety because "never more than four are on screen at once" —
+which was untrue, because the user picks which four.
 
 ## 3. Two registrations that fail silently
 
@@ -46,9 +50,18 @@ Neither breaks the build. Both make the insight invisible.
 - **The view layer** renders `dailyResults` / `trendResults` off the engine, so
   registration is what puts the card on screen.
 
-`SubstanceImpact` is the cautionary case: it ships as a card but is **not** an
-`InsightModel` and is not in the engine — it is built by a free function the app
-calls directly. Anything applied "to every insight" silently skips it.
+`SubstanceImpact` was the cautionary case for a long time: it shipped as a card
+but was **not** an `InsightModel` and was not in the engine — a free function the
+app called directly — so score recording, score replay, the comparison chart and
+grounding collection all skipped it silently, for as long as it existed. It is a
+registered model now. The lesson stands: registration is not a formality, it is
+what makes an insight visible to everything that iterates the registry.
+
+Its input is the user's substance log, which the engine doesn't carry. The fix
+was to hold the log as construction state on the model and rebind it with
+`InsightEngine.withSubstanceLog(_:)` — worth copying if a new insight ever needs
+something `samples` and `profile` can't supply, rather than growing a third
+`evaluate` overload.
 
 ## 4. The protocol requirements
 
@@ -63,10 +76,14 @@ calls directly. Anything applied "to every insight" silently skips it.
 
 ## 5. Emit a score and contributors, or say why not
 
-- **`score`** should be non-nil in the normal case. Three cards currently fail
-  this and it is logged as a defect, not a pattern to copy: Body Composition
-  hard-codes `score: nil`, Cardiovascular Risk uses a four-step function
-  (4.9% dials 90, 5.1% dials 72), and Blood Pressure is nil on most days.
+- **`score`** should be non-nil in the normal case, and every shipped card now
+  manages it. Three used to fail, and how they were fixed is the useful part:
+  Body Composition scored `nil` unconditionally while printing "obese" as a
+  driver — the judgement without the calibration; Cardiovascular Risk mapped a
+  continuous risk onto four fixed numbers, so 4.9% dialled 90 and 5.1% dialled 72;
+  Blood Pressure filled its dial only from a reading under 24 hours old, so a
+  weekly cuffer saw a blank six days in seven. If a new insight is tempted toward
+  `score: nil`, it is usually one of those three shapes wearing a new hat.
 - **`contributors`** — emit a `MetricContribution` as each component is built.
   The detail chart is driven by these, so a component added to the score becomes
   a line with no second edit.

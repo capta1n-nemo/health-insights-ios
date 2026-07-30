@@ -37,6 +37,32 @@ about confidence.**
       reports Oura's vascular age beside its own. Only `dayStrain` is unread —
       Whoop isn't connected.
 
+### The four cards from the top of the category
+Chosen on one criterion — loved in the category *and* absent from it.
+
+- [x] **Energy** (Today) — a body-battery reservoir: filled overnight by sleep
+      against your own need and by overnight autonomic recovery, drained by
+      active work *plus* time spent above your resting heart rate, which catches
+      the strain that never became a workout. Garmin's version is the most-loved
+      number in consumer wearables and exists nowhere else on iOS. Reports an
+      hourly curve, and is honest that it is a model — a test stops it ever
+      claiming `.high` confidence.
+- [x] **Health Watch** (Today) — several signals leaning the same way at once,
+      which is the shape of an immune response and is a different question from
+      the one Vitals Check asks. Deliberately *not* worst-offender-dominant: one
+      signal off is an ordinary Tuesday, so votes accumulate. Its reference
+      period stops four days before the recent window starts, which is what
+      routes around the contamination the golden dataset exposed — a run that has
+      been building for a week is more visible rather than less.
+- [x] **Sleep Debt** (Today) — the balance rather than last night, against a need
+      *learned* from the user's own unconstrained nights, decaying with a
+      five-day half-life so it can't ratchet to infinity over a busy month.
+- [x] **Where You Stand** (Insights) — centiles against published age and sex
+      norms for resting heart rate, HRV and VO₂max. VO₂max reuses the norm line
+      `FitnessAgeModel` inverts, so it can't disagree with Cardio Fitness about
+      what average looks like. Oriented so higher always means better, with a
+      test on that — a resting heart rate of 48 is a *high* centile.
+
 ### Insight detail screens
 - [x] Score over time on every scored card — replayed from raw samples so it's
       useful on first launch, and recorded going forward so a scoring change

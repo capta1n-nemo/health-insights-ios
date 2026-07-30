@@ -109,6 +109,27 @@ if [ -n "$metric_names" ]; then
     check_switch_covers InsightKit/Sources/InsightKit/Signals/MetricSanitizer.swift requiresPositiveValue
 fi
 
+# An InsightID's icon switch carries a `default:`, so a new card compiles fine
+# and silently wears somebody else's glyph. The compiler catches the other four
+# switches; this is the one that needs a lint. (`cadence` also defaults, but its
+# default *is* the rule — everything not daily is a trend — so it isn't checked.)
+insight_names=$(awk '/^public enum InsightID/,/^}/' \
+    InsightKit/Sources/InsightKit/Insights/Insight.swift 2>/dev/null \
+    | grep -oE '^\s+case [a-z][A-Za-z0-9]*' | awk '{print $2}' | sort -u)
+
+if [ -n "$insight_names" ]; then
+    icon_body=$(awk '/(var|func) iconName/,/^    }$/' \
+        HealthInsights/Features/Dashboard/DashboardView.swift 2>/dev/null)
+    icon_missing=""
+    for name in $insight_names; do
+        printf '%s' "$icon_body" | grep -qE "[.]$name\b" || icon_missing="$icon_missing $name"
+    done
+    if [ -n "$icon_missing" ]; then
+        note "iconName (DashboardView.swift) does not mention:$icon_missing"
+        fail=1
+    fi
+fi
+
 # chartStyleIndex must stay contiguous from zero, or the metrics most likely to
 # share a chart lose first claim on the eight hues.
 dupes=$(grep -oE 'return [0-9]+$' InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift 2>/dev/null \

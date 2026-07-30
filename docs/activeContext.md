@@ -40,6 +40,35 @@ it:
   Pinned rather than tuned, because the fix — a baseline that excludes the run it
   is judging — is a real change with its own risks.
 
+### Then four new cards, chosen on one criterion
+
+*Loved in the category **and** absent from it.* Full descriptions in
+`docs/progress.md`; what matters here is the reasoning that will not be
+obvious from the code:
+
+- **Energy** is a *model*, not a measurement, and the confidence ceiling is
+  enforced by a test rather than by good intentions. Its coefficients are all
+  expressed in units a user can check against their own day
+  (`fullDrainActiveKilocalories = 1100`, `exertionThresholdBpm = 15`) precisely
+  so that tuning them is an argument about the world rather than about a magic
+  number. It needs a watch to be good: without heart rate it falls back to
+  sleep-and-activity and drops to `.low`.
+- **Health Watch is not Vitals Check again.** Vitals Check asks whether any one
+  signal is unusual today; this asks whether *several are leaning the same way
+  at once*. That difference is why it is deliberately **not**
+  worst-offender-dominant — the rule everywhere else in this app — and a future
+  session tempted to "make it consistent" would destroy the card.
+- **Health Watch's reference window is the fix for a known defect.** The golden
+  dataset showed a sustained departure hides in its own rolling baseline. Its
+  reference period stops `referenceGapDays` (4) *before* the recent window
+  starts, and `testASustainedRunStaysVisible` asserts a longer run never scores
+  better than a shorter one. **This is the pattern to reuse** anywhere a
+  multi-day state has to stay detectable.
+- **Where You Stand reuses `FitnessAgeModel.referenceVO2`** rather than carrying
+  its own VO₂max table, so the two cards can never disagree about what average
+  looks like. `normalCDF` is hand-rolled (Abramowitz & Stegun 7.1.26) because
+  `erf` is Darwin-only in Foundation and InsightKit must build on Linux.
+
 ### What was deliberately not done
 
 - **`MetricOverlayChart` still breaks at gaps.** Bridging it needs a
@@ -55,6 +84,18 @@ it:
 - **`OAuthIntegration.swift`, `AdditionalInsights.swift` and `HeartAge.swift` are
   still unsplit** and still unverified. Only `MetricOverlayLegend` was checked
   and moved.
+- **Energy has no chart.** The hourly curve is computed and carried on
+  `EnergyModel.Output.curve` and nothing draws it — the detail screen shows the
+  score history like every other card. An intraday area chart of that curve is
+  the single highest-value UI follow-up in the app, and `SubstanceLoadChart` is
+  the closest template.
+- **`EnergyModel.exertionHours` weights every heart-rate sample equally.** A
+  watch's own sampling gaps are not idle time, so this is deliberately crude and
+  says so in a comment; using real inter-sample intervals would be more accurate
+  and needs a decision about what a gap means.
+- **Health Watch and Energy are not in the Suggestion engine.** `SuggestionEngine`
+  predates both. "Three signals have been leaning for two days" is a stronger
+  observation than anything it currently produces.
 - **Systolic now reads as the day's mean rather than the newest cuffing**, via
   `VitalReader`. This moves the risk percentage, the band, the dial and the heart
   age together — a clinician averages a day's readings, and it matches the
