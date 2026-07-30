@@ -36,16 +36,24 @@ installing to the wrong phone silently. The identifier is set via the
 a repo secret of the same name).
 
 Before installing, the workflow checks `devicectl list devices --json-output`
-and fails loudly — rather than guessing — when:
-- the pinned identifier isn't in the paired-devices list at all (phone was
-  reset/replaced — update the identifier), or
-- it's paired but its `tunnelState` isn't `connected` (phone locked, off
-  Wi-Fi, on a VPN that routes it off the local subnet, or just asleep).
+and fails loudly — rather than guessing — only when the pinned identifier isn't
+in the paired-devices list at all (phone was reset or replaced, so the
+identifier needs updating). A `tunnelState` of `unavailable` logs a warning and
+the install is attempted anyway.
 
-**A VPN on the phone is a common false alarm**: it changes the phone's
-effective network path so the Mac's local peer-to-peer discovery can't reach
-it, even though the phone shows as "connected to Wi-Fi." Disable VPN on the
-phone before deploying.
+**Do not tighten that check back to `tunnelState == "connected"`.** An earlier
+version did, and it broke deploys for several runs: a paired iPhone routinely
+reports `available (paired)` or `disconnected` while being entirely reachable —
+`devicectl` brings the tunnel up on demand as part of the install. The strict
+guard rejected working devices and sent us chasing phantom Wi-Fi and VPN
+problems on a phone that was fine. `devicectl`'s own exit status is the source
+of truth for reachability; the precheck exists only to catch an unpaired or
+replaced device.
+
+If an install genuinely does fail to reach the phone, the usual causes are a
+locked phone, a VPN routing it off the Mac's local subnet, or the phone being
+on a different network. But confirm the failure came from `devicectl` itself
+before acting on any of those.
 
 ## CI vs. deploy
 

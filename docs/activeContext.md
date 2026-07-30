@@ -41,6 +41,26 @@ dropping `clean` from the deploy build step for faster incremental deploys).
   standalone prefix `PartialRangeThrough`, not a continuation of the range
   expression above it. Also caused a CI failure this session.
 
+## Lesson from this session: suspect your own precheck first
+
+Four deploy runs "failed to find the phone." The cause was not the phone. The
+install step's guard demanded `connectionProperties.tunnelState == "connected"`
+and refused anything else — but a paired, perfectly installable iPhone commonly
+reports `available (paired)`, and `devicectl` opens the tunnel on demand. The
+guard was rejecting a working device.
+
+What went wrong in the diagnosis is the part worth remembering: each failure
+came with a plausible user-side explanation (phone locked, VPN on, off Wi-Fi,
+Xcode not signed in), and each one was accepted instead of questioning the check
+doing the rejecting. The user settled it by running `xcrun devicectl list
+devices` themselves and pasting output showing the phone as `available
+(paired)`. Fixed in `122d2c6`; run 36 installed successfully on the same phone,
+same network, no VPN change.
+
+Rule: when a self-written guard reports an environmental failure repeatedly,
+verify the guard's premise against the raw tool output before asking the user to
+change anything about their environment.
+
 ## Known gotcha: memory files may not auto-load
 
 `CLAUDE.md` and `.claude/commands/handover.md` live in **this repo's** root
@@ -57,16 +77,15 @@ contents of `CLAUDE.md` at the start of a new chat.
 
 ## Immediate next steps
 
-- **Confirm the deploy actually installed.** Several attempts failed this
-  session purely on device reachability, never on code: the phone was
-  variously locked, off Wi-Fi, or on a VPN (which routes it off the local
-  subnet so the Mac can't reach it for `devicectl`). Signing itself was
-  verified working. Check `Settings ▸ About` in the app — if the build number
-  and commit hash match the latest push, it landed.
-- On-device verification of the nine-part UI pass is still outstanding (CI only
-  proves it compiles): Heart Rate at `All` and `Y`, a multi-source metric's
-  active/inactive badges, drag-to-scrub, the Height static-attribute card, and
-  all three blood-pressure entry points.
+- **Deploy is working again** — run 36 (`122d2c6`) installed successfully to
+  the pinned iPhone 16 Pro. See the guard-bug note below for why the preceding
+  runs failed; it was not the phone.
+- **On-device verification of the nine-part UI pass is still outstanding.** CI
+  proves it compiles, not that it behaves. Walk: Heart Rate at `All` *and* `Y`
+  (the squish bug was never `.all`-only), Weight's gap-broken line and weekly
+  velocity, a multi-source metric's provenance badges and Inactive section,
+  drag-to-scrub updating the breakdown, Height as a plain card, and blood
+  pressure from all three entry points with the grounding count unchanged.
 - The pre-approved AreaMark fallback (outlined min/max bands via two `LineMark`s
   rather than a filled `AreaMark`) shipped as the default — revisit only if the
   user wants filled bands and is willing to spend a compile-spike cycle
