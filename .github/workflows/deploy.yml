@@ -175,13 +175,20 @@ jobs:
           MODEL="${SUMMARY%%|*}"
           STATE="${SUMMARY##*|}"
 
+          # Only refuse when the device genuinely isn't paired. A paired device
+          # reports several usable states — "connected" when a tunnel is already
+          # open, but also "available (paired)" / "disconnected" when it is
+          # reachable and devicectl would simply bring the tunnel up on demand.
+          # Demanding "connected" rejected perfectly installable devices and sent
+          # people chasing phantom Wi-Fi and VPN problems, so the install is now
+          # attempted whenever the device is known, and devicectl's own error is
+          # the source of truth for whether it could actually be reached.
           if [ "$STATE" = "absent" ]; then
             echo "::error::The pinned device is not paired with this Mac. Pair it in Xcode ▸ Window ▸ Devices and Simulators, or correct the IPHONE_DEVICE_ID secret."
             exit 1
           fi
-          if [ "$STATE" != "connected" ] && [ "$STATE" != "unknown" ]; then
-            echo "::error::The pinned device ($MODEL) is paired but not reachable (state: $STATE). Unlock it, make sure it's on the same network, and re-run."
-            exit 1
+          if [ "$STATE" = "unavailable" ]; then
+            echo "::warning::The pinned device ($MODEL) reports state '$STATE'. Attempting the install anyway — if it fails, unlock the phone, disable any VPN, and confirm it shares the Mac's network."
           fi
 
           echo "Installing $APP_PATH onto the pinned device ($MODEL)"
