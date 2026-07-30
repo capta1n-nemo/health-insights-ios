@@ -133,11 +133,13 @@ public extension InsightID {
         switch self {
         case .cardiovascularRisk: return "cvrisk-score2-2021_ascvd-2013"
         case .heartHealth: return "hearthealth-v1"
+        case .heartAge: return "heartage-vascular-v1"
         case .bloodPressure: return "bp-estimator-v2"
         case .readiness: return "readiness-v1"
         case .substanceImpact: return "substance-v1"
         case .sleepQuality: return "sleep-v1"
         case .cardioFitness: return "cardiofitness-v1"
+        case .cardioTrajectory: return "vo2trajectory-v1"
         case .bodyComposition: return "bodycomp-v1"
         case .restingHeartRateTrend: return "rhrtrend-v1"
         }

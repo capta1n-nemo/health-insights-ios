@@ -22,6 +22,9 @@ struct InsightDetailView: View {
             VStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
                     headerCard(result)
+                    if insightID == .heartAge {
+                        ageComparisonCard
+                    }
                     if !result.unmetRequirements.isEmpty {
                         requirementsCard(result)
                     }
@@ -86,6 +89,55 @@ struct InsightDetailView: View {
                 }
             }
         }
+    }
+
+    /// Three ages side by side. The whole point of this insight is the gap
+    /// between them, which a number buried in a sentence doesn't convey.
+    @ViewBuilder private var ageComparisonCard: some View {
+        let analysis = HeartAgeInsight().analyse(samples: model.samples,
+                                                 profile: model.profile, now: Date())
+        if analysis.heart != nil || analysis.fitness != nil {
+            Card {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("How old are you behaving?").font(.headline)
+                    HStack(alignment: .top, spacing: 0) {
+                        ageColumn("You", value: analysis.chronologicalAge, tint: .primary)
+                        if let heart = analysis.heart, let heartAge = heart.heartAge {
+                            Divider().frame(height: 44)
+                            ageColumn("Heart", value: heartAge,
+                                      tint: Self.tint(excessYears: heart.excessYears ?? 0))
+                        }
+                        if let fitness = analysis.fitness {
+                            Divider().frame(height: 44)
+                            ageColumn("Fitness", value: fitness.fitnessAge,
+                                      tint: Self.tint(excessYears: -(fitness.yearsYounger ?? 0)))
+                        }
+                    }
+                    Text("Heart age comes from the risk equations, fitness age from your VO₂max against age norms. They can disagree — a fit heart can still carry high blood pressure.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func ageColumn(_ label: String, value: Double?, tint: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value.map { "\(Int($0.rounded()))" } ?? "—")
+                .font(.title.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(tint)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Years ahead of your real age, coloured the way the rest of the app does:
+    /// behind your years is good, well ahead needs attention.
+    private static func tint(excessYears: Double) -> Color {
+        if excessYears >= 3 { return Theme.bad }
+        if excessYears <= -3 { return Theme.good }
+        return Theme.warn
     }
 
     private func driversCard(_ result: InsightResult) -> some View {
@@ -213,11 +265,16 @@ struct InsightDetailView: View {
         switch insightID {
         case .cardiovascularRisk: return .bloodPressureSystolic
         case .heartHealth: return .restingHeartRate
+        // Heart age moves with blood pressure; fitness age with VO₂max. Only one
+        // chart fits here, and blood pressure is the half the user can act on
+        // between readings — the fitness half has its own card.
+        case .heartAge: return .bloodPressureSystolic
         case .bloodPressure: return .bloodPressureSystolic
         case .readiness: return .heartRateVariabilityRMSSD
         case .substanceImpact: return .restingHeartRate
         case .sleepQuality: return .sleepDurationHours
         case .cardioFitness: return .vo2Max
+        case .cardioTrajectory: return .vo2Max
         case .bodyComposition: return .bodyMass
         case .restingHeartRateTrend: return .restingHeartRate
         }

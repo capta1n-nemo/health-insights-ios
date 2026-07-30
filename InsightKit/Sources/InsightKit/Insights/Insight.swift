@@ -4,11 +4,13 @@ import Foundation
 public enum InsightID: String, Codable, Sendable, CaseIterable {
     case cardiovascularRisk
     case heartHealth
+    case heartAge
     case bloodPressure
     case readiness
     case substanceImpact
     case sleepQuality
     case cardioFitness
+    case cardioTrajectory
     case bodyComposition
     case restingHeartRateTrend
 }

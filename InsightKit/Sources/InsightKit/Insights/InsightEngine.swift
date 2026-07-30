@@ -14,7 +14,9 @@ public struct InsightEngine: Sendable {
             SleepQualityInsight(),
             HeartHealthInsight(),
             CardioFitnessInsight(),
+            CardioTrajectoryInsight(),
             CardiovascularRiskInsight(preferredEngine: .combined),
+            HeartAgeInsight(),
             BloodPressureInsight(),
             RestingHeartRateTrendInsight(),
             BodyCompositionInsight()

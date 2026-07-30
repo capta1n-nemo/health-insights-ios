@@ -82,11 +82,13 @@ struct TelemetryOutboxView: View {
             switch id {
             case .cardiovascularRisk: return "Heart attack & stroke risk"
             case .heartHealth: return "Heart health"
+            case .heartAge: return "Heart & fitness age"
             case .bloodPressure: return "Blood pressure"
             case .readiness: return "Readiness"
             case .substanceImpact: return "Substance impact"
             case .sleepQuality: return "Sleep quality"
             case .cardioFitness: return "Cardio fitness"
+            case .cardioTrajectory: return "Fitness trajectory"
             case .bodyComposition: return "Body composition"
             case .restingHeartRateTrend: return "Resting heart rate"
             }

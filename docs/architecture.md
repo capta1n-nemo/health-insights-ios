@@ -62,6 +62,8 @@ The app adapts platform data into these types and renders the results.
 | Cardiovascular risk | **Combined SCORE2/SCORE2-OP + ASCVD Pooled Cohort Equations** — both computed, reported as a consensus (mean) with the min–max range as an uncertainty band; deterministic, sex-specific | SCORE2 Working Group, *Eur Heart J* 2021;42(25):2439–2454 · Goff et al., *Circulation* 2013;129(25 S2) |
 | Heart health | Composite of VO₂max, resting HR, HRV vs. age/sex norms + personal baseline | Established cardiorespiratory-fitness norms |
 | Blood pressure | Grounding-first (logged cuff readings + trend); **experimental** personalised estimator gated behind calibration, always with uncertainty | — |
+| Heart age (vascular age) | The person's own 10-year risk **inverted over age** against an optimal-risk-factor reference person of the same sex. No new equation — the shipped ones, read backwards | D'Agostino et al., *Circulation* 2008;117(6):743–753 (Framingham vascular age); same framing as JBS3 / NHS heart age |
+| Fitness age | The same age/sex VO₂max norms the heart-health score marks against, interpolated into a continuous line and inverted | Cardiorespiratory-fitness norms (as above) |
 
 Design principles that keep this trustworthy:
 
@@ -72,6 +74,33 @@ Design principles that keep this trustworthy:
 - **Cuffless BP is explicitly experimental** — wearable-only BP is unreliable
   without per-person calibration; the app frames it that way and leans on real
   cuff readings.
+
+## Ages instead of percentages (`HeartAge.swift`, `CardioTrajectory.swift`)
+
+A percentage is easy to shrug off; "your heart is running eight years ahead of
+you" is not. Both age insights re-express models the app already has on the axis
+people feel, and both are careful about the same three things:
+
+- **Never solved outside a validated band.** `HeartAgeModel.solveAge` inverts
+  each engine only inside `Engine.validatedAgeRange` (SCORE2 40–69, ASCVD 40–79)
+  and returns an `isCapped` flag, which the UI says out loud ("79 or older")
+  rather than printing a number produced by extrapolation. `FitnessAgeModel`
+  does the same at 20–75, the extent of the norm table.
+- **No fabricated lifetime risk.** The roadmap asked for lifetime framing. Nothing
+  here is validated past 79, and compounding decades of 10-year risk would be
+  inventing a figure, so `HeartAgeModel.projection` instead runs the *same*
+  published equations at future ages they are validated for, labelled "if today's
+  numbers hold". It answers "where is this heading?" without making anything up.
+- **A trajectory is judged against ageing, not zero.** VO₂max falls with age
+  regardless, so `VO2Trajectory` compares the least-squares slope to the norm
+  line's own slope at that age (`ageTypicalChangePerYear`). Holding level scores
+  *above* mid-dial, because it is genuinely a gain. `netPerYear` is that
+  comparison; `fitnessYearsGained` is the trajectory's effect on fitness age
+  alone. They are deliberately separate — adding them would count it twice.
+
+"What would move it" prefers the user's own history (their busier weeks versus
+their lighter ones, from a single source so a walk isn't counted twice) and falls
+back to general training evidence, with `Lever.isPersonal` marking which is which.
 
 ## Extensibility
 

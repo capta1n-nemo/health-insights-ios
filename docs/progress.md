@@ -16,6 +16,15 @@ about confidence.**
 - [x] Substance Impact — private logging + before/after HR/HRV/temp/sleep +
       cumulative cardiovascular-load indicator + safety flag.
 - [x] Sleep quality, cardio fitness trend, body composition, resting-HR trend.
+- [x] Heart & fitness age — vascular age by inverting SCORE2/ASCVD against an
+      optimal-factor reference person (consensus + range, each engine bounded by
+      its own validated band), fitness age by inverting the VO₂max norm line, and
+      risk projected at future ages the equations *are* validated for instead of
+      a fabricated lifetime figure.
+- [x] Fitness trajectory — VO₂max slope read against the age-typical decline
+      (holding level is a gain), 12-month projection with its residual spread,
+      and "what would move it" levers drawn from the user's own busier-versus-
+      lighter weeks before any general evidence.
 
 ### Creative data use
 - [x] Temperature reconstruction from wearable nightly-deviation readings.
@@ -60,14 +69,24 @@ about confidence.**
 ## In progress / not yet device-verified
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
+- [ ] Heart & fitness age and Fitness trajectory on the phone: both are new cards
+      on the Insights tab. Worth checking the three-age comparison row renders on
+      the narrowest device, and that a profile with no blood pressure shows the
+      fitness half alone rather than an empty card.
 
 ## Next
 
 ### More "gap-filling" insights
-- [ ] Heart/fitness age and lifetime-risk framing.
-- [ ] VO₂max trajectory + "what would move it" guidance.
-- [ ] Sleep-debt and circadian consistency from bedtime variance.
-- [ ] Cardio strain from stimulants as a first-class trend.
+- [ ] Sleep-debt and circadian consistency from bedtime variance. **Blocked on a
+      new signal**: no provider currently gives us a bedtime. Apple Health and
+      Oura both stamp `sleepDurationHours` at the *start of the calendar day*, so
+      sleep-onset time would need its own `MetricType` (a clock-hour value, with
+      circular statistics — the mean of 23:30 and 00:30 is midnight, not noon)
+      plus parser work in all three providers.
+- [ ] Cardio strain from stimulants as a first-class trend. The before/after
+      analysis and the 14-day load figure already exist in
+      `SubstanceResponseAnalyzer`; what's missing is a decaying daily load
+      *series* to trend and chart.
 
 ### Integrations
 - [ ] Hume Band direct API (today flows in via Apple Health only).

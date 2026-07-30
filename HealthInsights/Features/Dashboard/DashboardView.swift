@@ -246,11 +246,13 @@ struct InsightCard: View {
         switch result.id {
         case .cardiovascularRisk: return "waveform.path.ecg"
         case .heartHealth: return "heart.fill"
+        case .heartAge: return "hourglass"
         case .bloodPressure: return "gauge.medium"
         case .readiness: return "bolt.heart"
         case .substanceImpact: return "wineglass"
         case .sleepQuality: return "moon.stars.fill"
         case .cardioFitness: return "figure.run"
+        case .cardioTrajectory: return "chart.line.uptrend.xyaxis"
         case .bodyComposition: return "figure.arms.open"
         case .restingHeartRateTrend: return "heart.text.square"
         }
