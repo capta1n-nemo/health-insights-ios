@@ -223,10 +223,11 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
             // from "token broken", and both look like a bare 401 at sync time.
             let granted = Self.grantedScopes(from: callback)
             var tokens = try await exchangeCode(code, credentials: creds, verifier: pkce?.verifier)
-            tokens.grantedScopes = granted
+            // Empty means the provider didn't say, not that it granted nothing.
+            tokens.grantedScopes = granted.isEmpty ? nil : granted
             credentials.setTokens(tokens, for: id)
             status = .connected(lastSync: nil)
-            logScopeGrant(granted)
+            logScopeGrant(granted, callback: callback)
             DiagnosticsLog.shared.ok(displayName, "Connected")
         } catch {
             status = .error(error.localizedDescription)
@@ -275,13 +276,22 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     /// Record what the consent screen handed back, and flag anything withheld —
     /// a withheld scope shows up much later as a 401 on just the endpoints that
     /// needed it, which reads like a broken token unless you know this.
-    private func logScopeGrant(_ granted: [String]) {
+    private func logScopeGrant(_ granted: [String], callback: URL) {
         let diag = DiagnosticsLog.shared
         let withheld = config.scopes.filter { !granted.contains($0) }
-        let lists = "Requested: \(config.scopes.joined(separator: " "))\nGranted: \(granted.isEmpty ? "(none reported)" : granted.joined(separator: " "))"
+        let lists = "Requested: \(config.scopes.joined(separator: " "))\nGranted: \(granted.isEmpty ? "(not reported)" : granted.joined(separator: " "))"
         if granted.isEmpty {
+            // Name the parameters the callback *did* carry — never their values,
+            // one of them is the authorization code.
+            let params = URLComponents(url: callback, resolvingAgainstBaseURL: false)?
+                .queryItems?.map(\.name).sorted().joined(separator: ", ") ?? "(none)"
             diag.null(displayName, "Sign-in didn't report which permissions were granted",
-                      detail: "\(lists)\nThe provider omitted the `scope` parameter on the callback, so the app can't verify the grant up front.")
+                      detail: """
+                          \(lists)
+                          The callback carried only: \(params) — no `scope`, so the grant can't be \
+                          verified up front. This is not evidence that anything was refused: the \
+                          app attempts every collection regardless and lets \(displayName) answer.
+                          """)
         } else if withheld.isEmpty {
             diag.ok(displayName, "Granted all \(granted.count) requested permission(s)", detail: lists)
         } else {
@@ -543,7 +553,9 @@ final class OuraProvider: OAuthIntegration {
             config: .init(
                 authorizeURL: URL(string: "https://cloud.ouraring.com/oauth/authorize")!,
                 tokenURL: URL(string: "https://api.ouraring.com/oauth/token")!,
-                consoleURL: URL(string: "https://cloud.ouraring.com/oauth/applications")!,
+                // Oura moved the developer console off cloud.ouraring.com; the
+                // OAuth endpoints above did not move with it.
+                consoleURL: URL(string: "https://developer.ouraring.com/applications")!,
                 redirectURI: "healthinsights://oauth/oura",
                 // `spo2Daily` is the name in Oura's current OpenAPI spec; the
                 // prose docs still say `spo2`. Ask for both — an unrecognised
@@ -573,9 +585,8 @@ final class OuraProvider: OAuthIntegration {
     /// The scope Oura demands for a collection, where it isn't just `daily`.
     /// Learned from Oura's own 401 bodies — its published scope table and
     /// OpenAPI spec both stop at eight scopes and say nothing about which
-    /// endpoint needs which. Used to skip a call we already know will be
-    /// refused, so a missing permission reads as one clear line instead of a
-    /// round-trip and a 401.
+    /// endpoint needs which. Used only to name the permission in the summary
+    /// when a rejection didn't spell it out; never to pre-empt a call.
     private static let requiredScope: [String: String] = [
         "daily_resilience": "stress",
         "daily_cardiovascular_age": "heart_health",
@@ -589,25 +600,14 @@ final class OuraProvider: OAuthIntegration {
         let start = df.string(from: since), end = df.string(from: Date())
         let diag = DiagnosticsLog.shared
         var failures: [(endpoint: String, status: Int?, detail: String?)] = []
-        // Only trustworthy once a token has been granted by a build that records
-        // the scope list; `nil` means "unknown", so try the call and let Oura
-        // answer rather than skipping data we might well be entitled to.
-        let granted = credentials.tokens(for: id)?.grantedScopes
 
+        // Every collection is attempted, always. An earlier build skipped calls
+        // whose scope looked absent from the recorded grant — but Oura doesn't
+        // reliably return `scope` on the callback, so "didn't say" was read as
+        // "granted nothing" and three collections were withheld without ever
+        // being tried. Oura's own 401 is the only authority on this; guessing
+        // ahead of it can only lose data.
         func fetch(_ endpoint: String) async -> Data? {
-            if let need = Self.requiredScope[endpoint], let granted, !granted.contains(need) {
-                diag.null(displayName, "\(endpoint): skipped — the \u{201C}\(need)\u{201D} permission isn't in the saved grant",
-                          detail: """
-                              Oura granted: \(granted.joined(separator: " "))
-                              Enable \u{201C}\(need)\u{201D} on your Oura application at \
-                              cloud.ouraring.com ▸ OAuth Applications, then reconnect in \
-                              Settings ▸ Data sources.
-                              """)
-                // Phrased like Oura's own rejection so the summary picks the
-                // scope name out of it by the same route as a real 401.
-                failures.append((endpoint, nil, "Not attempted — token is not authorized access \(need) scope."))
-                return nil
-            }
             var comps = URLComponents(string: "https://api.ouraring.com/v2/usercollection/\(endpoint)")!
             comps.queryItems = [
                 URLQueryItem(name: "start_date", value: start),
@@ -692,7 +692,12 @@ final class OuraProvider: OAuthIntegration {
             "· \(f.endpoint) → \(f.status.map { "HTTP \($0)" } ?? "not attempted"): \(f.detail ?? "no reason given")"
         }
         // Name the exact permissions to switch on, rather than "tick everything".
-        let missing = Set(failures.compactMap { ProviderAPIError.missingScope(in: $0.detail) }).sorted()
+        // Oura usually names the scope in the rejection; the map covers the case
+        // where a 401 arrives without one.
+        let missing = Set(failures.compactMap { f -> String? in
+            if let named = ProviderAPIError.missingScope(in: f.detail) { return named }
+            return f.status == 401 ? Self.requiredScope[f.endpoint] : nil
+        }).sorted()
         if !missing.isEmpty {
             let succeeded = attempted - failures.count
             let preamble = succeeded > 0
@@ -700,10 +705,17 @@ final class OuraProvider: OAuthIntegration {
                 : "These \(failures.count) collections need permissions the saved grant doesn't include."
             lines.append("")
             lines.append("""
-                \(preamble) Fix: open cloud.ouraring.com ▸ OAuth Applications ▸ your app, enable \
-                \(missing.map { "\u{201C}\($0)\u{201D}" }.joined(separator: " and ")), save, then \
-                reconnect in Settings ▸ Data sources. Re-consent is required — the permissions \
-                aren't added to a token that already exists.
+                \(preamble)
+                Missing: \(missing.joined(separator: ", ")).
+                1. developer.ouraring.com/applications ▸ your app — confirm those scopes are \
+                enabled, and save.
+                2. Revoke this app's access in your Oura account's connected-apps list. This \
+                step is the one that's easy to skip and usually the reason a reconnect changes \
+                nothing: with an authorization already on file, Oura can reissue a token against \
+                the *old* grant without ever showing the consent screen, so newly-enabled scopes \
+                never get attached.
+                3. Reconnect in Settings ▸ Data sources, and check the consent screen actually \
+                appears and lists the new permissions.
                 """)
         }
         lines.append("Permissions this token carries: \(credentials.tokens(for: id)?.scopeSummary ?? "no token stored")")

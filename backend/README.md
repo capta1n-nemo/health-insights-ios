@@ -52,7 +52,7 @@ the Oura/Withings rows in Settings show as "unavailable" by design.
 
 ## Register the developer apps
 
-- **Oura**: https://cloud.ouraring.com/oauth/applications — redirect URI
+- **Oura**: https://developer.ouraring.com/applications — redirect URI
   `healthinsights://oauth/oura`.
 - **Withings**: https://developer.withings.com/ — redirect URI
   `healthinsights://oauth/withings`.

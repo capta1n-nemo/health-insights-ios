@@ -53,17 +53,4 @@ enum CredentialValidator {
     }
 
     static func isValid(_ raw: String) -> Bool { problem(with: raw) == nil }
-
-    /// Whether a clipboard string is worth offering to autofill.
-    ///
-    /// Stricter than `isValid`, because an unsolicited suggestion should only
-    /// appear when we are fairly confident: it must be a single token of
-    /// credential-ish characters, which rules out prose, URLs and JSON snippets
-    /// that happen to be on the clipboard.
-    static func looksLikeCredential(_ raw: String) -> Bool {
-        let value = raw.sanitizedCredential
-        guard isValid(value), value.count <= 200 else { return false }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
-        return value.unicodeScalars.allSatisfy { allowed.contains($0) }
-    }
 }

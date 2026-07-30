@@ -15,10 +15,6 @@ struct ProviderSetupView: View {
     @State private var clientSecret = ""
     @State private var isConnecting = false
     @State private var errorMessage: String?
-    /// A credential-shaped string sitting on the clipboard, offered as autofill.
-    @State private var clipboardSuggestion: String?
-    @State private var dismissedSuggestion: String?
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
@@ -57,7 +53,6 @@ struct ProviderSetupView: View {
             }
 
             Section {
-                clipboardBanner
                 TextField("Client ID", text: $clientID)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -109,17 +104,17 @@ struct ProviderSetupView: View {
         }
         .navigationTitle("Connect \(provider.displayName)")
         .navigationBarTitleDisplayMode(.inline)
+        // No clipboard inspection here, deliberately. Reading UIPasteboard —
+        // even just to offer a helpful autofill — makes iOS raise the system
+        // paste prompt, and with Universal Clipboard that becomes "Paste from
+        // your Mac?" every single time this screen appears. The long-press
+        // paste menu and iCloud Keychain autofill already cover this without
+        // ambushing the user.
         .onAppear {
             if let creds = provider.currentCredentials {
                 clientID = creds.clientID
                 clientSecret = creds.clientSecret
             }
-            refreshClipboardSuggestion()
-        }
-        // The keys are copied in Safari, so the useful moment to look is when
-        // the user comes back to the app.
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refreshClipboardSuggestion() }
         }
     }
 
@@ -171,69 +166,6 @@ struct ProviderSetupView: View {
         }
     }
 
-    /// Offers whatever credential-shaped string is on the clipboard, since the
-    /// user has just copied it from the provider's site in Safari.
-    @ViewBuilder private var clipboardBanner: some View {
-        if let suggestion = clipboardSuggestion, suggestion != dismissedSuggestion {
-            HStack(spacing: 10) {
-                Image(systemName: "doc.on.clipboard.fill").foregroundStyle(Theme.accent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Detected an API key in your clipboard")
-                        .font(.footnote.weight(.medium))
-                    Text(redacted(suggestion))
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Use") { autofill(suggestion) }
-                    .font(.footnote.weight(.semibold))
-                    .buttonStyle(.borderless)
-                Button {
-                    dismissedSuggestion = suggestion
-                } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.borderless)
-            }
-            .padding(.vertical, 4)
-        }
-    }
-
-    /// Fills whichever field is still waiting: the ID first, then the secret.
-    private func autofill(_ value: String) {
-        Haptics.tap()
-        if !CredentialValidator.isValid(clientID) {
-            clientID = value
-        } else if secretRequired && !CredentialValidator.isValid(clientSecret) {
-            clientSecret = value
-        } else {
-            clientID = value
-        }
-        dismissedSuggestion = value
-    }
-
-    /// Never show a whole key on screen — enough to recognise it, no more.
-    private func redacted(_ value: String) -> String {
-        guard value.count > 12 else { return String(repeating: "•", count: value.count) }
-        return "\(value.prefix(6))…\(value.suffix(4))"
-    }
-
-    private func refreshClipboardSuggestion() {
-        #if canImport(UIKit)
-        // Reading the pasteboard can raise the system paste notification, so
-        // only look when there is plausibly something worth offering.
-        guard UIPasteboard.general.hasStrings,
-              let text = UIPasteboard.general.string,
-              CredentialValidator.looksLikeCredential(text),
-              text.sanitizedCredential != clientID.sanitizedCredential,
-              text.sanitizedCredential != clientSecret.sanitizedCredential
-        else {
-            clipboardSuggestion = nil
-            return
-        }
-        clipboardSuggestion = text.sanitizedCredential
-        #endif
-    }
 
     private var intro: String {
         "Connecting \(provider.displayName) takes a few minutes and is a one-off. You'll create a free developer app on \(provider.displayName)'s website, then paste two codes back here."
@@ -244,13 +176,13 @@ struct ProviderSetupView: View {
         case "oura":
             return [
                 "Tap the button above and sign in with your normal Oura account (the same one as the Oura app).",
-                "You'll land on the OAuth Applications page. Click \u{201C}Create New Application\u{201D}.",
+                "You'll land on the Applications page at developer.ouraring.com. Click \u{201C}Create New Application\u{201D}.",
                 "Give it any name (e.g. \u{201C}My Health Insights\u{201D}).",
                 "In \u{201C}Redirect URIs\u{201D}, paste the address below with the Copy button, then press Enter/Add so it's saved in the list.",
                 "Tick EVERY data scope Oura offers — Daily, Heart Rate, Personal, Session, Workout, SpO2, Stress and Heart Health included. A scope left unticked doesn't fail loudly: the collections that need it just return \u{201C}401\u{201D} on every sync. Stress covers Resilience; Heart Health covers Cardiovascular Age and VO\u{2082} Max.",
                 "Save the application. Copy the \u{201C}Client ID\u{201D} and \u{201C}Client Secret\u{201D} it shows.",
                 "Paste both below and tap Save & Connect.",
-                "Already connected and seeing 401s in Troubleshooting? Enabling a scope on the Oura application isn't enough on its own — come back here and tap Save & Connect again, so Oura issues a token that carries it."
+                "Already connected and still seeing 401s in Troubleshooting? Enabling a scope on the Oura application isn't enough on its own, and neither is tapping Save & Connect again — with an authorization already on file Oura can reissue a token against the old permissions without showing you a consent screen. Revoke this app in your Oura account's connected-apps list first, then reconnect, and check the consent screen actually appears."
             ]
         case "withings":
             return [

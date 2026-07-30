@@ -263,14 +263,27 @@ list, discovered only from the text of Oura's own 401 bodies:
 | `daily_cardiovascular_age` | `heart_health` |
 | `vO2_max` | `heart_health` |
 
-`OuraProvider.requiredScope` holds that mapping and skips a call whose scope is
-known to be absent from `grantedScopes`, so a missing permission reads as one
-clear line rather than a round-trip and a 401. A scope 401 is also never
-retried — `ProviderAPIError.missingScope` recognises Oura's "Token is not
-authorized access <scope> scope" phrasing, and a fresh token carries the same
-grant, so retrying only spends a single-use refresh token and logs the failure
-twice. Enabling a scope on the Oura application does nothing by itself: the
-grant is baked into the token, so the user must re-consent.
+`OuraProvider.requiredScope` holds that mapping, but **only to name the scope
+in the summary when a rejection didn't spell it out — never to pre-empt a
+call.** An earlier build skipped collections whose scope looked absent from
+`grantedScopes` and got it badly wrong: Oura doesn't reliably return `scope` on
+the callback, so "didn't say" was read as "granted nothing" and three
+collections were withheld without ever being tried. Hence `grantedScopes` stores
+`nil`, never `[]`, for an unreported grant, and nothing may withhold a request
+on the strength of it. Oura's own 401 is the only authority.
+
+A scope 401 is never retried — `ProviderAPIError.missingScope` recognises
+Oura's "Token is not authorized access <scope> scope" phrasing, and a fresh
+token carries the same grant, so retrying only spends a single-use refresh
+token and logs the failure twice.
+
+Enabling a scope on the Oura application does nothing by itself: the grant is
+baked into the token. Nor is reconnecting always enough — with an authorization
+already on file, Oura can reissue against the old grant without showing a
+consent screen, so the user must revoke the app in their Oura account first.
+
+Oura's developer console has moved to `developer.ouraring.com/applications`;
+the OAuth authorize/token endpoints did not move with it.
 
 Known gap, surfaced in the log rather than silently swallowed: Oura paginates
 with `next_token` and the client reads only the first page, so
