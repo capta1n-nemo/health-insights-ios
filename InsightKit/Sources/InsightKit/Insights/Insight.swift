@@ -79,6 +79,10 @@ public struct InsightResult: Sendable, Equatable {
     public let drivers: [String]
     /// Grounding requirements still unmet, so the UI can prompt.
     public let unmetRequirements: [GroundingRequirement]
+    /// The metrics that actually fed this result, emitted by the scoring code as
+    /// it builds each component. This is what the detail screen charts, so it
+    /// cannot drift from the maths the way a hand-written list does.
+    public let contributors: [MetricContribution]
 
     public init(
         id: InsightID,
@@ -89,7 +93,8 @@ public struct InsightResult: Sendable, Equatable {
         confidence: InsightConfidence,
         explanation: String,
         drivers: [String],
-        unmetRequirements: [GroundingRequirement]
+        unmetRequirements: [GroundingRequirement],
+        contributors: [MetricContribution] = []
     ) {
         self.id = id
         self.title = title
@@ -100,6 +105,7 @@ public struct InsightResult: Sendable, Equatable {
         self.explanation = explanation
         self.drivers = drivers
         self.unmetRequirements = unmetRequirements
+        self.contributors = contributors
     }
 }
 
@@ -112,6 +118,15 @@ public protocol InsightModel: Sendable {
     var title: String { get }
     /// Everything this insight might ask the user for.
     var requirements: [GroundingRequirement] { get }
+    /// Every metric this insight can read, whether or not there is data for it
+    /// today. The superset of `InsightResult.contributors`, used to show a
+    /// "no data yet" row rather than silently omitting an input the user could
+    /// start collecting.
+    ///
+    /// Deliberately has **no default implementation**: a new insight must say
+    /// what it reads or it won't compile, the same way `MetricType.presentation`
+    /// refuses to let a new metric go uncategorised.
+    var candidateMetrics: [MetricType] { get }
     /// Compute the result from current data. Never throws — degrades gracefully
     /// to a low-confidence / not-yet-available result and reports what's missing.
     func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult

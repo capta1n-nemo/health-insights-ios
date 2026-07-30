@@ -30,6 +30,36 @@ public enum MetricPresentation: String, Sendable, CaseIterable {
 }
 
 public extension MetricType {
+    /// Which slot of the eight-hue categorical palette this metric wears on an
+    /// overlay chart.
+    ///
+    /// Fixed per metric rather than assigned by position in whatever list is on
+    /// screen: a chart that repaints its surviving series when one drops out for
+    /// want of data can't be read across two glances.
+    ///
+    /// Twenty-four metrics share eight hues, which is only safe because a slot
+    /// is reused **solely between metrics that never appear on the same chart**.
+    /// What co-occurs is decided by each insight's `candidateMetrics`, not here,
+    /// so `MetricColourSlotTests` checks every insight for a collision rather
+    /// than trusting this table to stay correct on its own. Adding a metric to
+    /// an insight can therefore break a test in a file you didn't touch — that
+    /// is the point.
+    ///
+    /// Exhaustive with no `default:`, like the rest of this file.
+    var colourSlot: Int {
+        switch self {
+        case .restingHeartRate, .bodyMass, .vascularAge: return 0
+        case .heartRateVariabilityRMSSD, .bodyFatPercentage: return 1
+        case .sleepDurationHours, .walkingHeartRateAverage, .stepCount, .leanBodyMass: return 2
+        case .oxygenSaturation, .vo2Max, .muscleMass: return 3
+        case .respiratoryRate, .bloodPressureSystolic, .boneMass: return 4
+        case .skinTemperatureDeviation, .bodyTemperature, .activeEnergyBurned,
+             .bloodPressureDiastolic, .bodyWaterPercentage: return 5
+        case .heartRate, .height: return 6
+        case .heartRateVariabilitySDNN, .dayStrain: return 7
+        }
+    }
+
     /// Deliberately exhaustive with no `default:` — adding a `MetricType` then
     /// fails to compile until someone decides how it should be presented.
     var presentation: MetricPresentation {

@@ -371,6 +371,12 @@ public struct HeartAgeInsight: InsightModel {
     static let defaultTotalCholesterol = 5.2
     static let defaultHDLCholesterol = 1.3
 
+    /// `.vascularAge` is the provider's own estimate, reported beside ours
+    /// rather than merged into it — see `docs/architecture.md`.
+    public var candidateMetrics: [MetricType] {
+        [.bloodPressureSystolic, .vo2Max, .vascularAge]
+    }
+
     public var requirements: [GroundingRequirement] {
         [
             .init(kind: .dateOfBirth, isMandatory: true,

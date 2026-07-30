@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import InsightKit
 
 struct InsightDetailView: View {
@@ -8,6 +7,8 @@ struct InsightDetailView: View {
     @State private var groundingKind: GroundingKind?
     @State private var feedbackGiven = false
     @State private var timeframe: Timeframe = .month
+    @State private var scale: SeriesScale = .zScore
+    @State private var logarithmic = false
 
     /// Resolved against the data being charted, so `.all` doesn't squash a short
     /// history into a sliver of a decade-wide viewport.
@@ -34,7 +35,10 @@ struct InsightDetailView: View {
                     if insightID == .bloodPressure {
                         bloodPressureLogLink
                     }
-                    trendCard
+                    scoreHistoryCard
+                    contributorsCard(result)
+                    patternsCard(result)
+                    contributorLinksCard(result)
                     feedbackCard(result)
                     disclaimerCard
                 } else {
@@ -155,33 +159,187 @@ struct InsightDetailView: View {
         }
     }
 
-    @ViewBuilder private var trendCard: some View {
-        let metric = primaryMetric
-        let breakdown = model.breakdown(metric, within: timeframe)
-        if !model.breakdown(metric).sources.isEmpty {   // has data at all
+    // MARK: - Score over time
+
+    /// How this insight's own number has moved. Part reconstructed from the raw
+    /// samples, part read back from what the app recorded on the day — see
+    /// `ScoreHistory`. Absent for insights that don't produce a score (substance
+    /// impact reports a load figure, not a 0–100).
+    @ViewBuilder private var scoreHistoryCard: some View {
+        let history = model.scoreHistory(for: insightID)
+        if history.count >= 2 {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(metric.displayName).font(.headline)
+                    HStack {
+                        Text("Score over time").font(.headline)
+                        Spacer()
+                        Text(trendPhrase(history)).font(.caption).foregroundStyle(.secondary)
+                    }
                     Picker("Timeframe", selection: $timeframe) {
                         ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    MultiSourceChart(breakdown: breakdown,
-                                     window: window(spanning: breakdown.dateSpan))
-                    if breakdown.sources.isEmpty {
-                        Text("No readings in \(timeframe.longLabel.lowercased()).")
-                            .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        SourceBreakdown(breakdown: breakdown, timeframe: timeframe)
+                    ScoreHistoryChart(points: history, window: window(spanning: scoreSpan(history)))
+                    Text("Days before you had at least two signals recording aren't shown — a score resting on one measurement isn't one.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func scoreSpan(_ history: [ScorePoint]) -> ClosedRange<Date>? {
+        guard let first = history.first?.date, let last = history.last?.date,
+              first <= last else { return nil }
+        return first...last
+    }
+
+    /// Direction over the window, stated only when the slope is big enough to be
+    /// one. A tenth of a point a week is not a trend.
+    private func trendPhrase(_ history: [ScorePoint]) -> String {
+        guard let perWeek = history.trendPerWeek, abs(perWeek) >= 0.5 else {
+            return "Holding steady"
+        }
+        return String(format: "%@ %.1f a week", perWeek > 0 ? "↑" : "↓", abs(perWeek))
+    }
+
+    // MARK: - What goes into it
+
+    /// Every metric behind the score, standardised onto one axis.
+    ///
+    /// The series come from `result.contributors`, which the scoring code emits
+    /// as it builds each component — so adding an input to a score adds a line
+    /// here with no edit to this file. Where a model doesn't yet report its
+    /// components, its declared `candidateMetrics` stand in.
+    @ViewBuilder private func contributorsCard(_ result: InsightResult) -> some View {
+        let contributions = resolvedContributions(result)
+        let series = model.overlaySeries(for: insightID, contributions: contributions,
+                                         timeframe: timeframe)
+        if !series.isEmpty {
+            let missing = contributions.metrics.filter { metric in
+                !series.contains { $0.metric == metric }
+            }
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("What goes into this").font(.headline)
+                    Text(scale == .zScore
+                         ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average."
+                         : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Picker("Scale", selection: $scale) {
+                        ForEach(SeriesScale.allCases) { Text($0.shortLabel).tag($0) }
                     }
-                    NavigationLink {
-                        MetricDetailView(metric: metric)
-                    } label: {
-                        HStack {
-                            Text("Open full history").font(.caption)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    .pickerStyle(.segmented)
+
+                    MetricOverlayChart(
+                        series: series, scale: scale, logarithmic: logarithmic,
+                        window: window(spanning: model.overlayRange(for: contributions.metrics,
+                                                                    timeframe: timeframe)))
+
+                    if scale == .raw && series.supportsLogScale {
+                        Toggle("Logarithmic axis", isOn: $logarithmic)
+                            .font(.caption)
+                    }
+
+                    Divider()
+                    MetricOverlayLegend(series: series, contributions: contributions,
+                                        missing: missing)
+                }
+            }
+        }
+    }
+
+    /// Contributions to chart: what the model reported, or its declared inputs
+    /// where it doesn't report yet. Without the fallback, an insight that hasn't
+    /// been migrated would show an empty card rather than a chart.
+    private func resolvedContributions(_ result: InsightResult) -> [MetricContribution] {
+        if !result.contributors.isEmpty { return result.contributors }
+        return candidateMetrics(for: insightID).map {
+            MetricContribution(metric: $0, higherIsBetter: nil, weight: 0, detail: "")
+        }
+    }
+
+    private func candidateMetrics(for id: InsightID) -> [MetricType] {
+        // Not named `model` — that's the AppModel in this scope, and shadowing it
+        // here has bitten this codebase before.
+        if let insight = model.engine.models.first(where: { $0.id == id }) {
+            return insight.candidateMetrics
+        }
+        // Substance impact isn't an engine model — it needs the event log.
+        return id == .substanceImpact ? SubstanceResponseAnalyzer.comparedMetrics : []
+    }
+
+    // MARK: - Patterns across those metrics
+
+    /// What reading the series against each other turns up: two signals heading
+    /// opposite ways, two that move together, or the one that tracks the score.
+    /// Silent when nothing clears the sample-count and effect-size floors —
+    /// which is most of the time, and correctly so.
+    @ViewBuilder private func patternsCard(_ result: InsightResult) -> some View {
+        let series = model.overlaySeries(for: insightID,
+                                         contributions: resolvedContributions(result),
+                                         timeframe: timeframe)
+        let patterns = PatternFinder.patterns(in: series,
+                                              against: model.scoreHistory(for: insightID))
+        if !patterns.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Patterns worth a look", systemImage: "lightbulb")
+                        .font(.headline)
+                    ForEach(patterns) { pattern in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: icon(for: pattern.kind))
+                                .font(.caption)
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 16)
+                            Text(pattern.sentence)
+                                .font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
+                    }
+                    Text("These are associations found in your own data over this window, not causes, and not medical findings. A short run of days can show a relationship that isn't there.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func icon(for kind: PatternKind) -> String {
+        switch kind {
+        case .divergence: return "arrow.up.arrow.down"
+        case .coMovement: return "arrow.left.arrow.right"
+        case .driver: return "target"
+        }
+    }
+
+    // MARK: - Full history per metric
+
+    /// One link per input, replacing the single "open full history" that only
+    /// ever reached the one metric this screen used to chart.
+    @ViewBuilder private func contributorLinksCard(_ result: InsightResult) -> some View {
+        let metrics = resolvedContributions(result).metrics
+        if !metrics.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Full history").font(.headline)
+                    ForEach(metrics, id: \.self) { metric in
+                        NavigationLink {
+                            MetricDetailView(metric: metric)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Circle().fill(Theme.metricColor(metric))
+                                    .frame(width: 9, height: 9)
+                                Text(metric.displayName).font(.subheadline)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -261,23 +419,4 @@ struct InsightDetailView: View {
         }
     }
 
-    private var primaryMetric: MetricType {
-        switch insightID {
-        case .cardiovascularRisk: return .bloodPressureSystolic
-        case .heartHealth: return .restingHeartRate
-        // Heart age moves with blood pressure; fitness age with VO₂max. Only one
-        // chart fits here, and blood pressure is the half the user can act on
-        // between readings — the fitness half has its own card.
-        case .heartAge: return .bloodPressureSystolic
-        case .bloodPressure: return .bloodPressureSystolic
-        case .readiness: return .heartRateVariabilityRMSSD
-        case .substanceImpact: return .restingHeartRate
-        case .sleepQuality: return .sleepDurationHours
-        case .cardioFitness: return .vo2Max
-        case .cardioTrajectory: return .vo2Max
-        case .bodyComposition: return .bodyMass
-        case .restingHeartRateTrend: return .restingHeartRate
-        case .vitalSigns: return .heartRate
-        }
-    }
 }

@@ -327,6 +327,11 @@ public struct BloodPressureInsight: InsightModel {
         self.experimentalEstimateEnabled = experimentalEstimateEnabled
     }
 
+    public var candidateMetrics: [MetricType] {
+        [.bloodPressureSystolic, .bloodPressureDiastolic, .restingHeartRate,
+         .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN]
+    }
+
     public var requirements: [GroundingRequirement] {
         [
             .init(kind: .cuffSystolic, isMandatory: true,

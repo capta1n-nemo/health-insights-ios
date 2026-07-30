@@ -292,6 +292,10 @@ public struct CardioTrajectoryInsight: InsightModel {
 
     public init() {}
 
+    public var candidateMetrics: [MetricType] {
+        [.vo2Max, .stepCount, .activeEnergyBurned, .restingHeartRate]
+    }
+
     public var requirements: [GroundingRequirement] {
         [
             .init(kind: .dateOfBirth, isMandatory: true,

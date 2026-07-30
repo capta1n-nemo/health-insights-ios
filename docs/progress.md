@@ -37,6 +37,23 @@ about confidence.**
       reports Oura's vascular age beside its own. Only `dayStrain` is unread —
       Whoop isn't connected.
 
+### Insight detail screens
+- [x] Score over time on every scored card — replayed from raw samples so it's
+      useful on first launch, and recorded going forward so a scoring change
+      can't rewrite what the user was actually told.
+- [x] One overlay of *every* metric behind a card, z-scored onto a shared axis
+      (a log axis was tried on paper and rejected: it doesn't equalise), with a
+      raw/log toggle, a validated eight-hue metric palette, and a legend that
+      names each series and flags the ones with no data.
+- [x] The chart's series are emitted by the scoring code itself
+      (`InsightResult.contributors`), so adding an input to a score adds a line
+      with no second edit — replacing a hand-written per-insight metric switch
+      that had silently drifted.
+- [x] Derived patterns: divergence ("more sleep, but blood oxygen is drifting
+      down"), day-to-day co-movement, and which input tracks the score — all
+      behind sample-count and effect-size floors, and always worded as
+      associations rather than causes.
+
 ### Creative data use
 - [x] Temperature reconstruction from wearable nightly-deviation readings.
 - [x] Blood-test photo import (on-device OCR → confirmed grounding values).
@@ -113,6 +130,18 @@ about confidence.**
       Oura setup screen no longer raises the "Paste from your Mac?" prompt.
 
 ## Next
+
+### Insights tab: the deep dive (designed, not built)
+The Today tab answers "today vs yesterday"; this answers "what's been happening
+to me over months", reusing the same components at a longer horizon.
+
+- [ ] **Lagged correlation** — an input at day *d* against the score at *d+1…d+3*.
+      The one thing Today structurally can't do, and the reason this tab exists.
+- [ ] Long-horizon score history with a regression trend and residual spread.
+- [ ] Cross-insight overlay — readiness/sleep/fitness scores on one axis.
+- [ ] Rolling 28 days vs the prior 28, per contributor: a "what changed" table.
+- [ ] Fill `contributors` for the eight trend-tab models — they currently fall
+      back to `candidateMetrics`, so the charts work but without honest weights.
 
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.

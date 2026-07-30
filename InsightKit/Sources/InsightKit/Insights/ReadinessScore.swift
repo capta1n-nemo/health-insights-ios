@@ -19,12 +19,29 @@ public enum ReadinessScore {
         public let score: Double      // 0…100
         public let weight: Double
         public let detail: String
+        /// The metric this component read. Carried so the detail screen can
+        /// chart exactly what the score used — add a component here and it
+        /// appears on the chart with no other edit.
+        public let metric: MetricType
+        /// nil where neither direction is "better" (temperature deviation).
+        public let higherIsBetter: Bool?
     }
 
     public struct Output: Sendable, Equatable {
         public let score: Double
         public let components: [Component]
         public let band: String
+
+        /// Components as chart contributions, with weights renormalised over the
+        /// ones that actually had data — the same division the score itself does.
+        public var contributions: [MetricContribution] {
+            let total = components.reduce(0) { $0 + $1.weight }
+            guard total > 0 else { return [] }
+            return components.map {
+                MetricContribution(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
+                                   weight: $0.weight / total, detail: $0.detail)
+            }
+        }
     }
 
     static func clamp(_ x: Double) -> Double { max(0, min(100, x)) }
@@ -42,13 +59,15 @@ public enum ReadinessScore {
         func history(_ type: MetricType) -> [Double] { samples.samples(of: type).map(\.value) }
 
         // HRV — prefer rMSSD, fall back to SDNN. Higher than baseline is better.
-        let hrv = history(.heartRateVariabilityRMSSD).isEmpty
-            ? history(.heartRateVariabilitySDNN) : history(.heartRateVariabilityRMSSD)
+        let hrvMetric: MetricType = history(.heartRateVariabilityRMSSD).isEmpty
+            ? .heartRateVariabilitySDNN : .heartRateVariabilityRMSSD
+        let hrv = history(hrvMetric)
         if hrv.count >= 4, let latest = hrv.last,
            let z = Baseline.zScore(latest, history: Array(hrv.dropLast())) {
             comps.append(.init(name: "HRV vs your baseline",
                                score: zScoreToScore(z, polarity: 1),
-                               weight: 0.40, detail: String(format: "%.0f ms", latest)))
+                               weight: 0.40, detail: String(format: "%.0f ms", latest),
+                               metric: hrvMetric, higherIsBetter: true))
         }
 
         // Resting HR — lower than baseline is better.
@@ -57,14 +76,16 @@ public enum ReadinessScore {
            let z = Baseline.zScore(latest, history: Array(rhr.dropLast())) {
             comps.append(.init(name: "Resting HR vs your baseline",
                                score: zScoreToScore(z, polarity: -1),
-                               weight: 0.25, detail: String(format: "%.0f bpm", latest)))
+                               weight: 0.25, detail: String(format: "%.0f bpm", latest),
+                               metric: .restingHeartRate, higherIsBetter: false))
         }
 
         // Sleep — vs a 7.5 h target (6 h ≈ 55, 8 h ≈ 90).
         if let sleep = samples.latestValue(.sleepDurationHours) {
             let s = clamp((sleep - 4) / (8.0 - 4) * 100)
             comps.append(.init(name: "Sleep", score: s, weight: 0.20,
-                               detail: String(format: "%.1f h", sleep)))
+                               detail: String(format: "%.1f h", sleep),
+                               metric: .sleepDurationHours, higherIsBetter: true))
         }
 
         // Skin-temp deviation — being near baseline is good; a spike (fever /
@@ -72,7 +93,8 @@ public enum ReadinessScore {
         if let dev = samples.latestValue(.skinTemperatureDeviation) {
             let penalty = min(70, abs(dev) * 60)
             comps.append(.init(name: "Body temperature", score: clamp(92 - penalty),
-                               weight: 0.10, detail: String(format: "%+.1f °C", dev)))
+                               weight: 0.10, detail: String(format: "%+.1f °C", dev),
+                               metric: .skinTemperatureDeviation, higherIsBetter: nil))
         }
 
         // Respiratory rate — a rise above baseline is an early strain/illness sign.
@@ -80,7 +102,8 @@ public enum ReadinessScore {
         if resp.count >= 4, let latest = resp.last,
            let z = Baseline.zScore(latest, history: Array(resp.dropLast())) {
             comps.append(.init(name: "Respiratory rate", score: zScoreToScore(z, polarity: -1),
-                               weight: 0.05, detail: String(format: "%.0f br/min", latest)))
+                               weight: 0.05, detail: String(format: "%.0f br/min", latest),
+                               metric: .respiratoryRate, higherIsBetter: false))
         }
 
         // Overnight blood oxygen — a drop below your own normal accompanies
@@ -98,7 +121,8 @@ public enum ReadinessScore {
             }
             let floored = latest < 92 ? min(component, 40) : component
             comps.append(.init(name: "Blood oxygen", score: floored, weight: 0.05,
-                               detail: String(format: "%.0f%%", latest)))
+                               detail: String(format: "%.0f%%", latest),
+                               metric: .oxygenSaturation, higherIsBetter: true))
         }
 
         guard !comps.isEmpty else { return nil }
@@ -126,6 +150,14 @@ public struct ReadinessInsight: InsightModel {
 
     public var requirements: [GroundingRequirement] { [] }
 
+    /// Everything `ReadinessScore.evaluate` can read. Both HRV flavours appear
+    /// because it prefers rMSSD and falls back to SDNN.
+    public var candidateMetrics: [MetricType] {
+        [.heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .restingHeartRate,
+         .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate,
+         .oxygenSaturation]
+    }
+
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         guard let out = ReadinessScore.evaluate(samples: samples) else {
             return InsightResult(
@@ -141,6 +173,6 @@ public struct ReadinessInsight: InsightModel {
             id: id, title: title, primaryValue: out.score,
             headline: out.band, score: out.score, confidence: confidence,
             explanation: "Your recovery today is \(Int(out.score.rounded()))/100 (\(out.band)), from how your HRV, resting heart rate, sleep and temperature compare with your own recent baseline.",
-            drivers: drivers, unmetRequirements: [])
+            drivers: drivers, unmetRequirements: [], contributors: out.contributions)
     }
 }

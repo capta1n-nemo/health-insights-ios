@@ -107,6 +107,24 @@ public enum SubstanceResponseAnalyzer {
         return (load, band, recent.count)
     }
 
+    /// The metrics this analyser compares before and after logged use — the
+    /// substance equivalent of an insight's `candidateMetrics`.
+    public static let comparedMetrics: [MetricType] = [
+        .restingHeartRate, .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
+        .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate
+    ]
+
+    static func higherIsBetter(_ metric: MetricType) -> Bool? {
+        switch metric {
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .sleepDurationHours:
+            return true
+        case .restingHeartRate, .respiratoryRate:
+            return false
+        default:
+            return nil   // skin-temp deviation: nearest baseline is best
+        }
+    }
+
     // MARK: - Insight surface
 
     /// Build a dashboard-ready `InsightResult` from an analysis.
@@ -169,9 +187,21 @@ public enum SubstanceResponseAnalyzer {
             explanation += " Your heart is showing a notable response — if your heart rate stays high, or you feel palpitations, chest pain or breathlessness, please seek medical care."
         }
 
+        // Weight 0: the load figure isn't a weighted blend of these, they're the
+        // signals the before/after comparison was measured on.
+        let contributors = analysis.effects.map { effect in
+            MetricContribution(
+                metric: effect.metric,
+                higherIsBetter: Self.higherIsBetter(effect.metric),
+                weight: 0,
+                detail: String(format: "%@%.1f after use",
+                               effect.deltaAbsolute >= 0 ? "+" : "−", abs(effect.deltaAbsolute)))
+        }
+
         return InsightResult(
             id: id, title: title, primaryValue: analysis.recentLoad,
             headline: headline, score: nil, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: [])
+            explanation: explanation, drivers: drivers, unmetRequirements: [],
+            contributors: contributors)
     }
 }

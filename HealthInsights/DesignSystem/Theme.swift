@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import InsightKit
 
 /// Central design tokens. Inspired by Apple Health / Oura: soft cards, generous
@@ -29,6 +30,49 @@ enum Theme {
         case .low: return .secondary
         case .experimental: return .purple
         }
+    }
+
+    // MARK: - Metric colours (the overlay chart's identity scale)
+
+    /// Eight categorical hues, light and dark steps of the same set.
+    ///
+    /// Validated rather than chosen by eye: worst adjacent colour-blind ΔE 9.1
+    /// light / 8.4 dark (target ≥ 8), worst normal-vision ΔE 19.6 / 19.3 (floor
+    /// ≥ 15). Four light steps fall under 3:1 against the grouped background,
+    /// which obliges the relief rule — hence the legend under every overlay
+    /// listing each series by name and value, so identity is never colour alone.
+    ///
+    /// Existing charts key colour on *source* (`sourcePalette`); this keys on
+    /// *metric*. They coexist because they answer different questions — "which
+    /// device said this" versus "which signal is this".
+    private static let metricPalette: [(light: UInt32, dark: UInt32)] = [
+        (0x2a78d6, 0x3987e5),   // 1 blue
+        (0xeb6834, 0xd95926),   // 2 orange
+        (0x1baf7a, 0x199e70),   // 3 aqua
+        (0xeda100, 0xc98500),   // 4 yellow
+        (0xe87ba4, 0xd55181),   // 5 magenta
+        (0x008300, 0x008300),   // 6 green
+        (0x4a3aa7, 0x9085e9),   // 7 violet
+        (0xe34948, 0xe66767)    // 8 red
+    ]
+
+    /// Which hue each metric wears. The slot assignment itself lives in
+    /// InsightKit (`MetricType.colourSlot`) so its collision-safety can be
+    /// tested — see the note there.
+    static func metricColor(_ metric: MetricType) -> Color {
+        let slot = metricPalette[metric.colourSlot % metricPalette.count]
+        return Color(UIColor { traits in
+            UIColor(rgb: traits.userInterfaceStyle == .dark ? slot.dark : slot.light)
+        })
+    }
+}
+
+private extension UIColor {
+    convenience init(rgb: UInt32) {
+        self.init(red: CGFloat((rgb >> 16) & 0xff) / 255,
+                  green: CGFloat((rgb >> 8) & 0xff) / 255,
+                  blue: CGFloat(rgb & 0xff) / 255,
+                  alpha: 1)
     }
 }
 

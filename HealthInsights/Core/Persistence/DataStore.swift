@@ -12,7 +12,8 @@ final class DataStore {
     init(inMemory: Bool = false) {
         let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
                              IntegrationRecord.self, SubstanceEventRecord.self,
-                             PredictionOutcomeRecord.self, FeedbackRecord.self])
+                             PredictionOutcomeRecord.self, FeedbackRecord.self,
+                             InsightScoreRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -167,6 +168,41 @@ final class DataStore {
             existing.lastSync = lastSync
         } else {
             context.insert(IntegrationRecord(integrationID: id, connected: connected, lastSync: lastSync))
+        }
+        try? context.save()
+    }
+
+    // MARK: - Insight score history
+
+    /// Every stored day for one insight, oldest → newest.
+    func scoreHistory(for id: InsightID) -> [ScorePoint] {
+        let raw = id.rawValue
+        let descriptor = FetchDescriptor<InsightScoreRecord>(
+            predicate: #Predicate { $0.insightRaw == raw },
+            sortBy: [SortDescriptor(\.day)])
+        return ((try? context.fetch(descriptor)) ?? []).map(\.point)
+    }
+
+    /// Record today's score, replacing any row already written for today.
+    ///
+    /// Upsert rather than append: `recompute()` runs on every launch, refresh,
+    /// grounding save and substance log, and appending would write a dozen rows
+    /// for the same day and turn the chart into a vertical smear.
+    func recordScore(_ id: InsightID, score: Double, confidence: InsightConfidence,
+                     contributorCount: Int, on date: Date = Date(),
+                     calendar: Calendar = .current) {
+        let day = calendar.startOfDay(for: date)
+        let raw = id.rawValue
+        let descriptor = FetchDescriptor<InsightScoreRecord>(
+            predicate: #Predicate { $0.insightRaw == raw && $0.day == day })
+        if let existing = (try? context.fetch(descriptor))?.first {
+            existing.score = score
+            existing.confidenceRaw = confidence.rawValue
+            existing.contributorCount = contributorCount
+        } else {
+            context.insert(InsightScoreRecord(
+                insightRaw: raw, day: day, score: score,
+                confidenceRaw: confidence.rawValue, contributorCount: contributorCount))
         }
         try? context.save()
     }

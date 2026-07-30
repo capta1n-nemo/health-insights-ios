@@ -52,6 +52,17 @@ public enum VitalSignsCheck {
         let hardLow: Double?
         let hardHigh: Double?
         let format: String
+
+        /// Which direction is the good one, for a chart legend. `nil` when both
+        /// directions are a concern (respiratory rate, body temperature) — there
+        /// the good place is the middle, and calling either end "better" is wrong.
+        var higherIsBetter: Bool? {
+            switch (concernWhenHigh, concernWhenLow) {
+            case (true, false): return false
+            case (false, true): return true
+            default: return nil
+            }
+        }
     }
 
     static let specs: [Spec] = [
@@ -139,6 +150,8 @@ public struct VitalSignsInsight: InsightModel {
     public let title = "Vitals Check"
     public init() {}
     public var requirements: [GroundingRequirement] { [] }
+    /// Straight off the scan table, so a new `Spec` is a new chart line.
+    public var candidateMetrics: [MetricType] { VitalSignsCheck.specs.map(\.metric) }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         let output = VitalSignsCheck.evaluate(samples: samples, now: now)
@@ -172,7 +185,19 @@ public struct VitalSignsInsight: InsightModel {
             // Flagged vitals first — the point of a vitals panel is the outlier.
             drivers: (flagged + output.readings.filter { $0.status == .normal })
                 .map(VitalSignsCheck.describe),
-            unmetRequirements: [])
+            unmetRequirements: [],
+            // Weight 0 throughout: this insight deliberately doesn't average its
+            // vitals, so claiming a share of the score would be inventing one.
+            contributors: output.readings.map { reading in
+                let spec = VitalSignsCheck.specs.first { $0.metric == reading.metric }
+                let unit = reading.metric.unit
+                return MetricContribution(
+                    metric: reading.metric,
+                    higherIsBetter: spec?.higherIsBetter,
+                    weight: 0,
+                    detail: String(format: spec?.format ?? "%.1f", reading.value)
+                        + (unit.isEmpty ? "" : " \(unit)"))
+            })
     }
 
     private func listPhrase(_ items: [String]) -> String {

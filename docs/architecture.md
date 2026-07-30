@@ -189,6 +189,94 @@ until it's categorised:
 case, not a protocol returning `some View` (that would force `AnyView` and lose
 SwiftUI's structural identity on a screen that re-renders every pan frame).
 
+## What an insight detail screen shows
+
+Tapping a card opens `InsightDetailView`, which used to end in a chart of **one**
+metric picked by a hand-written `InsightID → MetricType` switch in the app
+target. Readiness weights six signals and the switch named HRV, so the screen
+showed 40% of the story and drifted every time a score gained an input. That
+switch is gone. The screen is now built from three things:
+
+1. **Score over time** (`ScoreHistoryChart`). Nothing ever persisted a score, so
+   this is part **replayed** and part **stored**:
+   - `ScoreHistory.replay` re-runs the model against samples **truncated** to
+     each past day. The truncation is the mechanism, not the `now:` argument —
+     `ReadinessScore` ignores `now` and reads `history.last`, so handing it a
+     past date without trimming the samples would return today's score for every
+     day. `ScoreHistoryTests` pins that contract.
+   - `InsightScoreRecord` stores each day's score as it's computed.
+     `ScoreHistory.merging` lays stored days over replayed ones, because a
+     stored row is what the user was actually told — a recomputation would
+     otherwise rewrite the past whenever a weight changed.
+   - Days where fewer than two signals *fired* are skipped. Having the data
+     isn't using it: readiness needs four nights before its HRV component
+     exists, so an early day can hold three metrics and still be scored off
+     sleep alone.
+2. **An overlay of every input** (`MetricOverlayChart` + `NormalizedSeries`),
+   standardised so unlike units share one axis.
+3. **Patterns** (`PatternFinder`) read off those series — see below.
+
+### Contributions: why the chart can't drift from the maths
+
+`InsightResult.contributors: [MetricContribution]` is emitted **by the scoring
+code as it builds each component**, carrying the metric, its renormalised weight
+and the model's own formatting. Adding a component to `ReadinessScore` therefore
+adds a line to the chart with no second edit anywhere.
+
+`InsightModel.candidateMetrics` is the declared superset and has **no default
+implementation**, so a new insight fails to compile until it says what it reads.
+It exists to render "no data yet" rows — the difference between "this doesn't
+affect your score" and "we couldn't measure it". `ContributorsTests` asserts
+contributors are always a subset of candidates.
+
+### Standardising, and why not a log axis
+
+Log was the obvious first idea and does not work: `log(SpO₂ 95–99%)` is a flat
+line while `log(sleep 5–9 h)` still swings, so the shapes stay incomparable and
+the comparison is exactly the point. `SeriesNormalizer` buckets each metric to a
+daily grid (via `SourceSeries.bucketed(by:for:)`, so weight still uses its median
+and steps their sum) and z-scores it against **the whole visible window** — a
+trailing baseline would give each series a drifting zero. Raw mode is still
+offered, with log available only when every series is strictly positive and
+`presentation.allowsLogScale`.
+
+There is exactly **one Y scale**. Two scales for two units is the standard way to
+make any two lines appear to agree.
+
+### Patterns, and the floors they must clear
+
+`PatternFinder` reports three things, all as associations and never as causes:
+
+- **Divergence** — two signals whose least-squares slopes point opposite ways.
+  This is the observation no single-metric chart can show ("more sleep, but your
+  blood oxygen is drifting down").
+- **Co-movement** — Pearson r (`Baseline.correlation`) over day-aligned z-values.
+- **Driver** — which input tracks the score itself most closely.
+
+Floors: ≥ 14 paired days, |r| ≥ 0.3, |slope| ≥ 0.05 SD/week, at most four
+reported. Below those the card is absent rather than speculative.
+
+### Metric colours
+
+`MetricType.colourSlot` (`MetricPresentation.swift`) assigns one of **eight**
+validated categorical hues; `Theme.metricColor` maps a slot to its light/dark
+step. Fixed per metric, never by position in the on-screen list — a chart that
+repaints its surviving series when one drops out can't be read across two
+glances. Twenty-four metrics share eight hues, which is safe only because a slot
+is reused **solely between metrics that never appear on the same chart**; what
+co-occurs is decided by each insight's `candidateMetrics`, so
+`MetricColourSlotTests` checks every insight for a collision. Adding a metric to
+an insight can break that test from a file that never mentions colour — that is
+the point.
+
+Four of the eight light-mode steps sit below 3:1 against the grouped background,
+so the legend under every overlay (name + value per series) is **required**, not
+decoration: identity is never carried by colour alone.
+
+Note this is a *second* colour scale. `Theme.sourcePalette` keys on **source**
+("which device said this"); this one keys on **metric** ("which signal is this").
+They answer different questions and both are needed.
+
 ## Chart gap interpolation
 
 `MetricType.maxValidInterval` (same file) sets the longest gap a chart line may

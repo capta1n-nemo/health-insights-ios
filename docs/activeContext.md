@@ -14,7 +14,31 @@ log into GitHub to merge anything.
 
 ## Current focus
 
-Just landed, in one session, driven by a troubleshooting log the user pasted:
+**Newest: insight detail screens rebuilt** (this session). Tapping Readiness used
+to open an HRV chart — one metric out of six, chosen by a hand-written switch.
+Now every scored card opens on its own score over time, then an overlay of every
+input standardised onto one axis, then plain-language patterns read off those
+series. The full design rationale is in `docs/architecture.md` ▸ "What an insight
+detail screen shows". Three things worth knowing without reading it:
+
+- **Score history is replayed, not just recorded.** Nothing ever stored a score,
+  so the chart would have been empty for months. `ScoreHistory.replay` re-runs a
+  model against **truncated** samples per past day — truncation is the mechanism,
+  because `ReadinessScore` ignores its `now:` argument. Stored days (new
+  `InsightScoreRecord`) win over replayed ones.
+- **The chart's series come from the scoring code**, via
+  `InsightResult.contributors`. Adding a component to a score adds a line with no
+  second edit. `candidateMetrics` (no default implementation) is the declared
+  superset, for "no data yet" rows.
+- **Z-scores, not a log axis.** Log doesn't equalise — `log(SpO₂ 95–99)` is flat
+  while `log(sleep 5–9 h)` still swings. Raw mode is a toggle, log within it only
+  when every series is strictly positive.
+
+Not yet on the phone. Insights-tab deep-dive (lagged correlation, cross-insight
+overlay, period contrast) is designed but deliberately not built yet — see
+"Immediate next steps".
+
+Landed earlier, driven by a troubleshooting log the user pasted:
 
 1. **Oura 401 diagnosis and fix.** Three collections (`daily_resilience`,
    `daily_cardiovascular_age`, `vO2_max`) failed every sync. Root cause: two
@@ -135,12 +159,19 @@ added to the engine and cadence but not to the four switches, so the build broke
 The complete list, verified by grepping for the enum's last case:
 
 - `MetricType`: `displayName`, `unit` (both in `MetricType.swift`),
-  `presentation`, `maxValidInterval` (`MetricPresentation.swift`),
-  `requiresPositiveValue` (`MetricSanitizer.swift`). `bucketStatistic` and
-  `MetricValueFormatter` have `default:` clauses and are safe.
+  `presentation`, `maxValidInterval`, **`colourSlot`** (all three in
+  `MetricPresentation.swift`), `requiresPositiveValue` (`MetricSanitizer.swift`).
+  `bucketStatistic` and `MetricValueFormatter` have `default:` clauses and are safe.
 - `InsightID`: `modelVersion` (`Feedback.swift`), plus `prettyInsight`
-  (`TelemetryOutboxView`), `primaryMetric` (`InsightDetailView`) and `iconName`
-  (`DashboardView`) in the app target.
+  (`TelemetryOutboxView`) and `iconName` (`DashboardView`) in the app target.
+  **`primaryMetric` in `InsightDetailView` is gone** — the detail screen now
+  charts `InsightResult.contributors`, which the scoring code emits itself, so
+  that switch no longer exists to fall out of date.
+
+Adding an `InsightModel` also now requires `candidateMetrics` (no default
+implementation, so it won't compile without one), and adding a `MetricType` to an
+insight can break `MetricColourSlotTests` from a file that never mentions colour
+— see the colour-slot note in `docs/architecture.md`. Both are deliberate.
 
 Do this grep *before* pushing, because CI is the only thing that will tell you.
 
@@ -182,7 +213,29 @@ request. This is the same failure shape as the `tunnelState` guard below.
 
 ## Immediate next steps
 
-- **On-device walkthrough is the outstanding item, now covering three batches.**
+- **Walk the new insight detail screens on the phone.** Specifically: Readiness
+  opens on a score line with real history rather than an HRV chart; the overlay
+  shows all six inputs coloured and labelled against a dashed "your normal";
+  Compare→Raw keeps the shape readable and the log toggle only appears when it's
+  legitimate; a metric with no data shows dimmed as "No data" rather than
+  vanishing; the Patterns card either reads as sentences or is absent (absent is
+  the common and correct case); and **Vitals Check opens without a stall** — it's
+  the one insight whose replay touches heart rate (~53k samples), so it's the
+  performance case. Also confirm the score line is not empty on first launch,
+  which is the whole point of replaying rather than only recording.
+- **Then: the Insights-tab deep dive** (Phase 2, designed with the user, not yet
+  built). It reuses the same components at a longer horizon and adds the one
+  thing Today structurally cannot do:
+  - **Lagged correlation** — metric at day *d* against the score at *d+1…d+3*
+    ("does last night's sleep predict tomorrow's readiness *for me*?"), reporting
+    the best lag only when it beats lag-0.
+  - Long-horizon score history with a regression trend and its residual spread,
+    following how `VO2Trajectory` already reports slope with uncertainty.
+  - Cross-insight overlay — readiness/sleep/fitness scores on one normalised axis.
+  - Rolling 28 days vs the prior 28, per contributor, as a "what changed" table.
+  - Fill `contributors` for the eight trend-tab models, which currently fall back
+    to `candidateMetrics` (so their charts work, but without honest weights).
+- **On-device walkthrough of the older batches, still outstanding.**
   CI proves it compiles, not that it behaves.
   - Newest (this session): the **Vitals Check** card on Today — confirm it reads
     "All normal" on a quiet day and names the outlier when there is one; that

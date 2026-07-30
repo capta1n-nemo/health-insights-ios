@@ -24,6 +24,9 @@ public struct SleepQualityInsight: InsightModel {
     public let title = "Sleep Quality"
     public init() {}
     public var requirements: [GroundingRequirement] { [] }
+    public var candidateMetrics: [MetricType] {
+        [.sleepDurationHours, .oxygenSaturation, .respiratoryRate, .skinTemperatureDeviation]
+    }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         let sleep = samples.samples(of: .sleepDurationHours)
@@ -77,12 +80,33 @@ public struct SleepQualityInsight: InsightModel {
             drivers.append(String(format: "Skin temperature: %+.1f °C vs your baseline", dev))
         }
 
+        // Only metrics that actually had a reading become contributions — the
+        // neutral 75s above are placeholders for absent data, not measurements,
+        // and charting them would draw a line out of nothing. Duration and
+        // consistency are one line: they read the same metric, so their weights
+        // merge rather than plotting sleep twice.
+        var contributors = [MetricContribution(
+            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.65,
+            detail: String(format: "%.1f h", lastNight))]
+        if let latest = spo2.last {
+            contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
+                                      weight: 0.15, detail: String(format: "%.0f%%", latest)))
+        }
+        if let latest = resp.last {
+            contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
+                                      weight: 0.10, detail: String(format: "%.0f br/min", latest)))
+        }
+        if let dev = samples.latestValue(.skinTemperatureDeviation) {
+            contributors.append(.init(metric: .skinTemperatureDeviation, higherIsBetter: nil,
+                                      weight: 0.10, detail: String(format: "%+.1f °C", dev)))
+        }
+
         let confidence: InsightConfidence = sleep.count >= 5 ? .high : .moderate
         return InsightResult(
             id: id, title: title, primaryValue: score, headline: band, score: score,
             confidence: confidence,
             explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through the night.",
-            drivers: drivers, unmetRequirements: [])
+            drivers: drivers, unmetRequirements: [], contributors: contributors)
     }
 
     static func durationScore(_ h: Double) -> Double {
@@ -108,6 +132,7 @@ public struct CardioFitnessInsight: InsightModel {
     public let id: InsightID = .cardioFitness
     public let title = "Cardio Fitness"
     public init() {}
+    public var candidateMetrics: [MetricType] { [.vo2Max] }
     public var requirements: [GroundingRequirement] {
         [.init(kind: .dateOfBirth, isMandatory: true, rationale: "Fitness levels are age-adjusted."),
          .init(kind: .biologicalSex, isMandatory: true, rationale: "Fitness norms differ by sex.")]
@@ -150,6 +175,10 @@ public struct BodyCompositionInsight: InsightModel {
     public let id: InsightID = .bodyComposition
     public let title = "Body Composition"
     public init() {}
+    public var candidateMetrics: [MetricType] {
+        [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass, .boneMass,
+         .bodyWaterPercentage, .height]
+    }
     public var requirements: [GroundingRequirement] { [] }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
@@ -253,6 +282,7 @@ public struct RestingHeartRateTrendInsight: InsightModel {
     public let id: InsightID = .restingHeartRateTrend
     public let title = "Resting Heart Rate"
     public init() {}
+    public var candidateMetrics: [MetricType] { [.restingHeartRate] }
     public var requirements: [GroundingRequirement] { [] }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {

@@ -43,6 +43,8 @@ final class AppModel {
         breakdownCache.removeAll(keepingCapacity: true)
         vitalsSummaryCache = nil
         bloodPressureCache = nil
+        scoreHistories.removeAll()
+        overlayCache.removeAll()
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
@@ -472,6 +474,76 @@ final class AppModel {
         // it's computed alongside the engine and appended to the card list.
         out.append(SubstanceResponseAnalyzer.insightResult(events: substanceEvents, samples: samples))
         results = out
+
+        // Today's scores become tomorrow's history. `recordScore` upserts by
+        // day, so running this on every recompute costs one row per insight per
+        // day rather than one per call.
+        for result in out {
+            guard let score = result.score else { continue }
+            dataStore.recordScore(result.id, score: score, confidence: result.confidence,
+                                  contributorCount: result.contributors.count)
+        }
+        scoreHistories.removeAll()
+        overlayCache.removeAll()
+    }
+
+    // MARK: - Score history
+
+    /// Replayed-and-merged score history per insight, built on first request.
+    ///
+    /// Not computed in `recompute()`: a replay walks the sample set once per day
+    /// of history, and doing that for eleven insights on every refresh would
+    /// cost far more than the two or three screens the user actually opens.
+    @ObservationIgnored private var scoreHistories: [InsightID: [ScorePoint]] = [:]
+
+    /// Score over time for one insight — stored days where we have them, laid
+    /// over days reconstructed from the raw samples.
+    func scoreHistory(for id: InsightID, days: Int = 90) -> [ScorePoint] {
+        if let cached = scoreHistories[id] { return cached }
+        let stored = dataStore.scoreHistory(for: id)
+        let replayed = engine.models.first { $0.id == id }
+            .map { ScoreHistory.replay(model: $0, samples: samples, profile: profile, days: days) }
+            ?? []
+        let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
+        scoreHistories[id] = merged
+        return merged
+    }
+
+    /// Standardised daily series for an insight's inputs, cached per insight and
+    /// timeframe.
+    ///
+    /// Cached for the same reason `vitalsSummaries` is: building these scans the
+    /// whole sample set once per metric, and the detail view re-evaluates its
+    /// body on every pan frame. Uncached, a seven-input card would rescan
+    /// six figures of samples fourteen times a frame.
+    ///
+    /// Keyed on the timeframe rather than on the resolved date range, because
+    /// the range ends at "now" and would mint a new key on every call.
+    @ObservationIgnored private var overlayCache: [String: [NormalizedSeries]] = [:]
+
+    func overlaySeries(for id: InsightID,
+                       contributions: [MetricContribution],
+                       timeframe: Timeframe) -> [NormalizedSeries] {
+        let key = "\(id.rawValue)|\(timeframe.rawValue)"
+        if let cached = overlayCache[key] { return cached }
+        let built = SeriesNormalizer.series(for: contributions, samples: samples,
+                                            range: overlayRange(for: contributions.metrics,
+                                                                timeframe: timeframe))
+        overlayCache[key] = built
+        return built
+    }
+
+    /// The window an overlay standardises over.
+    ///
+    /// `.all` has no fixed length — `Timeframe.startDate` returns nil for it —
+    /// so it falls back to the earliest relevant sample rather than to a default
+    /// window, which would silently show one day and label it "All".
+    func overlayRange(for metrics: [MetricType], timeframe: Timeframe) -> ClosedRange<Date> {
+        let now = Date()
+        if let start = timeframe.startDate(from: now) { return start...now }
+        let wanted = Set(metrics)
+        let earliest = samples.lazy.filter { wanted.contains($0.type) }.map(\.start).min()
+        return (earliest ?? now.addingTimeInterval(-30 * 24 * 3600))...now
     }
 
     // MARK: - Substances

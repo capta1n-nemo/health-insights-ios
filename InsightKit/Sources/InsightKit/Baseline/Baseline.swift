@@ -99,6 +99,30 @@ public enum Baseline {
         return (slope, intercept, standardDeviation(residuals) ?? 0)
     }
 
+    /// Pearson correlation of two paired series, in -1…1.
+    ///
+    /// Answers "do these two move together?", which `linearRegression` only
+    /// answers in the units of `y` — a slope of 3 says nothing about how tightly
+    /// the points hug the line. Returns nil when either series has no spread,
+    /// because a flat series correlates with nothing.
+    public static func correlation(x: [Double], y: [Double]) -> Double? {
+        guard x.count == y.count, x.count >= 3,
+              let mx = mean(x), let my = mean(y) else { return nil }
+        var sxx = 0.0, syy = 0.0, sxy = 0.0
+        for i in x.indices {
+            let dx = x[i] - mx
+            let dy = y[i] - my
+            sxx += dx * dx
+            syy += dy * dy
+            sxy += dx * dy
+        }
+        guard sxx > 0, syy > 0 else { return nil }
+        // Clamped because accumulated floating-point error can push a perfect
+        // relation a hair past ±1, and a correlation outside that range is
+        // nonsense to anything reading it.
+        return Swift.max(-1, Swift.min(1, sxy / (sxx * syy).squareRoot()))
+    }
+
     /// A compact description of where a fresh value sits relative to baseline.
     public struct Deviation: Sendable, Equatable {
         public let value: Double

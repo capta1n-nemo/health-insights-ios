@@ -27,6 +27,10 @@ public struct CardiovascularRiskInsight: InsightModel {
     private static let defaultTotalCholesterol = 5.2
     private static let defaultHDLCholesterol = 1.3
 
+    /// Risk is overwhelmingly driven by grounding facts (age, sex, cholesterol,
+    /// smoking); blood pressure is the one sensed input.
+    public var candidateMetrics: [MetricType] { [.bloodPressureSystolic] }
+
     public var requirements: [GroundingRequirement] {
         var reqs: [GroundingRequirement] = [
             .init(kind: .dateOfBirth, isMandatory: true,

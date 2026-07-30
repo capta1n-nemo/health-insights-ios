@@ -109,6 +109,11 @@ public struct HeartHealthInsight: InsightModel {
 
     public init() {}
 
+    public var candidateMetrics: [MetricType] {
+        [.vo2Max, .restingHeartRate, .heartRateVariabilityRMSSD,
+         .heartRateVariabilitySDNN, .respiratoryRate]
+    }
+
     public var requirements: [GroundingRequirement] {
         [
             .init(kind: .dateOfBirth, isMandatory: true,

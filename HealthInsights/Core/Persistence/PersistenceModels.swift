@@ -44,6 +44,41 @@ final class ManualSampleRecord {
     }
 }
 
+/// One day's computed score for one insight.
+///
+/// Scores were never stored, so "how has my readiness been trending?" had no
+/// answer at all. `ScoreHistory.replay` can reconstruct the past from the raw
+/// samples, but a stored row is what the app *actually told the user* that day —
+/// so it wins over a recomputation, which would otherwise quietly rewrite
+/// history every time a scoring weight changed.
+///
+/// Keyed by `insightID` + start-of-day, upserted once per day.
+@Model
+final class InsightScoreRecord {
+    var insightRaw: String
+    var day: Date
+    var score: Double
+    var confidenceRaw: String
+    var contributorCount: Int
+
+    init(insightRaw: String, day: Date, score: Double,
+         confidenceRaw: String, contributorCount: Int) {
+        self.insightRaw = insightRaw
+        self.day = day
+        self.score = score
+        self.confidenceRaw = confidenceRaw
+        self.contributorCount = contributorCount
+    }
+
+    var insight: InsightID? { InsightID(rawValue: insightRaw) }
+
+    var point: ScorePoint {
+        ScorePoint(date: day, score: score,
+                   confidence: InsightConfidence(rawValue: confidenceRaw) ?? .moderate,
+                   contributorCount: contributorCount)
+    }
+}
+
 /// Remembers which integrations the user has connected.
 @Model
 final class IntegrationRecord {
