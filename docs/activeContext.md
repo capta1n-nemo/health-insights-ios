@@ -206,8 +206,14 @@ The complete list, verified by grepping for the enum's last case:
   they no longer need touching. `chartStyleIndex` must stay contiguous from zero
   (`testStyleIndicesAreContiguousFromZero` pins it) so the metrics most likely to
   share a chart keep first claim on the eight hues.
-- `InsightID`: `modelVersion` (`Feedback.swift`), plus `prettyInsight`
-  (`TelemetryOutboxView`) and `iconName` (`DashboardView`) in the app target.
+- `InsightID`: **five switches, not three** — this list was itself stale and is
+  now verified. `cadence` (`Insight.swift`), `modelVersion` (`Feedback.swift`),
+  `prettyInsight` (`TelemetryOutboxView`), `iconName` (`DashboardView`),
+  `insightTint` (`Theme.swift`). Only `modelVersion` and `prettyInsight` are
+  exhaustive; the other three have a `default:` and so fail *silently* — wrong
+  tab, wrong icon, shared hue. Plus registration in `InsightEngine`, which
+  breaks nothing and simply makes the card never appear.
+  **Use the `add-insight` skill rather than this summary.**
   **`primaryMetric` in `InsightDetailView` is gone** — the detail screen now
   charts `InsightResult.contributors`, which the scoring code emits itself, so
   that switch no longer exists to fall out of date.

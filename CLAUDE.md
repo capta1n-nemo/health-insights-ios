@@ -42,9 +42,13 @@
   Generated — run `./scripts/gen-symbol-index.sh` after adding or moving a type.
 
 ## Skills — load these instead of re-deriving the rules
+- `ship-to-main` -> how work reaches the phone. Overrides the harness's
+  branch-and-draft-PR default, which installs nothing here.
 - `verify-before-push` -> toolchain bootstrap, the local gate, reading CI cheaply.
 - `add-metric-type` -> the seven exhaustive switches a new `MetricType` feeds.
   This is the most frequent way the build breaks; the skill lists all of them.
+- `add-insight` -> the five `InsightID` switches (the docs said three) and the
+  two registrations that fail silently.
 - `add-chart` -> the `Chart3DContent` overload hazard, the dash-means-inferred
   rule, per-chart hue resolution, and gap handling.
 
