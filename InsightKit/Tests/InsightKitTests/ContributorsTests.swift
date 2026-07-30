@@ -138,6 +138,45 @@ final class ContributorsTests: XCTestCase {
         XCTAssertEqual(byMetric[.restingHeartRate]?.higherIsBetter, false)
     }
 
+    /// The drivers card leads with departures on **every** card, not just the
+    /// one that prompted the change. An insight that leaves its lines
+    /// unclassified renders as a flat wall again, which is the regression this
+    /// catches.
+    func testEveryInsightClassifiesItsDriverLines() {
+        let samples = fullCoverage()
+        for model in InsightEngine().models {
+            let result = model.evaluate(samples: samples, profile: profile, now: contributorNow)
+            guard !result.driverLines.isEmpty else { continue }
+            XCTAssertTrue(result.driverLines.allSatisfy { $0.isNotable != nil },
+                          "\(model.id) still reports unclassified driver lines")
+        }
+    }
+
+    /// Substance Impact isn't an engine model but feeds the same card.
+    func testSubstanceImpactClassifiesItsDriverLines() {
+        let events = (0..<6).map {
+            SubstanceEvent(substance: .alcohol,
+                           timestamp: contributorDay($0 * 2).addingTimeInterval(-3600),
+                           units: 2, note: nil)
+        }
+        let result = SubstanceResponseAnalyzer.insightResult(
+            events: events, samples: fullCoverage(), now: contributorNow)
+        XCTAssertFalse(result.driverLines.isEmpty)
+        XCTAssertTrue(result.driverLines.allSatisfy { $0.isNotable != nil })
+    }
+
+    /// Every insight should also chart what it read, not fall back to the
+    /// declared candidate list.
+    func testEveryInsightWithDataReportsItsContributors() {
+        let samples = fullCoverage()
+        for model in InsightEngine().models {
+            let result = model.evaluate(samples: samples, profile: profile, now: contributorNow)
+            guard result.primaryValue != nil else { continue }
+            XCTAssertFalse(result.contributors.isEmpty,
+                           "\(model.id) reports no contributors, so its chart guesses")
+        }
+    }
+
     func testInfluenceOrderingPutsTheHeaviestSignalFirst() {
         let contributions: [MetricContribution] = [
             .init(metric: .oxygenSaturation, higherIsBetter: true, weight: 0.05, detail: ""),

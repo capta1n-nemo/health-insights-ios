@@ -478,45 +478,51 @@ public struct HeartAgeInsight: InsightModel {
                 drivers: [], unmetRequirements: unmet)
         }
 
-        var drivers: [String] = []
+        // The ages themselves and the modifiable gap lead; your real age and the
+        // per-engine breakdown are context you'd only open if curious.
+        var drivers: [InsightDriver] = []
         if let age = analysis.chronologicalAge {
-            drivers.append("Your age: \(Int(age.rounded()))")
+            drivers.append(.routine("Your age: \(Int(age.rounded()))"))
         }
 
         if let heart = analysis.heart, let heartAge = heart.heartAge,
            let excess = heart.excessYears {
-            drivers.append("Heart age: \(Self.heartAgePhrase(heartAge, capped: heart.isCapped)) — \(Self.excessPhrase(excess))")
+            drivers.append(InsightDriver(text: "Heart age: \(Self.heartAgePhrase(heartAge, capped: heart.isCapped)) — \(Self.excessPhrase(excess))", isNotable: excess >= 1))
             if heart.readings.count > 1 {
                 for reading in heart.readings {
-                    drivers.append(String(format: "%@ puts it at %@", reading.engine.rawValue,
-                                          Self.heartAgePhrase(reading.heartAge, capped: reading.isCapped)))
+                    drivers.append(.routine(String(format: "%@ puts it at %@", reading.engine.rawValue,
+                                                    Self.heartAgePhrase(reading.heartAge, capped: reading.isCapped))))
                 }
             }
             if let mine = heart.riskPercent, let optimal = heart.optimalRiskPercent {
-                drivers.append(String(format: "10-year risk %.1f%% vs %.1f%% at optimal levels — that gap is the modifiable part",
-                                      mine, optimal))
+                drivers.append(.notable(String(format: "10-year risk %.1f%% vs %.1f%% at optimal levels — that gap is the modifiable part",
+                                                mine, optimal)))
             }
         }
 
         if let fitness = analysis.fitness {
-            drivers.append(String(format: "Fitness age: %@ (VO₂max %.0f mL/kg·min)",
-                                  Self.fitnessAgePhrase(fitness.fitnessAge, capped: fitness.isCapped),
-                                  fitness.vo2))
+            drivers.append(InsightDriver(
+                text: String(format: "Fitness age: %@ (VO₂max %.0f mL/kg·min)",
+                             Self.fitnessAgePhrase(fitness.fitnessAge, capped: fitness.isCapped),
+                             fitness.vo2),
+                isNotable: (fitness.yearsYounger ?? 0) < 0))
             if let reference = fitness.referenceForOwnAge {
-                drivers.append(String(format: "Reference for your age: %.0f mL/kg·min", reference))
+                drivers.append(.routine(String(format: "Reference for your age: %.0f mL/kg·min", reference)))
             }
         } else {
-            drivers.append("No cardio-fitness reading yet — an Apple Watch estimates VO₂max on outdoor walks and runs, and Oura reports one too")
+            drivers.append(.notable("No cardio-fitness reading yet — an Apple Watch estimates VO₂max on outdoor walks and runs, and Oura reports one too"))
         }
 
         // A provider's own vascular-age estimate, shown beside ours rather than
         // folded into it. Two models built on different inputs disagreeing is
         // information; averaging them away is not.
         if let vascular = samples.samples(of: .vascularAge).last {
+            var gapIsNotable = false
             var line = String(format: "%@ estimates your vascular age at %.0f",
                               vascular.source.displayName, vascular.value)
             if let age = analysis.chronologicalAge {
                 let gap = vascular.value - age
+                gapIsNotable = gap >= 1
                 if abs(gap) < 1 {
                     line += " — level with your actual age"
                 } else {
@@ -524,15 +530,16 @@ public struct HeartAgeInsight: InsightModel {
                                    abs(gap), abs(gap) < 1.5 ? "" : "s", gap > 0 ? "above" : "below")
                 }
             }
-            drivers.append(line)
+            // A second opinion that disagrees with ours is information.
+            drivers.append(InsightDriver(text: line, isNotable: gapIsNotable))
         }
 
         for projection in analysis.projections {
-            drivers.append(String(format: "At %.0f, if today's numbers hold: about %.1f%%",
-                                  projection.age, projection.percent))
+            drivers.append(.routine(String(format: "At %.0f, if today's numbers hold: about %.1f%%",
+                                           projection.age, projection.percent)))
         }
         if analysis.assumedCholesterol && analysis.heart != nil {
-            drivers.append("Cholesterol assumed average — add a blood test to sharpen the heart age")
+            drivers.append(.notable("Cholesterol assumed average — add a blood test to sharpen the heart age"))
         }
 
         return InsightResult(
@@ -542,7 +549,32 @@ public struct HeartAgeInsight: InsightModel {
             score: Self.score(analysis),
             confidence: Self.confidence(analysis, profile: profile, now: now),
             explanation: Self.explanation(analysis),
-            drivers: drivers, unmetRequirements: unmet)
+            driverLines: drivers.filter { $0.isNotable == true }
+                + drivers.filter { $0.isNotable != true },
+            unmetRequirements: unmet,
+            contributors: Self.contributors(analysis, samples: samples))
+    }
+
+    /// The sensed metrics behind the two ages, so the detail chart plots what
+    /// the calculation read. Weight 0 throughout: these ages come from published
+    /// equations over grounding facts, not a weighted blend of these series, and
+    /// claiming a share of them would be inventing one.
+    static func contributors(_ analysis: HeartAgeInsight.Analysis,
+                             samples: [HealthMetricSample]) -> [MetricContribution] {
+        var out: [MetricContribution] = []
+        if let systolic = samples.latestValue(.bloodPressureSystolic) {
+            out.append(.init(metric: .bloodPressureSystolic, higherIsBetter: false, weight: 0,
+                             detail: "\(Int(systolic.rounded())) mmHg"))
+        }
+        if let fitness = analysis.fitness {
+            out.append(.init(metric: .vo2Max, higherIsBetter: true, weight: 0,
+                             detail: String(format: "%.0f", fitness.vo2)))
+        }
+        if let vascular = samples.latestValue(.vascularAge) {
+            out.append(.init(metric: .vascularAge, higherIsBetter: false, weight: 0,
+                             detail: String(format: "%.0f years", vascular)))
+        }
+        return out
     }
 
     // MARK: - Presentation helpers

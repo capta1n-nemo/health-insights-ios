@@ -124,24 +124,29 @@ public struct CardiovascularRiskInsight: InsightModel {
         let confidence: InsightConfidence = !anyValid ? .low
             : (assumedCholesterol || mandatoryUnsatisfied ? .moderate : .high)
 
-        var drivers: [String] = []
-        for m in usedModels { drivers.append(String(format: "%@: %.1f%%", m.name, m.pct)) }
+        // The risk figures themselves, the modifiable factors carrying that risk,
+        // and anything the user could act on lead; the demographic inputs and a
+        // cholesterol already on file are context.
+        var drivers: [InsightDriver] = []
+        for m in usedModels { drivers.append(.notable(String(format: "%@: %.1f%%", m.name, m.pct))) }
         if usedModels.count > 1 {
-            drivers.append(String(format: "Range across models: %.1f–%.1f%%", lo, hi))
+            drivers.append(.notable(String(format: "Range across models: %.1f–%.1f%%", lo, hi)))
         }
         // Surface any model dropped for being out of its validated age range.
         for m in modelResults where !m.ageValid && anyValid {
-            drivers.append("\(m.name) not shown — outside its validated age range")
+            drivers.append(.notable("\(m.name) not shown — outside its validated age range"))
         }
-        drivers.append("Age \(Int(age.rounded())), \(sex.displayName.lowercased())")
-        drivers.append("Systolic BP \(Int(systolic.rounded())) mmHg")
+        drivers.append(.routine("Age \(Int(age.rounded())), \(sex.displayName.lowercased())"))
+        // 140 is the hypertension line; below it, blood pressure is context.
+        drivers.append(InsightDriver(text: "Systolic BP \(Int(systolic.rounded())) mmHg",
+                                     isNotable: systolic >= 140))
         if assumedCholesterol {
-            drivers.append("Cholesterol assumed average — add a blood test to improve accuracy")
+            drivers.append(.notable("Cholesterol assumed average — add a blood test to improve accuracy"))
         } else {
-            drivers.append(String(format: "Total/HDL cholesterol %.1f/%.1f mmol/L", totalChol, hdl))
+            drivers.append(.routine(String(format: "Total/HDL cholesterol %.1f/%.1f mmol/L", totalChol, hdl)))
         }
-        if profile.isSmoker { drivers.append("Current smoker") }
-        if profile.hasDiabetes { drivers.append("Diabetes") }
+        if profile.isSmoker { drivers.append(.notable("Current smoker")) }
+        if profile.hasDiabetes { drivers.append(.notable("Diabetes")) }
 
         var explanation: String
         if usedModels.count > 1 {
@@ -164,7 +169,11 @@ public struct CardiovascularRiskInsight: InsightModel {
             id: id, title: title, primaryValue: consensus,
             headline: String(format: "%.1f%%", consensus),
             score: band.score, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: unmet)
+            explanation: explanation, driverLines: drivers, unmetRequirements: unmet,
+            // Blood pressure is the one sensed input; everything else is a
+            // grounding fact, so no share of the figure is claimed for it.
+            contributors: [.init(metric: .bloodPressureSystolic, higherIsBetter: false,
+                                 weight: 0, detail: "\(Int(systolic.rounded())) mmHg")])
     }
 
     private func notYetResult(unmet: [GroundingRequirement]) -> InsightResult {

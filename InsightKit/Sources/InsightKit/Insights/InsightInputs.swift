@@ -29,6 +29,30 @@ public struct MetricContribution: Sendable, Hashable {
     }
 }
 
+public extension InsightDriver {
+    /// A line from a weighted component, notable when it is the reason the score
+    /// isn't higher.
+    ///
+    /// One rule across every composite — readiness, sleep, heart health — so the
+    /// detail cards agree about what "worth seeing" means instead of each
+    /// inventing a threshold. 65 is where the app's own bands stop saying
+    /// "good".
+    static func component(_ text: String, score: Double,
+                          concernBelow: Double = 65) -> InsightDriver {
+        InsightDriver(text: text, isNotable: score < concernBelow)
+    }
+
+    /// A line that is always worth seeing.
+    static func notable(_ text: String) -> InsightDriver {
+        InsightDriver(text: text, isNotable: true)
+    }
+
+    /// A line that is context rather than a finding.
+    static func routine(_ text: String) -> InsightDriver {
+        InsightDriver(text: text, isNotable: false)
+    }
+}
+
 public extension Array where Element == MetricContribution {
     /// Heaviest first, so a legend and an overlay agree on which line matters.
     var byInfluence: [MetricContribution] {

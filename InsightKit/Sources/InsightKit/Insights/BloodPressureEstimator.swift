@@ -355,7 +355,10 @@ public struct BloodPressureInsight: InsightModel {
             unmet.removeAll { $0.kind == .cuffSystolic || $0.kind == .cuffDiastolic }
         }
 
-        var drivers: [String] = []
+        // The reading itself leads when it's out of range; calibration guidance
+        // and the experimental estimate are context, and the estimate is not a
+        // finding on any reading of the word.
+        var drivers: [InsightDriver] = []
         var headline = "Log a reading"
         var primary: Double? = nil
         var explanation = "Log a blood-pressure reading from a real cuff. That measured value is what the app trusts and trends over time."
@@ -366,12 +369,14 @@ public struct BloodPressureInsight: InsightModel {
             headline = "\(Int(s.rounded()))/\(Int(d.rounded()))"
             primary = s
             confidence = unmet.isEmpty ? .high : .moderate
-            drivers.append("Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))")
+            drivers.append(InsightDriver(
+                text: "Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))",
+                isNotable: cat != "Normal"))
             explanation = "Your latest measured blood pressure is \(Int(s.rounded()))/\(Int(d.rounded())) mmHg — \(cat)."
         }
 
         // Calibration expectation, grounded in readings already on the device.
-        drivers.append(status.guidance)
+        drivers.append(InsightDriver(text: status.guidance, isNotable: !status.isGrounded))
 
         // Experimental personalised estimate (clearly separated). Only grounded
         // in the last 30 days of readings, matching the calibration rules.
@@ -384,10 +389,10 @@ public struct BloodPressureInsight: InsightModel {
             }
             let calibration = BloodPressureEstimator.buildCalibration(from: recentSamples)
             if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
-                drivers.append(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d recent calibration readings",
-                                      est.systolic, est.diastolic,
-                                      est.systolicUncertainty, est.diastolicUncertainty,
-                                      est.calibrationCount))
+                drivers.append(.routine(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d recent calibration readings",
+                                               est.systolic, est.diastolic,
+                                               est.systolicUncertainty, est.diastolicUncertainty,
+                                               est.calibrationCount)))
                 if primary == nil {
                     headline = String(format: "~%.0f/%.0f", est.systolic, est.diastolic)
                     primary = est.systolic
@@ -397,13 +402,30 @@ public struct BloodPressureInsight: InsightModel {
             } else if status.isGrounded {
                 // Enough recent readings exist, but too few line up with a nearby
                 // resting-HR sample to fit the model yet.
-                drivers.append("Experimental estimate will appear once more of your recent readings line up with resting-heart-rate data.")
+                drivers.append(.routine("Experimental estimate will appear once more of your recent readings line up with resting-heart-rate data."))
             }
         }
 
         return InsightResult(
             id: id, title: title, primaryValue: primary,
             headline: headline, score: nil, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: unmet)
+            explanation: explanation,
+            driverLines: drivers.filter { $0.isNotable == true }
+                + drivers.filter { $0.isNotable != true },
+            unmetRequirements: unmet,
+            contributors: [.bloodPressureSystolic, .bloodPressureDiastolic,
+                           .restingHeartRate, .heartRateVariabilityRMSSD,
+                           .heartRateVariabilitySDNN]
+                .compactMap { metric in
+                    samples.latestValue(metric).map {
+                        // Weight 0: a cuff reading is trusted outright, and the
+                        // experimental estimate is not a weighted blend.
+                        MetricContribution(metric: metric,
+                                           higherIsBetter: metric == .heartRateVariabilityRMSSD
+                                               || metric == .heartRateVariabilitySDNN,
+                                           weight: 0,
+                                           detail: String(format: "%.0f %@", $0, metric.unit))
+                    }
+                })
     }
 }

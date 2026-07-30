@@ -338,19 +338,29 @@ public struct CardioTrajectoryInsight: InsightModel {
                 drivers: [], unmetRequirements: unmet)
         }
 
-        var drivers: [String] = [
-            String(format: "Trend: %@%.1f mL/kg·min per year", output.perYear >= 0 ? "+" : "−",
-                   abs(output.perYear)),
-            String(format: "Age-typical drift at %.0f: %.1f per year", age, output.ageTypicalPerYear),
-            String(format: "Net of ageing: %@%.1f per year", output.netPerYear >= 0 ? "+" : "−",
-                   abs(output.netPerYear)),
-            String(format: "Now %.1f → about %.1f in 12 months (± %.1f)", output.smoothed,
-                   output.projectedIn12Months, Swift.max(output.residualSD, 0.5)),
-            String(format: "Fitness age %.0f → %.0f on this trajectory", output.fitnessAgeNow,
-                   output.fitnessAgeIn12Months),
-            String(format: "From %d readings over %.0f days", output.readings, output.spanDays)
+        // Net of ageing is the finding — the raw slope and the reference drift
+        // are how it was arrived at, and the levers are what to do about it.
+        // Losing ground against your own age band is what leads.
+        let losingGround = output.netPerYear < 0
+        var drivers: [InsightDriver] = [
+            InsightDriver(text: String(format: "Net of ageing: %@%.1f per year",
+                                       output.netPerYear >= 0 ? "+" : "−", abs(output.netPerYear)),
+                          isNotable: losingGround),
+            InsightDriver(text: String(format: "Fitness age %.0f → %.0f on this trajectory",
+                                       output.fitnessAgeNow, output.fitnessAgeIn12Months),
+                          isNotable: output.fitnessAgeIn12Months > output.fitnessAgeNow),
+            .routine(String(format: "Trend: %@%.1f mL/kg·min per year",
+                            output.perYear >= 0 ? "+" : "−", abs(output.perYear))),
+            .routine(String(format: "Age-typical drift at %.0f: %.1f per year", age,
+                            output.ageTypicalPerYear)),
+            .routine(String(format: "Now %.1f → about %.1f in 12 months (± %.1f)", output.smoothed,
+                            output.projectedIn12Months, Swift.max(output.residualSD, 0.5))),
+            .routine(String(format: "From %d readings over %.0f days", output.readings, output.spanDays))
         ]
-        drivers.append(contentsOf: output.levers.map { "\($0.title): \($0.detail)" })
+        // A lever is only worth leading with when there is ground to make up.
+        drivers.append(contentsOf: output.levers.map {
+            InsightDriver(text: "\($0.title): \($0.detail)", isNotable: losingGround)
+        })
 
         // Score is the net-of-ageing slope: matching the age-typical decline sits
         // mid-dial, beating it climbs. Holding a flat VO₂max into your fifties is
@@ -362,7 +372,20 @@ public struct CardioTrajectoryInsight: InsightModel {
             headline: output.direction.label, score: score,
             confidence: output.readings >= 8 && output.spanDays >= 120 ? .high : .moderate,
             explanation: Self.explanation(output, age: age),
-            drivers: drivers, unmetRequirements: unmet)
+            driverLines: drivers.filter { $0.isNotable == true }
+                + drivers.filter { $0.isNotable != true },
+            unmetRequirements: unmet,
+            // VO₂max carries the trajectory outright; the activity metrics are
+            // what the "what would move it" levers are drawn from.
+            contributors: ([.vo2Max, .stepCount, .activeEnergyBurned, .restingHeartRate] as [MetricType])
+                .compactMap { metric in
+                    samples.latestValue(metric).map {
+                        MetricContribution(metric: metric,
+                                           higherIsBetter: metric != .restingHeartRate,
+                                           weight: metric == .vo2Max ? 1 : 0,
+                                           detail: String(format: "%.0f %@", $0, metric.unit))
+                    }
+                })
     }
 
     static func explanation(_ output: VO2Trajectory.Output, age: Double) -> String {

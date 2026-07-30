@@ -142,24 +142,33 @@ public enum SubstanceResponseAnalyzer {
 
         let analysis = analyze(events: events, samples: samples, now: now)
 
-        var drivers: [String] = []
+        // A response in the unwanted direction is the finding; one the other way
+        // is worth keeping but not worth leading with.
+        var drivers: [InsightDriver] = []
         for e in analysis.effects {
             let arrow = e.deltaAbsolute >= 0 ? "+" : "−"
+            // `isAdverse` is already decided when the effect is measured, against
+            // the same watched-metric table — recomputing it here would be a
+            // second opinion that could drift from the first.
+            let text: String?
             switch e.metric {
             case .restingHeartRate:
-                drivers.append(String(format: "Resting HR %@%.0f bpm after use", arrow, abs(e.deltaAbsolute)))
+                text = String(format: "Resting HR %@%.0f bpm after use", arrow, abs(e.deltaAbsolute))
             case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN:
-                drivers.append(String(format: "HRV %@%.0f%% after use", e.deltaPercent >= 0 ? "+" : "−", abs(e.deltaPercent)))
+                text = String(format: "HRV %@%.0f%% after use", e.deltaPercent >= 0 ? "+" : "−", abs(e.deltaPercent))
             case .skinTemperatureDeviation:
-                drivers.append(String(format: "Body temp %@%.1f °C after use", arrow, abs(e.deltaAbsolute)))
+                text = String(format: "Body temp %@%.1f °C after use", arrow, abs(e.deltaAbsolute))
             case .sleepDurationHours:
-                drivers.append(String(format: "Sleep %@%.1f h after use", arrow, abs(e.deltaAbsolute)))
+                text = String(format: "Sleep %@%.1f h after use", arrow, abs(e.deltaAbsolute))
             case .respiratoryRate:
-                drivers.append(String(format: "Respiration %@%.1f br/min after use", arrow, abs(e.deltaAbsolute)))
-            default: break
+                text = String(format: "Respiration %@%.1f br/min after use", arrow, abs(e.deltaAbsolute))
+            default: text = nil
             }
+            if let text { drivers.append(InsightDriver(text: text, isNotable: e.isAdverse)) }
         }
-        drivers.append("Recent cardiovascular load: \(analysis.loadBand) (\(analysis.eventsInWindow) logs in \(loadWindowDays) days)")
+        drivers.append(InsightDriver(
+            text: "Recent cardiovascular load: \(analysis.loadBand) (\(analysis.eventsInWindow) logs in \(loadWindowDays) days)",
+            isNotable: analysis.recentLoad >= 50))
 
         // Headline: the most salient adverse effect if any, else the load band.
         let headline: String
@@ -201,7 +210,10 @@ public enum SubstanceResponseAnalyzer {
         return InsightResult(
             id: id, title: title, primaryValue: analysis.recentLoad,
             headline: headline, score: nil, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: [],
+            explanation: explanation,
+            driverLines: drivers.filter { $0.isNotable == true }
+                + drivers.filter { $0.isNotable != true },
+            unmetRequirements: [],
             contributors: contributors)
     }
 }

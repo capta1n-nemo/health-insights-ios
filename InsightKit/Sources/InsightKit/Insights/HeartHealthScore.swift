@@ -184,14 +184,16 @@ public struct HeartHealthInsight: InsightModel {
         // Confidence scales with how many components were available.
         let confidence: InsightConfidence = out.components.count >= 3 ? .high
             : out.components.count == 2 ? .moderate : .low
-        let drivers = out.components.map { "\($0.name): \($0.detail)" }
+        let lines = out.components
+            .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
         let explanation = "Composite heart-health score of \(Int(out.score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
 
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: band, score: out.score, confidence: confidence,
-            explanation: explanation, drivers: drivers, unmetRequirements: unmet,
-            contributors: out.contributions)
+            explanation: explanation,
+            driverLines: lines.filter { $0.isNotable == true } + lines.filter { $0.isNotable != true },
+            unmetRequirements: unmet, contributors: out.contributions)
     }
 
     static func band(_ score: Double) -> String {

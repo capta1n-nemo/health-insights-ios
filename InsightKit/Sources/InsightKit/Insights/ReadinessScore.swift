@@ -168,11 +168,17 @@ public struct ReadinessInsight: InsightModel {
         }
         let confidence: InsightConfidence = out.components.count >= 3 ? .high
             : out.components.count == 2 ? .moderate : .low
-        let drivers = out.components.map { "\($0.name): \($0.detail)" }
+        // Components that are holding the score down come first and stay
+        // visible; the ones behaving normally fold away on the detail screen.
+        // Partitioned rather than sorted: Swift's sort isn't stable, and the
+        // weight order components arrive in is meaningful.
+        let lines = out.components
+            .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: out.band, score: out.score, confidence: confidence,
             explanation: "Your recovery today is \(Int(out.score.rounded()))/100 (\(out.band)), from how your HRV, resting heart rate, sleep and temperature compare with your own recent baseline.",
-            drivers: drivers, unmetRequirements: [], contributors: out.contributions)
+            driverLines: lines.filter { $0.isNotable == true } + lines.filter { $0.isNotable != true },
+            unmetRequirements: [], contributors: out.contributions)
     }
 }

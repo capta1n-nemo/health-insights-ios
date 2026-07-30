@@ -15,6 +15,14 @@ private func trendWord(recent: Double, baseline: Double, higherIsBetter: Bool) -
     return (rising ? "trending up" : "trending down") + (good ? " (good)" : "")
 }
 
+/// Whether a `trendWord` phrase describes movement in the unwanted direction.
+///
+/// `trendWord` appends "(good)" when the direction is the favourable one, so
+/// anything moving and *not* marked good is what a card should lead with.
+private func isAdverseTrend(_ word: String) -> Bool {
+    word != "steady" && !word.contains("(good)")
+}
+
 // MARK: - Sleep Quality (daily)
 
 /// Transparent sleep-quality score: duration vs need, night-to-night
@@ -69,15 +77,26 @@ public struct SleepQualityInsight: InsightModel {
         let score = durationScore * 0.45 + consistencyScore * 0.2 + respScore * 0.1
             + oxygenScore * 0.15 + tempScore * 0.1
         let band = Self.band(score)
-        var drivers = [String(format: "Last night: %.1f h", lastNight),
-                       "Consistency: \(Int(consistencyScore))/100"]
-        if !resp.isEmpty { drivers.append(String(format: "Respiratory rate: %.0f br/min", resp.last!)) }
+        // Each line classified by the sub-score behind it, so the detail card
+        // leads with whatever cost the night its marks.
+        var drivers = [
+            InsightDriver.component(String(format: "Last night: %.1f h", lastNight),
+                                    score: durationScore),
+            InsightDriver.component("Consistency: \(Int(consistencyScore))/100",
+                                    score: consistencyScore)
+        ]
+        if !resp.isEmpty {
+            drivers.append(.component(String(format: "Respiratory rate: %.0f br/min", resp.last!),
+                                      score: respScore))
+        }
         if let latest = spo2.last {
-            drivers.append(String(format: "Blood oxygen: %.0f%%%@", latest,
-                                  latest < 94 ? " — lower than a settled night usually looks" : ""))
+            drivers.append(.component(String(format: "Blood oxygen: %.0f%%%@", latest,
+                                             latest < 94 ? " — lower than a settled night usually looks" : ""),
+                                      score: oxygenScore))
         }
         if let dev = samples.latestValue(.skinTemperatureDeviation) {
-            drivers.append(String(format: "Skin temperature: %+.1f °C vs your baseline", dev))
+            drivers.append(.component(String(format: "Skin temperature: %+.1f °C vs your baseline", dev),
+                                      score: tempScore))
         }
 
         // Only metrics that actually had a reading become contributions — the
@@ -106,7 +125,8 @@ public struct SleepQualityInsight: InsightModel {
             id: id, title: title, primaryValue: score, headline: band, score: score,
             confidence: confidence,
             explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through the night.",
-            drivers: drivers, unmetRequirements: [], contributors: contributors)
+            driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
+            unmetRequirements: [], contributors: contributors)
     }
 
     static func durationScore(_ h: Double) -> Double {
@@ -149,18 +169,22 @@ public struct CardioFitnessInsight: InsightModel {
         }
         let score = HeartHealthScore.vo2Score(vo2, age: age, sex: sex)
         let level = Self.level(score)
-        var drivers = [String(format: "VO₂max: %.0f mL/kg·min", vo2)]
+        var drivers = [InsightDriver.component(String(format: "VO₂max: %.0f mL/kg·min", vo2),
+                                               score: score)]
         if vo2Series.count >= 3 {
             let older = Array(vo2Series.dropLast().map(\.value))
             if let base = Baseline.mean(older) {
-                drivers.append("Trend: \(trendWord(recent: vo2, baseline: base, higherIsBetter: true))")
+                let word = trendWord(recent: vo2, baseline: base, higherIsBetter: true)
+                // A trend is only worth leading with when it's the wrong way.
+                drivers.append(InsightDriver(text: "Trend: \(word)",
+                                             isNotable: word.contains("down") && !word.contains("good")))
             }
         }
         return InsightResult(
             id: id, title: title, primaryValue: vo2, headline: level, score: score,
             confidence: vo2Series.count >= 3 ? .high : .moderate,
             explanation: "Your cardio fitness (VO₂max \(Int(vo2.rounded()))) is \(level.lowercased()) for your age and sex. Higher VO₂max is one of the strongest predictors of long-term heart health.",
-            drivers: drivers, unmetRequirements: unmet,
+            driverLines: drivers, unmetRequirements: unmet,
             contributors: [.init(metric: .vo2Max, higherIsBetter: true, weight: 1,
                                  detail: String(format: "%.0f", vo2))])
     }
@@ -189,7 +213,9 @@ public struct BodyCompositionInsight: InsightModel {
             return notReady(id, title, "Connect a scale (Withings) or Apple Health to track weight, BMI and body fat.")
         }
         let height = samples.latestValue(.height)
-        var drivers: [String] = [String(format: "Weight: %.1f kg", weight)]
+        // Measurements are context; a direction that isn't the good one, and the
+        // fat-versus-muscle reading, are the findings.
+        var drivers: [InsightDriver] = [.routine(String(format: "Weight: %.1f kg", weight))]
         var headline = String(format: "%.1f kg", weight)
         var primary = weight
         var explanation = "Your latest weight is \(String(format: "%.1f", weight)) kg."
@@ -199,16 +225,19 @@ public struct BodyCompositionInsight: InsightModel {
             let cat = Self.bmiCategory(bmi)
             headline = String(format: "BMI %.1f", bmi)
             primary = bmi
-            drivers.insert(String(format: "BMI: %.1f (%@)", bmi, cat), at: 0)
+            drivers.insert(InsightDriver(text: String(format: "BMI: %.1f (%@)", bmi, cat),
+                                         isNotable: cat != "healthy"), at: 0)
             explanation = "Your BMI is \(String(format: "%.1f", bmi)) (\(cat)), from \(String(format: "%.1f", weight)) kg at \(String(format: "%.2f", h)) m."
         } else {
-            drivers.append("Add your height to calculate BMI")
+            // Something the user can act on, so it doesn't get folded away.
+            drivers.append(.notable("Add your height to calculate BMI"))
         }
         if let bodyFat = samples.latestValue(.bodyFatPercentage) {
-            drivers.append(String(format: "Body fat: %.1f%%", bodyFat))
+            drivers.append(.routine(String(format: "Body fat: %.1f%%", bodyFat)))
         }
         if weightSeries.count >= 3, let base = Baseline.mean(Array(weightSeries.dropLast().map(\.value))) {
-            drivers.append("Weight \(trendWord(recent: weight, baseline: base, higherIsBetter: false))")
+            let word = trendWord(recent: weight, baseline: base, higherIsBetter: false)
+            drivers.append(InsightDriver(text: "Weight \(word)", isNotable: isAdverseTrend(word)))
         }
 
         // The rest of what a body-composition scale actually measures. These
@@ -225,17 +254,21 @@ public struct BodyCompositionInsight: InsightModel {
             guard let latest = series.last?.value else { continue }
             let unit = metric.unit
             var line = String(format: "%@: %.1f%@", label, latest, unit.isEmpty ? "" : " \(unit)")
+            var adverse = false
             if series.count >= 3,
                let base = Baseline.mean(Array(series.dropLast().map(\.value))) {
-                line += " (\(trendWord(recent: latest, baseline: base, higherIsBetter: higherIsBetter)))"
+                let word = trendWord(recent: latest, baseline: base, higherIsBetter: higherIsBetter)
+                line += " (\(word))"
+                adverse = isAdverseTrend(word)
             }
-            drivers.append(line)
+            drivers.append(InsightDriver(text: line, isNotable: adverse))
         }
 
         // Weight moving while lean mass holds is fat loss; both falling
-        // together is not, and that distinction is worth saying out loud.
+        // together is not, and that distinction is worth saying out loud — and
+        // is the one line here that is genuinely a finding.
         if let composition = Self.compositionNarrative(samples: samples, weightSeries: weightSeries) {
-            drivers.append(composition)
+            drivers.insert(.notable(composition), at: 0)
             explanation += " " + composition
         }
 
@@ -245,7 +278,10 @@ public struct BodyCompositionInsight: InsightModel {
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline, score: nil,
             confidence: height == nil ? .moderate : .high,
-            explanation: explanation, drivers: drivers, unmetRequirements: [],
+            explanation: explanation,
+            driverLines: drivers.filter { $0.isNotable == true }
+                + drivers.filter { $0.isNotable != true },
+            unmetRequirements: [],
             contributors: present.map { metric in
                 let unit = metric.unit
                 return .init(metric: metric,
@@ -319,8 +355,14 @@ public struct RestingHeartRateTrendInsight: InsightModel {
             id: id, title: title, primaryValue: latest, headline: "\(Int(latest.rounded())) bpm",
             score: nil, confidence: .high,
             explanation: "Resting heart rate \(Int(latest.rounded())) bpm — \(direction).",
-            drivers: [String(format: "Baseline: %.0f bpm", dev.baseline),
-                      dev.zScore.map { String(format: "%.1f SD from baseline", $0) } ?? "Within range"],
+            // A departure from baseline is the finding; the baseline itself is
+            // the context you'd look up only if you cared.
+            driverLines: [
+                InsightDriver(text: dev.zScore.map { String(format: "%.1f SD from baseline", $0) }
+                                    ?? "Within range",
+                              isNotable: dev.direction != 0),
+                .routine(String(format: "Baseline: %.0f bpm", dev.baseline))
+            ],
             unmetRequirements: [],
             contributors: [.init(metric: .restingHeartRate, higherIsBetter: false, weight: 1,
                                  detail: "\(Int(latest.rounded())) bpm")])
