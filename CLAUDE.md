@@ -47,6 +47,28 @@ Never imply a check ran when it didn't.
   on `main` yourself instead of leaving a PR open.
 - Once pushed to `main`, notify the user that deployment to their iPhone is triggered, then complete the turn immediately.
 
+## The docs ARE the audit. Do not re-derive them.
+
+**Nothing carries between chats except this repo.** Every session starts with an
+empty context, and `/handover` exists precisely so the expensive thinking
+survives: `docs/activeContext.md` and `docs/progress.md` are the *audited* state
+of this codebase, written by a session that spent real budget establishing it.
+
+So:
+
+- **Read them and act on them.** They are findings, not notes. A claim in
+  `activeContext.md` with a file reference has already been verified against the
+  code — treat it as true and go fix the thing.
+- **Do not re-audit what they already cover.** Spot-check a specific claim you
+  are about to build on if you like; that costs seconds. Sweeping the codebase
+  again to rebuild a picture that is already written down is the single most
+  expensive mistake available here, and it has been made.
+- **Re-verify only where the docs say to** — a section marked *unverified*, or
+  one whose line numbers no longer match after other work has landed. Line
+  numbers drift; conclusions don't.
+- **Leave the next session better.** If you find something the docs missed, add
+  it. The audit is cumulative.
+
 ## Memory Router
 - `docs/architecture.md` -> Core data pipeline, BYO-Key API client, and Swift patterns.
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
