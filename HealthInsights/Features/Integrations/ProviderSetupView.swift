@@ -15,7 +15,10 @@ struct ProviderSetupView: View {
     @State private var clientSecret = ""
     @State private var isConnecting = false
     @State private var errorMessage: String?
-    @State private var copied = false
+    /// A credential-shaped string sitting on the clipboard, offered as autofill.
+    @State private var clipboardSuggestion: String?
+    @State private var dismissedSuggestion: String?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
@@ -47,27 +50,24 @@ struct ProviderSetupView: View {
                         Text(provider.redirectURI).font(.footnote.monospaced())
                     }
                     Spacer()
-                    Button {
-                        copyRedirect()
-                    } label: {
-                        Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.bordered)
+                    CopyButton(value: provider.redirectURI)
                 }
             } footer: {
                 Text("Paste this exactly into the provider's \u{201C}Redirect URI\u{201D} field.")
             }
 
             Section {
+                clipboardBanner
                 TextField("Client ID", text: $clientID)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textContentType(.username)   // let iOS offer to save/fill it
+                validationHint(for: clientID, required: true)
                 SecureField(secretRequired ? "Client Secret" : "Client Secret (optional)", text: $clientSecret)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textContentType(.password)   // saved in the iCloud Keychain
+                validationHint(for: clientSecret, required: secretRequired)
             } header: {
                 Text("Your keys")
             } footer: {
@@ -95,7 +95,7 @@ struct ProviderSetupView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(clientID.isEmpty || (secretRequired && clientSecret.isEmpty) || isConnecting)
+                .disabled(!canConnect || isConnecting)
 
                 if provider.hasCredentials {
                     Button("Remove keys & disconnect", role: .destructive) {
@@ -114,6 +114,12 @@ struct ProviderSetupView: View {
                 clientID = creds.clientID
                 clientSecret = creds.clientSecret
             }
+            refreshClipboardSuggestion()
+        }
+        // The keys are copied in Safari, so the useful moment to look is when
+        // the user comes back to the app.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshClipboardSuggestion() }
         }
     }
 
@@ -126,8 +132,11 @@ struct ProviderSetupView: View {
         errorMessage = nil
         isConnecting = true
         defer { isConnecting = false }
-        provider.saveCredentials(clientID: clientID.trimmingCharacters(in: .whitespaces),
-                                 clientSecret: clientSecret.trimmingCharacters(in: .whitespaces))
+        // Sanitise here as well as in the store: a trailing newline from a
+        // console copy is invisible and otherwise breaks the token request.
+        clientID = clientID.sanitizedCredential
+        clientSecret = clientSecret.sanitizedCredential
+        provider.saveCredentials(clientID: clientID, clientSecret: clientSecret)
         await model.connect(provider)
         if case .error(let msg) = provider.status {
             errorMessage = msg
@@ -143,12 +152,87 @@ struct ProviderSetupView: View {
         #endif
     }
 
-    private func copyRedirect() {
+    /// Both keys valid, and the secret present when the provider needs one.
+    private var canConnect: Bool {
+        CredentialValidator.isValid(clientID)
+            && (!secretRequired || CredentialValidator.isValid(clientSecret))
+    }
+
+    /// Says what's wrong once a field has something in it, rather than shouting
+    /// at an empty form.
+    @ViewBuilder private func validationHint(for value: String, required: Bool) -> some View {
+        if !value.sanitizedCredential.isEmpty,
+           let problem = CredentialValidator.problem(with: value) {
+            Label(problem.message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(Theme.warn)
+        } else if required, value.sanitizedCredential.isEmpty {
+            EmptyView()
+        }
+    }
+
+    /// Offers whatever credential-shaped string is on the clipboard, since the
+    /// user has just copied it from the provider's site in Safari.
+    @ViewBuilder private var clipboardBanner: some View {
+        if let suggestion = clipboardSuggestion, suggestion != dismissedSuggestion {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.on.clipboard.fill").foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Detected an API key in your clipboard")
+                        .font(.footnote.weight(.medium))
+                    Text(redacted(suggestion))
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Use") { autofill(suggestion) }
+                    .font(.footnote.weight(.semibold))
+                    .buttonStyle(.borderless)
+                Button {
+                    dismissedSuggestion = suggestion
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// Fills whichever field is still waiting: the ID first, then the secret.
+    private func autofill(_ value: String) {
+        Haptics.tap()
+        if !CredentialValidator.isValid(clientID) {
+            clientID = value
+        } else if secretRequired && !CredentialValidator.isValid(clientSecret) {
+            clientSecret = value
+        } else {
+            clientID = value
+        }
+        dismissedSuggestion = value
+    }
+
+    /// Never show a whole key on screen — enough to recognise it, no more.
+    private func redacted(_ value: String) -> String {
+        guard value.count > 12 else { return String(repeating: "•", count: value.count) }
+        return "\(value.prefix(6))…\(value.suffix(4))"
+    }
+
+    private func refreshClipboardSuggestion() {
         #if canImport(UIKit)
-        UIPasteboard.general.string = provider.redirectURI
+        // Reading the pasteboard can raise the system paste notification, so
+        // only look when there is plausibly something worth offering.
+        guard UIPasteboard.general.hasStrings,
+              let text = UIPasteboard.general.string,
+              CredentialValidator.looksLikeCredential(text),
+              text.sanitizedCredential != clientID.sanitizedCredential,
+              text.sanitizedCredential != clientSecret.sanitizedCredential
+        else {
+            clipboardSuggestion = nil
+            return
+        }
+        clipboardSuggestion = text.sanitizedCredential
         #endif
-        withAnimation { copied = true }
-        Task { try? await Task.sleep(nanoseconds: 1_500_000_000); copied = false }
     }
 
     private var intro: String {

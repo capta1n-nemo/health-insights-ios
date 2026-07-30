@@ -11,6 +11,7 @@ struct TroubleshootingView: View {
     @State private var log = DiagnosticsLog.shared
     @State private var filter: DiagnosticsLog.Status?
     @State private var copied = false
+    @State private var resetCopied: Task<Void, Never>?
 
     private var shown: [DiagnosticsLog.Entry] {
         guard let filter else { return log.entries }
@@ -89,7 +90,15 @@ struct TroubleshootingView: View {
         #if canImport(UIKit)
         UIPasteboard.general.string = log.exportText()
         #endif
+        Haptics.tap()
         withAnimation { copied = true }
-        Task { try? await Task.sleep(nanoseconds: 1_500_000_000); copied = false }
+        // Cancel any in-flight reset, so a second copy restarts the clock
+        // instead of an earlier timer clearing a fresh confirmation.
+        resetCopied?.cancel()
+        resetCopied = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation { copied = false }
+        }
     }
 }

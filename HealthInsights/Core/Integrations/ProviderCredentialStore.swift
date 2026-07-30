@@ -32,10 +32,16 @@ struct ProviderCredentialStore {
 
     // MARK: Developer credentials
 
+    /// Only the client ID is required.
+    ///
+    /// A PKCE provider (Oura) has no client secret, and `KeychainStore.set`
+    /// deletes empty values — so requiring both here meant Oura never reported
+    /// having credentials and `connect()` always bailed with "Add your Oura API
+    /// keys first", whatever the user pasted.
     func credentials(for providerID: String) -> ProviderCredentials? {
-        guard let id = keychain.get("\(providerID).clientID"), !id.isEmpty,
-              let secret = keychain.get("\(providerID).clientSecret"), !secret.isEmpty
-        else { return nil }
+        guard let id = keychain.get("\(providerID).clientID")?.sanitizedCredential,
+              !id.isEmpty else { return nil }
+        let secret = keychain.get("\(providerID).clientSecret")?.sanitizedCredential ?? ""
         return ProviderCredentials(clientID: id, clientSecret: secret)
     }
 
@@ -43,9 +49,11 @@ struct ProviderCredentialStore {
         credentials(for: providerID) != nil
     }
 
+    /// Sanitises on the way in as well as on the way out, so a stray newline
+    /// from a paste can't reach the Keychain by any route.
     func setCredentials(_ credentials: ProviderCredentials, for providerID: String) {
-        keychain.set(credentials.clientID, for: "\(providerID).clientID")
-        keychain.set(credentials.clientSecret, for: "\(providerID).clientSecret")
+        keychain.set(credentials.clientID.sanitizedCredential, for: "\(providerID).clientID")
+        keychain.set(credentials.clientSecret.sanitizedCredential, for: "\(providerID).clientSecret")
     }
 
     // MARK: Tokens
