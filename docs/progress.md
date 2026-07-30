@@ -200,16 +200,72 @@ The Vitals Check fix, applied everywhere it was also true.
       is X" is a grep, not a hunt through 700 lines of architecture prose.
       `verify.sh` fails when it is stale.
 
+### The bug-and-roadmap session (all CI-green, none device-verified)
+
+- [x] **Body temperature judged in the wrong domain — fixed, and it was worse
+      than documented.** Five faults, all from one loss of provenance:
+      reconstruction wrote skin values as `.bodyTemperature`. `hardLow` (35.5)
+      was *exactly* the reconstructor's baseline, so `value < hardLow` reduced to
+      `deviation < 0`; `hardHigh` needed +2.3 °C and could never fire;
+      reconstruction is additive so one signal entered the penalty pool twice
+      with identical z-scores; Whoop and Withings type 73 report absolute *skin*
+      °C into the same metric, pinning a Whoop user's score at zero; and — the
+      undocumented one — the reconstructed series outranked a real thermometer
+      for the same metric, so a 38.5 °C fever read "All normal". `.skinTemperature`
+      is its own `MetricType` now, and `Spec.supersededBy` keeps one signal to
+      one row. Apple's sleeping wrist temperature was in no map at all and is now
+      read.
+- [x] **Four cards given a dial that means something.** Cardiovascular Risk's
+      four-step function → a logistic in log-risk fitted to the old anchors (4.9
+      → 5.1% now costs 0.9 points, not 18). Body Composition scores body fat
+      against the Gallagher age/sex range, BMI as a lower-confidence fallback.
+      Blood Pressure reads the recent *pattern* when there's nothing from today.
+      Blood-pressure calibration finally honours "five once, then two a month".
+      Cholesterol renewal is six months, and staleness now costs confidence
+      rather than passing silently.
+- [x] **Substance Impact is a real `InsightModel`.** It was a free function, so
+      score recording, score replay, the comparison chart and grounding
+      collection all skipped it silently. It scores now, and the roadmap's
+      decaying daily cardiovascular-load series is in with it — an exponential
+      kernel normalised from the old box-car's own constants so the two agree.
+- [x] **Every insight reads through `VitalReader`** — and `VitalReader` itself
+      had a bug: it picked the source with the most history and *then* labelled
+      freshness, so a quiet ring outranked a live watch and Readiness dropped the
+      component entirely. Added `dailySeries`, which keeps the dates a regression
+      needs.
+- [x] **The metric chart stopped shattering.** It compared bucket starts against
+      a *sample*-scale gap rule, so at any zoom past three days the line broke
+      between every adjacent pair. Rule moved to InsightKit; four copies of one
+      loop became one.
+- [x] **Roadmap 4b — gap bridging.** Short gaps cross with a dashed connector,
+      bounded by the metric's own join distance and by a quarter of the window.
+      Straight, not smoothed: a curve invents a local extremum exactly where
+      nothing is known.
+- [x] **Roadmap 4c — reference bands** on the eight metrics that have a published
+      normal range, each with its own caption and provenance. Not from
+      `VitalSignsCheck.Spec` — those are alarm bounds, and a band drawn between
+      them shades the whole plot.
+- [x] **The dash rule is whole.** `ScoreHistoryChart`'s fit line was solid, in
+      the measured line's own hue. Three hand-rolled dash literals are gone.
+- [x] **Colour collisions closed** — insight tints resolve per chart now, and the
+      four colliding pairs became reachable the moment Substance Impact could
+      score.
+- [x] **Item 1 — the Today summary is gated** on a fingerprint of the results,
+      with a 30-second floor on manual refresh and the last-updated time on the
+      card so a floored pull doesn't read as broken.
+- [x] **Item 2 — "Improve Your Health"**, on the Insights tab. Three sources
+      only, ranked by how well-founded they are, with a test sweeping every line
+      for prescriptive phrasing.
+- [x] **Item 3 — grounding renewal.** The fourth state (`expiringSoon`) and a
+      countdown, warning proportionally to each fact's own lifetime.
+- [x] **Item 7 — substance intake**: a time picker, a real edit path, eleven
+      watched metrics instead of six, and a row in Vitals. Still no amount, and
+      the reason is written down.
+- [x] **Test hygiene**: one `TestClock` for the backward-looking fixtures, and a
+      `GoldenDataset` with the shapes a phone actually produces — which
+      immediately showed that a *sustained* fever contaminates its own baseline.
+
 ## In progress / not yet device-verified
-- [ ] **Body temperature is judged in the wrong domain — the highest-value fix
-      available.** Audited and confirmed: `hardLow` (35.5) is exactly the
-      reconstructor's default baseline, so *any* negative skin deviation trips it
-      and tanks a worst-offender-dominant score; `hardHigh` needs +2.3 °C and can
-      never fire; and both temperature rows are always present with mathematically
-      identical z-scores, so the same signal is counted twice. Root cause is
-      provenance loss — reconstruction writes skin values as `.bodyTemperature`.
-      No existing test would catch any of it. Full detail and the fix design in
-      `activeContext.md`.
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
 - [ ] Heart & fitness age and Fitness trajectory on the phone: both are new cards
@@ -225,10 +281,11 @@ The Vitals Check fix, applied everywhere it was also true.
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.
 
-- [ ] Cardio strain from stimulants as a first-class trend. The before/after
-      analysis and the 14-day load figure already exist in
-      `SubstanceResponseAnalyzer`; what's missing is a decaying daily load
-      *series* to trend and chart.
+- [x] Cardio strain from stimulants as a first-class trend — shipped. An
+      exponential kernel with a 7-day half-life, normalised from the box-car's
+      own constants so the card's figure and the chart's line are one quantity.
+      The card's number now peaks higher and tails off where it used to hold flat
+      for a fortnight and vanish overnight.
 - [ ] Sleep-debt and circadian consistency from bedtime variance. **Blocked on a
       new signal**: no provider currently gives us a bedtime. Apple Health and
       Oura both stamp `sleepDurationHours` at the *start of the calendar day*, so
@@ -266,40 +323,51 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
 - [x] 9. Heart & Fitness Age scores from a logistic, and both ages are charted
       over time.
 - [x] 4a. Colour bands on the blood-pressure chart.
-- [ ] 4b. Smoothed predicted values across data gaps. `Theme.projectedStroke`
-      exists for this and is unused; charts still break the line and draw nothing.
-- [ ] 4c. Reference bands on the other charts that have well-known ranges.
-- [ ] 1. Gate the Today summary on a data-state diff; 30-second floor on manual
-      refresh. Nothing gates it today — every app open pays a full summariser
-      round-trip.
-- [ ] 2. "Improve Your Health" suggestions. Greenfield — zero matches for
-      `suggest` anywhere in the repo.
-- [ ] 3. Grounding and renewal display. `requirementStatuses` already computes
-      satisfied/stale/missing and every caller discards all but `.missing`;
-      nothing renders a renewal countdown.
-- [ ] 7. Substance intake: date/time prompt, an edit path (`DataStore` has no
-      update), the intake window drawn on the chart, more correlated vitals, and
-      a section in the Vitals tab.
-- [ ] 10. QA sweep: six insights still bypass `VitalReader`; Cardiovascular Risk
-      still has a four-step score function; Body Composition is an unconditional
-      `score: nil`; Substance Impact isn't an `InsightModel` at all, so anything
-      applied "to every insight" skips it.
+- [x] 4b. Gaps bridged with a dashed connector on the metric-detail chart,
+      bounded by the metric's own join distance and by a quarter of the visible
+      window. Deliberately straight rather than smoothed — the endpoints are
+      already bucket aggregates, and a curve would invent an extremum exactly
+      where nothing was measured. **`MetricOverlayChart` still breaks at gaps**;
+      bridging it needs a `NormalizedPoint` overload and a decision about how a
+      dash interacts with its per-span opacity.
+- [x] 4c. Reference bands on the eight metrics with a published normal range,
+      each carrying its own caption and provenance. Heart rate deliberately gets
+      none: its bounds are for the *day's* value and that chart plots raw samples.
+- [x] 1. Today summary gated on a fingerprint of the results, plus a 30-second
+      floor on manual refresh and a last-updated line so a floored pull reads as
+      "up to date" rather than broken.
+- [x] 2. "Improve Your Health" — a section on the Insights tab, from three
+      sources only (your own history, a fact the app is missing, a signal off
+      baseline), ranked by how well-founded each is.
+- [x] 3. Grounding renewal — a fourth state (`expiringSoon`) and a countdown in
+      Settings, warning proportionally to each fact's own lifetime. A cadence
+      type on `GroundingRequirement` was *not* needed: blood pressure's
+      five-then-two rule lives in `CalibrationStatus.Phase`, where the fit it
+      protects is.
+- [x] 7. Substance intake: press-and-hold sets a time, entries are re-timeable,
+      the watched set went from six metrics to eleven, and it has a Vitals row.
+      Still no amount — recording quantity would make it a dosing record. The
+      after-window is *stated* rather than shaded on the per-vital charts;
+      shading it there needs the substance log plumbed into `MultiSourceChart`.
+- [x] 10. QA sweep done: all four. Every insight reads through `VitalReader`
+      (which had its own source-selection bug), Cardiovascular Risk is
+      continuous, Body Composition scores, and Substance Impact is a registered
+      `InsightModel`.
 
 ### Test and file hygiene
-- [ ] Shared test clock — **narrow version only**. The obvious "one `Clock` for
+- [x] Shared test clock — narrow version, as scoped. The obvious "one `Clock` for
       the whole target" was audited and rejected: two files model a forward
       timeline with a movable `now`, one uses `Calendar.current` deliberately
       (production `VitalReader` defaults to it), and one fixture needs a
       fractional `daysAgo: 29.9`. Five files are safely in scope. See
       `activeContext.md` ▸ 6.
-- [ ] A recorded dataset. There is not one golden fixture in the repo — every
-      number is invented inline, so no test sees the shapes the phone actually
-      produces (300 heart-rate samples a day, Oura+Apple duplicates of one
-      reading, a real gap, a fever night). Needs `resources:` on the testTarget.
-- [ ] Split the four largest files — proposed but **unverified**, the audit's
-      verifier agents hit a session limit. `OAuthIntegration.swift` (858 lines),
-      `AdditionalInsights.swift` (four unrelated insights), `HeartAge.swift`,
-      and `MetricOverlayLegend` out of `MetricOverlayChart.swift`.
+- [x] A golden dataset — a seeded *generator* rather than a recorded blob, so
+      each shape is stated in a readable line. It immediately found that a
+      sustained fever contaminates its own rolling baseline.
+- [ ] Split the largest files. `MetricOverlayLegend` is out of
+      `MetricOverlayChart` (verified clean: no file-private coupling either way).
+      `OAuthIntegration.swift` (858 lines), `AdditionalInsights.swift` and
+      `HeartAge.swift` remain — still unverified, so read before acting.
 
 ### Charts
 - [ ] Filled `AreaMark` min/max bands (currently shipped as outlined

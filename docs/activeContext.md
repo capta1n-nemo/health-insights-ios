@@ -14,40 +14,52 @@ log into GitHub to merge anything.
 
 ## Current focus
 
-**Every card held to the standard Vitals Check was rebuilt to** (this session,
-six pushes, all CI-green: `1de13c1` → `084f70f`). Driven by the user's
-observation — "you've only applied these changes to the vitals check card, all
-the improvements should apply to every card" — plus a ten-item feedback list and
-two device screenshots that caught two of my own regressions.
+**The bug-and-roadmap session** — nine pushes, all CI-green, none device-verified.
+Driven by "complete remaining tasks and roadmaps, then look at fixing bugs and
+tech debt, and make sure the UI/UX is great". The whole feedback list is closed;
+`docs/progress.md` has the itemised record. What's worth knowing without reading
+it:
 
-Full rationale is in `docs/architecture.md` ▸ "`VitalReader`: one way to read a
-vital", "Chart identity: hue alone, and a bounded number of lines", and the
-patterns note under "Insights tab: the deep dive". What's worth knowing without
-reading it:
+- **The temperature bug was worse than documented, and the worst part was
+  undocumented.** Four faults were on the list. The fifth wasn't: the
+  reconstructed skin series competed with a real thermometer for
+  `.bodyTemperature`, and source selection prefers the longest history — so a
+  ring's months of nights displaced a 38.5 °C fever and the card read "All
+  normal". Skin has its own `MetricType` now.
+- **`VitalReader` itself had the bug it was written to prevent.** It picked the
+  source with the most history and *then* labelled freshness, so a quiet ring
+  outranked a live watch — and Readiness, which drops stale components, lost the
+  signal entirely rather than reading it off the watch. Every fixture in the
+  suite was single-source or all-fresh, which is exactly why nothing caught it.
+- **Two audits found things the docs' own audit had missed**, both by running
+  code rather than reading it. Worth repeating that method.
+- **The golden dataset earned its place on the first run.** A four-day fever is
+  four days long, so three of those nights sit inside the 28-day baseline the
+  fourth is judged against: the elevation lifts the mean, inflates the spread,
+  and the z-score sinks under the line. HRV survives it; temperature doesn't.
+  Pinned rather than tuned, because the fix — a baseline that excludes the run it
+  is judging — is a real change with its own risks.
 
-- **`VitalReader` is now the only honest way to read a vital.** Four insights
-  moved onto it this session; **six still bypass it** (see the audit table
-  below), so this is half-done, not done. Of the four, Heart Health's was worst:
-  resting heart rate came from the mean of *every* sample ever recorded, which
-  over a 180-day lookback cannot move.
-- **Four scores were wrong, not just imprecise.** Sleep consistency read 0/100
-  (it measured fragmentation, not sleep). Blood pressure passed `score: nil`
-  unconditionally. Heart age hit exactly zero from fifteen excess years on, and a
-  *capped* fitness age reaches forty years of excess on the bound alone.
-- **Dash is retired as identity.** It was a globally-unique (hue, dash) pair,
-  measurably collision-free — and practically wrong, because a dashed line reads
-  as *an estimate or a gap*. The user reported the dashes as gap markers, which
-  is the correct reading of that ink. Dash now means "not measured" only.
-- **The chart can't outrun its palette.** Hue alone means the *number of lines*
-  must stay inside eight. `OverlaySelection` decides which are drawn and the
-  legend is a picker — every signal individually tappable, ordered most-departed
-  first.
-- **"Away from baseline" is recent-or-sustained, not ever.** The first version
-  asked "did any day depart", so a flat line with one blip three weeks ago was
-  drawn as notable while the legend beside it said "steady".
-- **Patterns stopped reporting their own arithmetic.** HRV against heart rate
-  comes off the same beat-to-beat interval stream; it was reaching the card as
-  the *top* finding at r = −0.71.
+### What was deliberately not done
+
+- **`MetricOverlayChart` still breaks at gaps.** Bridging it needs a
+  `NormalizedPoint` overload of `SeriesBridging.bridges` plus a decision about
+  how a dashed span interacts with that chart's per-span opacity encoding. 4b is
+  done for the metric-detail chart; this is the follow-up.
+- **The substance after-window is stated, not shaded.** Drawing the 18-hour span
+  behind the *vitals* charts means plumbing the substance log into
+  `MultiSourceChart`, which currently knows nothing about it.
+- **No cadence type on `GroundingRequirement`.** The audit proposed one; blood
+  pressure's five-then-two rule went into `CalibrationStatus.Phase` instead,
+  beside the fit it actually protects. Nothing else needed a cadence.
+- **`OAuthIntegration.swift`, `AdditionalInsights.swift` and `HeartAge.swift` are
+  still unsplit** and still unverified. Only `MetricOverlayLegend` was checked
+  and moved.
+- **Systolic now reads as the day's mean rather than the newest cuffing**, via
+  `VitalReader`. This moves the risk percentage, the band, the dial and the heart
+  age together — a clinician averages a day's readings, and it matches the
+  "pattern, not moment" direction chosen for the blood-pressure dial. Flagged
+  because it is the largest user-visible number change in the session.
 
 ## Two regressions I shipped, and what they cost
 
