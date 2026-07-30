@@ -137,6 +137,4 @@ public extension Array where Element == ScorePoint {
         guard let fit = Baseline.linearRegression(x: x, y: y) else { return nil }
         return fit.slope * 7
     }
-
-    var latest: ScorePoint? { max { $0.date < $1.date } }
 }

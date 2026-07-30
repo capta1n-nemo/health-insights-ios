@@ -18,15 +18,27 @@ private func daysAgo(_ n: Int) -> Date {
 
 final class ScoreHistoryTests: XCTestCase {
 
-    /// Readiness inputs for `days` consecutive days, HRV climbing over the run.
-    private func climbingHistory(days: Int) -> [HealthMetricSample] {
+    /// Readiness inputs for `days` consecutive days.
+    ///
+    /// The first half sits on a settled baseline; the second half departs from
+    /// it, further each day. That shape is deliberate — see
+    /// `testRisingHRVReadsAsARisingScore`, where a *linear* ramp would prove
+    /// nothing.
+    private func improvingHistory(days: Int) -> [HealthMetricSample] {
         var out: [HealthMetricSample] = []
+        let settled = days / 2
         for i in stride(from: days - 1, through: 0, by: -1) {
-            let step = Double(days - 1 - i)
+            let elapsed = days - 1 - i                     // 0 = oldest
+            let departure = Double(max(0, elapsed - settled))
+            // A little jitter so the settled stretch has a real spread to
+            // measure a z-score against.
+            let jitter = Double(elapsed % 3) - 1
             let date = daysAgo(i)
-            out.append(.init(type: .heartRateVariabilityRMSSD, value: 40 + step,
+            out.append(.init(type: .heartRateVariabilityRMSSD,
+                             value: 45 + jitter + departure * 2,
                              start: date, source: .oura))
-            out.append(.init(type: .restingHeartRate, value: 60 - step * 0.2,
+            out.append(.init(type: .restingHeartRate,
+                             value: 60 + jitter * 0.5 - departure * 0.4,
                              start: date, source: .oura))
             out.append(.init(type: .sleepDurationHours, value: 7.5,
                              start: date, source: .oura))
@@ -35,7 +47,7 @@ final class ScoreHistoryTests: XCTestCase {
     }
 
     func testReplayProducesAPointPerDayOnceThereIsEnoughHistory() {
-        let history = climbingHistory(days: 20)
+        let history = improvingHistory(days: 20)
         let points = ScoreHistory.replay(model: ReadinessInsight(), samples: history,
                                          profile: UserHealthProfile(), days: 20,
                                          calendar: utc, now: referenceNow)
@@ -46,15 +58,45 @@ final class ScoreHistoryTests: XCTestCase {
         XCTAssertEqual(Set(dates).count, dates.count)
     }
 
+    /// Readiness is measured against your own recent normal, so what lifts it is
+    /// *departing* from baseline — not improving at a steady rate.
+    ///
+    /// Worth stating because it is unintuitive: a perfectly linear ramp produces
+    /// a **constant** z-score. Over a ramp of length n the history's mean is n/2
+    /// while its SD grows in proportion to n, so z settles near √12/2 ≈ 1.73
+    /// whatever n is, and the replayed score comes out flat. An earlier version
+    /// of this test ramped linearly and asserted a rising slope; it measured
+    /// nothing and CI caught it. Hence `improvingHistory`, which holds a
+    /// baseline first and then widens away from it.
     func testRisingHRVReadsAsARisingScore() {
         let points = ScoreHistory.replay(model: ReadinessInsight(),
-                                         samples: climbingHistory(days: 30),
+                                         samples: improvingHistory(days: 30),
                                          profile: UserHealthProfile(), days: 30,
                                          calendar: utc, now: referenceNow)
         XCTAssertGreaterThanOrEqual(points.count, 4)
         let slope = points.trendPerWeek
         XCTAssertNotNil(slope)
-        XCTAssertGreaterThan(slope!, 0, "HRV climbing every day should lift readiness")
+        XCTAssertGreaterThan(slope!, 0, "HRV pulling away from baseline should lift readiness")
+    }
+
+    /// The companion property, pinned so nobody "fixes" the fixture back.
+    func testASteadyLinearRampIsAConstantDepartureNotARisingOne() {
+        var linear: [HealthMetricSample] = []
+        for i in stride(from: 29, through: 0, by: -1) {
+            let step = Double(29 - i)
+            linear.append(.init(type: .heartRateVariabilityRMSSD, value: 40 + step,
+                                start: daysAgo(i), source: .oura))
+            linear.append(.init(type: .restingHeartRate, value: 60 - step * 0.2,
+                                start: daysAgo(i), source: .oura))
+            linear.append(.init(type: .sleepDurationHours, value: 7.5,
+                                start: daysAgo(i), source: .oura))
+        }
+        let points = ScoreHistory.replay(model: ReadinessInsight(), samples: linear,
+                                         profile: UserHealthProfile(), days: 30,
+                                         calendar: utc, now: referenceNow)
+        XCTAssertGreaterThanOrEqual(points.count, 4)
+        XCTAssertEqual(points.trendPerWeek ?? 1, 0, accuracy: 0.05,
+                       "a linear ramp holds a constant z, so the score should be flat")
     }
 
     /// The contract the whole replay rests on: a model is handed only the
@@ -62,7 +104,7 @@ final class ScoreHistoryTests: XCTestCase {
     /// its `now:` argument and reads `history.last`, so if truncation ever
     /// stopped happening every replayed day would silently show today's score.
     func testAFutureSampleCannotChangeAnEarlierDaysScore() throws {
-        let base = climbingHistory(days: 20)
+        let base = improvingHistory(days: 20)
         let withSpike = base + [
             HealthMetricSample(type: .heartRateVariabilityRMSSD, value: 400,
                                start: daysAgo(0), source: .oura)
@@ -102,7 +144,7 @@ final class ScoreHistoryTests: XCTestCase {
                                           profile: UserHealthProfile(), days: 30,
                                           calendar: utc, now: referenceNow).isEmpty)
         XCTAssertTrue(ScoreHistory.replay(model: ReadinessInsight(),
-                                          samples: climbingHistory(days: 10),
+                                          samples: improvingHistory(days: 10),
                                           profile: UserHealthProfile(), days: 0,
                                           calendar: utc, now: referenceNow).isEmpty)
     }
