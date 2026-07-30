@@ -40,7 +40,7 @@ public extension MetricType {
 
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
-             .vo2Max, .respiratoryRate, .oxygenSaturation, .dayStrain,
+             .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
              .bodyTemperature, .skinTemperatureDeviation, .sleepDurationHours:
             // Sleep belongs here, not with the daily totals: it already arrives
             // as one value per night, so summing it is a no-op, and "total hours
@@ -81,7 +81,7 @@ public extension MetricType {
              .dayStrain, .stepCount, .activeEnergyBurned:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage, .vo2Max,
+             .boneMass, .bodyWaterPercentage, .vo2Max, .vascularAge,
              .bloodPressureSystolic, .bloodPressureDiastolic, .height:
             return 14 * day
         }

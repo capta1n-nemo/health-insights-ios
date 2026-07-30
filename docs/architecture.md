@@ -290,6 +290,68 @@ with `next_token` and the client reads only the first page, so
 `OuraProvider.describeResponse` logs a warning naming the collection whenever
 more pages exist.
 
+## Ingestion pipeline (provider payload → vitals)
+
+`InsightKit/Sources/InsightKit/Ingestion/`. Providers fetch bytes; the pipeline
+decides what they mean. Nothing in it knows a provider by name.
+
+```
+IngestPayload (raw bytes + source + endpoint)
+   → PayloadIngestor        — EnvelopeSpec says where records live and how they're dated
+   → JSONFlattener          — recursive walk to typed leaves on dotted paths
+   → FieldCatalogue         — persisted registry; first sighting of a path is an event
+   → PromotionRuleSet       — path/leaf/suffix → MetricType (+ unit conversion), as data
+   → IngestionResult        — raw samples, promoted vitals, new fields, proposals, skips
+```
+
+Four rules this design exists to enforce:
+
+1. **Everything is captured, and the exceptions are counted.** `RawValue` is
+   `number | text | flag`, so strings and booleans survive — Oura's resilience
+   `level`, its sleep hypnogram, Withings' `comment`. Anything not stored
+   becomes a `SkippedField` with a reason, reported in Troubleshooting, so
+   "100% ingested" is auditable rather than aspirational.
+2. **Numeric arrays are summarised, not exploded.** Oura's 5-minute night
+   series would add ~40k samples per sync for data Apple Health already
+   mirrors, so `heart_rate.items` becomes count/min/max/mean/first/last.
+   `FlattenPolicy.arrayStrategy = .expand` switches a field to literal
+   point-by-point capture when it earns it.
+3. **A new connector is a declaration.** `GenericJSONIngestor` covers Oura and
+   Whoop from an `EnvelopeSpec` alone. `WithingsMeasureIngestor` exists only
+   because Withings sends `(type, value, unit)` triples instead of named
+   fields — the escape hatch, not the pattern.
+4. **Promotion is data, never inference.** A rule promotes; a field that merely
+   *looks* like a known vital is catalogued and logged as a proposal. A
+   provider renaming a field can therefore never silently rewire an insight.
+
+`AppModel.refresh()` runs the pipeline before the cache merge and before
+`recompute()`, so a field discovered this sync reaches insights in the same
+sync.
+
+## Which vitals feed which insight
+
+Kept current deliberately — a metric with no reader is imported, charted and
+then ignored, which is how `heartRate`, `walkingHeartRateAverage`,
+`oxygenSaturation`, `bodyTemperature` and the whole body-composition tail sat
+unused despite tens of thousands of samples.
+
+| Metric | Read by |
+| --- | --- |
+| heartRate, walkingHeartRateAverage, bodyTemperature | Vitals Check |
+| restingHeartRate | Readiness, RHR Trend, Heart Health, Heart Age, Vitals Check |
+| HRV (SDNN / rMSSD) | Readiness, Heart Health, Vitals Check |
+| oxygenSaturation | Readiness, Sleep Quality, Vitals Check |
+| respiratoryRate | Readiness, Sleep Quality, Vitals Check |
+| skinTemperatureDeviation | Readiness, Sleep Quality |
+| sleepDurationHours | Readiness, Sleep Quality |
+| vo2Max | Cardio Fitness, Cardio Trajectory, Heart Age |
+| vascularAge | Heart Age (as a second opinion, never merged into ours) |
+| bodyMass, bodyFatPercentage, height | Body Composition |
+| leanBodyMass, muscleMass, boneMass, bodyWaterPercentage | Body Composition |
+| bloodPressureSystolic/Diastolic | Blood Pressure, Heart Age, Cardiovascular Risk |
+| stepCount, activeEnergyBurned | Cardio Trajectory |
+| dayStrain | *(no reader — Whoop not connected)* |
+
 ## Keychain storage
 
 Two layers: `KeychainStore` (`HealthInsights/Core/Persistence/KeychainStore.swift`)

@@ -89,6 +89,12 @@ public struct PromotionRuleSet: Sendable {
             // Oura's VO₂ Max collection, alongside Apple's Cardio Fitness.
             PromotionRule(match: .identifier("oura.vO2_max.vo2_max"),
                           metric: .vo2Max, sourceID: MetricSource.oura.id),
+            // Oura's own cardiovascular-age estimate. Kept as its own metric
+            // rather than merged into our heart age: it's a second opinion from
+            // a different model, and the value of a second opinion is that it
+            // stays separate enough to disagree.
+            PromotionRule(match: .identifier("oura.daily_cardiovascular_age.vascular_age"),
+                          metric: .vascularAge, sourceID: MetricSource.oura.id),
             // Withings measure types not covered by the canonical parser but
             // meaning a vital we already model.
             PromotionRule(match: .identifier("withings.measure.12"),
@@ -99,6 +105,7 @@ public struct PromotionRuleSet: Sendable {
         aliases: [
             "vo2_max": .vo2Max,
             "vo2max": .vo2Max,
+            "vascular_age": .vascularAge,
             "resting_heart_rate": .restingHeartRate,
             "lowest_heart_rate": .restingHeartRate,
             "average_heart_rate": .heartRate,

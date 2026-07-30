@@ -41,17 +41,47 @@ public struct SleepQualityInsight: InsightModel {
             return max(0, 90 - min(60, abs(dev.zScore ?? 0) * 20))
         }()
 
-        let score = durationScore * 0.6 + consistencyScore * 0.25 + respScore * 0.15
+        // Overnight blood oxygen. Saturation dipping through the night is the
+        // clearest non-invasive marker of disrupted breathing during sleep, and
+        // it was being collected and ignored. Neutral 75 when absent, so nights
+        // without a reading aren't penalised.
+        let spo2 = samples.samples(of: .oxygenSaturation).map(\.value)
+        let oxygenScore: Double = {
+            guard let latest = spo2.last else { return 75 }
+            switch latest {
+            case 96...: return 100
+            case 94..<96: return 82
+            case 92..<94: return 60
+            default: return 35
+            }
+        }()
+
+        // Skin temperature away from baseline disturbs sleep and marks the
+        // night an illness or a heavy drink starts.
+        let tempScore: Double = {
+            guard let dev = samples.latestValue(.skinTemperatureDeviation) else { return 75 }
+            return max(20, 95 - min(70, abs(dev) * 55))
+        }()
+
+        let score = durationScore * 0.45 + consistencyScore * 0.2 + respScore * 0.1
+            + oxygenScore * 0.15 + tempScore * 0.1
         let band = Self.band(score)
         var drivers = [String(format: "Last night: %.1f h", lastNight),
                        "Consistency: \(Int(consistencyScore))/100"]
         if !resp.isEmpty { drivers.append(String(format: "Respiratory rate: %.0f br/min", resp.last!)) }
+        if let latest = spo2.last {
+            drivers.append(String(format: "Blood oxygen: %.0f%%%@", latest,
+                                  latest < 94 ? " — lower than a settled night usually looks" : ""))
+        }
+        if let dev = samples.latestValue(.skinTemperatureDeviation) {
+            drivers.append(String(format: "Skin temperature: %+.1f °C vs your baseline", dev))
+        }
 
         let confidence: InsightConfidence = sleep.count >= 5 ? .high : .moderate
         return InsightResult(
             id: id, title: title, primaryValue: score, headline: band, score: score,
             confidence: confidence,
-            explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing stability.",
+            explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through the night.",
             drivers: drivers, unmetRequirements: [])
     }
 
@@ -149,10 +179,65 @@ public struct BodyCompositionInsight: InsightModel {
         if weightSeries.count >= 3, let base = Baseline.mean(Array(weightSeries.dropLast().map(\.value))) {
             drivers.append("Weight \(trendWord(recent: weight, baseline: base, higherIsBetter: false))")
         }
+
+        // The rest of what a body-composition scale actually measures. These
+        // were being imported and charted but read by nothing — and they are
+        // the part that distinguishes losing fat from losing muscle, which is
+        // the only interesting question behind a change in weight.
+        for (metric, label, higherIsBetter) in [
+            (MetricType.leanBodyMass, "Lean mass", true),
+            (MetricType.muscleMass, "Muscle mass", true),
+            (MetricType.boneMass, "Bone mass", true),
+            (MetricType.bodyWaterPercentage, "Body water", true)
+        ] {
+            let series = samples.samples(of: metric)
+            guard let latest = series.last?.value else { continue }
+            let unit = metric.unit
+            var line = String(format: "%@: %.1f%@", label, latest, unit.isEmpty ? "" : " \(unit)")
+            if series.count >= 3,
+               let base = Baseline.mean(Array(series.dropLast().map(\.value))) {
+                line += " (\(trendWord(recent: latest, baseline: base, higherIsBetter: higherIsBetter)))"
+            }
+            drivers.append(line)
+        }
+
+        // Weight moving while lean mass holds is fat loss; both falling
+        // together is not, and that distinction is worth saying out loud.
+        if let composition = Self.compositionNarrative(samples: samples, weightSeries: weightSeries) {
+            drivers.append(composition)
+            explanation += " " + composition
+        }
+
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline, score: nil,
             confidence: height == nil ? .moderate : .high,
             explanation: explanation, drivers: drivers, unmetRequirements: [])
+    }
+
+    /// Reads the direction of weight change against lean mass.
+    static func compositionNarrative(samples: [HealthMetricSample],
+                                     weightSeries: [HealthMetricSample]) -> String? {
+        let lean = samples.samples(of: .leanBodyMass)
+        guard weightSeries.count >= 3, lean.count >= 3,
+              let weightNow = weightSeries.last?.value,
+              let leanNow = lean.last?.value,
+              let weightBase = Baseline.mean(Array(weightSeries.dropLast().map(\.value))),
+              let leanBase = Baseline.mean(Array(lean.dropLast().map(\.value))) else { return nil }
+        let weightDelta = weightNow - weightBase
+        let leanDelta = leanNow - leanBase
+        guard abs(weightDelta) >= 0.5 else {
+            return abs(leanDelta) >= 0.4
+                ? "Weight is steady while lean mass is \(leanDelta > 0 ? "rising" : "falling") — a recomposition, not a gain or loss."
+                : nil
+        }
+        if weightDelta < 0 {
+            return leanDelta >= -0.2
+                ? "Weight is down and lean mass is holding — the loss is coming from fat."
+                : "Weight and lean mass are falling together — some of the loss is muscle."
+        }
+        return leanDelta > 0.2
+            ? "Weight is up and so is lean mass — the gain isn't only fat."
+            : "Weight is up with lean mass flat — the gain is mostly fat."
     }
     static func bmiCategory(_ bmi: Double) -> String {
         switch bmi { case ..<18.5: return "underweight"; case 18.5..<25: return "healthy"

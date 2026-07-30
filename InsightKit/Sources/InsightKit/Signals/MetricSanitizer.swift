@@ -13,6 +13,7 @@ public extension MetricType {
         switch self {
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD, .vo2Max,
+             .vascularAge,
              .respiratoryRate, .oxygenSaturation,
              .bloodPressureSystolic, .bloodPressureDiastolic,
              .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,

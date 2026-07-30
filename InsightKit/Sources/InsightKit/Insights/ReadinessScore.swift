@@ -83,6 +83,24 @@ public enum ReadinessScore {
                                weight: 0.05, detail: String(format: "%.0f br/min", latest)))
         }
 
+        // Overnight blood oxygen — a drop below your own normal accompanies
+        // disrupted breathing, altitude and illness, and it moves before you
+        // feel it. Small weight: it's a narrow signal, and most nights it says
+        // nothing. Absolute floor as well as a personal one, because a baseline
+        // built from consistently low saturation would normalise the problem.
+        let spo2 = history(.oxygenSaturation)
+        if let latest = spo2.last {
+            let component: Double
+            if spo2.count >= 4, let z = Baseline.zScore(latest, history: Array(spo2.dropLast())) {
+                component = zScoreToScore(z, polarity: 1)
+            } else {
+                component = latest >= 95 ? 85 : 60
+            }
+            let floored = latest < 92 ? min(component, 40) : component
+            comps.append(.init(name: "Blood oxygen", score: floored, weight: 0.05,
+                               detail: String(format: "%.0f%%", latest)))
+        }
+
         guard !comps.isEmpty else { return nil }
         let total = comps.reduce(0) { $0 + $1.weight }
         let score = comps.reduce(0) { $0 + $1.score * $1.weight } / total

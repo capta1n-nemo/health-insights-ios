@@ -500,7 +500,25 @@ public struct HeartAgeInsight: InsightModel {
                 drivers.append(String(format: "Reference for your age: %.0f mL/kg·min", reference))
             }
         } else {
-            drivers.append("No cardio-fitness reading yet — an Apple Watch estimates VO₂max on outdoor walks and runs")
+            drivers.append("No cardio-fitness reading yet — an Apple Watch estimates VO₂max on outdoor walks and runs, and Oura reports one too")
+        }
+
+        // A provider's own vascular-age estimate, shown beside ours rather than
+        // folded into it. Two models built on different inputs disagreeing is
+        // information; averaging them away is not.
+        if let vascular = samples.samples(of: .vascularAge).last {
+            var line = String(format: "%@ estimates your vascular age at %.0f",
+                              vascular.source.displayName, vascular.value)
+            if let age = analysis.chronologicalAge {
+                let gap = vascular.value - age
+                if abs(gap) < 1 {
+                    line += " — level with your actual age"
+                } else {
+                    line += String(format: " — %.0f year%@ %@ your actual age",
+                                   abs(gap), abs(gap) < 1.5 ? "" : "s", gap > 0 ? "above" : "below")
+                }
+            }
+            drivers.append(line)
         }
 
         for projection in analysis.projections {

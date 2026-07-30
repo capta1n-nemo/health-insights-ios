@@ -14,6 +14,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case heartRateVariabilitySDNN  // ms (Apple reports SDNN)
     case heartRateVariabilityRMSSD // ms (Oura reports rMSSD)
     case vo2Max                    // mL/(kg·min) — Apple "Cardio Fitness"
+    case vascularAge               // years — a provider's own cardiovascular-age estimate
     case respiratoryRate           // breaths/min
     case oxygenSaturation          // % SpO2 (Whoop, Hume, Apple Watch)
     case dayStrain                 // 0–21 cumulative cardiovascular load (Whoop)
@@ -47,6 +48,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRateVariabilitySDNN: return "HRV (SDNN)"
         case .heartRateVariabilityRMSSD: return "HRV (rMSSD)"
         case .vo2Max: return "Cardio Fitness (VO₂max)"
+        case .vascularAge: return "Vascular Age"
         case .respiratoryRate: return "Respiratory Rate"
         case .oxygenSaturation: return "Blood Oxygen"
         case .dayStrain: return "Day Strain"
@@ -73,6 +75,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage: return "bpm"
         case .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD: return "ms"
         case .vo2Max: return "mL/kg·min"
+        case .vascularAge: return "years"
         case .respiratoryRate: return "br/min"
         case .oxygenSaturation: return "%"
         case .dayStrain: return ""
