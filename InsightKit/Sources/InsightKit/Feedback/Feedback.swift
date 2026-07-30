@@ -142,6 +142,7 @@ public extension InsightID {
         case .cardioTrajectory: return "vo2trajectory-v1"
         case .bodyComposition: return "bodycomp-v1"
         case .restingHeartRateTrend: return "rhrtrend-v1"
+        case .vitalSigns: return "vitalsigns-v1"
         }
     }
 }

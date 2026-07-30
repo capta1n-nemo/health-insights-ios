@@ -91,6 +91,7 @@ struct TelemetryOutboxView: View {
             case .cardioTrajectory: return "Fitness trajectory"
             case .bodyComposition: return "Body composition"
             case .restingHeartRateTrend: return "Resting heart rate"
+            case .vitalSigns: return "Vitals check"
             }
         } ?? raw
     }

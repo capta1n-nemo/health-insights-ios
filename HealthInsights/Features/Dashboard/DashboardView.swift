@@ -255,6 +255,7 @@ struct InsightCard: View {
         case .cardioTrajectory: return "chart.line.uptrend.xyaxis"
         case .bodyComposition: return "figure.arms.open"
         case .restingHeartRateTrend: return "heart.text.square"
+        case .vitalSigns: return "stethoscope"
         }
     }
 }

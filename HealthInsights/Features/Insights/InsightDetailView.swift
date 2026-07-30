@@ -277,6 +277,7 @@ struct InsightDetailView: View {
         case .cardioTrajectory: return .vo2Max
         case .bodyComposition: return .bodyMass
         case .restingHeartRateTrend: return .restingHeartRate
+        case .vitalSigns: return .heartRate
         }
     }
 }
