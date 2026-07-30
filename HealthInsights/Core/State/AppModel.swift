@@ -721,6 +721,13 @@ final class AppModel {
         recompute()
     }
 
+    /// Move a logged entry to when it actually happened.
+    func updateSubstanceEvent(id: UUID, timestamp: Date) {
+        dataStore.updateSubstanceEvent(id: id, timestamp: timestamp)
+        substanceEvents = dataStore.loadSubstanceEvents()
+        recompute()
+    }
+
     func deleteSubstanceEvent(id: UUID) {
         dataStore.deleteSubstanceEvent(id: id)
         substanceEvents = dataStore.loadSubstanceEvents()

@@ -195,3 +195,62 @@ final class SubstanceImpactModelTests: XCTestCase {
                        SubstanceResponseAnalyzer.comparedMetrics)
     }
 }
+
+/// The watched set had not changed since it was written, and a metric added to
+/// it without a matching sentence would be measured and then silently dropped
+/// from the card.
+final class SubstanceWatchedMetricsTests: XCTestCase {
+
+    private func nightly(_ metric: MetricType, _ values: [Double]) -> [HealthMetricSample] {
+        values.enumerated().map { index, value in
+            HealthMetricSample(type: metric, value: value,
+                               start: loadDay(Double(values.count - 1 - index)), source: .oura)
+        }
+    }
+
+    func testTheComparedListIsDerivedFromTheWatchedList() {
+        // Two hand-maintained copies of one list is how they drift apart.
+        XCTAssertFalse(SubstanceResponseAnalyzer.comparedMetrics.isEmpty)
+        XCTAssertEqual(Set(SubstanceResponseAnalyzer.comparedMetrics).count,
+                       SubstanceResponseAnalyzer.comparedMetrics.count)
+    }
+
+    /// Every watched metric must declare a direction, or the detail chart can't
+    /// say which way is better. Temperature is the deliberate exception —
+    /// nearest the baseline is best, and neither end is an improvement.
+    func testEveryWatchedMetricDeclaresItsDirection() {
+        for metric in SubstanceResponseAnalyzer.comparedMetrics where metric.family != .thermal {
+            XCTAssertNotNil(SubstanceResponseAnalyzer.higherIsBetter(metric),
+                            "\(metric) has no better direction")
+        }
+    }
+
+    /// The additions have to reach the card, not just the maths. The driver
+    /// switch has a `default: nil`, so a new metric fails silently.
+    func testEveryMeasuredEffectReachesADriverLine() {
+        var events: [SubstanceEvent] = []
+        var samples: [HealthMetricSample] = []
+        for day in [1.0, 3, 5] { events.append(event(.alcohol, daysAgo: day)) }
+        for metric in SubstanceResponseAnalyzer.comparedMetrics {
+            samples += nightly(metric, (0..<10).map { 50 + Double($0) })
+        }
+        let result = SubstanceResponseAnalyzer.insightResult(
+            events: events, samples: samples, now: loadNow)
+        let analysis = SubstanceResponseAnalyzer.analyze(
+            events: events, samples: samples, now: loadNow)
+        XCTAssertFalse(analysis.effects.isEmpty, "the fixture measured nothing")
+        // One "after use" line per measured effect, plus the load line.
+        let afterUseLines = result.drivers.filter { $0.contains("after use") }
+        XCTAssertEqual(afterUseLines.count, analysis.effects.count,
+                       "a measured effect reached no driver line: \(result.drivers)")
+    }
+
+    /// Blood pressure and AFib burden are sparse for most people. The analyser
+    /// should say nothing rather than guess.
+    func testASparseMetricProducesNoEffect() {
+        let analysis = SubstanceResponseAnalyzer.analyze(
+            events: [event(.alcohol, daysAgo: 1)],
+            samples: nightly(.bloodPressureSystolic, [120, 122]), now: loadNow)
+        XCTAssertTrue(analysis.effects.isEmpty)
+    }
+}

@@ -49,13 +49,35 @@ public enum SubstanceResponseAnalyzer {
     }
 
     /// Metrics we look at, with whether "up" is the adverse direction.
+    ///
+    /// Each has a documented physiological link to the substances this app lets
+    /// people log; nothing is here because it was available. A metric with too
+    /// few paired readings simply produces no effect, so adding one costs
+    /// nothing but reaches further for anyone who does record it.
     private static let watched: [(MetricType, upIsAdverse: Bool)] = [
         (.restingHeartRate, true),
         (.heartRateVariabilityRMSSD, false),
         (.heartRateVariabilitySDNN, false),
         (.skinTemperatureDeviation, true),
+        // Absolute skin temperature, for the wearables that report one instead
+        // of a deviation. Same signal, other domain — a Whoop user had no
+        // thermal row here at all.
+        (.skinTemperature, true),
         (.sleepDurationHours, false),
-        (.respiratoryRate, true)
+        (.respiratoryRate, true),
+        // Alcohol suppresses respiratory drive in sleep, and overnight
+        // desaturation is the clearest non-invasive marker of it.
+        (.oxygenSaturation, false),
+        // Autonomic recovery after exertion is blunted by stimulants and by
+        // alcohol the night before; the watch reports it without being asked.
+        (.heartRateRecovery, false),
+        // Alcohol and stimulants both raise blood pressure acutely. Cuff
+        // readings are sparse, so this usually yields nothing — and correctly
+        // says nothing rather than guessing.
+        (.bloodPressureSystolic, true),
+        // "Holiday heart": alcohol is among the best-documented triggers of an
+        // atrial-fibrillation episode, and the watch already measures burden.
+        (.atrialFibrillationBurden, true)
     ]
 
     public static func analyze(events: [SubstanceEvent], samples: [HealthMetricSample], now: Date = Date()) -> Analysis {
@@ -135,19 +157,20 @@ public enum SubstanceResponseAnalyzer {
 
     /// The metrics this analyser compares before and after logged use — the
     /// substance equivalent of an insight's `candidateMetrics`.
-    public static let comparedMetrics: [MetricType] = [
-        .restingHeartRate, .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
-        .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate
-    ]
+    /// Derived from `watched`, so the two can never disagree about what this
+    /// analyser looks at — the detail screen charts this list.
+    public static let comparedMetrics: [MetricType] = watched.map { $0.0 }
 
     static func higherIsBetter(_ metric: MetricType) -> Bool? {
         switch metric {
-        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .sleepDurationHours:
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .sleepDurationHours,
+             .oxygenSaturation, .heartRateRecovery:
             return true
-        case .restingHeartRate, .respiratoryRate:
+        case .restingHeartRate, .respiratoryRate, .bloodPressureSystolic,
+             .atrialFibrillationBurden:
             return false
         default:
-            return nil   // skin-temp deviation: nearest baseline is best
+            return nil   // temperature: nearest the baseline is best
         }
     }
 
@@ -224,6 +247,18 @@ public enum SubstanceResponseAnalyzer {
                 text = String(format: "Sleep %@%.1f h after use", arrow, abs(e.deltaAbsolute))
             case .respiratoryRate:
                 text = String(format: "Respiration %@%.1f br/min after use", arrow, abs(e.deltaAbsolute))
+            case .skinTemperature:
+                text = String(format: "Skin temperature %@%.1f °C after use", arrow, abs(e.deltaAbsolute))
+            case .oxygenSaturation:
+                text = String(format: "Blood oxygen %@%.1f%% after use", arrow, abs(e.deltaAbsolute))
+            case .heartRateRecovery:
+                text = String(format: "Heart-rate recovery %@%.0f bpm after use", arrow, abs(e.deltaAbsolute))
+            case .bloodPressureSystolic:
+                text = String(format: "Systolic BP %@%.0f mmHg after use", arrow, abs(e.deltaAbsolute))
+            case .atrialFibrillationBurden:
+                text = String(format: "AFib burden %@%.1f%% after use", arrow, abs(e.deltaAbsolute))
+            // No `default:` — a metric added to `watched` without a sentence
+            // here would be measured and then silently dropped from the card.
             default: text = nil
             }
             if let text { drivers.append(InsightDriver(text: text, isNotable: e.isAdverse)) }

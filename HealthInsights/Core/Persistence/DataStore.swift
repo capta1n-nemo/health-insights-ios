@@ -253,6 +253,21 @@ final class DataStore {
         try? context.save()
     }
 
+    /// Correct a mis-timed entry.
+    ///
+    /// A genuine mutation rather than a delete-and-reinsert, so the row keeps its
+    /// identity — the before/after analysis is keyed on timestamps, and an entry
+    /// that vanished and reappeared would churn every derived figure. There was
+    /// no update path at all before this, so a log entered at the wrong time
+    /// could only be deleted.
+    func updateSubstanceEvent(id: UUID, timestamp: Date) {
+        let descriptor = FetchDescriptor<SubstanceEventRecord>(
+            predicate: #Predicate { $0.id == id })
+        guard let record = (try? context.fetch(descriptor))?.first else { return }
+        record.timestamp = timestamp
+        try? context.save()
+    }
+
     func deleteSubstanceEvent(id: UUID) {
         let descriptor = FetchDescriptor<SubstanceEventRecord>(
             predicate: #Predicate { $0.id == id })

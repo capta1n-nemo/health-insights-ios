@@ -86,9 +86,13 @@ struct SubstanceLoadChart: View {
     }
 
     private var caption: some View {
-        Text("From your log, not measured — how much cardiovascular load your logged use is still carrying, decaying with a \(Int(SubstanceLoad.halfLifeDays))-day half-life.")
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 2) {
+            Text("From your log, not measured — how much cardiovascular load your logged use is still carrying, decaying with a \(Int(SubstanceLoad.halfLifeDays))-day half-life.")
+            Text("Marked days are ones you logged something. The before/after comparison reads the \(Int(SubstanceResponseAnalyzer.afterWindow / 3600)) hours following each entry, which is why the time on an entry matters more than the day.")
+        }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Explicit `some ChartContent`, as every mark builder in this app must

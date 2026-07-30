@@ -42,6 +42,35 @@ struct VitalsView: View {
     private var otherGroups: [RawMetricGroup] { model.otherDataGroups }
     private var bloodPressure: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
 
+    /// The substance log's own row in Vitals.
+    ///
+    /// It was reachable only from the Today toolbar, which meant the one screen
+    /// listing everything the app measures about you didn't mention it. Shows the
+    /// current decayed load and the most recent entry, and opens the log.
+    @ViewBuilder private var substanceSection: some View {
+        if !model.substanceEvents.isEmpty {
+            Section("Substances") {
+                NavigationLink {
+                    SubstanceLogView()
+                } label: {
+                    let load = SubstanceLoad.load(events: model.substanceEvents, at: Date())
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Cardiovascular load")
+                            Spacer()
+                            Text("\(Int(load.rounded())) · \(SubstanceResponseAnalyzer.band(for: load))")
+                                .foregroundStyle(.secondary)
+                        }
+                        if let latest = model.substanceEvents.first {
+                            Text("Last logged: \(latest.substance.displayName.lowercased()), \(latest.timestamp.formatted(.relative(presentation: .named)))")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -62,6 +91,7 @@ struct VitalsView: View {
                             }
                         }
                         bloodPressureSection
+                        substanceSection
                         otherDataSection
                     }
                 }

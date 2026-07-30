@@ -330,6 +330,6 @@ the place to look.
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :6
 - `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :157
+  - `OtherDataDetailView` :187
   - `VitalsView` :8
 
