@@ -90,6 +90,33 @@ and roughly 15–30 seconds for a small change. Force a clean build manually
 DerivedData is ever suspected stale — mismatched incremental state is a classic
 source of "works after a clean build" confusion.
 
+## Agent sandbox setup (optional, but free)
+
+Every Claude Code session gets a fresh container, so the Swift toolchain never
+survives. Three layers cover this, weakest to strongest:
+
+1. `CLAUDE.md` tells the session to run `./scripts/bootstrap-swift.sh` first.
+   Depends on the instruction being read and followed.
+2. **`./scripts/verify.sh --tests` installs the toolchain itself** if `swift` is
+   missing. This is the one that actually holds — the gate self-heals, so a
+   session that never read `CLAUDE.md` still ends up running the tests. Verified
+   by deleting `/opt/swift` and re-running.
+3. **The environment setup script** — best of all, because it costs no session
+   time at all. If you paste this into the environment's setup script (Claude
+   Code web → environment settings), Swift is already present at session start:
+
+```bash
+cd /home/user/health-insights-ios 2>/dev/null || cd "$(ls -d /home/user/*/ | head -1)"
+./scripts/bootstrap-swift.sh || true
+```
+
+`|| true` because a failed toolchain download must never block the session —
+CI is still the backstop. The script exits immediately when Swift is already
+present, so it is safe to leave in place forever.
+
+The download is ~780 MB and takes about two minutes. Doing it in setup moves
+that off the session clock entirely.
+
 ## Verifying a deploy
 
 `Settings ▸ About` in the app shows the build number and commit it was built

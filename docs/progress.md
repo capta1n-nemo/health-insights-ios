@@ -176,9 +176,29 @@ The Vitals Check fix, applied everywhere it was also true.
       branch-and-draft-PR default, with the reason (`deploy.yml` only fires on a
       push to `main`, so a PR installs nothing) in `CLAUDE.md` and
       `docs/deployment.md`.
-- [x] `swift test` rule reconciled with reality: agent sandboxes have no Swift
-      toolchain, so the rule is attempt-it, say plainly when it can't run, and
-      treat the CI run on the push as the gate.
+- [x] **The tests run in the sandbox.** Two Darwin-only Foundation APIs had
+      crept into a package that was meant to be platform-free, and CI runs on
+      macOS so nothing caught them. Both are now behind `#if canImport(Darwin)`
+      and 330/330 pass on Linux. `scripts/bootstrap-swift.sh` installs a
+      toolchain; `scripts/verify.sh --tests` runs it *and installs it itself* if
+      absent, so the gate self-heals rather than depending on a doc being read.
+      Supersedes the old rule that sandboxes have no Swift.
+- [x] **CI status for a few hundred bytes.** `ci.yml` records the verdict at
+      `refs/ci/{passed,failed}/<sha>` and `scripts/ci-status.sh` reads it with
+      `git ls-remote`. The GitHub Actions API — the only other route from a
+      sandbox — returns ~450 KB per call, over 100K tokens.
+- [x] **A lint for the traps that have actually broken this repo**
+      (`scripts/verify.sh`): key paths on tuple elements, the `Chart3DContent`
+      overload hazard, InsightKit's platform-free property, and every exhaustive
+      `MetricType` switch checked *by name*. Proved with a canary case.
+- [x] **Five skills** (`.claude/skills/`) so the rule-heavy procedures aren't
+      re-derived each session: `ship-to-main`, `verify-before-push`,
+      `add-metric-type`, `add-insight`, `add-chart`. Writing `add-insight`
+      surfaced that the documented `InsightID` checklist named three switches
+      when there are five.
+- [x] **A generated symbol index** (`docs/symbol-index.md`, 198 types) so "where
+      is X" is a grep, not a hunt through 700 lines of architecture prose.
+      `verify.sh` fails when it is stale.
 
 ## In progress / not yet device-verified
 - [ ] **Body temperature is judged in the wrong domain — the highest-value fix

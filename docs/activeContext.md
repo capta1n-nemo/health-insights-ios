@@ -181,15 +181,35 @@ reliably return `scope` on the OAuth callback, despite documenting that it does.
 - **Never start a continuation line with `...`** in Swift — it parses as a
   standalone prefix `PartialRangeThrough`, not a continuation of the range above.
 
-## Working constraint: no Swift toolchain in the sandbox
+## The sandbox has a Swift toolchain now — use it
 
-`swift` does not exist in Claude Code web sessions, so `swift test` and
-`xcodebuild` cannot run before a commit. The honest workflow is: reason carefully
-(the compiler can't catch you here), push, and let CI be the gate — then fix
-forward on red. Things worth extra care because nothing local checks them:
-key paths don't work on tuple elements (`\.volume` on a tuple is a compile
-error — use `{ $0.volume }`), and don't shadow a function with a local of the
-same name (`if let contrast = contrast(...)`).
+This section used to say the opposite, and that was the single most expensive
+false belief in the repo: it meant every logic error was found by pushing and
+waiting ~90 s for CI.
+
+`InsightKit` was always meant to be platform-free, but two Darwin-only
+Foundation APIs had crept in (`Measurement.formatted` and `CFBooleanGetTypeID`)
+and CI runs on macOS, so nothing caught them. Both are behind
+`#if canImport(Darwin)`. **330/330 tests pass on Swift 6.0.3 / Ubuntu 24.04.**
+
+```bash
+./scripts/verify.sh --tests     # installs the toolchain if absent, then runs
+```
+
+The container is rebuilt per session so the toolchain never survives, but the
+gate **self-heals**: `verify.sh --tests` bootstraps Swift itself rather than
+telling you to. Nothing depends on this document being read. Better still, put
+`./scripts/bootstrap-swift.sh || true` in the environment's setup script and it
+costs no session time at all — see `docs/deployment.md`.
+
+`xcodebuild` is still macOS-only, so the **app target** is compiled only by CI.
+Local green means InsightKit is green: the clinical maths, scoring, baselines
+and parsers — which is where the bugs have actually been.
+
+Still worth care, because nothing local checks them: key paths don't work on
+tuple elements (`\.volume` on a tuple is a compile error — use `{ $0.volume }`),
+and don't shadow a function with a local of the same name. `scripts/verify.sh`
+checks the first of those.
 
 Adding a `MetricType` or an `InsightID` case is deliberately load-bearing: both
 feed exhaustive switches. **This bit CI again this session** — `.vitalSigns` was

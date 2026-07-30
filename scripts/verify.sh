@@ -140,11 +140,22 @@ fi
 if [ "${1:-}" = "--tests" ]; then
     # shellcheck source=/dev/null
     [ -f scripts/swift-env.sh ] && source scripts/swift-env.sh
+    # Self-healing: the container is rebuilt every session, so the toolchain is
+    # never there the first time. Bootstrapping here rather than telling the
+    # caller to means the gate works even when nobody read CLAUDE.md.
+    if ! command -v swift >/dev/null 2>&1; then
+        note 'No Swift toolchain — installing one (~2 min, once per container).'
+        if ./scripts/bootstrap-swift.sh; then
+            # shellcheck source=/dev/null
+            source scripts/swift-env.sh
+        fi
+    fi
+
     if command -v swift >/dev/null 2>&1; then
         note "Running InsightKit tests with $(swift --version | head -1)"
         (cd InsightKit && swift test --parallel) || fail=1
     else
-        note 'No Swift toolchain. Run ./scripts/bootstrap-swift.sh, or let CI be the gate.'
+        note 'Could not obtain a Swift toolchain (no network?). CI is the gate — say so in the reply.'
     fi
 fi
 

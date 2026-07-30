@@ -1,10 +1,25 @@
 # Health Insights iOS App
 
+## First thing, every session
+
+```bash
+./scripts/bootstrap-swift.sh && source scripts/swift-env.sh
+```
+
+**Run it before writing code, not after.** The container is rebuilt for every
+session, so the toolchain never survives — but the ~2-minute download costs
+almost no tokens, while discovering a compile error from CI costs a full
+commit / push / wait / fix cycle. Exits immediately if Swift is already there,
+so it is safe to run unconditionally.
+
+If it fails (no network), say so plainly in the reply and treat CI as the gate.
+Never imply a check ran when it didn't.
+
 ## Primary Verification Commands
 - **The gate, before every push:** `./scripts/verify.sh --tests`
-- No Swift in the sandbox? `./scripts/bootstrap-swift.sh && source scripts/swift-env.sh`
-  (~2 min, once). **InsightKit's full 330-test suite runs on Linux** — do not
-  assume otherwise.
+- **InsightKit's full 330-test suite runs on Linux** — do not assume otherwise.
+  Two Darwin-only Foundation APIs used to prevent it and are now behind
+  `#if canImport(Darwin)`.
 - After pushing: `./scripts/ci-status.sh --wait`. Never use the GitHub Actions
   API for this; its smallest response is over 100K tokens.
 - Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
