@@ -9,7 +9,11 @@ struct InsightDetailView: View {
     @State private var feedbackGiven = false
     @State private var timeframe: Timeframe = .month
 
-    private var window: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
+    /// Resolved against the data being charted, so `.all` doesn't squash a short
+    /// history into a sliver of a decade-wide viewport.
+    private func window(spanning span: ClosedRange<Date>?) -> TimeInterval {
+        timeframe.chartWindow(spanning: span.map { $0.upperBound.timeIntervalSince($0.lowerBound) })
+    }
 
     private var result: InsightResult? { model.result(for: insightID) }
 
@@ -110,12 +114,13 @@ struct InsightDetailView: View {
                         ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    MultiSourceChart(breakdown: breakdown, window: window)
+                    MultiSourceChart(breakdown: breakdown,
+                                     window: window(spanning: breakdown.dateSpan))
                     if breakdown.sources.isEmpty {
                         Text("No readings in \(timeframe.longLabel.lowercased()).")
                             .font(.caption).foregroundStyle(.secondary)
                     } else {
-                        SourceBreakdown(breakdown: breakdown)
+                        SourceBreakdown(breakdown: breakdown, timeframe: timeframe)
                     }
                     NavigationLink {
                         MetricDetailView(metric: metric)

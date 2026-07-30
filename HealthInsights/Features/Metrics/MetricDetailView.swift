@@ -12,6 +12,8 @@ struct MetricDetailView: View {
     @State private var timeframe: Timeframe = .month
     /// The span the chart is currently showing; changes as the user pans.
     @State private var visibleRange: ClosedRange<Date>?
+    /// Where the finger is while scrubbing, so the read-outs can follow it.
+    @State private var scrubbed: Date?
 
     /// The whole history, handed to the chart so it has something to scroll
     /// through. The timeframe acts as the zoom level, not as a filter here.
@@ -23,8 +25,13 @@ struct MetricDetailView: View {
         if let visibleRange { return model.breakdown(metric, in: visibleRange) }
         return model.breakdown(metric, within: timeframe)
     }
-    /// Seconds of history to show; `.all` maps to a very large window.
-    private var window: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
+    /// Seconds of history one chart-width shows. `.all` resolves against the
+    /// data rather than a fixed constant, which is what stopped a short history
+    /// being squashed into a sliver.
+    private var window: TimeInterval {
+        let span = allData.dateSpan.map { $0.upperBound.timeIntervalSince($0.lowerBound) }
+        return timeframe.chartWindow(spanning: span)
+    }
 
     /// Whether the metric has any data at all (across all time) — used so the
     /// timeframe picker stays available even when the chosen window is empty.
@@ -47,7 +54,12 @@ struct MetricDetailView: View {
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                     } else {
-                        Card { SourceBreakdown(breakdown: breakdown) }
+                        Card {
+                            SourceBreakdown(breakdown: breakdown,
+                                            timeframe: timeframe,
+                                            visibleRange: visibleRange,
+                                            scrubbed: scrubbed)
+                        }
                         if breakdown.hasMultipleSources { statsCard }
                     }
                 }
@@ -82,9 +94,11 @@ struct MetricDetailView: View {
                     Text("Each device is a separate colour, so you can spot where they disagree.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                MultiSourceChart(breakdown: allData, window: window, logarithmic: logScale) {
-                    visibleRange = $0
-                }
+                MultiSourceChart(breakdown: allData,
+                                 window: window,
+                                 logarithmic: logScale,
+                                 onVisibleRangeChange: { visibleRange = $0 },
+                                 selection: $scrubbed)
                 Text("Drag across the chart to read individual points; swipe it sideways to move back through your history.")
                     .font(.caption2).foregroundStyle(.tertiary)
                 HStack {

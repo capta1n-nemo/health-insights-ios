@@ -28,7 +28,11 @@ struct BloodPressureLogView: View {
     }
     /// The chart scrolls through the whole history, so the timeframe acts as a
     /// zoom level rather than a filter and panning travels back through time.
-    private var chartWindow: TimeInterval { timeframe.window ?? 60 * 60 * 24 * 366 * 12 }
+    private var chartWindow: TimeInterval {
+        let dates = readings.map(\.date)
+        let span = (dates.min()).flatMap { lo in dates.max().map { $0.timeIntervalSince(lo) } }
+        return timeframe.chartWindow(spanning: span)
+    }
     private var visibleStart: Date {
         scrollX ?? (readings.map(\.date).max() ?? Date()).addingTimeInterval(-chartWindow)
     }

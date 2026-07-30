@@ -47,9 +47,15 @@ struct MultiSourceChart: View {
     /// Reports the window currently on screen, so read-outs beneath the chart can
     /// describe what is actually visible after a pan.
     var onVisibleRangeChange: ((ClosedRange<Date>) -> Void)?
+    /// Lets an owner observe the scrub position, so the breakdown beneath can
+    /// follow the crosshair. Falls back to private state when not supplied.
+    var selection: Binding<Date?>?
 
-    /// The instant the user is scrubbing over, nil when not touching the chart.
-    @State private var selected: Date?
+    /// The instant being scrubbed over, when no owner supplied a binding.
+    @State private var localSelection: Date?
+
+    private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
+    private var selected: Date? { selectionBinding.wrappedValue }
 
     private struct Point: Identifiable {
         /// Derived, not a fresh UUID: a new identity every render made SwiftUI
@@ -168,7 +174,7 @@ struct MultiSourceChart: View {
         ScrollableMetricChart(
             dataSpan: fullDomain,
             window: window,
-            selection: $selected,
+            selection: selectionBinding,
             logarithmic: logarithmic,
             isEmpty: { range in
                 plotted(in: range).allSatisfy { $0.points.isEmpty }
@@ -203,48 +209,6 @@ struct MultiSourceChart: View {
                               y: .value(breakdown.type.unit, p.value))
                         .foregroundStyle(by: .value("Source", p.source))
                         .symbolSize(26)
-                }
-            }
-        }
-    }
-}
-
-/// "Apple Watch: 66 · Oura: 60 · Average: 63" — the honest per-source read-out
-/// that sits under the chart on every card.
-struct SourceBreakdown: View {
-    let breakdown: MultiSourceBreakdown
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(breakdown.hasMultipleSources ? "What each source says" : "Latest reading")
-                .font(.headline)
-
-            ForEach(Array(breakdown.sources.enumerated()), id: \.element.id) { index, series in
-                HStack(spacing: 9) {
-                    Circle().fill(Theme.sourceColor(index)).frame(width: 9, height: 9)
-                    Text(series.displayName)
-                    Spacer()
-                    if let latest = series.latest {
-                        Text("\(formatMetric(latest, breakdown.type)) \(breakdown.type.unit)")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
-                .font(.subheadline)
-            }
-
-            if breakdown.hasMultipleSources, let avg = breakdown.consensusLatest {
-                Divider()
-                HStack {
-                    Text("Average").font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text("\(formatMetric(avg, breakdown.type)) \(breakdown.type.unit)")
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                }
-                if let spread = breakdown.latestSpread, spread > 0 {
-                    Text("Your sources differ by \(formatMetric(spread, breakdown.type)) \(breakdown.type.unit) right now.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
