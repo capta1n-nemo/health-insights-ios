@@ -37,6 +37,9 @@
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
 - `docs/progress.md` -> Feature roadmap checklist.
+- `docs/symbol-index.md` -> **Where does X live.** 198 types, one line each.
+  Check here before grepping or reading `architecture.md` to navigate.
+  Generated — run `./scripts/gen-symbol-index.sh` after adding or moving a type.
 
 ## Skills — load these instead of re-deriving the rules
 - `verify-before-push` -> toolchain bootstrap, the local gate, reading CI cheaply.

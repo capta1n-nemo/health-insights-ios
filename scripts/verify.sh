@@ -118,6 +118,23 @@ if [ -n "$dupes" ]; then
     fail=1
 fi
 
+# --- The symbol index must not rot -----------------------------------------
+# A stale index is worse than no index, because it gets trusted.
+
+if [ -f docs/symbol-index.md ] && [ -x scripts/gen-symbol-index.sh ]; then
+    # Regenerate to a scratch copy and compare — generating over the real file
+    # and diffing it against itself always passes, which is the bug this
+    # replaces.
+    saved=$(mktemp)
+    cp docs/symbol-index.md "$saved"
+    ./scripts/gen-symbol-index.sh >/dev/null 2>&1 || true
+    if ! diff -q "$saved" docs/symbol-index.md >/dev/null 2>&1; then
+        note 'docs/symbol-index.md was stale — regenerated. Commit the change.'
+        fail=1
+    fi
+    rm -f "$saved"
+fi
+
 # --- Tests, when a toolchain exists ----------------------------------------
 
 if [ "${1:-}" = "--tests" ]; then
