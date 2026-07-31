@@ -89,6 +89,7 @@ public enum SuggestionEngine {
     public static func suggestions(results: [InsightResult],
                                    samples: [HealthMetricSample],
                                    profile: UserHealthProfile,
+                                   substanceEvents: [SubstanceEvent] = [],
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
@@ -98,6 +99,7 @@ public enum SuggestionEngine {
         out += convergence(watch)
         out += personalLevers(samples: samples, profile: profile, now: now, calendar: calendar)
         out += overnightCharge(samples: samples, now: now, calendar: calendar)
+        out += substanceResponse(events: substanceEvents, samples: samples, now: now)
         out += unlocks(results: results)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
@@ -231,6 +233,74 @@ public enum SuggestionEngine {
     /// is worth saying. One standard deviation of overnight recovery — below
     /// that this is reporting the week-to-week wobble of the model itself.
     static let minimumChargeShortfall = EnergyModel.recoveryPointsPerSD
+
+    /// The strongest thing the substance log has to say about this person.
+    ///
+    /// The log was a data source for exactly one card and one chart shading.
+    /// Everything else in the app — the pattern finder, the deep dive, this —
+    /// was blind to it, which is a strange property for the only input the user
+    /// enters by hand.
+    ///
+    /// It qualifies as `.yourOwnData` for the same reason the volume contrast
+    /// does: it is a comparison between two sets of this person's own nights,
+    /// with the counts stated. It is emphatically not advice — the sentence
+    /// reports what the nights after a log looked like against the nights after
+    /// nothing, and stops there.
+    static func substanceResponse(events: [SubstanceEvent],
+                                  samples: [HealthMetricSample],
+                                  now: Date) -> [Suggestion] {
+        guard !events.isEmpty else { return [] }
+        let analysis = SubstanceResponseAnalyzer.analyze(events: events, samples: samples,
+                                                         now: now)
+        // The clearest adverse effect, by how large it is against the clean
+        // nights' own spread — the same standard the rest of this file uses, and
+        // the reason a 2 bpm shift in a steady signal can outrank a 5 bpm shift
+        // in a noisy one.
+        guard let effect = analysis.effects
+            .filter({ $0.isAdverse })
+            .compactMap({ effect -> (SubstanceResponseAnalyzer.MetricEffect, Double)? in
+                effect.effectSize.map { (effect, $0) }
+            })
+            .filter({ $0.1 >= minimumSubstanceEffectSize
+                        && abs($0.0.deltaPercent) >= minimumSubstanceChangePercent })
+            .max(by: { $0.1 < $1.1 })?.0 else { return [] }
+
+        let direction = effect.deltaAbsolute > 0 ? "higher" : "lower"
+        return [Suggestion(
+            id: "substance-\(effect.metric.rawValue)",
+            title: "\(effect.metric.displayName) reads differently after you log something",
+            detail: String(format: "In the %d nights following a log, your %@ averaged %@ — %@ than the %@ across %d nights with nothing logged. Your own two sets of nights, not a claim about cause.",
+                           effect.affectedNights, effect.metric.inSentence,
+                           MetricValueFormatter.detailedString(effect.afterUse, effect.metric),
+                           direction,
+                           MetricValueFormatter.detailedString(effect.baseline, effect.metric),
+                           effect.baselineNights),
+            basis: .yourOwnData,
+            insight: .substanceImpact,
+            metric: effect.metric,
+            // A full standard deviation of the clean nights is a strong finding;
+            // two is as strong as this evidence gets.
+            strength: Swift.min(1, (effect.effectSize ?? 0) / 2))]
+    }
+
+    /// How far apart the two sets of nights must be before this is worth saying,
+    /// in clean-night standard deviations. Below half an SD the two
+    /// distributions are the same distribution.
+    static let minimumSubstanceEffectSize = 0.5
+
+    /// And how far apart in the metric's own units, as a share of the baseline.
+    ///
+    /// A standardised threshold alone is not enough, and the failure is easy to
+    /// miss: someone whose clean nights sit in a very tight band gets a tiny
+    /// divisor, so a fifth of a beat per minute clears half a standard deviation
+    /// and the app announces a finding about a difference no sensor can resolve.
+    ///
+    /// Three percent — a couple of bpm on a resting heart rate — is roughly
+    /// where consumer optical measurement stops being able to tell two numbers
+    /// apart. The same shape as the ±5 mmHg floor on blood-pressure drift and
+    /// the two-point floor on a score change: a relative test needs an absolute
+    /// companion, because a small enough denominator makes anything significant.
+    static let minimumSubstanceChangePercent = 3.0
 
     // MARK: - 2. Facts the app is missing
 

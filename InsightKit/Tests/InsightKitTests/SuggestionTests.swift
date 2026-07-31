@@ -308,3 +308,78 @@ final class SuggestionsFromTheNewCardsTests: XCTestCase {
         }
     }
 }
+
+/// The substance log was a data source for exactly one card and one chart
+/// shading — a strange property for the only input the user enters by hand.
+final class SubstanceSuggestionTests: XCTestCase {
+
+    /// `clean` nights at `baseline` bpm, then `logged` nights that each follow a
+    /// logged event and read `after` bpm.
+    private func fixture(baseline: Double, after: Double,
+                         clean: Int = 14, logged: Int = 6)
+        -> (events: [SubstanceEvent], samples: [HealthMetricSample]) {
+        var events: [SubstanceEvent] = []
+        var samples: [HealthMetricSample] = []
+        for day in 0..<(clean + logged) {
+            let isLogged = day < logged
+            // A little wobble so the clean nights have a spread to judge against.
+            let wobble = Double(day % 3) * 0.4
+            samples.append(HealthMetricSample(
+                type: .restingHeartRate,
+                value: (isLogged ? after : baseline) + wobble,
+                start: sugDay(day), source: .oura))
+            if isLogged {
+                events.append(SubstanceEvent(substance: .alcohol,
+                                             timestamp: sugDay(day).addingTimeInterval(-4 * 3600)))
+            }
+        }
+        return (events, samples)
+    }
+
+    private func suggestions(_ f: (events: [SubstanceEvent], samples: [HealthMetricSample]))
+        -> [Suggestion] {
+        SuggestionEngine.suggestions(results: [], samples: f.samples, profile: .init(),
+                                     substanceEvents: f.events, now: sugNow,
+                                     calendar: sugCalendar)
+    }
+
+    func testAClearResponseBecomesASuggestion() throws {
+        let all = suggestions(fixture(baseline: 55, after: 66))
+        let row = try XCTUnwrap(all.first { $0.id.hasPrefix("substance-") })
+        XCTAssertEqual(row.basis, .yourOwnData)
+        XCTAssertEqual(row.insight, .substanceImpact)
+        XCTAssertEqual(row.metric, .restingHeartRate)
+        // Both sets of nights must be countable from the sentence, or it is an
+        // assertion rather than a comparison.
+        XCTAssertTrue(row.detail.contains("nights"), row.detail)
+    }
+
+    /// Two sets of nights that are the same distribution are not a finding.
+    func testNoDifferenceSaysNothing() {
+        XCTAssertFalse(suggestions(fixture(baseline: 55, after: 55.2))
+            .contains { $0.id.hasPrefix("substance-") })
+    }
+
+    func testAnEmptyLogSaysNothing() {
+        let f = fixture(baseline: 55, after: 66)
+        XCTAssertFalse(SuggestionEngine
+            .suggestions(results: [], samples: f.samples, profile: .init(),
+                         substanceEvents: [], now: sugNow, calendar: sugCalendar)
+            .contains { $0.id.hasPrefix("substance-") })
+    }
+
+    /// It reports two sets of the user's own nights and stops. Anything that
+    /// reads as "so drink less" is the line this app does not cross — these
+    /// features are harm-reduction and descriptive, never encouragement or
+    /// discouragement.
+    func testItDescribesRatherThanPrescribes() throws {
+        let row = try XCTUnwrap(suggestions(fixture(baseline: 55, after: 66))
+            .first { $0.id.hasPrefix("substance-") })
+        let text = (row.title + " " + row.detail).lowercased()
+        for phrase in ["you should", "cut down", "avoid", "reduce your", "stop ",
+                       "we recommend", "try to"] {
+            XCTAssertFalse(text.contains(phrase), "\(row.id) prescribes: \(text)")
+        }
+        XCTAssertTrue(text.contains("not a claim about cause"), text)
+    }
+}

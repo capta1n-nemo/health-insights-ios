@@ -456,81 +456,100 @@ clauses are not, and they were not visible from the summary lines above because
 each sits *inside* an item that is otherwise done. Each was verified by grep, not
 recalled.
 
-#### The suggestion lifecycle — the largest gap
+#### The suggestion lifecycle — done
 
-The engine generates suggestions and ranks them. Everything the feedback asked
-for *around* that was never built, and this is the whole of it:
+- [x] **Dismissible, on both surfaces.** Persisted by content-derived id, so
+      "the same suggestion" means the same thing across a regeneration.
+- [x] **Today has a suggestion card** — the single best-founded one, with a
+      dismiss control. It had none at all; the engine shipped and this surface
+      was never built.
+- [x] **Insights is the persistent reminder**: pinned above everything, collapsed
+      to a count by default, expandable, and keeping dismissed rows dimmed with a
+      restore button — which is what makes dismissing on Today safe rather than
+      destructive.
+- [x] **A dismissal lasts thirty days**, or until something genuinely new
+      appears. New findings have new ids and so were never dismissed, which is
+      the whole mechanism.
+- [x] **"Completed" needed no per-suggestion definition.** Per-basis rules would
+      have needed three different answers — a grounding gap closes when the fact
+      is entered, a departure closes when the signal returns, a contrast from
+      your own history never closes at all. None of it was necessary: the engine
+      only emits a suggestion while its condition holds, so disappearing from its
+      output *is* resolution by whichever route, and the dismissal it left behind
+      is pruned.
 
-- [ ] **Suggestions are not dismissible.** There is no dismissal anywhere in the
-      app — verified: no dismissal state, no store, no gesture.
-- [ ] **Nothing appears on Today.** `DashboardView` has no reference to
-      suggestions at all; they exist only in `InsightsListView`. The asked-for
-      behaviour is that Today shows one and it reappears only when a *new*
-      suggestion is generated — which needs a record of what has already been
-      shown, not just what is currently true.
-- [ ] **The Insights row is not the persistent reminder that was asked for.** It
-      should be pinned to the top, compact and collapsed by default, expandable
-      for detail, and it should retain dismissed suggestions as well as active
-      ones. Today it is an ordinary card in flow order, always expanded, and
-      shows only what the engine currently emits.
-- [ ] **There is no notion of a suggestion being finished.** "If all associated
-      tasks are completed, hide it from both Today and Insights" needs each
-      suggestion to declare what completion *means* — and for the three bases
-      that is three different things. A grounding gap closes when the fact is
-      entered; a departure closes when the signal returns to baseline; a
-      contrast from the user's own history never closes at all, because it is an
-      observation rather than a task. That last one is the design question, and
-      it needs answering before any of this is built.
+#### The place the build disagreed with the brief — resolved, and the brief was right
 
-The shape this suggests: `Suggestion` grows a stable identity that survives
-regeneration (it has `id` already, and the ids are content-derived, which is most
-of the way there), plus a persisted set of dismissals and a per-basis rule for
-what counts as resolved. The store is the easy half.
+- [x] **Gaps are crossed with a smoothed prediction now.** The first answer was a
+      straight dashed line plus an argument: a curve through two endpoints
+      overshoots and invents a local extremum in the one stretch where nothing is
+      known. That argument is sound *about Catmull-Rom and natural cubics* and it
+      was mistaken as an argument against curvature. A **monotone cubic Hermite**
+      — Fritsch–Carlson, the construction behind PCHIP — is built to guarantee
+      exactly the missing property: no interior extremum, and the curve never
+      leaves the interval its two measured endpoints define. Both facts are
+      pinned by tests. Still dashed: smoothing changes nothing about the fact
+      that nobody measured it.
 
-#### The one place the build disagrees with the brief
-
-- [ ] **"Replace dotted-line gap markers with smoothed predicted values."** The
-      app bridges gaps with a **straight** dashed connector instead, on both
-      charts, and the reasoning is written into `SeriesBridging`: a Catmull-Rom
-      curve overshoots outside the measured range and invents a local extremum in
-      the one stretch where nothing is known. The endpoints are already bucket
-      aggregates — median for weight, mean for the rest — so some smoothing has
-      happened; it is just not visible as curvature.
-
-      This is recorded as an open decision rather than a closed item because it
-      is a deliberate deviation from an explicit instruction, and the call is the
-      user's. If a curve is wanted anyway, the honest version is a fitted
-      prediction with its residual spread drawn around it — the standard
-      `ScoreHistoryChart` and `VO2Trajectory` already hold themselves to — rather
-      than an interpolation that looks like measurement.
+      Worth keeping as a lesson — "that technique has a fatal flaw" is not the
+      same claim as "this is impossible", and the gap between them was a shipped
+      deviation from an explicit instruction.
 
 #### Four smaller ones
 
-- [ ] **A blood-pressure drift counter.** The cadence rule shipped (five readings
-      to ground, two per thirty days to maintain) but the counter itself does
-      not exist: nothing anywhere says how far the estimate has moved from the
-      last cuff reading. That number is what tells a user *why* they are being
-      asked to cuff again, and it is a small addition to
-      `BloodPressureEstimator` beside the calibration phase.
-- [ ] **Sleep Quality is still reading a fraction of what Oura sends.**
-      `OuraResponseParser.SleepRecord` decodes seven fields. The stage breakdown
-      — deep, REM, light, awake — plus sleep latency and efficiency are in every
-      payload and are ignored, and they are the inputs a sleep score is normally
-      built from. `.sleepOnset` now exists and is not wired into Sleep Quality
-      either, though the regularity it measures is a known component of sleep
-      quality. Ingestion is the work; the scoring change is small once the
-      metrics exist.
-- [ ] **The substance log is a data source for charts and nothing else.**
-      `SubstanceWindow` lets a chart shade the after-window, but no insight, no
-      pattern finder and no suggestion reads the log. The asked-for framing was a
-      timestamped source "available to other parts of the app" — the obvious next
-      consumer is the deep-dive correlation, which already asks whether one
-      series leads another.
+- [x] **A blood-pressure drift counter.** Measured by holding each cuff reading
+      out and fitting on the ones before it — scoring a fit against readings it
+      was fitted through reports how well least squares interpolates, which
+      always flatters. Judged against the fit's own claimed uncertainty, floored
+      at ±5 mmHg (ISO 81060-2, the accuracy the cuff itself is held to), because
+      a fit through a handful of points can claim a residual spread of nearly
+      zero and for a person whose readings sit on a line claimed exactly zero.
+- [x] **Sleep Quality reads the stage breakdown now.** `.sleepEfficiency`,
+      `.sleepDeepMinutes` and `.sleepRemMinutes` are canonical metrics, parsed
+      from Oura, Whoop *and* Apple Health — all three were sending them and all
+      three parsers were discarding them, so the card scored a night by its
+      length and its breathing while the composition of that night sat unread in
+      the same payload.
+
+      Deep and REM are scored as a **share of the night, never as a minute
+      target**. A six-hour sleeper with textbook proportions has a duration
+      problem, which the duration term already scores; a minutes target would
+      charge them twice for one short night. Efficiency gets a real band (≥85%,
+      the National Sleep Foundation consensus figure); the stages get none, and
+      the reason is written down.
+- [x] **The substance log feeds the suggestion engine.** The strongest adverse
+      response — the nights after a log against the nights after nothing — now
+      surfaces as a `yourOwnData` suggestion with both night counts stated. Gated
+      on effect size *and* an absolute floor, because a person whose clean nights
+      sit in a very tight band gets a tiny divisor and a fifth of a bpm would
+      otherwise clear half a standard deviation.
 - [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
-      roadmap note rather than a build, and never recorded here until now. It
-      belongs beside the other unstructured-data captures: a guided capture
-      producing body measurements would feed Body Composition, which today can
-      only report what a smart scale tells it.
+      roadmap note rather than a build, and deliberately left as one. It belongs
+      beside the other unstructured-data captures: a guided capture producing
+      body measurements would feed Body Composition, which today can only report
+      what a smart scale tells it. Scoping notes for whoever picks it up:
+      `ARKit`'s `sceneReconstruction` needs a LiDAR device (Pro models only), the
+      guided-capture UX is the hard part rather than the mesh, and circumference
+      estimates from a mesh have no validated accuracy claim — so anything it
+      produces should enter as its own metric with its own provenance, never
+      merged into a scale's figures. Same rule as vascular age: two models
+      disagreeing is information, averaging them away is not.
+
+### The performance and interaction pass
+
+- [x] **The substance log page was slow because one call did far too much.**
+      Tapping a chip called `recompute()`, which evaluates all seventeen insights
+      across the whole sample set and then discards every derived cache. Exactly
+      one model reads the log and not one of those caches does, so the three
+      mutations now re-evaluate that one insight and invalidate only what a
+      changed result affects.
+- [x] **The date picker is the default path**, pre-filled with now, rather than
+      hidden behind a long-press nobody discovers.
+- [x] **Edit is a real control** — a bordered capsule with a word in it, not a
+      caption-sized pencil under the 44pt minimum target inside a run of
+      secondary text.
+- [x] **Direction next to every score**, on Today and Insights cards. See below
+      for why it is not "vs yesterday".
 
 ### Test and file hygiene
 - [x] Shared test clock — narrow version, as scoped. The obvious "one `Clock` for
@@ -555,6 +574,34 @@ what counts as resolved. The store is the easy half.
 
 ### On-device ML
 - [ ] Core ML personal anomaly detection once enough history exists.
+
+## How trend indicators are rendered, and why
+
+Researched rather than guessed, because the obvious design is wrong. Surveying
+what Oura, Whoop, Garmin, Apple Health, Fitbit and Withings actually ship:
+
+- **Not one of them renders a day-over-day delta on a daily score.** Every one
+  compares a short window against a longer one, or renders position within a
+  personal range.
+- The reason is arithmetic. Day-to-day variability in HRV sits around 5% and is
+  reported between 3% and 13% depending on method, while a genuinely hard day
+  moves it 10–20%. An arrow driven by yesterday reports noise most days, and an
+  indicator that is usually wrong gets ignored — which costs more than not
+  having one.
+- **Colour is valence, never direction.** Whoop's green/yellow/red, Oura's
+  Optimal→Pay Attention, Garmin's Balanced/Unbalanced — and Garmin's
+  "Unbalanced" covers *above or below*, which is the proof that direction and
+  valence are different axes.
+- **"Not enough data" is a first-class state**, not a blank: Apple's "Needs More
+  Data", Garmin's "No status".
+- **Static is suppressed.** Apple omits a trend outright when nothing moved.
+
+So `ScoreChange` keeps the direction the brief asked for and moves the
+comparison somewhere the signal survives: today against the trailing week for
+daily cards, four weeks against the trailing quarter for trend cards. The move
+is standardised against the reference window's own spread, with a two-point
+absolute floor, and Today is held to a stricter bar than Insights because it is
+seen an order of magnitude more often.
 
 ## Guardrails (unchanging)
 - Not a medical device; not medical advice. Substance features are

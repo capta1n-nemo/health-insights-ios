@@ -24,8 +24,13 @@ public enum MetricValueFormatter {
             return String(format: "%.1f", value)
         // Only these two carry their own "%" — matching what callers already
         // expect, so nothing starts rendering "97% %".
-        case .bodyFatPercentage, .oxygenSaturation:
+        case .bodyFatPercentage, .oxygenSaturation, .sleepEfficiency:
             return String(format: "%.0f%%", value)
+        // Minutes read as hours and minutes past an hour; "94 min" makes the
+        // reader do the division.
+        case .sleepDeepMinutes, .sleepRemMinutes:
+            let total = Int(value.rounded())
+            return total >= 60 ? "\(total / 60)h \(total % 60)m" : "\(total)m"
         case .stepCount, .activeEnergyBurned:
             return grouped(value)
         // Stored as signed hours from midnight and read as a clock time, which
@@ -42,7 +47,8 @@ public enum MetricValueFormatter {
     /// a second one.
     public static func includesUnit(_ type: MetricType) -> Bool {
         switch type {
-        case .height, .bodyFatPercentage, .oxygenSaturation:
+        case .height, .bodyFatPercentage, .oxygenSaturation, .sleepEfficiency,
+             .sleepDeepMinutes, .sleepRemMinutes:
             return true
         default:
             return false

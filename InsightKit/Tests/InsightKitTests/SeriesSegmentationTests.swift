@@ -250,3 +250,67 @@ final class OverlayBridgingTests: XCTestCase {
         }
     }
 }
+
+/// The brief asked for "smoothed predicted values" across gaps and got a
+/// straight line, with a written argument that a curve invents an extremum
+/// where nothing was measured. That objection is to *those* curves, not to
+/// curvature — a monotone cubic Hermite cannot have an interior extremum, which
+/// is the whole reason it is the one used here.
+final class SmoothedBridgeTests: XCTestCase {
+
+    private func bridge(from: Double, to: Double) -> GapBridge {
+        GapBridge(start: segBase, end: segBase.addingTimeInterval(4 * segDay),
+                  startValue: from, endValue: to)
+    }
+
+    /// The guarantee. Every drawn point stays inside the interval its two
+    /// measured endpoints define — no invented peak, no invented trough.
+    func testTheCurveNeverLeavesTheMeasuredInterval() {
+        for (from, to) in [(60.0, 72.0), (72.0, 60.0), (55.0, 55.5), (100.0, 20.0)] {
+            let values = bridge(from: from, to: to).smoothed().map(\.value)
+            let low = Swift.min(from, to), high = Swift.max(from, to)
+            for value in values {
+                XCTAssertGreaterThanOrEqual(value, low - 0.0001, "\(from)→\(to)")
+                XCTAssertLessThanOrEqual(value, high + 0.0001, "\(from)→\(to)")
+            }
+        }
+    }
+
+    /// Stronger than staying in range: it never turns back on itself, so there
+    /// is no local extremum anywhere along it.
+    func testTheCurveIsMonotone() {
+        let rising = bridge(from: 60, to: 72).smoothed().map(\.value)
+        XCTAssertEqual(rising, rising.sorted(), "a rising bridge must never dip")
+        let falling = bridge(from: 72, to: 60).smoothed().map(\.value)
+        XCTAssertEqual(falling, falling.sorted(by: >), "a falling bridge must never rise")
+    }
+
+    /// It has to actually touch the readings it joins, or it is drawing a
+    /// different series.
+    func testItStartsAndEndsOnTheMeasuredValues() throws {
+        let points = bridge(from: 62, to: 66).smoothed()
+        XCTAssertEqual(try XCTUnwrap(points.first).value, 62, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(points.last).value, 66, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(points.first).date, segBase)
+        XCTAssertEqual(try XCTUnwrap(points.last).date,
+                       segBase.addingTimeInterval(4 * segDay))
+    }
+
+    /// And it is a curve, not a straight line wearing more points — otherwise
+    /// none of this bought anything.
+    func testItIsActuallyCurved() throws {
+        let points = bridge(from: 60, to: 70).smoothed()
+        let midpoint = try XCTUnwrap(points.first { $0.date == segBase.addingTimeInterval(2 * segDay) })
+        XCTAssertEqual(midpoint.value, 65, accuracy: 0.0001, "an S-curve is symmetric at the middle")
+        // A quarter of the way along, the eased curve sits below the straight
+        // line's 62.5.
+        let quarter = try XCTUnwrap(points.first { $0.date == segBase.addingTimeInterval(segDay) })
+        XCTAssertLessThan(quarter.value, 62.5)
+    }
+
+    func testAZeroLengthBridgeDrawsNothing() {
+        let degenerate = GapBridge(start: segBase, end: segBase,
+                                   startValue: 60, endValue: 60)
+        XCTAssertTrue(degenerate.smoothed().isEmpty)
+    }
+}

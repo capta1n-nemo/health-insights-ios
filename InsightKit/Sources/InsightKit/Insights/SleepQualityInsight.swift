@@ -8,8 +8,22 @@ public struct SleepQualityInsight: InsightModel {
     public init() {}
     public var requirements: [GroundingRequirement] { [] }
     public var candidateMetrics: [MetricType] {
-        [.sleepDurationHours, .oxygenSaturation, .respiratoryRate, .skinTemperatureDeviation]
+        [.sleepDurationHours, .sleepEfficiency, .sleepDeepMinutes, .sleepRemMinutes,
+         .oxygenSaturation, .respiratoryRate, .skinTemperatureDeviation]
     }
+
+    /// The share of a night the published figures put deep and REM sleep at,
+    /// combined.
+    ///
+    /// Deep is roughly 13–23% of a night and REM 20–25%, so together they
+    /// account for something like a third to a half of it. Scored as a *share*
+    /// rather than in minutes, and that is the whole point: a fixed minute
+    /// target tells a six-hour sleeper their perfectly normal proportions are
+    /// abnormal, when what they have is a duration problem the duration term is
+    /// already scoring. Charging them twice for one night would be the
+    /// double-counting this app has had to unpick before.
+    static let restorativeShareLow = 0.33
+    static let restorativeShareHigh = 0.55
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         // One value per night, de-duplicated across devices. Previously this read
@@ -69,8 +83,53 @@ public struct SleepQualityInsight: InsightModel {
             return max(20, 95 - min(70, abs(dev) * 55))
         }()
 
-        let score = durationScore * 0.45 + consistencyScore * 0.2 + respScore * 0.1
-            + oxygenScore * 0.15 + tempScore * 0.1
+        // How much of the time in bed was actually spent asleep. Oura, Whoop and
+        // Apple all report the pieces and the parser discarded them, so this
+        // card scored a night by its length and its breathing while the
+        // composition of that night sat unread in the same payload.
+        let efficiencyReading = VitalReader.reading(.sleepEfficiency, from: samples,
+                                                    now: now, freshWithin: 36 * 3600)
+        let efficiencyScore: Double = {
+            guard let value = efficiencyReading?.value else { return 75 }
+            switch value {
+            case 90...: return 100
+            case 85..<90: return 88
+            case 80..<85: return 68
+            case 75..<80: return 50
+            default: return 30
+            }
+        }()
+
+        // Deep and REM as a share of the night, never as a minute target.
+        let deepReading = VitalReader.reading(.sleepDeepMinutes, from: samples,
+                                              now: now, freshWithin: 36 * 3600)
+        let remReading = VitalReader.reading(.sleepRemMinutes, from: samples,
+                                             now: now, freshWithin: 36 * 3600)
+        let restorativeShare: Double? = {
+            guard lastNight > 0, deepReading != nil || remReading != nil else { return nil }
+            let minutes = (deepReading?.value ?? 0) + (remReading?.value ?? 0)
+            return minutes / (lastNight * 60)
+        }()
+        let restorativeScore: Double = {
+            guard let share = restorativeShare else { return 75 }
+            if share >= Self.restorativeShareLow && share <= Self.restorativeShareHigh {
+                return 100
+            }
+            // Distance outside the band, in percentage points of the night. Ten
+            // points outside is a materially different night; the band's own
+            // width is what sets the scale.
+            let outside = share < Self.restorativeShareLow
+                ? Self.restorativeShareLow - share : share - Self.restorativeShareHigh
+            return Swift.max(30, 100 - outside * 100 * 4)
+        }()
+
+        // Duration keeps the largest share — nothing about a night's
+        // composition rescues four hours of it — and the two new terms come out
+        // of what respiratory rate and temperature were carrying, which are the
+        // weakest evidence here.
+        let score = durationScore * 0.38 + consistencyScore * 0.15
+            + efficiencyScore * 0.15 + restorativeScore * 0.12
+            + respScore * 0.06 + oxygenScore * 0.09 + tempScore * 0.05
         let band = Self.band(score)
         // Each line classified by the sub-score behind it, so the detail card
         // leads with whatever cost the night its marks.
@@ -80,6 +139,18 @@ public struct SleepQualityInsight: InsightModel {
             InsightDriver.component("Consistency: \(Int(consistencyScore))/100",
                                     score: consistencyScore)
         ]
+        if let latest = efficiencyReading?.value {
+            drivers.append(.component(String(format: "Efficiency: %.0f%% of your time in bed asleep", latest),
+                                      score: efficiencyScore))
+        }
+        if let share = restorativeShare {
+            let deep = deepReading.map { String(format: "%.0f min deep", $0.value) }
+            let rem = remReading.map { String(format: "%.0f min REM", $0.value) }
+            let parts = [deep, rem].compactMap { $0 }.joined(separator: ", ")
+            drivers.append(.component(String(format: "Deep and REM: %.0f%% of the night (%@)",
+                                             share * 100, parts),
+                                      score: restorativeScore))
+        }
         if let latest = respReading?.value {
             drivers.append(.component(String(format: "Respiratory rate: %.0f br/min", latest),
                                       score: respScore))
@@ -103,20 +174,32 @@ public struct SleepQualityInsight: InsightModel {
         // shares sleep's line rather than inventing a fifth. Its weight is folded
         // in and the detail names it, so the 20% isn't unaccounted for.
         var contributors = [MetricContribution(
-            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.65,
+            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.53,
             detail: String(format: "%.1f h · consistency %d/100",
                            lastNight, Int(consistencyScore)))]
+        if let latest = efficiencyReading?.value {
+            contributors.append(.init(metric: .sleepEfficiency, higherIsBetter: true,
+                                      weight: 0.15, detail: String(format: "%.0f%%", latest)))
+        }
+        if let latest = deepReading?.value {
+            contributors.append(.init(metric: .sleepDeepMinutes, higherIsBetter: nil,
+                                      weight: 0.06, detail: String(format: "%.0f min", latest)))
+        }
+        if let latest = remReading?.value {
+            contributors.append(.init(metric: .sleepRemMinutes, higherIsBetter: nil,
+                                      weight: 0.06, detail: String(format: "%.0f min", latest)))
+        }
         if let latest = spo2Reading?.value {
             contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
                                       weight: 0.15, detail: String(format: "%.0f%%", latest)))
         }
         if let latest = respReading?.value {
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
-                                      weight: 0.10, detail: String(format: "%.0f br/min", latest)))
+                                      weight: 0.06, detail: String(format: "%.0f br/min", latest)))
         }
         if let dev = tempReading?.value {
             contributors.append(.init(metric: .skinTemperatureDeviation, higherIsBetter: nil,
-                                      weight: 0.10, detail: String(format: "%+.1f °C", dev)))
+                                      weight: 0.05, detail: String(format: "%+.1f °C", dev)))
         }
 
         // A stale night can't buy high confidence however long the history is.
@@ -125,7 +208,7 @@ public struct SleepQualityInsight: InsightModel {
         return InsightResult(
             id: id, title: title, primaryValue: score, headline: band, score: score,
             confidence: confidence,
-            explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through the night.",
+            explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how much of your time in bed was actually asleep, how much of the night was deep or REM, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through it. Deep and REM are scored as a *share* of the night rather than in minutes, so a short sleeper isn't charged twice for one short night.",
             driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
             unmetRequirements: [], contributors: contributors)
     }

@@ -82,6 +82,8 @@ public enum WhoopResponseParser {
             struct Stages: Decodable {
                 let total_in_bed_time_milli: Double?
                 let total_awake_time_milli: Double?
+                let total_slow_wave_sleep_time_milli: Double?
+                let total_rem_sleep_time_milli: Double?
             }
         }
     }
@@ -101,8 +103,25 @@ public enum WhoopResponseParser {
             }
             if let inBed = s.stage_summary?.total_in_bed_time_milli {
                 let awake = s.stage_summary?.total_awake_time_milli ?? 0
-                let hours = max(0, inBed - awake) / 3_600_000
-                samples.append(HealthMetricSample(type: .sleepDurationHours, value: hours, start: when, source: .whoop))
+                let asleep = max(0, inBed - awake)
+                samples.append(HealthMetricSample(type: .sleepDurationHours, value: asleep / 3_600_000, start: when, source: .whoop))
+                if inBed > 0 {
+                    samples.append(HealthMetricSample(type: .sleepEfficiency,
+                                                      value: asleep / inBed * 100,
+                                                      start: when, source: .whoop))
+                }
+            }
+            // Whoop calls deep sleep "slow wave", which is the same stage under
+            // the polysomnography name.
+            if let swsMilli = s.stage_summary?.total_slow_wave_sleep_time_milli {
+                samples.append(HealthMetricSample(type: .sleepDeepMinutes,
+                                                  value: swsMilli / 60_000,
+                                                  start: when, source: .whoop))
+            }
+            if let remMilli = s.stage_summary?.total_rem_sleep_time_milli {
+                samples.append(HealthMetricSample(type: .sleepRemMinutes,
+                                                  value: remMilli / 60_000,
+                                                  start: when, source: .whoop))
             }
         }
         return samples

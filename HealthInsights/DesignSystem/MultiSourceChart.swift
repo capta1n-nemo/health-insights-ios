@@ -130,9 +130,13 @@ struct MultiSourceChart: View {
         let gap: GapBridge
         let source: String
         var id: String { "\(source)~\(gap.id)" }
+        /// The drawn path across the gap.
+        ///
+        /// A curve rather than the two bare endpoints it used to be — see
+        /// `GapBridge.smoothed`, which is monotone by construction and so cannot
+        /// invent a peak in the stretch nobody measured. Still dashed.
         var ends: [Point] {
-            [Point(date: gap.start, value: gap.startValue, source: source),
-             Point(date: gap.end, value: gap.endValue, source: source)]
+            gap.smoothed().map { Point(date: $0.date, value: $0.value, source: source) }
         }
     }
 

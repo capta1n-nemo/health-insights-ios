@@ -51,6 +51,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// branch cut, and the arithmetic mean is the circular mean. A value outside
     /// (−12, +12] is not a late night, it is a bug.
     case sleepOnset                // h from local midnight (negative = before)
+    case sleepEfficiency           // % of time in bed actually asleep
+    case sleepDeepMinutes          // minutes of deep (slow-wave) sleep
+    case sleepRemMinutes           // minutes of REM sleep
     // Three thermal metrics, deliberately distinct. Core and skin are measured
     // in different places, sit two to three degrees apart, and mean different
     // things — judging one against the other's bounds was reporting every
@@ -95,6 +98,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "Active Energy"
         case .sleepDurationHours: return "Sleep Duration"
         case .sleepOnset: return "Sleep Onset"
+        case .sleepEfficiency: return "Sleep Efficiency"
+        case .sleepDeepMinutes: return "Deep Sleep"
+        case .sleepRemMinutes: return "REM Sleep"
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
@@ -127,6 +133,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         // Empty: the formatter renders this as a clock time, and "23:12 h" is
         // not a thing.
         case .sleepOnset: return ""
+        case .sleepEfficiency: return "%"
+        case .sleepDeepMinutes, .sleepRemMinutes: return "min"
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,

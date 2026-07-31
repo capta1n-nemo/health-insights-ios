@@ -184,7 +184,7 @@ the place to look.
   - `InsightPalette` :56
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :393
+  - `MetricPalette` :413
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -205,7 +205,7 @@ the place to look.
   - `OverlaySelection` :10
 - `Presentation/SeriesSegmentation.swift`
   - `GapBridge` :90
-  - `SeriesBridging` :121
+  - `SeriesBridging` :123
   - `SeriesSegmentation` :53
 - `Signals/SleepOnset.swift`
   - `SleepOnset` :23
@@ -368,6 +368,6 @@ the place to look.
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :7
 - `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :187
+  - `OtherDataDetailView` :188
   - `VitalsView` :8
 

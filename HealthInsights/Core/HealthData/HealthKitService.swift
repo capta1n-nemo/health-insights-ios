@@ -400,9 +400,49 @@ final class HealthKitService {
                     let day = cal.startOfDay(for: s.startDate)
                     byDay[day, default: 0] += s.endDate.timeIntervalSince(s.startDate)
                 }
-                let mapped = byDay.map { day, seconds in
+                var mapped = byDay.map { day, seconds in
                     HealthMetricSample(type: .sleepDurationHours, value: seconds / 3600,
                                        start: day, end: day, source: .appleHealth)
+                }
+
+                // The stage breakdown, which was being flattened away by the
+                // filter above. Apple has published `asleepDeep` and `asleepREM`
+                // as distinct categories since iOS 16 and this read all four as
+                // one undifferentiated "asleep".
+                if #available(iOS 16.0, *) {
+                    let all = (samples as? [HKCategorySample]) ?? []
+                    func minutesByNight(_ value: Int) -> [Date: Double] {
+                        var out: [Date: Double] = [:]
+                        for segment in all where segment.value == value {
+                            out[cal.startOfDay(for: segment.startDate), default: 0]
+                                += segment.endDate.timeIntervalSince(segment.startDate) / 60
+                        }
+                        return out
+                    }
+                    for (day, minutes) in minutesByNight(HKCategoryValueSleepAnalysis.asleepDeep.rawValue) {
+                        mapped.append(HealthMetricSample(type: .sleepDeepMinutes, value: minutes,
+                                                         start: day, end: day, source: .appleHealth))
+                    }
+                    for (day, minutes) in minutesByNight(HKCategoryValueSleepAnalysis.asleepREM.rawValue) {
+                        mapped.append(HealthMetricSample(type: .sleepRemMinutes, value: minutes,
+                                                         start: day, end: day, source: .appleHealth))
+                    }
+                    // Efficiency needs a denominator, and `inBed` is the only
+                    // honest one. Sources that never write an `inBed` segment —
+                    // most rings, which infer sleep rather than bedtime — get no
+                    // efficiency rather than a fabricated 100%.
+                    var inBedByNight: [Date: Double] = [:]
+                    for segment in all where segment.value == HKCategoryValueSleepAnalysis.inBed.rawValue {
+                        inBedByNight[cal.startOfDay(for: segment.startDate), default: 0]
+                            += segment.endDate.timeIntervalSince(segment.startDate)
+                    }
+                    for (day, inBed) in inBedByNight where inBed > 0 {
+                        guard let asleepSeconds = byDay[day], asleepSeconds > 0 else { continue }
+                        mapped.append(HealthMetricSample(
+                            type: .sleepEfficiency,
+                            value: min(100, asleepSeconds / inBed * 100),
+                            start: day, end: day, source: .appleHealth))
+                    }
                 }
                 // The same segments, read for *when* rather than how long.
                 //

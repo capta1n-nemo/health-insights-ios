@@ -73,7 +73,8 @@ public extension MetricType {
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height: return .body
         case .stepCount, .activeEnergyBurned, .vo2Max, .dayStrain: return .activity
-        case .sleepDurationHours, .sleepOnset: return .sleep
+        case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
+             .sleepDeepMinutes, .sleepRemMinutes: return .sleep
         }
     }
 
@@ -139,6 +140,9 @@ public extension MetricType {
         // `.sleepDurationHours` would renumber eighteen cases so that two
         // metrics which never share a chart could each keep a preferred hue.
         case .sleepOnset: return 31
+        case .sleepEfficiency: return 32
+        case .sleepDeepMinutes: return 33
+        case .sleepRemMinutes: return 34
         }
     }
 
@@ -178,7 +182,8 @@ public extension MetricType {
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
-             .sleepDurationHours, .sleepOnset,
+             .sleepDurationHours, .sleepOnset, .sleepEfficiency,
+             .sleepDeepMinutes, .sleepRemMinutes,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry:
             // Sleep belongs here, not with the daily totals: it already arrives
@@ -220,7 +225,8 @@ public extension MetricType {
             return 30 * minute
         case .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
-             .sleepDurationHours, .sleepOnset,
+             .sleepDurationHours, .sleepOnset, .sleepEfficiency,
+             .sleepDeepMinutes, .sleepRemMinutes,
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned,
@@ -287,6 +293,20 @@ public extension MetricType {
             // 22:00–00:00 as "normal" would tell most of the world their
             // bedtime is abnormal. `CircadianConsistency` scores the spread
             // instead, which is the thing the evidence is actually about.
+            return nil
+
+        case .sleepEfficiency:
+            return R(normal: B(low: 85, high: 100),
+                     cautionBelow: B(low: 75, high: 85),
+                     caption: "85% and up is the usual figure for a healthy sleeper — the share of time in bed actually spent asleep.",
+                     provenance: "The ≥85% criterion is the long-standing clinical threshold for normal sleep efficiency, and the one the National Sleep Foundation's sleep-quality consensus panel adopted (Ohayon et al., Sleep Health 2017).")
+
+        case .sleepDeepMinutes, .sleepRemMinutes:
+            // No band. The published figures are *shares of a night* (deep
+            // roughly 13–23%, REM 20–25%), and both shift with age — so a fixed
+            // band in minutes would tell a short sleeper their perfectly normal
+            // proportions are abnormal. `SleepQualityInsight` scores the share
+            // instead, which is the form the evidence is in.
             return nil
 
         case .restingHeartRate:

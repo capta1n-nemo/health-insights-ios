@@ -128,7 +128,8 @@ final class AppModel {
     var suggestions: [Suggestion] {
         if let suggestionCache { return suggestionCache }
         let built = SuggestionEngine.suggestions(results: results, samples: samples,
-                                                 profile: profile)
+                                                 profile: profile,
+                                                 substanceEvents: substanceEvents)
         suggestionCache = built
         return built
     }

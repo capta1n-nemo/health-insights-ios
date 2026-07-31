@@ -403,7 +403,39 @@ closed from a sandbox. What remains falls into three groups.
   stamped. Right at home, wrong on the second night of a trip. Both HealthKit and
   Oura behave the same way, so the sources at least agree with each other.
 
-### 3. The ten-item feedback list, re-read against the code
+### 3. The ten-item feedback list — five of the six deltas are closed
+
+The six open clauses found by re-reading the list are now five closed and one
+deliberately parked. What is worth carrying forward:
+
+- **"That technique has a fatal flaw" is not "this is impossible".** Gap
+  bridging shipped straight rather than smoothed, with a written argument that a
+  curve invents a local extremum where nothing was measured. The argument is
+  correct about Catmull-Rom and natural cubics and was mistaken for an argument
+  against curvature. A monotone cubic Hermite (Fritsch–Carlson / PCHIP) cannot
+  have an interior extremum at all, which is exactly the missing guarantee. The
+  gap between those two claims was a shipped deviation from an explicit
+  instruction.
+- **A relative threshold needs an absolute companion.** This bit three times in
+  one session, each time the same shape: a small denominator makes anything
+  significant. Blood-pressure drift floored at ±5 mmHg because a fit through a
+  handful of points claimed zero uncertainty; the substance suggestion floored
+  at 3% because a tight set of clean nights makes a fifth of a bpm clear half a
+  standard deviation; `ScoreChange` floored at two points for the same reason.
+- **"Completed" did not need defining per suggestion.** Three bases would have
+  needed three different answers. None was necessary — the engine only emits a
+  suggestion while its condition holds, so disappearing from its output *is*
+  resolution, by whichever route. When a feature seems to need per-case rules,
+  check whether the generator already encodes them.
+- **The trend indicator is not "vs yesterday", and that was researched.** Nobody
+  ships it: day-to-day HRV noise (3–13%) swamps what one night changes. See
+  `docs/progress.md` ▸ "How trend indicators are rendered".
+- **A slow tap was one call doing far too much.** Logging a substance ran the
+  whole insight engine over the whole sample set and dropped every cache. When a
+  cheap-looking interaction is slow, look for the shared recompute it is reusing
+  rather than for the work it obviously does.
+
+### 4. The original ten-item list, re-read against the code
 
 The list was worked through over several sessions and marked closed. Re-reading
 it line by line against what shipped found **six clauses still open**, each
@@ -439,7 +471,7 @@ Ranked by size:
 clauses.** Every one of these six sat inside an item whose headline was true.
 When a feedback line has an "and also" in it, record the clauses separately.
 
-### 4. Genuinely open work, cheapest first
+### 5. Genuinely open work, cheapest first
 
 - **A chart for Sleep Regularity's own shape.** The card reports a spread and the
   detail screen draws the score history like everything else. What it wants is a

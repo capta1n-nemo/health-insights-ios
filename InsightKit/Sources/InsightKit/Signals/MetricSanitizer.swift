@@ -28,7 +28,11 @@ public extension MetricType {
              // Zero is midnight exactly, and negative is any evening bedtime —
              // for this metric a positivity rule would throw away every reading
              // before 00:00, which is most of them.
-             .sleepDurationHours, .sleepOnset, .skinTemperatureDeviation,
+             .sleepDurationHours, .sleepOnset,
+             // Zero minutes of REM is a real night, and a night with no deep
+             // sleep recorded is exactly the night worth seeing.
+             .sleepEfficiency, .sleepDeepMinutes, .sleepRemMinutes,
+             .skinTemperatureDeviation,
              // Zero is the *good* value for both of these: no time in atrial
              // fibrillation, and a perfectly symmetric gait.
              .atrialFibrillationBurden, .walkingAsymmetry:

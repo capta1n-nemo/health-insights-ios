@@ -24,6 +24,14 @@ public enum OuraResponseParser {
         let average_hrv: Double?
         let average_breath: Double?
         let total_sleep_duration: Double?      // seconds
+        // The stage breakdown, decoded at last. These fields have been in every
+        // sleep payload since v2 shipped and the parser read seven of them, so
+        // Sleep Quality was scoring a night from its length and its breathing
+        // while the composition of that night sat unread in the same document.
+        let deep_sleep_duration: Double?       // seconds
+        let rem_sleep_duration: Double?        // seconds
+        let time_in_bed: Double?               // seconds
+        let efficiency: Double?                // percent, Oura's own figure
     }
 
     /// Parse a `usercollection/sleep` response.
@@ -61,6 +69,17 @@ public enum OuraResponseParser {
             add(.respiratoryRate, record.average_breath)
             if let seconds = record.total_sleep_duration {
                 add(.sleepDurationHours, seconds / 3600)
+            }
+            add(.sleepDeepMinutes, record.deep_sleep_duration.map { $0 / 60 })
+            add(.sleepRemMinutes, record.rem_sleep_duration.map { $0 / 60 })
+            // Oura publishes its own efficiency, so that is what is used —
+            // deriving it from asleep/in-bed would produce a second, slightly
+            // different number for the same named quantity.
+            if let efficiency = record.efficiency {
+                add(.sleepEfficiency, efficiency)
+            } else if let asleep = record.total_sleep_duration,
+                      let inBed = record.time_in_bed, inBed > 0 {
+                add(.sleepEfficiency, asleep / inBed * 100)
             }
         }
         samples += SleepOnset.samples(fromSegmentStarts: bedtimes, source: .oura)

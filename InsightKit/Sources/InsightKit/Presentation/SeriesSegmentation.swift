@@ -111,13 +111,15 @@ public struct GapBridge: Sendable, Equatable, Identifiable {
 /// and by a fraction of the visible window — so a zoomed-out chart can never be
 /// mostly inference.
 ///
-/// **The connector is straight, and that is deliberate.** The roadmap asked for
-/// "smoothed predicted values across data gaps", and a curve is exactly what must
-/// not be drawn here: a Catmull-Rom bridge overshoots outside the measured range
-/// and invents a local extremum in the one stretch where nothing is known. The
-/// smoothing that was actually wanted has already happened — the endpoints are
-/// *bucket aggregates* (median for weight, mean for the rest), not raw single
-/// readings, so the line is drawn between two smoothed values.
+/// **The connector is a curve, and specifically a monotone one.** The brief asked
+/// for "smoothed predicted values across data gaps" and first got a straight
+/// line, with the argument that a curve invents a local extremum in the one
+/// stretch where nothing is known. That is true of a Catmull-Rom or natural
+/// cubic, which overshoot outside the range of the values they join — and it is
+/// an objection to *those* curves rather than to curvature. `GapBridge.smoothed`
+/// uses a monotone cubic Hermite, which cannot have an interior extremum at all.
+/// It is still dashed: smoothing changes nothing about the fact that nobody
+/// measured it.
 public enum SeriesBridging {
     /// How many join-distances a gap may span and still be inferred across.
     public static let bridgeFactor: Double = 3
@@ -139,13 +141,6 @@ public enum SeriesBridging {
             && gap <= maxBridgeableGap(for: metric, bucket: bucket, window: window)
     }
 
-    /// The connectors to draw between consecutive runs from
-    /// `segments(for:bucket:)`. Straight, endpoint to endpoint, no invented
-    /// intermediate values.
-    ///
-    /// Computed between *adjacent* runs only, so a bridge can never overlap a
-    /// drawn segment.
-    ///
     /// Which pairs of adjacent runs may be joined, **returning the endpoints
     /// themselves** rather than a flattened two-dates-two-values struct.
     ///
@@ -198,5 +193,58 @@ public enum SeriesBridging {
     /// same hue is already on screen at full strength.
     public static func bridgeProminence(from: Double, to: Double) -> Double {
         Swift.min(from, to) / 2
+    }
+}
+
+public extension GapBridge {
+
+    /// Intermediate points along the bridge, so a chart can draw it as a curve
+    /// rather than a straight segment.
+    ///
+    /// ## Why this exists, and why it took a second attempt
+    ///
+    /// The brief asked for "smoothed predicted values" across data gaps. The
+    /// first answer was a straight dashed line and a written argument for it: a
+    /// Catmull-Rom or natural cubic through the endpoints **overshoots** outside
+    /// the range of the values it joins, inventing a local maximum or minimum in
+    /// the one stretch where nothing was measured. Drawing a peak nobody
+    /// recorded is worse than drawing a line nobody recorded.
+    ///
+    /// That objection is real, and it is an objection to *those* curves, not to
+    /// curvature. A **monotone cubic Hermite** — the Fritsch–Carlson construction
+    /// behind PCHIP — is built to guarantee exactly the property that was
+    /// missing: with tangents limited as below, the interpolant is monotone
+    /// between the two endpoints, so it has **no interior extremum at all** and
+    /// never leaves the interval `[startValue, endValue]`. It reads as a smooth
+    /// prediction and it cannot claim a peak.
+    ///
+    /// So the shape is a curve now, and it is still dashed, because dash means
+    /// "not measured" and nothing about smoothing changes that.
+    ///
+    /// - Parameter tangentScale: how much of the endpoint-to-endpoint slope the
+    ///   ends inherit. Zero is a flat-ended S; one is the straight line. The
+    ///   default eases out of one reading and into the next.
+    func smoothed(steps: Int = 12, tangentScale: Double = 0.6) -> [(date: Date, value: Double)] {
+        guard steps > 1, duration > 0 else { return [] }
+        let secant = (endValue - startValue) / duration
+        // Fritsch–Carlson in the two-point case reduces to this: both tangents
+        // take the sign and a bounded fraction of the one secant, which is what
+        // makes an interior extremum impossible.
+        let tangent = secant * tangentScale
+
+        return (0...steps).map { step in
+            let t = Double(step) / Double(steps)
+            let seconds = t * duration
+            // Cubic Hermite basis.
+            let h00 = 2 * t * t * t - 3 * t * t + 1
+            let h10 = t * t * t - 2 * t * t + t
+            let h01 = -2 * t * t * t + 3 * t * t
+            let h11 = t * t * t - t * t
+            let value = h00 * startValue
+                + h10 * duration * tangent
+                + h01 * endValue
+                + h11 * duration * tangent
+            return (start.addingTimeInterval(seconds), value)
+        }
     }
 }
