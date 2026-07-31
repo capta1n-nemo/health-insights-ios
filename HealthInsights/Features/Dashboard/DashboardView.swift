@@ -267,7 +267,12 @@ struct VitalsGlance: View {
 
 /// A dashboard tile for one insight: dial or big headline + a driver line.
 struct InsightCard: View {
+    @Environment(AppModel.self) private var model
     let result: InsightResult
+
+    /// Silent unless the score has moved past its own usual spread — see
+    /// `ScoreChangeChip`.
+    private var change: ScoreChange? { model.scoreChange(for: result.id) }
 
     var body: some View {
         Card {
@@ -286,7 +291,12 @@ struct InsightCard: View {
                         Spacer()
                         ConfidenceBadge(confidence: result.confidence)
                     }
-                    Text(result.headline).font(.title3.weight(.semibold))
+                    HStack(spacing: 6) {
+                        Text(result.headline).font(.title3.weight(.semibold))
+                        if let change, change.isMeaningful {
+                            ScoreChangeChip(change: change)
+                        }
+                    }
                     if let first = result.drivers.first {
                         Text(first).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     } else if !result.unmetRequirements.isEmpty {
@@ -296,8 +306,15 @@ struct InsightCard: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(result.title): \(result.headline). \(result.drivers.first ?? "")")
+            .accessibilityLabel("\(result.title): \(result.headline). \(changeSpeech)\(result.drivers.first ?? "")")
         }
+    }
+
+    /// Folded into the card's combined label, because the chip's own label is
+    /// unreachable once `accessibilityElement(children: .combine)` has merged it.
+    private var changeSpeech: String {
+        guard let change, change.isMeaningful else { return "" }
+        return "\(change.direction == .up ? "Up" : "Down") \(Int(abs(change.delta).rounded())) points \(change.comparison). "
     }
 
     private var iconName: String {

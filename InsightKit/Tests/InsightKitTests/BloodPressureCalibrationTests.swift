@@ -130,3 +130,110 @@ final class PressureBandTests: XCTestCase {
         XCTAssertEqual(BloodPressureEstimator.Category.of(systolic: 110, diastolic: 70), .normal)
     }
 }
+
+/// The drift counter — the half of feedback item 8 that never got built. The
+/// cadence rule ("five to ground, two a month to maintain") shipped without the
+/// number it exists to protect, so being told to cuff again read identically
+/// whether the model was still tracking the person or had wandered off them.
+final class BloodPressureDriftTests: XCTestCase {
+
+    private let base = TestClock.now
+
+    /// `n` calibration points where systolic is a clean linear function of
+    /// resting heart rate, plus an optional error injected into the last one.
+    private func calibration(_ n: Int, lastSystolicOffset: Double = 0)
+        -> [BloodPressureEstimator.CalibrationPoint] {
+        (0..<n).map { index in
+            let hr = 55 + Double(index)
+            let isLast = index == n - 1
+            return .init(restingHR: hr,
+                         systolic: 100 + hr * 0.5 + (isLast ? lastSystolicOffset : 0),
+                         diastolic: 65 + hr * 0.3 + (isLast ? lastSystolicOffset / 2 : 0),
+                         date: base.addingTimeInterval(-Double(n - index) * 3 * 86_400))
+        }
+    }
+
+    /// Held out, not fitted through. Scoring a fit against the readings it was
+    /// built from reports how well least squares interpolates, which always
+    /// flatters and answers nobody's question.
+    func testDriftNeedsMoreReadingsThanTheFitItself() {
+        let minimum = BloodPressureEstimator.minimumCalibrationPoints
+        XCTAssertNil(BloodPressureEstimator.drift(calibration: calibration(minimum), now: base),
+                     "with exactly a fit's worth there is nothing left to hold out")
+        XCTAssertNotNil(BloodPressureEstimator.drift(calibration: calibration(minimum + 1),
+                                                     now: base))
+    }
+
+    /// A person whose blood pressure really does track their resting heart rate
+    /// should read as tracking — the counter must not manufacture drift out of
+    /// the model's own arithmetic.
+    func testAPerfectlyPredictableUserShowsNoDrift() throws {
+        let drift = try XCTUnwrap(
+            BloodPressureEstimator.drift(calibration: calibration(9), now: base))
+        XCTAssertEqual(drift.latestSystolicError, 0, accuracy: 1.5)
+        XCTAssertEqual(drift.band, "Tracking")
+        XCTAssertTrue(drift.isWithinStatedUncertainty)
+    }
+
+    /// And a reading the model did not see coming should register as one.
+    func testAnUnpredictedReadingShowsAsDrift() throws {
+        let drift = try XCTUnwrap(
+            BloodPressureEstimator.drift(calibration: calibration(9, lastSystolicOffset: 30),
+                                         now: base))
+        // The estimate predicted the old relationship, so it reads low against a
+        // cuff that came in 30 mmHg higher.
+        XCTAssertLessThan(drift.latestSystolicError, -10)
+        XCTAssertNotEqual(drift.band, "Tracking")
+        XCTAssertFalse(drift.isWithinStatedUncertainty)
+    }
+
+    /// Drift is expressed against the fit's *own* claimed spread, because "out
+    /// by 6" means opposite things for a model claiming ±8 and one claiming ±2.
+    func testTheBandIsRelativeToTheFitsOwnUncertainty() {
+        let tight = BloodPressureEstimator.Drift(
+            latestSystolicError: 6, latestDiastolicError: 3,
+            meanAbsoluteSystolicError: 6, checkedReadings: 3,
+            daysSinceLastReading: 2, systolicUncertainty: 12)
+        let loose = BloodPressureEstimator.Drift(
+            latestSystolicError: 14, latestDiastolicError: 6,
+            meanAbsoluteSystolicError: 12, checkedReadings: 3,
+            daysSinceLastReading: 2, systolicUncertainty: 5)
+        XCTAssertEqual(tight.band, "Tracking")
+        XCTAssertEqual(loose.band, "Off")
+    }
+
+    /// A fit through a handful of points can claim a residual spread of nearly
+    /// zero — and exactly zero when the readings sit on a line. Left alone,
+    /// every millimetre after that reads as catastrophic drift.
+    ///
+    /// The floor is the accuracy the cuff itself is held to (ISO 81060-2,
+    /// ±5 mmHg): a model claiming to beat the instrument that measured it is
+    /// claiming something no amount of fitting can support.
+    func testAnImpossiblyConfidentFitIsNotBelieved() {
+        let overconfident = BloodPressureEstimator.Drift(
+            latestSystolicError: 3, latestDiastolicError: 1,
+            meanAbsoluteSystolicError: 3, checkedReadings: 4,
+            daysSinceLastReading: 1, systolicUncertainty: 0)
+        XCTAssertEqual(overconfident.effectiveUncertainty,
+                       BloodPressureEstimator.Drift.uncertaintyFloor)
+        XCTAssertEqual(overconfident.band, "Tracking",
+                       "3 mmHg out is not drift, however tight the fit claims to be")
+    }
+
+    func testTheSummaryNamesTheDayAndTheDirection() {
+        let drift = BloodPressureEstimator.Drift(
+            latestSystolicError: 9, latestDiastolicError: 4,
+            meanAbsoluteSystolicError: 7, checkedReadings: 4,
+            daysSinceLastReading: 1, systolicUncertainty: 5)
+        XCTAssertTrue(drift.summary.contains("yesterday"), drift.summary)
+        XCTAssertTrue(drift.summary.contains("high"), drift.summary)
+    }
+
+    func testDaysSinceLastReadingCountsFromTheNewestPoint() throws {
+        let drift = try XCTUnwrap(
+            BloodPressureEstimator.drift(calibration: calibration(9),
+                                         now: base.addingTimeInterval(5 * 86_400)))
+        // The newest fixture point sits three days before `base`.
+        XCTAssertEqual(drift.daysSinceLastReading, 8)
+    }
+}

@@ -114,6 +114,9 @@ the place to look.
   - `ReadinessScore` :15
 - `Insights/RestingHeartRateTrendInsight.swift`
   - `RestingHeartRateTrendInsight` :5
+- `Insights/ScoreChange.swift`
+  - `ScoreChange` :40
+  - `ScoreChangeReader` :90
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
@@ -295,6 +298,8 @@ the place to look.
   - `MetricOverlayLegend` :11
 - `DesignSystem/MultiSourceChart.swift`
   - `MultiSourceChart` :37
+- `DesignSystem/ScoreChangeChip.swift`
+  - `ScoreChangeChip` :35
 - `DesignSystem/ScoreComparisonChart.swift`
   - `ScoreComparisonChart` :12
 - `DesignSystem/ScoreDial.swift`

@@ -53,6 +53,7 @@ final class AppModel {
         overlayCache.removeAll()
         suggestionCache = nil
         energyCache = nil
+        scoreChangeCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
@@ -130,6 +131,33 @@ final class AppModel {
                                                  profile: profile)
         suggestionCache = built
         return built
+    }
+
+    /// Which way each card's score has been going.
+    ///
+    /// Read from the *stored* daily score rows rather than from the replayed
+    /// histories in `scoreHistories`: a replay walks the whole sample set per
+    /// day of history and is filled lazily per insight in the background, which
+    /// is right for a chart and far too slow for a chip that has to be on every
+    /// card the moment the list draws. The stored rows are one small fetch each,
+    /// and `recompute()` has already written today's before this is read.
+    ///
+    /// Built for every insight at once and cached, because the alternative is a
+    /// fetch per card per redraw.
+    @ObservationIgnored private var scoreChangeCache: [InsightID: ScoreChange]?
+
+    func scoreChange(for id: InsightID) -> ScoreChange? {
+        if scoreChangeCache == nil {
+            var built: [InsightID: ScoreChange] = [:]
+            for result in results where result.score != nil {
+                if let change = ScoreChangeReader.trend(
+                    for: result.id, history: dataStore.scoreHistory(for: result.id)) {
+                    built[result.id] = change
+                }
+            }
+            scoreChangeCache = built
+        }
+        return scoreChangeCache?[id]
     }
 
     /// Dismissals, loaded once and kept in memory. Small by construction — there

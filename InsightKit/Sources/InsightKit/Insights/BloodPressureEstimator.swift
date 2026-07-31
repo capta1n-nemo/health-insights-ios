@@ -628,6 +628,15 @@ public struct BloodPressureInsight: InsightModel {
                                                est.systolic, est.diastolic,
                                                est.systolicUncertainty, est.diastolicUncertainty,
                                                est.calibrationCount)))
+                // The drift counter. The cadence rule ("two a month") shipped
+                // without the number it exists to protect, so "log 2 more
+                // readings" read the same whether the model was still tracking
+                // this person or had wandered off them entirely.
+                if let drift = BloodPressureEstimator.drift(calibration: calibration, now: now) {
+                    drivers.append(InsightDriver(
+                        text: "Estimate accuracy — \(drift.band.lowercased()). \(drift.summary)",
+                        isNotable: !drift.isWithinStatedUncertainty))
+                }
                 if primary == nil {
                     headline = String(format: "~%.0f/%.0f", est.systolic, est.diastolic)
                     primary = est.systolic
@@ -666,5 +675,134 @@ public struct BloodPressureInsight: InsightModel {
                                            detail: String(format: "%.0f %@", $0, metric.unit))
                     }
                 })
+    }
+}
+
+// MARK: - Drift
+
+public extension BloodPressureEstimator {
+
+    /// How far the estimate has wandered from the cuff, and how long since
+    /// anything checked.
+    ///
+    /// The cadence rule — five readings to ground, then two per thirty days —
+    /// shipped without the number it exists to protect. A user being told to
+    /// cuff again had no way to see *why*: whether the model was still tracking
+    /// them well and this was routine maintenance, or whether it had drifted and
+    /// the reminder was urgent. Those are different situations and they read
+    /// identically as "log 2 more readings".
+    ///
+    /// Drift is measured the only honest way available: **hold out each cuff
+    /// reading, fit on the ones before it, and compare.** Scoring the fit
+    /// against readings it was fitted through would report how well least
+    /// squares interpolates, which is not a question anybody asked and always
+    /// flatters.
+    struct Drift: Sendable, Equatable {
+        /// Signed error at the most recent held-out reading, in mmHg. Positive
+        /// means the estimate read *higher* than the cuff.
+        public let latestSystolicError: Double
+        public let latestDiastolicError: Double
+        /// Mean absolute systolic error across every held-out reading.
+        public let meanAbsoluteSystolicError: Double
+        /// How many readings could be held out and checked.
+        public let checkedReadings: Int
+        /// Days since the last cuff reading of any kind.
+        public let daysSinceLastReading: Int
+
+        /// How the error compares with the fit's own claimed uncertainty.
+        ///
+        /// An estimate that says "±8" and is out by 6 is behaving exactly as
+        /// advertised; one out by 20 is not. Expressing drift against the
+        /// model's own stated spread is what stops this being a bare number
+        /// nobody can calibrate their reaction to.
+        public let systolicUncertainty: Double
+
+        /// The narrowest uncertainty this comparison will credit, in mmHg.
+        ///
+        /// A least-squares fit through a handful of points can return a residual
+        /// SD of nearly zero — and exactly zero for a person whose readings
+        /// happen to sit on a line — at which point every subsequent millimetre
+        /// reads as catastrophic drift, or the ratio divides by zero outright.
+        ///
+        /// Five, because that is the accuracy the *cuff* is held to: ISO 81060-2
+        /// validates a monitor at a mean error within ±5 mmHg. A model claiming
+        /// to predict blood pressure more precisely than the instrument that
+        /// measured it is claiming something no amount of fitting can support,
+        /// so the comparison declines to believe it.
+        public static let uncertaintyFloor: Double = 5
+
+        /// What the error is actually judged against.
+        public var effectiveUncertainty: Double {
+            Swift.max(systolicUncertainty, Self.uncertaintyFloor)
+        }
+
+        /// True when the latest error is inside what the fit claims. The
+        /// interesting state is the false one.
+        public var isWithinStatedUncertainty: Bool {
+            abs(latestSystolicError) <= effectiveUncertainty
+        }
+
+        public var band: String {
+            switch abs(latestSystolicError) / effectiveUncertainty {
+            case ..<1:   return "Tracking"
+            case 1..<2:  return "Drifting"
+            default:     return "Off"
+            }
+        }
+
+        /// One sentence, in the terms the user logged their readings in.
+        public var summary: String {
+            let direction = latestSystolicError > 0 ? "high" : "low"
+            let days = daysSinceLastReading
+            let since = days == 0 ? "today"
+                : days == 1 ? "yesterday" : "\(days) days ago"
+            guard abs(latestSystolicError) >= 1 else {
+                return "The estimate matched your last cuff reading, taken \(since)."
+            }
+            return String(
+                format: "At your last cuff reading (%@) the estimate read %.0f mmHg %@ on systolic, against the ±%.0f it is judged on. Across %d checked readings it is out by %.0f mmHg on average.",
+                since, abs(latestSystolicError), direction, effectiveUncertainty,
+                checkedReadings, meanAbsoluteSystolicError)
+        }
+    }
+
+    /// Held-out drift over the calibration set, or nil when there is not enough
+    /// history to hold anything out.
+    ///
+    /// Needs one more reading than the fit itself does: the last one is the one
+    /// being predicted, so it cannot also be in the training set.
+    static func drift(calibration: [CalibrationPoint], now: Date = Date()) -> Drift? {
+        let ordered = calibration.sorted { $0.date < $1.date }
+        guard ordered.count > minimumCalibrationPoints,
+              let last = ordered.last else { return nil }
+
+        var systolicErrors: [Double] = []
+        var latest: (systolic: Double, diastolic: Double, uncertainty: Double)?
+        // Every reading that has at least a full fit's worth of history before
+        // it, predicted from that history alone.
+        for index in minimumCalibrationPoints..<ordered.count {
+            let history = Array(ordered[..<index])
+            let held = ordered[index]
+            guard let predicted = estimate(currentRestingHR: held.restingHR,
+                                           currentHRV: held.hrv,
+                                           calibration: history) else { continue }
+            systolicErrors.append(predicted.systolic - held.systolic)
+            if index == ordered.count - 1 {
+                latest = (predicted.systolic - held.systolic,
+                          predicted.diastolic - held.diastolic,
+                          predicted.systolicUncertainty)
+            }
+        }
+        guard let latest, !systolicErrors.isEmpty else { return nil }
+
+        return Drift(
+            latestSystolicError: latest.systolic,
+            latestDiastolicError: latest.diastolic,
+            meanAbsoluteSystolicError: systolicErrors.map(abs).reduce(0, +)
+                / Double(systolicErrors.count),
+            checkedReadings: systolicErrors.count,
+            daysSinceLastReading: Swift.max(0, Int(
+                (now.timeIntervalSince(last.date) / 86_400).rounded(.down))),
+            systolicUncertainty: latest.uncertainty)
     }
 }
