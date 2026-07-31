@@ -350,8 +350,9 @@ the place to look.
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9
 - `Features/Launch/LaunchParticleView.swift`
-  - `LaunchParticleView` :20
-  - `LaunchUniforms` :154
+  - `LaunchParticleView` :23
+  - `LaunchUniforms` :182
+  - `ParticleOut` :223
 - `Features/Launch/LaunchScreen.swift`
   - `LaunchScreen` :23
 - `Features/Metrics/BloodPressureSections.swift`
