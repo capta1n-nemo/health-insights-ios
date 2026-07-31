@@ -30,42 +30,76 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The card-consistency session (latest), in two halves.** First an audit of
-which sections each card renders — now `docs/card-sections.md`, the audit of
-record. Then **Phase 1 of the fixes**, which shipped and is installed
-(`42efe4c`). **Phase 2 is scoped and deliberately not built** — see
-`docs/progress.md`; it is not to start until the user has seen Phase 1 on the
-phone.
+**The card-consolidation session (latest).** Three pushes, all installed:
+Phase 1 of the consistency work (`42efe4c`), the data export (`0d8bc48`), and
+**seventeen insight cards merged into nine** (`367e0ab`).
 
-What landed, and the parts worth carrying:
+`docs/card-sections.md` is the audit of record and was re-derived after each.
+**Phase 2 — the three cards still without a bespoke section — is scoped in
+`docs/progress.md` and not started.**
 
-- **There is now one "View & add" section**, on every card that takes user
-  input — nine of seventeen. It replaces "Add these for a better estimate", the
-  blood-pressure link, and the substance log's toolbar-button-on-another-tab.
-  Blood pressure's chart is on the card that talks about it.
+### What to know before touching the insight layer
+
+- **Nine cards.** Fitness ← Cardio Fitness + Fitness Trajectory + fitness age.
+  Sleep ← Sleep Quality + Sleep Debt + Sleep Regularity. Readiness ← Readiness +
+  Vitals Check + Health Watch. Heart age went to the risk card (which runs those
+  equations); centiles went to Heart Health (which reads those metrics);
+  Resting Heart Rate and Where You Stand were deleted as cards.
+- **The maths was kept.** `VO2Trajectory`, `FitnessAgeModel`, `HeartAgeAnalyser`,
+  `SleepDebtModel`, `CircadianConsistencyModel`, `VitalSignsCheck`,
+  `HealthWatchModel`, `PeerStandingModel` all still exist with their tests, as
+  *components*. Only the wrappers and their ids went. **Do not rebuild any of
+  them** — check for the model before writing one.
 - **`contributions` is derived from `requirements`, not switched over
-  `InsightID`.** A sixth exhaustive switch on that enum would have been the most
-  expensive possible way to build this — it is already this repo's most frequent
-  CI break. Only the two log-backed models override.
+  `InsightID`.** A sixth exhaustive switch on that enum would be the most
+  expensive possible way to add a feature — it is already the most frequent CI
+  break here.
+
+### Five lessons this session, in cost order
+
 - **A protocol member with a default must still be a protocol *requirement*.**
-  Callers hold `any InsightModel`. Declared only in an extension, `contributions`
-  would dispatch statically, every model would silently get the default, and
-  both overrides would be dead code **that still passed their own tests**,
-  because those hold the concrete type. `testOverridesSurviveExistentialDispatch`
-  is the one that would have caught it.
-- **`Color` has `primary`, `secondary` and `white` — but no `tertiary`.** That
-  cost one red CI. Twelve existing `x ? Theme.foo : .secondary` ternaries
-  compile because the shorthand resolves to a `Color` static; `.tertiary` only
-  exists as a `HierarchicalShapeStyle`, so the two arms had nothing to unify to.
-  **Nothing local catches this class of error** — SwiftUI does not exist on
-  Linux, so the app target is compiled by CI alone.
-- **Ten of the seventeen sections are now uniform across all seventeen
-  insights**, up from eight. The remaining variation is the "View & add" column
-  (nine cards) and the bespoke slot (five), which is what Phase 2 is about.
-- **Generate a wide table rather than hand-writing it.** The 17×17 matrix in
-  `docs/card-sections.md` was hand-written and its column tally was wrong by
-  one; the artifact's version is generated from the same row data and caught it.
-  A grid that big has no reviewable failure mode by eye.
+  Callers hold `any InsightModel`; declared only in an extension, it dispatches
+  statically, every model silently gets the default, and the overrides are dead
+  code **that still pass their own tests** because those hold the concrete type.
+  `testOverridesSurviveExistentialDispatch` is the shape of test that catches it.
+- **A merge drops behaviour silently, and only the old tests know what.** Four
+  real regressions were caught by tests written for the deleted cards: weight-0
+  contributions counting toward "is this day well-founded" in `ScoreHistory`, the
+  vitals panel leaving the overlay chart, an irregular-rhythm flag no longer
+  outranking an ordinary day, and "we couldn't judge this vital" being folded in
+  with the normal ones. **When merging cards, repoint the tests rather than
+  deleting them** — each one is a behaviour somebody decided on.
+- **Pass `now` to every component, always.** Sleep's regularity term defaulted to
+  the real present, which would have flattened every replayed day of score
+  history without ever erroring. `ScoreHistory.replay` hands a model a past day
+  as `now`; a component that ignores it reads a window the samples don't reach.
+- **`Color` has `primary`, `secondary` and `white` — but no `tertiary`.** One red
+  CI. Twelve existing `x ? Theme.foo : .secondary` ternaries compile because the
+  shorthand resolves to a `Color` static. **Nothing local catches this class** —
+  SwiftUI does not exist on Linux, so CI alone compiles the app target.
+- **Generate a wide table rather than hand-writing it.** The 17×17 matrix was
+  hand-written and its column tally was wrong by one; the generated version
+  caught it. A grid that big has no reviewable failure mode by eye.
+
+### The claim that was wrong, and the rule it restates
+
+The plan said `dayStrain` never arrived because it had an alias but no promotion
+rule. **Whoop's typed parser has been emitting it as a first-class sample all
+along** (`WhoopResponseParser.swift:69`) — the gap was at the *consumption* end:
+no insight read it. Same shape as the bedtime that sat "blocked on a missing
+signal" for several sessions while being discarded at ingest. **"We don't have
+X" is a claim about the code until somebody has looked at the data** — which is
+now possible, see below.
+
+### The feedback loop that closes this class of error
+
+**Settings ▸ Export my data.** An inventory of every signal — modelled *and* the
+imported-but-unmodelled fields behind Vitals ▸ Other data — with counts, date
+ranges, sources and distributions, small enough to paste into a chat. Plus a
+full JSON export. `DataInventory` in InsightKit builds it and is tested there.
+
+**Ask the user for the inventory before deciding what to build next.** Nobody
+working on this app has ever seen what is actually in their Vitals tab.
 
 **The roadmap-continuation session (previous).** "Continue with roadmap" — the
 open list was read back, and the only substantial item buildable from a sandbox

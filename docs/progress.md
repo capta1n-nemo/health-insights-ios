@@ -5,6 +5,12 @@ about confidence.**
 
 ## Shipped
 
+> **Read the next three sections as history.** They describe the seventeen-card
+> era. Seventeen cards were merged into nine on 2026-07-31 — see "Card
+> consolidation" below and `docs/card-sections.md` for what exists now. The
+> *work* recorded here all still ships; most of it is now a component of a
+> merged card rather than a card of its own.
+
 ### Insights
 - [x] Readiness / Recovery — HRV, resting HR, sleep, temperature, respiration
       vs. personal baseline (EWMA + z-scores).
@@ -34,8 +40,12 @@ about confidence.**
       is visible. Readiness gained blood oxygen; Sleep Quality gained overnight
       blood oxygen and skin temperature; Body Composition gained lean/muscle/bone
       mass, body water and a fat-loss-versus-muscle-loss narrative; Heart Age
-      reports Oura's vascular age beside its own. Only `dayStrain` is unread —
-      Whoop isn't connected.
+      reports Oura's vascular age beside its own.
+      **Superseded**: `dayStrain` was recorded here as unread because Whoop
+      wasn't connected. Whoop's parser has in fact been emitting it as a
+      first-class sample all along; what was missing was a *reader*. It is now
+      on the Fitness card, along with heart-rate recovery and walking heart
+      rate, which reached the vitals scanner but never a score.
 
 ### The four cards from the top of the category
 Chosen on one criterion — loved in the category *and* absent from it.
@@ -408,23 +418,44 @@ The Vitals Check fix, applied everywhere it was also true.
 - [x] **One placement rule** for the bespoke slot, above "Score over time".
 - [x] **`InsightResult.isWorthShowing`** — one listing rule for both tabs.
 
-### Card consistency, Phase 2 — the remaining unique sections
-**Not to be started until Phase 1 has been seen on the phone.** The audit and
-the ranking are in `docs/card-sections.md` ▸ "Still open".
+### Card consolidation — seventeen insight cards into nine
+- [x] **Fitness** ← Cardio Fitness + Fitness Trajectory + fitness age.
+      **Sleep** ← Sleep Quality + Sleep Debt + Sleep Regularity.
+      **Readiness** ← Readiness + Vitals Check + Health Watch.
+      Heart age → the risk card, which runs those equations. Centiles → Heart
+      Health, which reads those metrics. Resting Heart Rate and Where You Stand
+      deleted as cards; both were already sources elsewhere.
+- [x] **The maths was kept as components**, with its tests. Only the card
+      wrappers and their `InsightID`s went.
+- [x] **Signals that reached nothing now reach a card**: `dayStrain` (read by no
+      insight at all), `heartRateRecovery` and `walkingHeartRateAverage` (only
+      by the vitals scanner) on Fitness; the absolute temperatures on Sleep. All
+      at weight 0 — real signals, no validated 0–100 curve, and an invented
+      weight inside a trusted score is worse than none.
+- [x] **Settings ▸ Export my data** — the development feedback loop. An
+      inventory small enough to paste, plus a full JSON export, covering the
+      unmodelled fields nobody working on the app has ever seen.
 
-- [ ] **One weighted-contribution card** for Readiness and Heart Health, drawn
-      from `InsightResult.contributors` — which already carries a renormalised
-      `weight`, so **no new type and no model changes are needed**. Sleep Quality
-      wants the same card but keeps its seven sub-scores as locals
-      (`SleepQualityInsight.swift:130`), so it needs them lifted first.
-- [ ] Where You Stand — a percentile standings chart. Sleep Debt — the running
-      debt curve. Body Composition — the composition split, **plus the "view &
-      add" scan entry** the user asked for (a fourth `ContributionRoute`).
-      Vitals Check / Health Watch — one z-score strip serving both.
-- [ ] Cardiovascular Risk and Cardio Trajectory both compute a projection
-      nothing draws.
-- [ ] **Cardio Fitness and Resting HR Trend get nothing, deliberately** — they
-      are single-metric and the contributors overlay already *is* their chart.
+### Card consistency, Phase 2 — the remaining unique sections
+**Not started.** Now over nine cards rather than seventeen, and three of its
+original items became sections of the merged cards instead of cards of their
+own. The audit is in `docs/card-sections.md` ▸ "Still open".
+
+**Do this first**: ask the user for the data inventory. Which of the remaining
+sections is worth building is a question about what data exists, and that is now
+answerable rather than guessable.
+
+- [ ] **Three cards still have no bespoke section**: Heart Health, Body
+      Composition, Readiness.
+- [ ] **One weighted-contribution card** would serve Heart Health and Readiness,
+      drawn from `InsightResult.contributors` — which already carries a
+      renormalised `weight`, so **no new type and no model changes are needed**.
+- [ ] **Heart Health** could also carry the percentile standings it absorbed,
+      which it currently states only as sentences.
+- [ ] **Body Composition** — the composition split, **plus the "view & add" scan
+      entry** the user asked for (a fourth `ContributionRoute`).
+- [ ] **Readiness** — a z-score strip over the vitals it now scans.
+- [ ] The risk card and Fitness both compute projections nothing draws.
 - [ ] The two chrome rules — caveat footnotes and header trailing stats —
       applied once, across the new sections and the old ones together.
 
