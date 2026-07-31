@@ -523,6 +523,24 @@ recalled.
       on effect size *and* an absolute floor, because a person whose clean nights
       sit in a very tight band gets a tiny divisor and a fifth of a bpm would
       otherwise clear half a standard deviation.
+- [ ] **App-launch loading screen.** The first 2–5 seconds while data fetches and
+      the summary generates are a blank white screen. Wanted: a centred,
+      breathing health icon (heartbeat or pulse motif — the reference feel is the
+      Apple Watch first-pairing hologram), a status line rotating every 1–1.5 s
+      that mixes the functional with the light ("Checking in with your health
+      apps", "Extracting the latest data", "Generating insights", "Herding
+      cats"), a cross-dissolve into Today rather than a hard cut, and a lighter
+      reassurance state past 6–8 s instead of looping the same cycle forever.
+
+      Notes for whoever builds it: `RootView` already refreshes on appear and
+      `AppModel.isSyncing` is the flag, so the gate exists — what is missing is a
+      phase distinct enough to narrate, because "syncing" covers both the
+      provider round-trip and the FoundationModels pass and those are the two
+      steps the copy wants to distinguish. The rotating copy must be driven by a
+      timer rather than by real phase transitions, or a fast launch will flash
+      three messages in half a second. And the fallback state needs to be a
+      different sentence, not a slower rotation of the same ones.
+
 - [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
       roadmap note rather than a build, and deliberately left as one. It belongs
       beside the other unstructured-data captures: a guided capture producing

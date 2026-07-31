@@ -15,6 +15,14 @@ so it is safe to run unconditionally.
 If it fails (no network), say so plainly in the reply and treat CI as the gate.
 Never imply a check ran when it didn't.
 
+## Shell calls: absolute paths, always
+
+The `Bash` tool's working directory does not reliably persist between calls, and
+a relative `./scripts/verify.sh` that lands in the wrong directory costs a whole
+round trip to discover. Use `/home/user/health-insights-ios/...`, or lead with
+`cd /home/user/health-insights-ios &&`. This cost several calls in one session
+and is pure waste.
+
 ## Primary Verification Commands
 - **The gate, before every push:** `./scripts/verify.sh --tests`
 - **InsightKit's full 330-test suite runs on Linux** — do not assume otherwise.
@@ -74,6 +82,8 @@ So:
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
 - `docs/progress.md` -> Feature roadmap checklist.
+- `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
+  repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
 - `docs/symbol-index.md` -> **Where does X live.** 198 types, one line each.
   Check here before grepping or reading `architecture.md` to navigate.
   Generated — run `./scripts/gen-symbol-index.sh` after adding or moving a type.
@@ -90,7 +100,22 @@ So:
   rule, per-chart hue resolution, and gap handling.
 
 ## End of Session Protocol
-When the user says "handover", "wrap up", or runs `/handover`:
-1. Update `docs/activeContext.md` with recent changes, architectural choices, and next technical steps.
-2. Update `docs/progress.md` checklist items.
-3. Commit docs to git with message `docs: update active context and progress state`.
+When the user says "handover", "wrap up", or runs `/handover`, follow
+`.claude/commands/handover.md` — it is the authority and it has three parts:
+
+1. **Carry the work forward** — `docs/activeContext.md`, `docs/progress.md`, and
+   the *tooling* (a rule learnt this session belongs in a lint or a skill, not
+   only in prose).
+2. **The efficiency review** — `docs/efficiency-log.md`. Measure red CI, rework
+   and named re-derivations from the repo; update the repeat-activity ledger;
+   add to the efficiency roadmap; prefer the fix that retires a *category* over
+   the one that retires an instance.
+3. **Tell the user, out loud** — end the reply with the efficiency verdict, the
+   log table, and a one-line reason if it got worse. **This is non-negotiable and
+   is never skipped**, including on a session that went badly. A log that only
+   improves is being written to flatter.
+
+**Never report a token count.** It cannot be observed from inside a session, so
+any figure would be invented — and one invented baseline makes every later
+comparison meaningless. Every number in the log is recomputable from `git` and
+the CI refs.

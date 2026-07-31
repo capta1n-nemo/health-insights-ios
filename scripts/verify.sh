@@ -4,8 +4,9 @@
 # rules this repo has actually been broken by — each one traceable to a CI
 # failure or a shipped bug, not to taste.
 #
-#   ./scripts/verify.sh              # lint only (works anywhere)
-#   ./scripts/verify.sh --tests      # lint + swift test, if a toolchain exists
+#   ./scripts/verify.sh                     # lint only (works anywhere)
+#   ./scripts/verify.sh --tests             # lint + the full suite. THE GATE.
+#   ./scripts/verify.sh --tests Foo         # lint + suites matching Foo, mid-change
 #
 # Exit 0 = clean. Anything else = read the output before pushing.
 
@@ -256,8 +257,17 @@ if [ "${1:-}" = "--tests" ]; then
     fi
 
     if command -v swift >/dev/null 2>&1; then
-        note "Running InsightKit tests with $(swift --version | head -1)"
-        (cd InsightKit && swift test --parallel) || fail=1
+        # `--tests <pattern>` runs only the matching suites — for the middle of a
+        # change, when the full suite is a slower answer to a narrower question.
+        # The full run stays the default and stays the gate: pushing on a
+        # filtered pass is how a green filter and a red suite reach `main`.
+        if [ -n "${2:-}" ]; then
+            note "Running InsightKit tests matching '$2' — NOT the gate. Run without a filter before pushing."
+            (cd InsightKit && swift test --parallel --filter "$2") || fail=1
+        else
+            note "Running InsightKit tests with $(swift --version | head -1)"
+            (cd InsightKit && swift test --parallel) || fail=1
+        fi
     else
         note 'Could not obtain a Swift toolchain (no network?). CI is the gate — say so in the reply.'
     fi
