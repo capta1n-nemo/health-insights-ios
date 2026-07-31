@@ -1,13 +1,14 @@
 import SwiftUI
 import InsightKit
 
-/// Fast, private, non-judgemental logging of substances. Tapping a chip logs it
-/// "now"; recent entries can be edited/removed. Everything stays on-device.
+/// Fast, private, non-judgemental logging of substances. Tapping a chip asks
+/// when, pre-filled with now; recent entries can be re-timed or removed.
+/// Everything stays on-device.
 struct SubstanceLogView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var justLogged: SubstanceClass?
-    /// A substance chosen by long-press, awaiting a time.
+    /// A substance chosen and awaiting its time.
     @State private var pendingSubstance: SubstanceClass?
     /// An existing entry being re-timed.
     @State private var editing: SubstanceEvent?
@@ -30,13 +31,15 @@ struct SubstanceLogView: View {
                     LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(SubstanceClass.allCases) { substance in
                             Button {
-                                // A tap still logs "now" — the whole point of the
-                                // grid is that logging is one gesture. Long-press
-                                // opens the picker for something that happened
-                                // earlier, which is the common correction and had
-                                // no path at all before.
-                                model.logSubstance(substance)
-                                justLogged = substance
+                                // Every tap asks when, pre-filled with now, so
+                                // confirming is one more tap and correcting is
+                                // the same gesture rather than a different one.
+                                // This used to log immediately and hide the
+                                // picker behind a long-press — an interaction
+                                // nobody discovers, which left re-timing as the
+                                // only way to fix a time, after the fact.
+                                pendingSubstance = substance
+                                pendingTime = Date()
                             } label: {
                                 VStack(spacing: 6) {
                                     Image(systemName: icon(for: substance)).font(.title3)
@@ -49,47 +52,21 @@ struct SubstanceLogView: View {
                                 .foregroundStyle(justLogged == substance ? Theme.accent : .primary)
                             }
                             .buttonStyle(.plain)
-                            .simultaneousGesture(LongPressGesture().onEnded { _ in
-                                pendingSubstance = substance
-                                pendingTime = Date()
-                            })
                         }
                     }
-                    Text("Tap to log it now, or press and hold to set a time.")
+                    Text("Tap one and confirm the time — it starts at now, so logging something you had this morning is the same two taps.")
                         .font(.caption2).foregroundStyle(.tertiary).padding(.leading, 4)
 
-                    if !model.substanceEvents.isEmpty {
+                    // Sliced once rather than inside the loop: the old version
+                    // re-took `prefix(15)` per row just to find the last id.
+                    let recent = Array(model.substanceEvents.prefix(15))
+                    if !recent.isEmpty {
                         Text("Recent").font(.subheadline.weight(.semibold)).padding(.leading, 4)
                         Card {
                             VStack(spacing: 0) {
-                                ForEach(Array(model.substanceEvents.prefix(15))) { event in
-                                    HStack {
-                                        Image(systemName: icon(for: event.substance)).frame(width: 24)
-                                            .foregroundStyle(Theme.accent)
-                                        Text(event.substance.displayName)
-                                        Spacer()
-                                        // Tappable: a mis-timed entry used to be
-                                        // correctable only by deleting it.
-                                        Button {
-                                            editing = event
-                                            pendingTime = event.timestamp
-                                        } label: {
-                                            HStack(spacing: 4) {
-                                                Text(event.timestamp.formatted(.relative(presentation: .named)))
-                                                Image(systemName: "pencil").font(.caption2)
-                                            }
-                                            .font(.caption).foregroundStyle(.secondary)
-                                        }
-                                        .buttonStyle(.plain)
-                                        Button(role: .destructive) {
-                                            model.deleteSubstanceEvent(id: event.id)
-                                        } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
-                                            .buttonStyle(.plain)
-                                    }
-                                    .padding(.vertical, 7)
-                                    if event.id != model.substanceEvents.prefix(15).last?.id {
-                                        Divider()
-                                    }
+                                ForEach(recent) { event in
+                                    row(for: event)
+                                    if event.id != recent.last?.id { Divider() }
                                 }
                             }
                         }
@@ -115,6 +92,51 @@ struct SubstanceLogView: View {
                 }
             }
         }
+    }
+
+    /// One logged entry, with its two actions.
+    ///
+    /// "Edit" is a bordered button with a word in it rather than the bare
+    /// caption-sized pencil it replaces. That pencil sat inside a `.caption`
+    /// run of secondary text, which put its tap target under the 44pt minimum
+    /// and gave it no visual claim to being a control at all — it read as
+    /// decoration on the timestamp.
+    @ViewBuilder
+    private func row(for event: SubstanceEvent) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon(for: event.substance)).frame(width: 24)
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(event.substance.displayName)
+                Text(event.timestamp.formatted(.relative(presentation: .named)))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 6)
+            Button {
+                editing = event
+                pendingTime = event.timestamp
+            } label: {
+                Label("Edit", systemImage: "pencil")
+                    .font(.caption.weight(.medium))
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            Button(role: .destructive) {
+                model.deleteSubstanceEvent(id: event.id)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            // The delete target was the glyph's own bounds, which is smaller
+            // than a fingertip.
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .padding(.vertical, 4)
     }
 
     /// Date and time only.

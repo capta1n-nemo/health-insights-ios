@@ -18,6 +18,7 @@ struct TodayView: View {
             ScrollView {
                 LazyVStack(spacing: Theme.spacing) {
                     summaryCard
+                    suggestionCard
                     LastNightCard()
                     VitalsGlance()
                     if !model.outstandingGrounding.isEmpty {
@@ -53,6 +54,54 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showSubstanceLog) {
                 SubstanceLogView()
+            }
+        }
+    }
+
+    /// The single best-founded suggestion, dismissible.
+    ///
+    /// Today had no suggestions at all — the engine shipped and this surface was
+    /// never built, so the only place to see them was a tab you had to go
+    /// looking for. One, not five: Today is a glance and the ranking already
+    /// says which one is best-founded.
+    ///
+    /// Dismissing is safe rather than destructive because the full list lives on
+    /// Insights and keeps what you waved away. It comes back here when a *new*
+    /// finding appears — a new finding has a new id, so it was never dismissed —
+    /// or after thirty days, whichever is first. See `SuggestionVisibility`.
+    @ViewBuilder private var suggestionCard: some View {
+        if let suggestion = model.suggestionVisibility.today.first {
+            Card {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.forward.circle")
+                            .foregroundStyle(Theme.accent)
+                        Text(suggestion.title).font(.subheadline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
+                        Button {
+                            model.dismissSuggestion(id: suggestion.id)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss this suggestion")
+                    }
+                    Text(suggestion.detail)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let insight = suggestion.insight {
+                        NavigationLink {
+                            InsightDetailView(insightID: insight)
+                        } label: {
+                            Text("See the card").font(.caption.weight(.medium))
+                        }
+                    }
+                }
             }
         }
     }

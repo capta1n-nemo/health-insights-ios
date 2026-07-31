@@ -13,7 +13,7 @@ final class DataStore {
         let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
                              IntegrationRecord.self, SubstanceEventRecord.self,
                              PredictionOutcomeRecord.self, FeedbackRecord.self,
-                             InsightScoreRecord.self])
+                             InsightScoreRecord.self, SuggestionDismissalRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -275,6 +275,37 @@ final class DataStore {
             context.delete(record)
             try? context.save()
         }
+    }
+
+    // MARK: - Suggestion dismissals
+
+    func loadSuggestionDismissals() -> [SuggestionDismissal] {
+        let descriptor = FetchDescriptor<SuggestionDismissalRecord>()
+        return ((try? context.fetch(descriptor)) ?? []).map(\.dismissal)
+    }
+
+    /// Upsert, so dismissing something twice extends the silence rather than
+    /// leaving two rows for `SuggestionVisibility` to reconcile.
+    func dismissSuggestion(id: String, at date: Date = Date()) {
+        let descriptor = FetchDescriptor<SuggestionDismissalRecord>(
+            predicate: #Predicate { $0.suggestionID == id })
+        if let existing = (try? context.fetch(descriptor))?.first {
+            existing.dismissedAt = date
+        } else {
+            context.insert(SuggestionDismissalRecord(suggestionID: id, dismissedAt: date))
+        }
+        try? context.save()
+    }
+
+    func undismissSuggestions(ids: [String]) {
+        guard !ids.isEmpty else { return }
+        let wanted = Set(ids)
+        let descriptor = FetchDescriptor<SuggestionDismissalRecord>()
+        for record in (try? context.fetch(descriptor)) ?? []
+        where wanted.contains(record.suggestionID) {
+            context.delete(record)
+        }
+        try? context.save()
     }
 
     // MARK: - Feedback & prediction outcomes (model-improvement ledger)

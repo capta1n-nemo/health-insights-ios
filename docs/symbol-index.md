@@ -123,6 +123,9 @@ the place to look.
   - `SleepDebtModel` :25
 - `Insights/SleepQualityInsight.swift`
   - `SleepQualityInsight` :5
+- `Insights/SuggestionVisibility.swift`
+  - `SuggestionDismissal` :4
+  - `SuggestionVisibility` :43
 - `Insights/Suggestions.swift`
   - `Suggestion` :23
   - `SuggestionEngine` :82
@@ -269,13 +272,14 @@ the place to look.
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
-  - `FeedbackRecord` :156
+  - `FeedbackRecord` :178
   - `GroundingRecord` :9
   - `InsightScoreRecord` :57
   - `IntegrationRecord` :84
   - `ManualSampleRecord` :27
-  - `PredictionOutcomeRecord` :123
+  - `PredictionOutcomeRecord` :145
   - `SubstanceEventRecord` :98
+  - `SuggestionDismissalRecord` :127
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -310,10 +314,10 @@ the place to look.
   - `ConfidenceBadge` :150
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :220
-  - `LastNightCard` :100
+  - `InsightCard` :269
+  - `LastNightCard` :149
   - `TodayView` :7
-  - `VitalsGlance` :145
+  - `VitalsGlance` :194
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`
@@ -357,7 +361,7 @@ the place to look.
 - `Features/Settings/TroubleshootingView.swift`
   - `TroubleshootingView` :10
 - `Features/Substances/SubstanceLogView.swift`
-  - `SubstanceLogView` :6
+  - `SubstanceLogView` :7
 - `Features/Vitals/VitalsView.swift`
   - `OtherDataDetailView` :187
   - `VitalsView` :8

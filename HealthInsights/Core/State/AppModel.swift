@@ -131,6 +131,47 @@ final class AppModel {
         suggestionCache = built
         return built
     }
+
+    /// Dismissals, loaded once and kept in memory. Small by construction — there
+    /// can never be more of them than there are suggestions.
+    private(set) var suggestionDismissals: [SuggestionDismissal] = []
+
+    /// What each surface may show, after dismissals.
+    ///
+    /// Recomputed rather than cached: it depends on `now` (a dismissal expires),
+    /// and it is a filter over a list that is already capped at five.
+    var suggestionVisibility: SuggestionVisibility.Resolved {
+        SuggestionVisibility.resolve(suggestions: suggestions,
+                                     dismissals: suggestionDismissals)
+    }
+
+    func dismissSuggestion(id: String) {
+        dataStore.dismissSuggestion(id: id)
+        suggestionDismissals = dataStore.loadSuggestionDismissals()
+    }
+
+    func restoreSuggestion(id: String) {
+        dataStore.undismissSuggestions(ids: [id])
+        suggestionDismissals = dataStore.loadSuggestionDismissals()
+    }
+
+    /// Delete dismissals for suggestions the engine has stopped making.
+    ///
+    /// This is the whole of "hide it once the associated tasks are completed".
+    /// The engine only emits a suggestion while its condition holds, so a
+    /// grounding fact being entered, a signal returning to baseline and an
+    /// observation ceasing to be true are indistinguishable from here — the id
+    /// simply stops appearing, and the row it left behind is dead.
+    ///
+    /// Called from the Insights list rather than from `recompute()`, because
+    /// `suggestions` is lazy and forcing it on every recompute would run the
+    /// whole vitals scan on launch for a screen the user may not open.
+    func pruneResolvedSuggestions() {
+        let dead = suggestionVisibility.resolvedDismissals
+        guard !dead.isEmpty else { return }
+        dataStore.undismissSuggestions(ids: dead)
+        suggestionDismissals = dataStore.loadSuggestionDismissals()
+    }
     private(set) var profile: UserHealthProfile
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
@@ -192,6 +233,7 @@ final class AppModel {
         samples = TemperatureReconstructor.withReconstructedTemperature(merged)
         otherSamples = dataStore.loadCachedOther()
         substanceEvents = dataStore.loadSubstanceEvents()
+        suggestionDismissals = dataStore.loadSuggestionDismissals()
         recompute()
         // A stored summary written from *these* results is the real thing and is
         // worth showing immediately. Only fall back to the template when there
@@ -752,20 +794,55 @@ final class AppModel {
     func logSubstance(_ substance: SubstanceClass, at date: Date = Date(), units: Double? = nil, note: String? = nil) {
         dataStore.addSubstanceEvent(.init(substance: substance, timestamp: date, units: units, note: note))
         substanceEvents = dataStore.loadSubstanceEvents()
-        recompute()
+        recomputeSubstanceImpact()
     }
 
     /// Move a logged entry to when it actually happened.
     func updateSubstanceEvent(id: UUID, timestamp: Date) {
         dataStore.updateSubstanceEvent(id: id, timestamp: timestamp)
         substanceEvents = dataStore.loadSubstanceEvents()
-        recompute()
+        recomputeSubstanceImpact()
     }
 
     func deleteSubstanceEvent(id: UUID) {
         dataStore.deleteSubstanceEvent(id: id)
         substanceEvents = dataStore.loadSubstanceEvents()
-        recompute()
+        recomputeSubstanceImpact()
+    }
+
+    /// Re-evaluate only what a substance log can actually change.
+    ///
+    /// These three used to call `recompute()`, which evaluates **every**
+    /// registered insight across the whole sample set and then throws away every
+    /// derived cache — breakdowns, overlays, replayed score histories, age
+    /// history. For a substance log almost all of that is wasted: exactly one
+    /// model reads the log, and not one of those caches does. On a phone holding
+    /// a hundred thousand samples it is the difference between a tap that lands
+    /// and a tap that hangs, and the tap is the whole interaction — the grid
+    /// exists so that logging is one gesture.
+    ///
+    /// The score row is still written, so Substance Impact keeps appearing in
+    /// the history and the comparison chart.
+    private func recomputeSubstanceImpact() {
+        engine = engine.withSubstanceLog(substanceEvents)
+        guard let updated = engine.result(for: .substanceImpact, samples: samples,
+                                          profile: profile) else { return }
+        if let index = results.firstIndex(where: { $0.id == .substanceImpact }) {
+            results[index] = updated
+        } else {
+            results.append(updated)
+        }
+        if let score = updated.score {
+            dataStore.recordScore(.substanceImpact, score: score,
+                                  confidence: updated.confidence,
+                                  contributorCount: updated.contributors.count)
+        }
+        // Suggestions read `results`, so one changed result invalidates them.
+        suggestionCache = nil
+        // And this card's own replayed history is drawn from the log, so it has
+        // to be rebuilt — but only this card's.
+        scoreHistories[.substanceImpact] = nil
+        scoreHistoryTasks.remove(.substanceImpact)
     }
 
     func result(for id: InsightID) -> InsightResult? {

@@ -6,6 +6,10 @@ import InsightKit
 /// trends, not just today's numbers.
 struct InsightsListView: View {
     @Environment(AppModel.self) private var model
+    /// Collapsed by default. The section is pinned to the top as a persistent
+    /// reminder, and a reminder that fills the screen every time you open the
+    /// tab stops being one — so it opens as a one-line count and expands on tap.
+    @AppStorage("suggestionsExpanded") private var isExpanded = false
 
     private var trendResults: [InsightResult] {
         model.results.filter { $0.id.cadence == .trend }
@@ -15,10 +19,13 @@ struct InsightsListView: View {
         NavigationStack {
             ScrollView {
                 LazyVStack(spacing: Theme.spacing) {
+                    // Pinned above everything, including the tab's own
+                    // subtitle: it is the only thing here that is about what to
+                    // *do*, and it is the reason the tab gets opened.
+                    suggestionsCard
                     Text("Deeper analysis of your trends over time.")
                         .font(.subheadline).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    suggestionsCard
                     scoreComparisonCard
                     ForEach(trendResults, id: \.id) { result in
                         NavigationLink {
@@ -34,38 +41,73 @@ struct InsightsListView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Insights")
             .refreshable { await model.refresh() }
+            // A dismissal whose suggestion has stopped being made is dead, and
+            // this is where it gets cleared — the one screen guaranteed to have
+            // forced the (lazy) suggestion list.
+            .task { model.pruneResolvedSuggestions() }
         }
     }
 
-    /// "Improve Your Health".
+    /// "Improve Your Health" — pinned, collapsed, and keeping what you dismissed.
     ///
-    /// It lives here rather than on Today because this is where the evidence for
-    /// it comes from — the busier-versus-lighter-weeks contrast, the grounding
-    /// gaps, the signals off baseline are all derived rather than sensed, and a
-    /// derived finding belongs next to the analysis it came out of.
+    /// It lives here rather than only on Today because this is where the
+    /// evidence comes from — the busier-versus-lighter-weeks contrast, the
+    /// grounding gaps, the signals off baseline are all derived rather than
+    /// sensed. Today shows the single best-founded one and lets you wave it
+    /// away; this is the list that keeps it, which is what makes dismissing
+    /// something on Today safe rather than destructive.
+    ///
+    /// Dismissed rows stay, dimmed, with a Restore button. A suggestion the
+    /// engine has stopped making is gone from both screens without either of
+    /// them deciding anything — see `SuggestionVisibility`.
     ///
     /// Silent when there is nothing to say, which is often and correctly so.
     @ViewBuilder private var suggestionsCard: some View {
-        let suggestions = model.suggestions
-        if !suggestions.isEmpty {
+        let rows = model.suggestionVisibility.insights
+        if !rows.isEmpty {
+            let active = rows.filter { !$0.isDismissed }.count
             Card {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Improve your health", systemImage: "arrow.up.forward.circle")
-                        .font(.headline)
-                    Text("What your own data points at, strongest evidence first.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    ForEach(suggestions) { suggestion in
-                        suggestionRow(suggestion)
+                VStack(alignment: .leading, spacing: isExpanded ? 12 : 0) {
+                    Button {
+                        withAnimation(.snappy) { isExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.up.forward.circle")
+                            Text("Improve your health").font(.headline)
+                            Spacer(minLength: 4)
+                            Text(active > 0 ? "\(active)" : "all set")
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(active > 0 ? Theme.accent.opacity(0.15)
+                                                       : Color.secondary.opacity(0.12),
+                                            in: Capsule())
+                                .foregroundStyle(active > 0 ? Theme.accent : .secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        }
+                        .contentShape(Rectangle())
                     }
-                    Text("Observations from your own history, not medical advice. Talk to a clinician about anything that concerns you.")
-                        .font(.caption2).foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .buttonStyle(.plain)
+
+                    if isExpanded {
+                        Text("What your own data points at, strongest evidence first.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        ForEach(rows) { row in
+                            suggestionRow(row.suggestion, isDismissed: row.isDismissed)
+                        }
+                        Text("Observations from your own history, not medical advice. Talk to a clinician about anything that concerns you.")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
     }
 
-    @ViewBuilder private func suggestionRow(_ suggestion: Suggestion) -> some View {
+    @ViewBuilder private func suggestionRow(_ suggestion: Suggestion,
+                                            isDismissed: Bool) -> some View {
         let row = VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Circle().fill(colour(for: suggestion.basis)).frame(width: 7, height: 7)
@@ -78,12 +120,40 @@ struct InsightsListView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Dimmed rather than removed: this list is the reminder, and something
+        // you waved away on Today is exactly what it is here to keep hold of.
+        .opacity(isDismissed ? 0.45 : 1)
 
-        if let insight = suggestion.insight {
-            NavigationLink { InsightDetailView(insightID: insight) } label: { row }
-                .buttonStyle(.plain)
-        } else {
-            row
+        VStack(alignment: .leading, spacing: 6) {
+            if let insight = suggestion.insight {
+                NavigationLink { InsightDetailView(insightID: insight) } label: { row }
+                    .buttonStyle(.plain)
+            } else {
+                row
+            }
+            HStack(spacing: 8) {
+                if isDismissed {
+                    Button("Show on Today again") {
+                        model.restoreSuggestion(id: suggestion.id)
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.mini)
+                } else {
+                    Button {
+                        model.dismissSuggestion(id: suggestion.id)
+                    } label: {
+                        Label("Dismiss", systemImage: "xmark")
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.mini)
+                    .tint(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 

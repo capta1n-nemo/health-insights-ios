@@ -116,6 +116,28 @@ final class SubstanceEventRecord {
     }
 }
 
+/// A suggestion the user has waved away, and when.
+///
+/// Only the id and the instant are stored. The suggestion's own text is
+/// regenerated from live data every time, so persisting a copy would let a
+/// stale sentence outlive the numbers behind it — and the id is content-derived
+/// (`grounding-cuffSystolic`, `departure-restingHeartRate`), which is what makes
+/// "the same suggestion" mean the same thing across a regeneration.
+@Model
+final class SuggestionDismissalRecord {
+    @Attribute(.unique) var suggestionID: String
+    var dismissedAt: Date
+
+    init(suggestionID: String, dismissedAt: Date) {
+        self.suggestionID = suggestionID
+        self.dismissedAt = dismissedAt
+    }
+
+    var dismissal: SuggestionDismissal {
+        SuggestionDismissal(suggestionID: suggestionID, dismissedAt: dismissedAt)
+    }
+}
+
 /// A "the model predicted X, the truth was Y" pair, kept on device to power the
 /// feedback loop and (only if the user opts in) the anonymised model-improvement
 /// telemetry. Cohort fields are stored flat and are already coarse buckets.
