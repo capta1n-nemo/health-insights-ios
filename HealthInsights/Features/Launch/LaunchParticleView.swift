@@ -121,10 +121,11 @@ struct LaunchParticleView: UIViewRepresentable {
             colour.destinationAlphaBlendFactor = .oneMinusSourceAlpha
             pipeline = try? device.makeRenderPipelineState(descriptor: descriptor)
 
-            // Eighty-six thousand ray-bisections is ~0.2 s on a laptop and more
-            // on a phone. It happens once, and it happens off the main actor,
-            // because the entire point of this screen is that the main thread is
-            // busy. Until it lands the view clears to the launch background,
+            // Eighty-five thousand ray-bisections (plus a quarter-million much
+            // cheaper ring points) is a fraction of a second, and it happens
+            // once — off the main actor, because the entire point of this
+            // screen is that the main thread is busy.
+            // Until it lands the view clears to the launch background,
             // which is the same colour the static launch screen is already
             // showing — so the wait is invisible rather than blank.
             Task.detached(priority: .userInitiated) {
@@ -270,9 +271,15 @@ vertex ParticleOut launchParticleVertex(uint vid [[vertex_id]],
     // only lighting there is — there is no normal to shade with, because a point
     // sprite has no surface.
     float lit = clamp((0.45 - ry) / 1.35, 0.0, 1.0);
-    half3 base = isRing ? half3(0.804h, 0.376h, 0.376h)
-                        : half3(0.776h, 0.306h, 0.306h);
-    half3 col = mix(base, half3(1.0h), half(lit * 0.82));
+    // Colour and alpha are not taste — they are matched to measured statistics
+    // of the user's own reference animation: ink coverage 30.6%, mean
+    // saturation 53.2, mean luminance 168, darkest 5% at 125. The first
+    // version washed 82% of the way to white and came out at saturation 24
+    // with nothing darker than 187, which read on the phone as "too light,
+    // not dense enough".
+    half3 base = isRing ? half3(0.757h, 0.251h, 0.251h)
+                        : half3(0.725h, 0.196h, 0.196h);
+    half3 col = mix(base, half3(1.0h), half(lit * 0.22));
 
     // Premultiplied, so the blend below is a plain source-over and the order the
     // points arrive in stops mattering as much. It matters *some* — there is no
@@ -280,7 +287,7 @@ vertex ParticleOut launchParticleVertex(uint vid [[vertex_id]],
     // sorting eighty-six thousand points per frame would cost more than the
     // draw. Verified by eye against a sorted reference render: at these alphas
     // the difference is not visible.
-    half alpha = half(clamp((isRing ? 0.40 : 0.30) * pow(persp, 2.2), 0.0, 1.0));
+    half alpha = half(clamp((isRing ? 0.60 : 0.55) * pow(persp, 2.2), 0.0, 1.0));
     o.colour = half4(col * alpha, alpha);
     return o;
 }

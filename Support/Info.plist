@@ -26,17 +26,24 @@
          until AppModel has finished hydrating, that white screen was the first
          several seconds of every cold start.
 
-         Poster is the particle cloud at rest, rendered from the same
-         LaunchParticleField arrangement the live Metal view starts from — which
-         is why that field is seeded rather than random. UIImageRespectsSafeAreaInsets
-         is absent (defaults false) so the image fills the screen the same way
-         the renderer does. -->
+         Colour only, deliberately. It carried UIImageName pointing at a poster
+         of the heart, and the heart flashed in at roughly three times its size
+         before the live view cut it down: the asset catalog declared the
+         1179×2556 image in the *1x* slot, so iOS treated those numbers as
+         points and drew it at 3× on a 3× screen, centred and cropped. The right
+         fix looks like moving it to the 3x slot, but that is a guess about how
+         UILaunchScreen scales, and a wrong guess here costs a deploy cycle to
+         discover. A flat launch colour cannot be the wrong size.
+
+         The cost is a beat of plain #D9D9D9 before the Metal view has its point
+         cloud — the same colour the renderer clears to, so it reads as the app
+         opening rather than as a blank screen. The poster image itself stays in
+         the catalog for the Reduce Motion and no-Metal paths, where SwiftUI
+         scales it correctly with .resizable().aspectRatio(contentMode: .fill). -->
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>
         <string>LaunchBackground</string>
-        <key>UIImageName</key>
-        <string>LaunchPoster</string>
     </dict>
     <key>UIApplicationSceneManifest</key>
     <dict>

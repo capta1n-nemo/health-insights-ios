@@ -74,7 +74,12 @@ struct LaunchScreen: View {
     private var status: some View {
         Text(message)
             .font(.callout)
-            .foregroundStyle(.secondary)
+            // An explicit colour, not `.secondary`. This screen commits to a
+            // light background whatever the system appearance is, and
+            // `.secondary` does not — on a phone in dark mode it resolves to a
+            // *light* grey and the copy vanished into the background. A
+            // semantic colour is only semantic if the surface it sits on is too.
+            .foregroundStyle(Color(red: 0.36, green: 0.33, blue: 0.33))
             .multilineTextAlignment(.center)
             .transition(.opacity)
             .id(message)

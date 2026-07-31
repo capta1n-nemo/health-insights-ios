@@ -16,12 +16,20 @@ public enum LaunchParticleField {
 
     // MARK: - Shape
 
-    /// Points per cloud. Generous on purpose — the brief was "very dense dots
-    /// like a fine mist", and on a GPU eighty thousand points costs no more than
-    /// eight thousand. The cost that *is* real is generating them, which is why
-    /// `build` is measured by a test rather than guessed at.
-    public static let heartCount = 60_000
-    public static let ringCount = 26_000
+    /// Points per cloud, set by measurement rather than by eye.
+    ///
+    /// The first version (60k / 26k) came out at 15.9% ink coverage against the
+    /// reference animation's 30.6%, and its ring band at 7% against 29% — which
+    /// on the phone read as "too light, not dense enough, ring barely visible".
+    /// These counts put coverage at 33% and the bands at ~25%. The ring needs
+    /// far more points than the heart because it is spread over most of the
+    /// screen rather than concentrated.
+    ///
+    /// On a GPU a third of a million point sprites costs nothing. The cost that
+    /// *is* real is generating them — only the heart pays for ray-bisection —
+    /// which is why `build` is measured by a test rather than guessed at.
+    public static let heartCount = 85_000
+    public static let ringCount = 240_000
 
     /// Seconds for the heart to turn once.
     ///
