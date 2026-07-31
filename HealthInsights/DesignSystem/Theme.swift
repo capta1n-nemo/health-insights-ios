@@ -15,12 +15,53 @@ enum Theme {
     static let warn = Color(red: 0.98, green: 0.68, blue: 0.20)
     static let bad = Color(red: 0.90, green: 0.32, blue: 0.30)
 
+    /// Where a score stops being one thing and starts being another.
+    ///
+    /// Named because two things read them now — the dot colour below and the
+    /// area fill under the score line — and a fill whose green started somewhere
+    /// the dots didn't would be worse than no fill at all. Same reasoning as the
+    /// blood-pressure bands, which are pinned by a test for the same reason.
+    ///
+    /// Note these are 45 and 70, while `ScoreHistoryChart` draws its dashed
+    /// reference lines at 50 and 70 — those are *readiness's* own bands, so that
+    /// "80" on the chart means "Primed" on the card. Two different band systems,
+    /// both deliberate; the fill follows this one because it must agree with the
+    /// dots sitting on it.
+    static let scoreWarnFloor: Double = 45
+    static let scoreGoodFloor: Double = 70
+
     static func color(forScore score: Double) -> Color {
         switch score {
-        case 70...: return good
-        case 45..<70: return warn
+        case scoreGoodFloor...: return good
+        case scoreWarnFloor..<scoreGoodFloor: return warn
         default: return bad
         }
+    }
+
+    /// The fill under a score line, coloured by the band each height falls in.
+    ///
+    /// Green where the line is high, amber through the middle, red at the
+    /// bottom, fading between rather than stepping — so a card that peaks into
+    /// the seventies reads as green at the peak while its troughs read as red,
+    /// without the reader consulting the axis.
+    ///
+    /// The stops assume the gradient is resolved against the **plot area**,
+    /// which is why this is only ever used on a chart with a fixed `0...100`
+    /// y-domain. If it turns out to resolve against the *mark's* bounding box
+    /// instead, the ordering still holds — green stays high and red stays low —
+    /// but the thresholds compress toward the highest score on screen, and the
+    /// fix is to compute these locations against that maximum rather than 100.
+    static func scoreFill(opacity: Double = 0.30) -> LinearGradient {
+        // location 0 is the top of the plot, i.e. a score of 100.
+        func location(_ score: Double) -> Double { 1 - score / 100 }
+        return LinearGradient(
+            stops: [
+                .init(color: good.opacity(opacity), location: 0),
+                .init(color: good.opacity(opacity), location: location(scoreGoodFloor)),
+                .init(color: warn.opacity(opacity), location: location(scoreWarnFloor)),
+                .init(color: bad.opacity(opacity * 0.75), location: 1),
+            ],
+            startPoint: .top, endPoint: .bottom)
     }
 
     static func color(for confidence: InsightConfidence) -> Color {

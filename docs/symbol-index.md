@@ -320,8 +320,10 @@ the place to look.
 - `DesignSystem/ScoreHistoryChart.swift`
   - `ScoreHistoryChart` :12
 - `DesignSystem/ScrollableMetricChart.swift`
-  - `MetricYScale` :137
+  - `MetricYScale` :142
   - `ScrollableMetricChart` :13
+- `DesignSystem/ScrubIndicator.swift`
+  - `ScrubIndicator` :17
 - `DesignSystem/SleepOnsetStripChart.swift`
   - `SleepOnsetStripChart` :38
 - `DesignSystem/SourceBreakdownCard.swift`
@@ -329,8 +331,8 @@ the place to look.
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :134
-  - `ConfidenceBadge` :150
+  - `Card` :175
+  - `ConfidenceBadge` :191
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :269

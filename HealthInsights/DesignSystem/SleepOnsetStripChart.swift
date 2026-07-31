@@ -37,8 +37,22 @@ import InsightKit
 ///   place a reader is looking.
 struct SleepOnsetStripChart: View {
     let output: CircadianConsistencyModel.Output
+    var selection: Binding<Date?>?
+
+    @State private var localSelection: Date?
+
+    private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
+    private var selected: Date? { selectionBinding.wrappedValue }
 
     private var tint: Color { Theme.insightTint(.sleep) }
+
+    /// The night nearest the scrubbed instant, ignoring anything further than
+    /// half a day away — past that the finger is between nights, not on one.
+    private func night(at date: Date) -> CircadianConsistencyModel.Night? {
+        output.nights.min {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }.flatMap { abs($0.date.timeIntervalSince(date)) <= 12 * 3600 ? $0 : nil }
+    }
 
     /// The two block centres actually in play. One entry when no weekday/weekend
     /// shift was measurable, which is also when both centres are the same number
@@ -57,8 +71,33 @@ struct SleepOnsetStripChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            readout
             chart
             caption
+        }
+    }
+
+    /// Above the chart rather than as a mark annotation: on this SDK a
+    /// `RuleMark` chain resolves to `Chart3DContent`, which has no `annotation`.
+    /// The blank line holds the height so the chart doesn't jump on first touch.
+    @ViewBuilder private var readout: some View {
+        if let selected, let hit = night(at: selected) {
+            HStack(spacing: 8) {
+                Circle().fill(tint).frame(width: 7, height: 7)
+                Text(MetricValueFormatter.string(hit.onset, .sleepOnset))
+                    .font(.caption.weight(.semibold)).monospacedDigit()
+                Text(hit.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
+                    .foregroundStyle(.secondary)
+                if abs(hit.departure) >= 0.25 {
+                    Text(String(format: "· %.1f h %@ than usual", abs(hit.departure),
+                                hit.departure > 0 ? "later" : "earlier"))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
+            .font(.caption2)
+        } else {
+            Text(" ").font(.caption2)
         }
     }
 
@@ -75,7 +114,9 @@ struct SleepOnsetStripChart: View {
     private var chart: some View {
         Chart {
             marks
+            ScrubIndicator(date: selected)
         }
+        .chartXSelection(value: selectionBinding)
         .chartYAxis {
             AxisMarks(values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()

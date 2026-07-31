@@ -88,6 +88,7 @@ struct ScoreHistoryChart: View {
     /// this SDK and silently drop `.lineStyle` and `.foregroundStyle`.
     @ChartContentBuilder
     private func scoreMarks(_ visible: [ScorePoint]) -> some ChartContent {
+        areaMarks(visible)
         bandMarks
         trendMarks(visible)
         ForEach(visible) { point in
@@ -152,6 +153,30 @@ struct ScoreHistoryChart: View {
             RuleMark(y: .value("Band", level))
                 .foregroundStyle(Color.secondary.opacity(0.18))
                 .lineStyle(Theme.referenceStroke)
+        }
+    }
+
+    /// The band-coloured fill under the score line.
+    ///
+    /// The line alone made every card's history the same colour, so telling a
+    /// good month from a bad one meant reading the axis. Filled and graded by
+    /// height, a run in the seventies is green at the peak and its troughs are
+    /// amber and red, which is the reading the card's own dial already gives.
+    ///
+    /// A single `AreaMark(x:y:)` with a vertical gradient, deliberately — the
+    /// construction `EnergyCurveChart` already ships. The alternative that first
+    /// suggests itself, three `AreaMark(x:yStart:yEnd:)` bands stacked, is the
+    /// *filled min/max band* that `docs/progress.md` still carries as an
+    /// unverified SDK hazard, and its failure mode is silent.
+    ///
+    /// Under the line rather than over it, and at low opacity: the fill is the
+    /// context, the line is still the measurement.
+    @ChartContentBuilder
+    private func areaMarks(_ visible: [ScorePoint]) -> some ChartContent {
+        ForEach(visible) { p in
+            AreaMark(x: .value("Day", p.date), y: .value("Score", p.score))
+                .foregroundStyle(Theme.scoreFill())
+                .interpolationMethod(.linear)
         }
     }
 

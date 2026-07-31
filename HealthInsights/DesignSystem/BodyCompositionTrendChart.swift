@@ -34,6 +34,12 @@ struct BodyCompositionTrendChart: View {
     let points: [BodyCompositionSplit.Dated]
     /// The day the lean band subdivides, when the window spans both resolutions.
     let finerSplitBegins: Date?
+    var selection: Binding<Date?>?
+
+    @State private var localSelection: Date?
+
+    private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
+    private var selected: Date? { selectionBinding.wrappedValue }
 
     /// One band's value on one day, flattened for `Chart`.
     private struct Row: Identifiable {
@@ -107,11 +113,54 @@ struct BodyCompositionTrendChart: View {
         }
     }
 
+    /// The weigh-in nearest the finger, ignoring anything more than a fortnight
+    /// away — past that there is no reading under the touch to report.
+    private func point(at date: Date) -> BodyCompositionSplit.Dated? {
+        points.min {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        }.flatMap { abs($0.date.timeIntervalSince(date)) <= 14 * 86_400 ? $0 : nil }
+    }
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            readout
+            chart
+        }
+    }
+
+    /// Above the chart, not as an annotation — a `RuleMark` chain resolves to
+    /// `Chart3DContent` on this SDK and that has no `annotation`. The blank line
+    /// reserves the height so nothing jumps on first touch.
+    @ViewBuilder private var readout: some View {
+        if let selected, let hit = point(at: selected) {
+            HStack(spacing: 8) {
+                Text(hit.date.formatted(date: .abbreviated, time: .omitted))
+                    .foregroundStyle(.secondary)
+                Text(String(format: "%.1f kg", hit.split.total))
+                    .font(.caption2.weight(.semibold)).monospacedDigit()
+                ForEach(hit.split.parts, id: \.metric) { part in
+                    HStack(spacing: 3) {
+                        Circle().fill(Theme.metricColor(part.metric, slots: slots))
+                            .frame(width: 5, height: 5)
+                        Text(String(format: "%.1f", part.kilograms)).monospacedDigit()
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .font(.caption2)
+        } else {
+            Text(" ").font(.caption2)
+        }
+    }
+
+    private var chart: some View {
         Chart {
             bands
             waterMarks
+            ScrubIndicator(date: selected)
         }
+        .chartXSelection(value: selectionBinding)
         .chartForegroundStyleScale(domain: labels, range: labels.map(colour))
         .chartLegend(.hidden)   // the card draws its own, with the water sub-dot
         .chartYAxis {

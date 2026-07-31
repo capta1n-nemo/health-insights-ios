@@ -82,6 +82,11 @@ struct ScrollableMetricChart<Marks: ChartContent>: View {
         let range = visibleRange
         Chart {
             marks(plotRange)
+            // Drawn here rather than by each caller, so every chart that wraps
+            // this one — score history, multi-source, blood pressure, the
+            // overlay, the age charts, substance load — gets the same scrub line
+            // without seven copies of it. Last, so it sits over the data.
+            ScrubIndicator(date: selection)
         }
         .modifier(MetricYScale(domain: yDomain(range), log: logarithmic))
         .chartLegend(.hidden)
