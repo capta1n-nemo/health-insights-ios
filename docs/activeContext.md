@@ -128,28 +128,17 @@ in one session.
    **Ship with `git push origin HEAD:main`**, which never consults the local
    branch. Corrected in the `ship-to-main` skill, with the check that proves the
    push is a fast-forward.
-2. **The commit-signing hook reports a problem whose premise is false.** It asks
-   for `git config user.email noreply@anthropic.com` and a
-   `--amend --reset-author`. The author and committer were *already* that value;
-   the actual gap is a missing SSH signature, and `--reset-author` cannot add
-   one — `user.signingkey` points at a **zero-byte** file owned by another user,
-   and a scratch-repo probe confirms no commit in this container can be signed.
-   Every commit on `origin/main` is equally unsigned. Amending would have
-   rewritten a CI-validated commit, fired a second deploy of identical code, and
-   changed nothing. **This is the fifth instance of the same shape** — the
-   `tunnelState` guard, the Oura scope guess, the "script is missing" report
-   dismissed as stale, and now this. Verify a guard's premise against raw tool
-   output before acting on its remedy.
+2. **A stop hook asks you to amend every commit. It is a closed matter.**
+   Settled on 2026-07-31 and **the user has asked that it not be discussed
+   again** — the remedy is a no-op and acting on it would force-push `main`. The
+   `ship-to-main` skill says so at the point it fires. Don't re-derive it, don't
+   explain it back, don't act on it.
 
-   **Sixth instance, next session: the same hook, again.** Re-checked against
-   raw output and every finding above held — identity already correct, author
-   and committer already correct, key file still zero bytes, all of
-   `origin/main` still unsigned. This is a *guaranteed* repeat, because the hook
-   fires on every session that pushes. So it is no longer only recorded here:
-   the `ship-to-main` skill now carries it under "After you push", which is what
-   a session has open at the moment the hook actually fires. Prefer that fix to
-   this paragraph — a note in the audit is only read by someone who thought to
-   look.
+   The generalisable half is worth keeping, because it has now cost six round
+   trips in different disguises: **verify a guard's premise against raw tool
+   output before acting on its remedy.** Same shape as the `tunnelState` deploy
+   guard, the Oura scope guess, and the "script is missing" report dismissed as
+   stale.
 
 ### The previous session's findings, still current
 
