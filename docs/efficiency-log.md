@@ -36,6 +36,36 @@ it under its own filename instead of checking `symbol-index.md`" is checkable.
 per push rather than absolutely — a long session that ships a lot should be
 allowed more of everything.
 
+## The failure mode this log exists to catch, and it is not what it looks like
+
+For three sessions running, **the user had to ask whether the handover had
+happened** — and each time, asking found something. The protocol was written, it
+was detailed, and it did not fire, because its trigger was three literal phrases
+("handover", "wrap up", `/handover`) and the user's actual words were "good to
+close this chat?" and "I'm starting a new chat, make sure nothing is missed".
+
+So the lesson is not "write a better protocol". It is:
+
+**A ceremony that depends on being invoked will be skipped.** The checks that
+matter belong in something that runs unconditionally, not in an end-of-session
+ritual whose trigger is a keyword.
+
+There are two tiers of that, and the second one matters more:
+
+1. **Into `verify.sh`**, which runs before every push — missing script
+   references and half-done `[~]` markers moved there on 2026-07-31.
+2. **Into a hook**, which the *harness* runs rather than the model.
+   `scripts/pre-push-gate.sh` is a `PreToolUse` hook on `Bash(git push*)`: it
+   runs the full gate and **denies the push** if it fails. Tier 1 still depends
+   on the model choosing to run `verify.sh`. Tier 2 does not depend on the model
+   at all, which is the only real answer to "a rule the model can skip".
+
+Anything that can be moved to tier 2 should be.
+
+Everything left in the ceremony should be there because it *genuinely cannot* be
+mechanised — the prose judgement about what a session learnt — and everything
+mechanisable should have left.
+
 ## Why "compounding" is the column that matters
 
 Waste can be reduced by being careful, which does not survive a context reset.
@@ -70,6 +100,10 @@ that is not yet automated is the next thing to automate.
 | A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
 | **A rule pointing at a script that isn't there** | 1 | ✅ `handover-check.sh` check 7 |
 | **`git add -A` in a canary, then `git reset --hard`** | 1 | ⬜ **open** — see roadmap |
+| **The user having to prompt the handover by hand** | 3+ | ✅ trigger widened to intent; checks moved into `verify.sh` (2026-07-31) |
+| **A `[~]` half-done marker surviving a push** | 1 | ✅ `verify.sh` fails on any `- [~]` |
+| Not stating the open roadmap until asked | 3+ | ✅ `session-start` skill |
+| **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` — a hook, so the harness enforces it, not the model |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
@@ -98,7 +132,13 @@ Ordered by (frequency × cost), cheapest fix first.
       `git reset --hard` that undid the canary deleted the script with it. The
       rules kept pointing at it for three commits. Use `git stash -u`, or commit
       the real work *before* running any canary that resets.
-- [ ] **Make `symbol-index.md` the reflex, not the fallback.** The router already
+- [x] **A session-start checklist skill.** `.claude/skills/session-start/` —
+      bootstrap in the background, read the two audited docs, state the open
+      roadmap *unprompted*. Also carries the absolute-path rule and the
+      symbol-index reflex, which is where the two remaining re-derivation
+      categories were coming from.
+- [ ] **Make `symbol-index.md` the reflex, not the fallback.** Partly addressed
+      by the `session-start` skill naming it; not yet mechanical. The router already
       says "check here before grepping". It was still skipped. Consider having
       `verify.sh` print a one-line reminder, or fold the index into the skills
       that most often precede a hunt.

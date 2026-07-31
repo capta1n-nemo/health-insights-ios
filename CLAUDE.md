@@ -102,8 +102,31 @@ So:
   rule, per-chart hue resolution, and gap handling.
 
 ## End of Session Protocol
-When the user says "handover", "wrap up", or runs `/handover`, follow
-`.claude/commands/handover.md` — it is the authority and it has three parts:
+### What counts as asking for a handover
+
+**Any question about whether the session is finished IS a handover request.** The
+trigger used to be three literal phrases — "handover", "wrap up", `/handover` —
+and on 2026-07-31 the user asked *"good to close this chat? everything is ready
+and recorded?"*, then *"I want to start a new chat, make sure nothing is
+missed"*, and the protocol never fired for either. Ad-hoc doc edits happened
+instead, and they were incomplete twice running. The user then had to point out
+that they had been driving this by hand every session.
+
+So the trigger is the *intent*, not the wording. All of these fire the full
+protocol:
+
+- "handover", "wrap up", `/handover`, "let's close this out"
+- "good to close?", "are we done?", "is everything recorded?", "anything missed?"
+- "I'm starting a new chat", "new session", "closing this chat"
+- any question about whether the docs, roadmap or state are current
+
+If you are unsure whether a message is one of these, **run the protocol anyway** —
+it is cheap next to the alternative, which is a stale audit of record that the
+next session trusts. And do not answer any of those questions from memory: run
+`./scripts/handover-check.sh` and answer from its output.
+
+When it fires, follow `.claude/commands/handover.md` — it is the authority and
+it has three parts:
 
 1. **Carry the work forward** — `docs/activeContext.md`, `docs/progress.md`, and
    the *tooling* (a rule learnt this session belongs in a lint or a skill, not

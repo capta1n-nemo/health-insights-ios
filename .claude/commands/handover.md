@@ -5,6 +5,16 @@ allowed-tools: Read, Edit, Write, Bash(git *), Bash(./scripts/*)
 
 # End-of-Session Handover Workflow
 
+**This fires on intent, not on a keyword.** "Good to close?", "anything missed?",
+"I'm starting a new chat" and "is everything recorded?" are all handover
+requests. The three-literal-phrase trigger let two of those pass unhandled in one
+session — see `CLAUDE.md` ▸ "What counts as asking for a handover". When unsure,
+run it.
+
+**Do not answer a "are we done?" question from memory.** Run
+`./scripts/handover-check.sh` and answer from its output. That specific mistake
+has now happened four times in this repo's history.
+
 ## Part 1 — carry the work forward
 
 1. Analyze the code changes and decisions made in this chat session.

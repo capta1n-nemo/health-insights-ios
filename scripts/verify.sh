@@ -215,6 +215,53 @@ if [ -n "$dupes" ]; then
     fail=1
 fi
 
+# --- Rules must not point at scripts that are missing ----------------------
+#
+# On 2026-07-31 `CLAUDE.md` and the handover command were committed instructing
+# the reader to run `./scripts/handover-check.sh`, and the file was not in the
+# tree — a canary's `git add -A` had swept the still-untracked script into a
+# throwaway commit that `git reset --hard` then discarded. It survived three
+# pushes. A rule pointing at a missing script is worse than no rule: it reads as
+# a guarantee and silently provides nothing.
+#
+# This lives here rather than only in `handover-check.sh` because *this* script
+# runs before every push, and that one runs only when somebody remembers a
+# ceremony.
+missing_scripts=""
+# `.claude/settings.json` is in the list because a hook pointing at a deleted
+# script fails *silently* — the harness runs nothing and the push it was meant to
+# gate sails through, which is strictly worse than a rule nobody read.
+for f in CLAUDE.md .claude/commands/*.md .claude/skills/*/SKILL.md .claude/settings.json; do
+    [ -f "$f" ] || continue
+    for ref in $(grep -oE '[.]/scripts/[A-Za-z0-9_-]+[.]sh' "$f" 2>/dev/null | sort -u); do
+        [ -x "${ref#./}" ] || missing_scripts="$missing_scripts $ref (in $f)"
+    done
+done
+if [ -n "$missing_scripts" ]; then
+    note "Rules reference scripts that are missing or not executable:$missing_scripts"
+    fail=1
+fi
+
+# --- No half-done markers in the roadmap -----------------------------------
+#
+# `- [~]` means "some clauses of this are done and some are not", and it is the
+# anti-pattern this repo has already paid for twice: a multi-clause item hides
+# its unfinished clauses, and three `[~]` rows survived four pushes describing
+# work that had shipped.
+#
+# There is no legitimate resting state for it. Either the item is done (`[x]`),
+# or the unfinished clause is its own `[ ]` item with its own sentence. Being
+# made to split it is the point — that is the fix for the failure mode, not a
+# formatting preference.
+if [ -f docs/progress.md ]; then
+    partial=$(grep -nE '^- \[~\]' docs/progress.md || true)
+    if [ -n "$partial" ]; then
+        note 'docs/progress.md has half-done `- [~]` items. Split each into a done `[x]` and an open `[ ]` — a multi-clause item hides its unfinished clauses:'
+        printf '%s\n' "$partial"
+        fail=1
+    fi
+fi
+
 # --- The symbol index must not rot -----------------------------------------
 # A stale index is worse than no index, because it gets trusted.
 

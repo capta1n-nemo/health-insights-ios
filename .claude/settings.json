@@ -18,10 +18,27 @@
       "Read",
       "Edit",
       "Write",
-      "Bash(./scripts/handover-check.sh*)"
+      "Bash(./scripts/handover-check.sh*)",
+      "Bash(./scripts/pre-push-gate.sh*)"
     ],
     "deny": [
       "Read(*.env*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/pre-push-gate.sh",
+            "if": "Bash(git push*)",
+            "timeout": 420,
+            "statusMessage": "Running the pre-push gate (verify.sh --tests)\u2026"
+          }
+        ]
+      }
     ]
   }
 }
