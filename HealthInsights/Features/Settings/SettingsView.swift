@@ -14,6 +14,7 @@ struct SettingsView: View {
                 profileSection
                 importSection
                 intelligenceSection
+                exportSection
                 privacySection
                 aboutSection
             }
@@ -111,6 +112,21 @@ struct SettingsView: View {
             }
         } footer: {
             Text("Read on-device — take or choose a photo of a pathology report and confirm the values. Nothing is uploaded.")
+        }
+    }
+
+    /// The development feedback loop: hand back what the app has actually
+    /// imported, so a decision about which signals deserve a card is made
+    /// against the data rather than against a guess at what the parsers produce.
+    private var exportSection: some View {
+        Section {
+            NavigationLink {
+                DataExportView()
+            } label: {
+                Label("Export my data", systemImage: "square.and.arrow.up.on.square")
+            }
+        } footer: {
+            Text("An inventory of every signal in your Vitals tab — including the imported fields no card reads yet — small enough to send in a message. Stays on this phone until you share it, and never includes account details.")
         }
     }
 

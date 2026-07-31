@@ -231,6 +231,8 @@ the place to look.
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
   - `SubstanceWindow` :327
+- `Text/DataInventory.swift`
+  - `DataInventory` :19
 - `Text/PlainText.swift`
   - `PlainText` :8
 
@@ -377,10 +379,14 @@ the place to look.
 - `Features/Onboarding/OnboardingView.swift`
   - `OnboardingPanel` :213
   - `OnboardingView` :7
+- `Features/Settings/DataExportView.swift`
+  - `DataExportView` :16
+  - `FullExport` :118
+  - `OtherDataListView` :131
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :284
-  - `IntegrationRow` :185
-  - `IntegrationSummaryRow` :241
+  - `DisclaimerView` :300
+  - `IntegrationRow` :201
+  - `IntegrationSummaryRow` :257
   - `SettingsView` :4
 - `Features/Settings/TelemetryOutboxView.swift`
   - `TelemetryOutboxView` :7
