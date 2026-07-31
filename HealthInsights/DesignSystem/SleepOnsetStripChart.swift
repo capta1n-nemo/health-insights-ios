@@ -48,7 +48,7 @@ struct SleepOnsetStripChart: View {
 
     /// The night nearest the scrubbed instant, ignoring anything further than
     /// half a day away — past that the finger is between nights, not on one.
-    private func night(at date: Date) -> CircadianConsistencyModel.Night? {
+    private func night(at date: Date) -> CircadianConsistencyModel.Output.Night? {
         guard let nearest = output.nights.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
         }), abs(nearest.date.timeIntervalSince(date)) <= 12 * 3600 else { return nil }
