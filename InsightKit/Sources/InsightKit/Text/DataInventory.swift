@@ -18,6 +18,25 @@ import Foundation
 /// no path from either to a token or a keychain item.
 public enum DataInventory {
 
+    /// One source's contribution to one signal.
+    ///
+    /// The summary row merges every source into a single distribution, and that
+    /// turned out to hide the answer to the question the report exists to
+    /// settle. The nap fix was to be proved by `restingHeartRate`'s maximum
+    /// falling from 119 — but with Apple Watch, Oura and Shortcuts all feeding
+    /// that metric, a merged maximum cannot say *which* of them produced it, so
+    /// the fix could be neither confirmed nor refuted from the report designed
+    /// to do it. One number per source is what makes a claim like that decidable.
+    public struct SourceStat: Sendable, Equatable {
+        public let source: String
+        public let count: Int
+        public let first: Date?
+        public let last: Date?
+        public let min: Double?
+        public let median: Double?
+        public let max: Double?
+    }
+
     /// One line per signal. Small enough to paste into a conversation, which is
     /// the whole point — the full export is a file nobody can read.
     public struct Row: Sendable, Equatable {
@@ -37,6 +56,10 @@ public enum DataInventory {
         public let states: [String]
         /// Whether an insight reads this signal today.
         public let isModelled: Bool
+        /// Per-source distributions, sorted by source name. Empty when the
+        /// signal has only one source, because then the summary row already
+        /// attributes itself and a second table would only add noise.
+        public let bySource: [SourceStat]
     }
 
     // MARK: - Building
@@ -65,7 +88,8 @@ public enum DataInventory {
                     max: values.last,
                     latest: byDate.last.map { format($0.value) } ?? "—",
                     states: [],
-                    isModelled: true)
+                    isModelled: true,
+                    bySource: sourceStats(group))
             }
             .sorted { $0.displayName < $1.displayName }
     }
@@ -93,7 +117,11 @@ public enum DataInventory {
                 // is a free-text field wearing a disguise, and listing them all
                 // would bury the report.
                 states: Array(group.distinctTextValues.prefix(12)),
-                isModelled: false)
+                isModelled: false,
+                // Unmodelled fields are provider-namespaced already
+                // (`oura.sleep.*`, `withings.measure.*`), so the identifier
+                // names the source and there is nothing to disambiguate.
+                bySource: [])
         }
         .sorted { $0.displayName < $1.displayName }
     }
@@ -123,6 +151,32 @@ public enum DataInventory {
         out.append("")
         out.append(table(modelled, calendar: calendar))
         out.append("")
+
+        // Only the signals that merge several sources, because only they can
+        // hide which source produced an outlier. Listing the single-source ones
+        // would double the report to restate its own Sources column.
+        let multi = modelled.filter { !$0.bySource.isEmpty }
+        if !multi.isEmpty {
+            out.append("### Which source produced which number")
+            out.append("")
+            out.append("Only the signals with more than one source. A merged "
+                       + "minimum or maximum cannot be traced, and tracing one "
+                       + "is how a parser fix gets proved or disproved.")
+            out.append("")
+            out.append("| Signal | Source | N | First | Last | Min | Median | Max |")
+            out.append("| --- | --- | ---: | --- | --- | ---: | ---: | ---: |")
+            for row in multi {
+                for stat in row.bySource {
+                    out.append("| \(row.displayName) | \(stat.source) | \(stat.count) "
+                        + "| \(stat.first.map { day($0, calendar) } ?? "—") "
+                        + "| \(stat.last.map { day($0, calendar) } ?? "—") "
+                        + "| \(stat.min.map(format) ?? "—") "
+                        + "| \(stat.median.map(format) ?? "—") "
+                        + "| \(stat.max.map(format) ?? "—") |")
+                }
+            }
+            out.append("")
+        }
 
         out.append("## Imported, not yet modelled")
         out.append("")
@@ -219,6 +273,28 @@ public enum DataInventory {
             return String(format: "%.0f", value)
         }
         return String(format: "%.2f", value)
+    }
+
+    /// Per-source distributions for one metric's samples.
+    ///
+    /// Returns empty for a single-source signal on purpose — see `Row.bySource`.
+    /// Keyed on `displayName` rather than `id` so it lines up with the `Sources`
+    /// column, which is what a reader is cross-referencing.
+    static func sourceStats(_ group: [HealthMetricSample]) -> [SourceStat] {
+        let byName = Dictionary(grouping: group, by: \.source.displayName)
+        guard byName.count > 1 else { return [] }
+        return byName.map { name, samples in
+            let values = samples.map(\.value).sorted()
+            let byDate = samples.sorted { $0.start < $1.start }
+            return SourceStat(source: name,
+                              count: samples.count,
+                              first: byDate.first?.start,
+                              last: byDate.last?.start,
+                              min: values.first,
+                              median: median(values),
+                              max: values.last)
+        }
+        .sorted { $0.source < $1.source }
     }
 
     static func distinctSources(_ sources: [MetricSource]) -> [String] {

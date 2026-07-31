@@ -30,7 +30,50 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The data-export session (latest).** The export built last session was used for
+**The second-export session (latest).** The user brought a fresh inventory to
+build the `docs/data-opportunities.md` list from. It was not usable for that yet,
+and the reason is the session:
+
+- **The export could not settle the question it was built to settle.** The nap
+  fix was to be proved by `sleepDurationHours`' median rising from 5.62 h and
+  `restingHeartRate`'s max falling from 119. The new export reads **5.65 h** and
+  **119** — unmoved. But `restingHeartRate` has three sources and the report
+  gave one merged distribution, so 119 named nobody and the fix could be neither
+  confirmed nor refuted. `DataInventory` now emits a per-source N/first/last/
+  min/median/max for every multi-source signal. **Re-export before concluding
+  anything about the nap fix.**
+- **And a second cause of the same symptom was still live.**
+  `HealthKitService.fetchSleep` keyed every nightly figure on
+  `Calendar.startOfDay(for: segment.startDate)`. Apple Health writes a night as
+  a run of stage segments, so the pre-midnight ones were filed under one day and
+  the rest under the next: one night became two, the smaller a sliver. That is
+  the export's `sleepDurationHours` **min of 0.01 h**, and — efficiency having
+  split numerator and denominator independently — its **2% minimum**, which is
+  also the only reason the old code needed to clamp at 100. It further dated
+  Apple Health a day out from Oura, which stamps a night at the day it *ends*;
+  `bucketStatistic` averages same-day samples, so a real night from one source
+  was averaged with a different night from the other. Same "7.5 h reported as
+  4 h" shape as the nap bug, outliving it.
+
+Now `SleepNights` in InsightKit, 14 tests, keyed on `SleepOnset.night(of:)`.
+
+Three things worth carrying:
+
+- **The fix was one scroll from the bug, in a comment that named it.**
+  `SleepOnset.night(of:)` says *"Grouping by calendar day is what the duration
+  series already does and it is wrong for a timestamp"* — written by the session
+  that fixed the timestamp path and left the duration path alone, having
+  correctly diagnosed it in passing. **When a comment explains why the code
+  beside it is wrong, check whether the same reason reaches further.**
+- **A measurement artefact can survive the fix that was aimed at it**, because
+  two causes produce one symptom. The nap fix was correct, deployed and
+  installed; the number it was supposed to move did not move, and the tempting
+  reading was that the fix had failed. It hadn't.
+- **An instrument that cannot attribute cannot settle anything.** The export was
+  built to end "we don't have X" arguments and then merged away the one
+  distinction the argument needed. Per-source stats retire the category.
+
+**The data-export session (previous).** The export built last session was used for
 the first time, and it immediately found **two defects in signals the app
 already models** — not the missing signals everyone expected.
 

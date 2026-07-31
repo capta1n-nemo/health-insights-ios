@@ -208,6 +208,9 @@ the place to look.
   - `GapBridge` :90
   - `SeriesBridging` :123
   - `SeriesSegmentation` :53
+- `Signals/SleepNights.swift`
+  - `SleepNights` :73
+  - `SleepSegment` :9
 - `Signals/SleepOnset.swift`
   - `SleepOnset` :23
 - `Signals/TemperatureReconstructor.swift`

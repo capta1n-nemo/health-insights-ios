@@ -374,6 +374,34 @@ final class HealthKitService {
         }
     }
 
+    /// HealthKit's category value → the stage vocabulary InsightKit understands.
+    ///
+    /// No `#available` branch: the deployment target is iOS 18, so the
+    /// `asleepCore` / `asleepDeep` / `asleepREM` split Apple shipped in iOS 16 is
+    /// always present. The pre-16 fallback this replaced tested
+    /// `HKCategoryValueSleepAnalysis.asleep`, which has been unreachable here
+    /// since the target moved — and which is the same raw value (1) as
+    /// `asleepUnspecified` anyway, so nothing is lost by naming only the latter.
+    ///
+    /// An unrecognised value returns `nil` and the segment is ignored, rather
+    /// than being counted as some default stage.
+    ///
+    /// `nonisolated` because the class is `@MainActor` — which would isolate a
+    /// static member to the main actor too — and `HKSampleQuery`'s completion
+    /// handler runs on an arbitrary queue. It is a pure `Int` → enum mapping
+    /// touching no state, so there is nothing for the isolation to protect.
+    nonisolated private static func sleepKind(of value: Int) -> SleepSegment.Kind? {
+        switch value {
+        case HKCategoryValueSleepAnalysis.inBed.rawValue: return .inBed
+        case HKCategoryValueSleepAnalysis.awake.rawValue: return .awake
+        case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue: return .unspecified
+        case HKCategoryValueSleepAnalysis.asleepCore.rawValue: return .core
+        case HKCategoryValueSleepAnalysis.asleepDeep.rawValue: return .deep
+        case HKCategoryValueSleepAnalysis.asleepREM.rawValue: return .rem
+        default: return nil
+        }
+    }
+
     private func fetchSleep(start: Date) async -> [HealthMetricSample] {
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return [] }
         return await withCheckedContinuation { continuation in
@@ -381,81 +409,27 @@ final class HealthKitService {
             let query = HKSampleQuery(sampleType: type, predicate: predicate,
                                       limit: HKObjectQueryNoLimit,
                                       sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, samples, _ in
-                // Aggregate "asleep" segments per night into hours.
-                let asleep = (samples as? [HKCategorySample])?.filter { s in
-                    if #available(iOS 16.0, *) {
-                        return [HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                                HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
-                                HKCategoryValueSleepAnalysis.asleepREM.rawValue,
-                                HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue].contains(s.value)
-                    } else {
-                        return s.value == HKCategoryValueSleepAnalysis.asleep.rawValue
-                    }
-                } ?? []
-
-                // Group by calendar day of the segment start.
-                var byDay: [Date: TimeInterval] = [:]
-                let cal = Calendar.current
-                for s in asleep {
-                    let day = cal.startOfDay(for: s.startDate)
-                    byDay[day, default: 0] += s.endDate.timeIntervalSince(s.startDate)
-                }
-                var mapped = byDay.map { day, seconds in
-                    HealthMetricSample(type: .sleepDurationHours, value: seconds / 3600,
-                                       start: day, end: day, source: .appleHealth)
-                }
-
-                // The stage breakdown, which was being flattened away by the
-                // filter above. Apple has published `asleepDeep` and `asleepREM`
-                // as distinct categories since iOS 16 and this read all four as
-                // one undifferentiated "asleep".
-                if #available(iOS 16.0, *) {
-                    let all = (samples as? [HKCategorySample]) ?? []
-                    func minutesByNight(_ value: Int) -> [Date: Double] {
-                        var out: [Date: Double] = [:]
-                        for segment in all where segment.value == value {
-                            out[cal.startOfDay(for: segment.startDate), default: 0]
-                                += segment.endDate.timeIntervalSince(segment.startDate) / 60
-                        }
-                        return out
-                    }
-                    for (day, minutes) in minutesByNight(HKCategoryValueSleepAnalysis.asleepDeep.rawValue) {
-                        mapped.append(HealthMetricSample(type: .sleepDeepMinutes, value: minutes,
-                                                         start: day, end: day, source: .appleHealth))
-                    }
-                    for (day, minutes) in minutesByNight(HKCategoryValueSleepAnalysis.asleepREM.rawValue) {
-                        mapped.append(HealthMetricSample(type: .sleepRemMinutes, value: minutes,
-                                                         start: day, end: day, source: .appleHealth))
-                    }
-                    // Efficiency needs a denominator, and `inBed` is the only
-                    // honest one. Sources that never write an `inBed` segment —
-                    // most rings, which infer sleep rather than bedtime — get no
-                    // efficiency rather than a fabricated 100%.
-                    var inBedByNight: [Date: Double] = [:]
-                    for segment in all where segment.value == HKCategoryValueSleepAnalysis.inBed.rawValue {
-                        inBedByNight[cal.startOfDay(for: segment.startDate), default: 0]
-                            += segment.endDate.timeIntervalSince(segment.startDate)
-                    }
-                    for (day, inBed) in inBedByNight where inBed > 0 {
-                        guard let asleepSeconds = byDay[day], asleepSeconds > 0 else { continue }
-                        mapped.append(HealthMetricSample(
-                            type: .sleepEfficiency,
-                            value: min(100, asleepSeconds / inBed * 100),
-                            start: day, end: day, source: .appleHealth))
-                    }
-                }
-                // The same segments, read for *when* rather than how long.
+                // This function's only job is to translate HealthKit's category
+                // values into `SleepSegment`. **Every rule about what a night is
+                // lives in `SleepNights`, in InsightKit**, because the rules can
+                // be wrong and the app target has no test target.
                 //
-                // These timestamps were being thrown away at this line for the
-                // whole life of the app, which is why circadian consistency was
-                // logged as blocked on a missing signal. It was never missing —
-                // `startDate` is right here, and only the aggregate survived.
-                // Night grouping and the nap filter live in `SleepOnset`, in
-                // InsightKit, because both are rules that can be wrong and the
-                // app target has no test target.
-                let onsets = SleepOnset.samples(fromSegmentStarts: asleep.map(\.startDate),
-                                                source: .appleHealth, calendar: cal)
-                continuation.resume(returning: mapped + onsets)
+                // It used to aggregate here, keying each nightly figure on
+                // `Calendar.startOfDay(for: segment.startDate)` — the day the
+                // segment itself began. A night from 23:00 to 07:00 is written
+                // by Apple Health as a run of stage segments, so the ones before
+                // midnight were filed under one day and the rest under the next:
+                // one night became two, the smaller a sliver. That is where the
+                // data export's 0.01 h minimum sleep duration came from, and
+                // — efficiency having split its numerator and denominator
+                // independently — its 2% minimum efficiency as well.
+                let mapped = (samples as? [HKCategorySample])?.compactMap { s -> SleepSegment? in
+                    guard let kind = Self.sleepKind(of: s.value) else { return nil }
+                    return SleepSegment(kind: kind, start: s.startDate, end: s.endDate)
+                } ?? []
+                continuation.resume(returning: SleepNights.samples(from: mapped,
+                                                                   source: .appleHealth,
+                                                                   calendar: Calendar.current))
             }
             store.execute(query)
         }

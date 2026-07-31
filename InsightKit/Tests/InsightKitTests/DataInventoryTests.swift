@@ -103,6 +103,65 @@ final class DataInventoryTests: XCTestCase {
         XCTAssertEqual(row.sources, ["Apple Health", "Oura"])
     }
 
+    // MARK: - Attribution
+
+    /// The gap that made the report unable to settle the question it was built
+    /// for. `restingHeartRate`'s maximum was to prove the Oura nap fix by
+    /// falling from 119 — but three sources feed that metric, so a merged
+    /// maximum could not say which one produced it, and the fix could be
+    /// neither confirmed nor refuted from the export.
+    func testAMergedMaximumCanBeTracedToItsSource() throws {
+        let samples = [sample(.restingHeartRate, 119, daysAgo: 1, source: .oura),
+                       sample(.restingHeartRate, 52, daysAgo: 2, source: .oura),
+                       sample(.restingHeartRate, 55, daysAgo: 3, source: .appleHealth),
+                       sample(.restingHeartRate, 57, daysAgo: 4, source: .appleHealth)]
+        let row = DataInventory.modelledRows(samples)[0]
+        XCTAssertEqual(row.max, 119, "the merged row still reports the outlier")
+
+        let oura = try XCTUnwrap(row.bySource.first { $0.source == "Oura" })
+        let apple = try XCTUnwrap(row.bySource.first { $0.source == "Apple Health" })
+        XCTAssertEqual(oura.max, 119, "and the breakdown names who produced it")
+        XCTAssertEqual(apple.max, 57)
+        XCTAssertEqual(oura.count, 2)
+        XCTAssertEqual(apple.count, 2)
+    }
+
+    /// A single-source signal attributes itself through the `Sources` column, so
+    /// a breakdown would only restate it. Keeping the report pasteable is the
+    /// point of the whole artefact.
+    func testASingleSourceSignalGetsNoBreakdown() {
+        let row = DataInventory.modelledRows([
+            sample(.restingHeartRate, 52, daysAgo: 1, source: .oura),
+            sample(.restingHeartRate, 55, daysAgo: 2, source: .oura),
+        ])[0]
+        XCTAssertTrue(row.bySource.isEmpty)
+    }
+
+    func testTheBreakdownReachesTheReportForMultiSourceSignalsOnly() {
+        let report = DataInventory.markdown(
+            samples: [sample(.restingHeartRate, 119, daysAgo: 1, source: .oura),
+                      sample(.restingHeartRate, 55, daysAgo: 2, source: .appleHealth),
+                      sample(.bodyMass, 80, daysAgo: 1, source: .withings)],
+            rawGroups: [])
+        XCTAssertTrue(report.contains("Which source produced which number"))
+        XCTAssertTrue(report.contains("| Resting Heart Rate | Oura |"))
+        XCTAssertFalse(report.contains("| Weight | Withings |"),
+                       "a single-source signal must not appear in the breakdown")
+    }
+
+    /// Per-source dates matter as much as per-source values: a source that
+    /// stopped reporting is invisible in a merged date range that another
+    /// source keeps current.
+    func testTheBreakdownCarriesEachSourcesOwnDateRange() throws {
+        let row = DataInventory.modelledRows([
+            sample(.restingHeartRate, 52, daysAgo: 400, source: .oura),
+            sample(.restingHeartRate, 55, daysAgo: 1, source: .appleHealth),
+        ])[0]
+        let oura = try XCTUnwrap(row.bySource.first { $0.source == "Oura" })
+        let apple = try XCTUnwrap(row.bySource.first { $0.source == "Apple Health" })
+        XCTAssertLessThan(try XCTUnwrap(oura.last), try XCTUnwrap(apple.first))
+    }
+
     /// Dates are built from calendar components, not a `DateFormatter` — several
     /// of those are Darwin-only and this package's suite runs on Linux.
     func testDatesRenderAsPlainISODays() {

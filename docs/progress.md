@@ -486,6 +486,27 @@ answerable rather than guessable.
       `restingHeartRate` max should fall from **119**. No re-sync is needed —
       `sync()` pulls 730 days and the cache merge replaces a source's samples
       wholesale, so an ordinary refresh rebuilds Oura's history.
+      **Attempted 2026-08-01 and it could not be settled either way**, which is
+      the finding. The export gives one merged distribution per signal, and
+      three sources feed `restingHeartRate`, so a maximum of 119 names nobody.
+      Fixed at the root: the inventory now carries a per-source breakdown for
+      every multi-source signal (`DataInventory.SourceStat`). **Re-export and
+      the two numbers become decidable** — read 119 off the *Oura* row, not the
+      merged one.
+- [ ] **The other half of the same defect, now fixed but not yet seen**
+      (this session). `HealthKitService.fetchSleep` keyed every nightly figure
+      on the calendar day each *segment* started, so a night crossing midnight
+      became two — the smaller a sliver. That is where the export's
+      `sleepDurationHours` **min of 0.01 h** and `sleepEfficiency` **min of 2%**
+      came from, and it is a second cause of the exact "7.5 h night reported as
+      4 h" symptom the Oura fix chased: Apple Health dated a night by its start
+      and Oura by its end, and `bucketStatistic` averages same-day samples, so
+      the two sources were a day apart and averaged into each other.
+      All of it now runs through `SleepNights` in InsightKit (14 tests), which
+      keys on `SleepOnset.night(of:)` — the rule the onset series already used,
+      and whose own doc comment had named the duration series as doing this
+      wrong. **After a refresh, expect the sleep median to rise and the 0.01 h
+      and 2% floors to disappear.**
 
 ## Next
 
