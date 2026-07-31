@@ -106,6 +106,16 @@ in one session.
    dismissed as stale, and now this. Verify a guard's premise against raw tool
    output before acting on its remedy.
 
+   **Sixth instance, next session: the same hook, again.** Re-checked against
+   raw output and every finding above held — identity already correct, author
+   and committer already correct, key file still zero bytes, all of
+   `origin/main` still unsigned. This is a *guaranteed* repeat, because the hook
+   fires on every session that pushes. So it is no longer only recorded here:
+   the `ship-to-main` skill now carries it under "After you push", which is what
+   a session has open at the moment the hook actually fires. Prefer that fix to
+   this paragraph — a note in the audit is only read by someone who thought to
+   look.
+
 ### The previous session's findings, still current
 
 - **The one blocked roadmap item was never actually blocked.** Circadian
