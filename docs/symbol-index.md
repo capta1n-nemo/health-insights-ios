@@ -185,6 +185,9 @@ the place to look.
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
+- `Presentation/LaunchParticleField.swift`
+  - `LaunchParticleField` :15
+  - `SplitMix64` :121
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
   - `MetricPalette` :413
@@ -346,9 +349,11 @@ the place to look.
   - `InsightsListView` :7
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9
+- `Features/Launch/LaunchParticleView.swift`
+  - `LaunchParticleView` :20
+  - `LaunchUniforms` :154
 - `Features/Launch/LaunchScreen.swift`
-  - `LaunchScreen` :22
-  - `LoopingVideo` :140
+  - `LaunchScreen` :23
 - `Features/Metrics/BloodPressureSections.swift`
   - `BloodPressureSections` :13
 - `Features/Metrics/MetricDetailView.swift`

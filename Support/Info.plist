@@ -26,11 +26,11 @@
          until AppModel has finished hydrating, that white screen was the first
          several seconds of every cold start.
 
-         Poster is frame one of LaunchHeart.mp4 on the video's own background,
-         so when the SwiftUI launch screen takes over and starts playing, the
-         handoff has nothing to see. UIImageRespectsSafeAreaInsets is absent
-         (defaults false) so the image fills the screen the same way the video
-         does. -->
+         Poster is the particle cloud at rest, rendered from the same
+         LaunchParticleField arrangement the live Metal view starts from — which
+         is why that field is seeded rather than random. UIImageRespectsSafeAreaInsets
+         is absent (defaults false) so the image fills the screen the same way
+         the renderer does. -->
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>
