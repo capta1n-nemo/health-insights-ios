@@ -12,6 +12,22 @@ requests, no feature branches left dangling — see the Automation Rules in
 this repo, because `deploy.yml` only fires on a push to `main` and the user won't
 log into GitHub to merge anything.
 
+## Handover now measures itself — read this before the next one
+
+`/handover` has three parts and the third is **non-negotiable**: end the session
+by telling the user whether it was cheaper than the last one, with the table.
+See `.claude/commands/handover.md` and `docs/efficiency-log.md`.
+
+The constraint that shaped it: **token usage cannot be observed from inside a
+session**, so any figure would be invented and would poison every later
+comparison. Every column is recomputable from `git` and `refs/ci/*` by a session
+that trusts none of the prose. The one self-reported column — re-derivations —
+requires each to be *named*, with the place the fact was already written down.
+
+The column that matters is **compounding**: being careful does not survive a
+context reset, but a lint, a skill or a self-healing script does. When a problem
+appears, ask whether the fix retires the *instance* or the *category*.
+
 ## Current focus
 
 **The follow-ups session.** Driven by "let's finish all remaining roadmap and
@@ -53,6 +69,37 @@ has the itemised record. What is worth knowing without reading it:
   to name every case, so the check needs no per-switch knowledge. Two canaries
   prove it fires.
 
+Then a second half, driven by the user's re-read of their own feedback list and
+three fresh complaints. The findings from that half:
+
+- **The trend chip is not "vs yesterday", and that was researched rather than
+  assumed.** None of Oura, Whoop, Garmin, Apple Health, Fitbit or Withings ships
+  a day-over-day delta on a daily score: day-to-day HRV variability is 3–13% and
+  a genuinely hard day moves it 10–20%, so the arrow would report noise most
+  days and get ignored. `ScoreChange` keeps the direction and moves the
+  comparison — today against the trailing week, four weeks against the quarter.
+  Full reasoning and sources in `docs/progress.md` ▸ "How trend indicators are
+  rendered". **If a future session is asked to "just make it vs yesterday",
+  that is a one-line change and the argument above is what to put beside it.**
+- **A relative threshold needs an absolute companion.** Three instances in one
+  session, all the same shape — a small denominator makes anything significant.
+  Blood-pressure drift is floored at ±5 mmHg (a fit through few points claimed
+  *zero* uncertainty and divided by it), the substance suggestion at 3%, and
+  `ScoreChange` at two points.
+- **"Completed" needed no per-suggestion definition.** The engine only emits a
+  suggestion while its condition holds, so vanishing from its output *is*
+  resolution by whichever of the three routes. When a feature seems to need
+  per-case rules, check whether the generator already encodes them.
+- **A slow tap was one call doing far too much.** Logging a substance ran the
+  whole engine over the whole sample set and dropped every cache. When a
+  cheap-looking interaction is slow, look for the shared recompute it reuses
+  rather than the work it obviously does.
+- **"That technique has a fatal flaw" is not "this is impossible".** Gap bridging
+  shipped straight with an argument that a curve invents an extremum. True of
+  Catmull-Rom and natural cubics; mistaken for an argument against curvature. A
+  monotone cubic Hermite cannot have an interior extremum at all. The gap between
+  those two claims was a shipped deviation from an explicit instruction.
+
 ### What is still not done, and why
 
 - **On-device verification of everything since the last device-verified build.**
@@ -75,6 +122,12 @@ has the itemised record. What is worth knowing without reading it:
   `EnergyCurveChart` both use a *single-series* `AreaMark` safely; the hazard was
   always about two-series filled bands.
 - **Oura's ~4–6 months of history** is still unexplained. Offered, not taken up.
+- **The app-launch loading screen and the LiDAR body scan** are open by request —
+  the LiDAR one was explicitly a roadmap note rather than a build. Both are
+  scoped in `docs/progress.md`.
+- **Two efficiency-roadmap items remain**: making `symbol-index.md` a reflex
+  rather than a fallback, and a session-start checklist skill. See
+  `docs/efficiency-log.md`.
 
 ## Two regressions I shipped, and what they cost
 
@@ -435,41 +488,30 @@ deliberately parked. What is worth carrying forward:
   cheap-looking interaction is slow, look for the shared recompute it is reusing
   rather than for the work it obviously does.
 
-### 4. The original ten-item list, re-read against the code
+### 4. What the six deltas turned into
 
-The list was worked through over several sessions and marked closed. Re-reading
-it line by line against what shipped found **six clauses still open**, each
-sitting *inside* an item that is otherwise done — which is why none was visible
-from the summary lines. All six are verified by grep, not recalled, and they are
-written up in `docs/progress.md` ▸ "The delta from the ten-item feedback".
+Re-reading the ten-item feedback list against the code found six clauses still
+open, each sitting *inside* an item whose headline was true — which is why none
+was visible from the record. **Five are now closed; one is parked deliberately,
+and a seventh was added by the user.**
 
-Ranked by size:
+| # | Clause | State |
+| --- | --- | --- |
+| 1 | Suggestion lifecycle — dismissible, on Today, pinned/collapsible on Insights, hidden once resolved | ✅ |
+| 2 | Smoothed predicted values across gaps | ✅ monotone cubic, both charts |
+| 3 | Blood-pressure drift counter | ✅ held-out, floored at ±5 mmHg |
+| 4 | Sleep Quality's remaining Oura/Whoop/Apple inputs | ✅ efficiency, deep, REM |
+| 5 | Substance log as a general data source | ✅ feeds the suggestion engine |
+| 6 | Camera + LiDAR guided body scan | ⬜ roadmap note by request, scoped in `progress.md` |
+| 7 | App-launch loading screen | ⬜ **new**, scoped in `progress.md` |
 
-1. **The suggestion lifecycle** (item 2) — the engine ships and nothing around it
-   does. Not dismissible, absent from Today entirely, not the pinned collapsible
-   row that was asked for, and with no notion of a suggestion being *finished*.
-   That last one carries the design question: completion means three different
-   things for the three bases, and a contrast drawn from the user's own history
-   never completes at all, because it is an observation and not a task. Answer
-   that before building any of it.
-2. **Smoothed predicted values across gaps** (item 4) — the app draws a straight
-   dashed connector, deliberately, and the reasoning is in `SeriesBridging`. This
-   is the one place the build knowingly disagrees with an explicit instruction,
-   so it is logged as the user's decision rather than as a closed item.
-3. **A blood-pressure drift counter** (item 8) — the cadence rule shipped, the
-   counter never did. No quantity anywhere says how far the estimate has moved
-   from the last cuff.
-4. **Sleep Quality's remaining Oura inputs** (item 6) — the parser decodes seven
-   fields of a sleep record and ignores the stage breakdown, latency and
-   efficiency entirely. `.sleepOnset` exists now and is not wired in either.
-5. **The substance log as a general data source** (item 7) — charts can consume
-   it; no insight, pattern finder or suggestion does.
-6. **Camera + LiDAR guided body scan** (item 3) — flagged in the original
-   feedback as a roadmap note, and never recorded until now.
+Plus three direct complaints, all fixed: the substance log page's lag (one call
+running the whole engine over the whole sample set), the date picker hidden
+behind a long-press, and an edit button under the minimum tap target.
 
 **Lesson worth keeping: a multi-clause item marked `[x]` hides its unfinished
-clauses.** Every one of these six sat inside an item whose headline was true.
-When a feedback line has an "and also" in it, record the clauses separately.
+clauses.** Every one of the six sat inside an item whose headline was true. When
+a feedback line has an "and also" in it, record the clauses separately.
 
 ### 5. Genuinely open work, cheapest first
 

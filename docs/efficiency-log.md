@@ -96,7 +96,7 @@ with guesses.
 | # | Date | Pushes | Red CI | Rework | Re-derivations | Tests | Compounding | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1–8 | to 2026-07-30 | — | — | — | — | 330 → 520 | 5 skills, symbol index, `ci-status.sh`, named-switch lint | *not measured — protocol did not exist* |
-| 9 | 2026-07-30/31 | 8 | **1** | 2 | 2 (named below) | 520 → 590 | Generic exhaustive-switch lint; `verify.sh --tests <pattern>`; absolute-path rule; the efficiency protocol itself | **Baseline.** 0.63 waste/push |
+| 9 | 2026-07-30/31 | 9 | **1** | 2 | 2 (named below) | 520 → 590 | Generic exhaustive-switch lint; `verify.sh --tests <pattern>`; absolute-path rule; the efficiency protocol itself | **Baseline.** 0.56 waste/push |
 
 ### Session 9 notes
 
