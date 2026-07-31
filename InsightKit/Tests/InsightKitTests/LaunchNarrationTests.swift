@@ -133,19 +133,51 @@ final class LaunchNarrationTests: XCTestCase {
     // MARK: - Dismissal
 
     func testAWarmLaunchStillShowsTheScreenLongEnoughToNotFlicker() {
-        XCTAssertFalse(LaunchNarration.shouldDismiss(elapsed: 0, phase: .ready))
+        XCTAssertFalse(LaunchNarration.shouldDismiss(elapsed: 0, hasContent: true))
         XCTAssertFalse(LaunchNarration.shouldDismiss(
-            elapsed: LaunchNarration.minimumOnScreen - 0.01, phase: .ready))
+            elapsed: LaunchNarration.minimumOnScreen - 0.01, hasContent: true))
         XCTAssertTrue(LaunchNarration.shouldDismiss(
-            elapsed: LaunchNarration.minimumOnScreen, phase: .ready))
+            elapsed: LaunchNarration.minimumOnScreen, hasContent: true))
     }
 
-    func testAnUnfinishedRefreshStillReleasesTheScreen() {
+    func testAStalledReadStillReleasesTheScreen() {
         XCTAssertFalse(LaunchNarration.shouldDismiss(
-            elapsed: LaunchNarration.hardCeiling - 0.01, phase: .connecting))
+            elapsed: LaunchNarration.hardCeiling - 0.01, hasContent: false))
         XCTAssertTrue(LaunchNarration.shouldDismiss(
-            elapsed: LaunchNarration.hardCeiling, phase: .connecting),
-            "A refresh that never reports ready would trap the user on the splash")
+            elapsed: LaunchNarration.hardCeiling, hasContent: false),
+            "A read that never completes would trap the user on the splash")
+    }
+
+    /// The regression this contract exists to prevent. The screen used to wait
+    /// for the whole refresh — network sync, ingest and the on-device summary —
+    /// which on a real history is about thirty seconds in front of an app that
+    /// already had everything it needed to draw Today.
+    func testTheScreenWaitsForContentAndNotForTheSyncToFinish() {
+        // Cache read done at 1.2s; the network and the summariser are still going.
+        XCTAssertTrue(LaunchNarration.shouldDismiss(elapsed: 1.2, hasContent: true),
+                      "Today is drawable — the rest belongs behind it")
+        // And it must not hang on for anything like the length of a real sync.
+        XCTAssertLessThanOrEqual(LaunchNarration.hardCeiling, 8,
+                                 "A ceiling this high stops being a safety net")
+    }
+
+    /// The reassurance state has to fit inside the screen's own lifetime.
+    ///
+    /// It did not, briefly: cutting the ceiling to match the new "wait for the
+    /// cache read only" contract left the handover at 7 s and the release at
+    /// 6 s, so the whole reassurance register was dead code that nothing would
+    /// have caught. Two constants, no compiler relationship between them.
+    func testTheReassuranceStateIsActuallyReachable() {
+        XCTAssertLessThan(LaunchNarration.reassuranceAfter, LaunchNarration.hardCeiling,
+                          "The screen releases before the reassurance copy could ever show")
+        // And with room for at least one line to be read once it does.
+        XCTAssertGreaterThanOrEqual(
+            LaunchNarration.hardCeiling - LaunchNarration.reassuranceAfter, 1.0,
+            "The reassurance line would flash and vanish")
+        // Reached in practice, not just arithmetically.
+        let late = run(to: LaunchNarration.hardCeiling, phase: { _ in .reading })
+            .filter { LaunchNarration.reassurances.contains($0.text) }
+        XCTAssertFalse(late.isEmpty, "A stalled read never reaches the reassurance copy")
     }
 
     // MARK: - Copy hygiene

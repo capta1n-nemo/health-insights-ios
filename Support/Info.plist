@@ -20,8 +20,24 @@
     <string>1</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <!-- The static launch screen iOS shows the instant the icon is tapped,
+         before a single line of app code runs. It was an empty dict, which
+         renders plain white — and since the first SwiftUI frame cannot be drawn
+         until AppModel has finished hydrating, that white screen was the first
+         several seconds of every cold start.
+
+         Poster is frame one of LaunchHeart.mp4 on the video's own background,
+         so when the SwiftUI launch screen takes over and starts playing, the
+         handoff has nothing to see. UIImageRespectsSafeAreaInsets is absent
+         (defaults false) so the image fills the screen the same way the video
+         does. -->
     <key>UILaunchScreen</key>
-    <dict/>
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchBackground</string>
+        <key>UIImageName</key>
+        <string>LaunchPoster</string>
+    </dict>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

@@ -1,19 +1,26 @@
 import Foundation
 
-/// Which part of the launch refresh is running right now.
+/// Which part of the launch is running right now, in the order it happens.
 ///
-/// `AppModel.isSyncing` was always the gate, but it is one flag over two very
-/// different waits — a provider round-trip over the network, and an on-device
-/// FoundationModels pass — and those are exactly the two steps the launch copy
-/// wants to tell apart. Ordered, because the narration clamps against it.
+/// `AppModel.isSyncing` was always the gate, but it is one flag over waits that
+/// feel nothing alike — reading a large cache off disk, a provider round-trip
+/// over the network, and an on-device FoundationModels pass. Ordered, because
+/// the narration clamps against it.
+///
+/// The order matters and was wrong in the first version: it put `.connecting`
+/// first, on the assumption that a launch starts by talking to the network. It
+/// does not. It starts by reading the cache — which on a large history is the
+/// single most expensive thing that happens — and only then syncs.
 public enum LaunchPhase: Int, Comparable, CaseIterable, Sendable {
-    /// Talking to Apple Health and the connected wearables. Network-bound, and
-    /// the one that can genuinely take several seconds.
-    case connecting
-    /// Ingesting payloads, merging caches and running the insight engine. Local
-    /// CPU — usually fast, occasionally not on a big history.
+    /// Decoding the cached samples off disk and running the insight engine over
+    /// them. Local CPU, and on a six-figure sample count the longest step here.
+    /// **This is the only phase the launch screen waits for** — see
+    /// `shouldDismiss`.
     case reading
-    /// The on-device model writing the Today summary.
+    /// Talking to Apple Health and the connected wearables. Happens *behind*
+    /// Today, not in front of it.
+    case connecting
+    /// The on-device model writing the Today summary. Also behind Today.
     case summarising
     /// Nothing left to wait for.
     case ready
@@ -49,19 +56,25 @@ public struct LaunchNarration: Sendable {
     public static let dwell: TimeInterval = 1.25
 
     /// Past this, the copy stops narrating steps and starts acknowledging the
-    /// wait. Chosen at the bottom of the 6–8 s the brief gave, because by then
-    /// the script has run its length twice over and repeating it is what makes a
-    /// slow launch feel stuck.
-    public static let reassuranceAfter: TimeInterval = 7
+    /// wait, because by then the script has run its length and repeating it is
+    /// what makes a slow launch feel stuck.
+    ///
+    /// The brief said 6–8 s, and this was 7 s while the screen also waited for
+    /// the whole sync. Now that it waits only for the cache read and releases at
+    /// `hardCeiling`, 7 s was past the end of the screen's own life — the
+    /// reassurance state existed but could never be reached.
+    /// `testTheReassuranceStateIsActuallyReachable` pins the relationship so the
+    /// next person to move either number finds out immediately.
+    public static let reassuranceAfter: TimeInterval = 4
 
-    /// The reassurance lines hold nearly three times as long. They are there to
-    /// say "still working", and saying it briskly says the opposite.
+    /// The reassurance lines hold far longer than the script's. They are there
+    /// to say "still working", and saying it briskly says the opposite.
     ///
     /// They *do* still rotate: the brief ruled out "a slower rotation of the
     /// same ones", which is a rule about the sentences, not about movement. A
     /// twenty-second launch staring at one frozen line reads as a hang, which is
     /// the failure this whole screen exists to prevent.
-    public static let reassuranceDwell: TimeInterval = 3.5
+    public static let reassuranceDwell: TimeInterval = 3
 
     /// The launch screen stays up at least this long once shown.
     ///
@@ -70,13 +83,20 @@ public struct LaunchNarration: Sendable {
     /// inside a quarter of a second is a flicker. Worse than not showing one.
     public static let minimumOnScreen: TimeInterval = 0.9
 
-    /// The splash comes down at this point whatever the phase says.
+    /// The splash comes down at this point whatever else is happening.
     ///
-    /// A launch screen that never leaves is the worst thing this file can ship,
-    /// and it only takes one refresh path that forgets to reach `.ready`. Today
-    /// is safe to reveal at any moment — `AppModel` hydrates from cache in its
-    /// initialiser, so the tabs hold real data before the sync starts.
-    public static let hardCeiling: TimeInterval = 20
+    /// A launch screen that never leaves is the worst thing this file can ship.
+    /// Cut from 20 s to 8 s along with the fix below: once the screen only ever
+    /// waits for the local cache read, twenty seconds is not a safety net, it is
+    /// a licence to hang. Today is safe to reveal at any moment — an empty tab
+    /// that fills in a second later beats a splash that will not leave.
+    ///
+    /// **The timer enforcing this must not run on the main actor.** The first
+    /// version polled it from a `MainActor` loop, which is starved by exactly
+    /// the main-thread work it exists to protect against — so the one launch
+    /// that needed the ceiling was the one launch that could not fire it. See
+    /// `LaunchScreen.narrate()`.
+    public static let hardCeiling: TimeInterval = 8
 
     // MARK: - Copy
 
@@ -93,13 +113,13 @@ public struct LaunchNarration: Sendable {
     /// stuck for four seconds on "Herding cats" is funny once and worrying
     /// after that.
     public static let script: [Line] = [
-        Line(text: "Checking in with your health apps", phase: .connecting),
-        Line(text: "Herding cats",                      phase: .connecting),
-        Line(text: "Extracting the latest data",        phase: .connecting),
-
         Line(text: "Reading your last few weeks",       phase: .reading),
         Line(text: "Consulting the archives",           phase: .reading),
         Line(text: "Comparing today with your usual",   phase: .reading),
+
+        Line(text: "Checking in with your health apps", phase: .connecting),
+        Line(text: "Herding cats",                      phase: .connecting),
+        Line(text: "Extracting the latest data",        phase: .connecting),
 
         Line(text: "Generating insights",               phase: .summarising),
         Line(text: "Choosing the right words",          phase: .summarising),
@@ -125,6 +145,11 @@ public struct LaunchNarration: Sendable {
     private var cursor: Cursor = .script(0)
     /// When the line now on screen went up. Everything holds off this.
     private var shownAt: TimeInterval = 0
+    /// Whether a line has been chosen yet. The *first* one has no dwell to
+    /// respect — nothing is on screen for it to cut short — so it goes straight
+    /// to the phase the launch is actually in rather than always opening on the
+    /// first line of the script and correcting a beat later.
+    private var started = false
 
     public init() {}
 
@@ -133,6 +158,13 @@ public struct LaunchNarration: Sendable {
     /// Call it as often as you like — it is idempotent between moves, so a 10 Hz
     /// timer and a 60 Hz one produce the same sequence.
     public mutating func line(at elapsed: TimeInterval, phase: LaunchPhase) -> String {
+        if !started {
+            started = true
+            cursor = .script(Self.window(for: phase).lowerBound)
+            shownAt = elapsed
+            return text(of: cursor)
+        }
+
         let hold: TimeInterval
         if case .reassurance = cursor { hold = Self.reassuranceDwell } else { hold = Self.dwell }
 
@@ -169,9 +201,13 @@ public struct LaunchNarration: Sendable {
     /// opposite case — a launch so fast that the phase is already `.summarising`
     /// while the cursor is still on the first line — where advancing one step at
     /// a time would narrate a network wait that finished a second ago.
+    /// Never backwards. A phase cannot un-happen in this app, but if one ever
+    /// appeared to, holding the current line is the right answer — rewinding the
+    /// copy would read as the launch having restarted.
     static func step(from index: Int, phase: LaunchPhase) -> Int {
         let window = window(for: phase)
-        return min(max(index + 1, window.lowerBound), window.upperBound)
+        let target = min(max(index + 1, window.lowerBound), window.upperBound)
+        return max(target, index)
     }
 
     static func window(for phase: LaunchPhase) -> ClosedRange<Int> {
@@ -193,12 +229,23 @@ public struct LaunchNarration: Sendable {
 
     /// Whether the launch screen may come down yet.
     ///
-    /// Separate from the copy because it answers a different question, and
-    /// because both of its floors are the kind that get dropped in a refactor:
-    /// the minimum keeps a warm launch from flickering, the ceiling keeps a
-    /// stalled refresh from trapping the user on a splash.
-    public static func shouldDismiss(elapsed: TimeInterval, phase: LaunchPhase) -> Bool {
+    /// **`hasContent`, not "everything finished".** The first version waited for
+    /// the whole refresh — network sync, payload ingest, insight pass and the
+    /// on-device summary — before revealing Today. On a real phone with a real
+    /// history that is around thirty seconds of staring at a splash, and it was
+    /// a straight regression: before the launch screen existed, the tabs were on
+    /// screen from the first frame and all of that work happened *behind* them,
+    /// with a spinner on the Today card saying so.
+    ///
+    /// So the screen waits for one thing only: enough data to draw a real Today.
+    /// Everything after that is a background refresh and belongs behind the app,
+    /// exactly where it used to be.
+    ///
+    /// The floors either side both matter and both get dropped in a refactor:
+    /// `minimumOnScreen` stops a warm launch flickering the splash in and out,
+    /// `hardCeiling` stops a stalled read trapping the user.
+    public static func shouldDismiss(elapsed: TimeInterval, hasContent: Bool) -> Bool {
         guard elapsed >= minimumOnScreen else { return false }
-        return phase == .ready || elapsed >= hardCeiling
+        return hasContent || elapsed >= hardCeiling
     }
 }

@@ -97,36 +97,42 @@ final class DataStore {
     // disconnected or offline — we cache the last-synced non-manual samples to
     // disk (JSON) and reload them immediately at startup.
 
-    private var syncedCacheURL: URL {
+    // These four are `nonisolated` because they touch a JSON file and nothing
+    // else — no SwiftData, no `context`. That matters: decoding a six-figure
+    // sample array is the most expensive thing that happens on launch, and
+    // while it stayed pinned to the main actor it was pure blank-screen time.
+    // The SwiftData-backed accessors above and below cannot follow, because
+    // `mainContext` is main-actor by construction.
+    nonisolated private var syncedCacheURL: URL {
         let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
                                                  in: .userDomainMask, appropriateFor: nil, create: true))
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent("synced_samples.json")
     }
 
-    private var otherCacheURL: URL {
+    nonisolated private var otherCacheURL: URL {
         let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
                                                  in: .userDomainMask, appropriateFor: nil, create: true))
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent("synced_other.json")
     }
 
-    func loadCachedSamples() -> [HealthMetricSample] {
+    nonisolated func loadCachedSamples() -> [HealthMetricSample] {
         guard let data = try? Data(contentsOf: syncedCacheURL) else { return [] }
         return (try? JSONDecoder().decode([HealthMetricSample].self, from: data)) ?? []
     }
 
-    func saveCachedSamples(_ samples: [HealthMetricSample]) {
+    nonisolated func saveCachedSamples(_ samples: [HealthMetricSample]) {
         guard let data = try? JSONEncoder().encode(samples) else { return }
         try? data.write(to: syncedCacheURL, options: .atomic)
     }
 
-    func loadCachedOther() -> [RawMetricSample] {
+    nonisolated func loadCachedOther() -> [RawMetricSample] {
         guard let data = try? Data(contentsOf: otherCacheURL) else { return [] }
         return (try? JSONDecoder().decode([RawMetricSample].self, from: data)) ?? []
     }
 
-    func saveCachedOther(_ samples: [RawMetricSample]) {
+    nonisolated func saveCachedOther(_ samples: [RawMetricSample]) {
         guard let data = try? JSONEncoder().encode(samples) else { return }
         try? data.write(to: otherCacheURL, options: .atomic)
     }

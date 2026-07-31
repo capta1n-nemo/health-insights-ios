@@ -320,13 +320,20 @@ if [ "${1:-}" = "--tests" ]; then
         # change, when the full suite is a slower answer to a narrower question.
         # The full run stays the default and stays the gate: pushing on a
         # filtered pass is how a green filter and a red suite reach `main`.
+        # Keep the output. A red run whose log has scrolled away is a red run
+        # nobody can diagnose — this has now happened twice, both times an
+        # intermittent non-zero exit with no failing test named, and both times
+        # the evidence was gone before anyone thought to look for it. `tee`
+        # would mask the exit status, so read it back out of PIPESTATUS.
+        testlog="${TMPDIR:-/tmp}/insightkit-tests.log"
         if [ -n "${2:-}" ]; then
             note "Running InsightKit tests matching '$2' — NOT the gate. Run without a filter before pushing."
-            (cd InsightKit && swift test --parallel --filter "$2") || fail=1
+            (cd InsightKit && swift test --parallel --filter "$2" 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || fail=1
         else
             note "Running InsightKit tests with $(swift --version | head -1)"
-            (cd InsightKit && swift test --parallel) || fail=1
+            (cd InsightKit && swift test --parallel 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || fail=1
         fi
+        [ "$fail" -eq 0 ] || note "Full test output kept at $testlog"
     else
         note 'Could not obtain a Swift toolchain (no network?). CI is the gate — say so in the reply.'
     fi

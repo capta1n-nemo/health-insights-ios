@@ -1,111 +1,69 @@
 import Foundation
 import SwiftUI
+import UIKit
+import AVFoundation
 import InsightKit
 
-/// What the first two-to-five seconds look like, instead of a blank white screen
-/// while the providers answer and the on-device model writes the summary.
+/// What the first seconds of a cold start look like, instead of a blank screen
+/// while the cached history is read and the insights are evaluated.
 ///
-/// The reference feel is the Apple Watch first-pairing hologram: a luminous
-/// centred form with something slowly radiating out of it. Nothing here is a
-/// progress bar, deliberately — the launch has no measurable fraction complete,
-/// and a bar that fills at a rate unrelated to the work is a lie the user learns
-/// to distrust. It says *something is happening*, and the copy says what.
+/// The heart is a pre-rendered particle animation played by AVFoundation rather
+/// than anything drawn here, and that is a performance decision as much as an
+/// aesthetic one: video decode is hardware-accelerated and happens off the main
+/// thread, so the animation keeps moving even while the main actor is busy. The
+/// first version drew the mark in SwiftUI — a `TimelineView(.animation)` with a
+/// shadowed symbol and a full-screen gradient, every frame, on the main thread —
+/// and froze solid for ten seconds the moment real work started, which is
+/// exactly when a loading animation most needs to be moving.
 ///
 /// The decisions that can be wrong — which line, when it changes, when the
-/// screen comes down — are all in `LaunchNarration`, in InsightKit, where they
-/// have tests. This file is the drawing.
+/// screen comes down — are in `LaunchNarration`, in InsightKit, where they have
+/// tests. This file is the playback and the layout.
 struct LaunchScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// One breath, and one full trip outward for a ring. Slow enough to read as
-    /// calm — the resting rate this is standing in for is nearer 15 a minute
-    /// than 60, and a fast pulse on a health app's launch screen is a mood.
-    private static let period: Double = 2.6
-    private static let ringCount = 3
+    /// Where the status line sits, as a fraction of the video's height. The
+    /// source animation was composed with its own caption at this height, so
+    /// the ring's gap is already there waiting for it.
+    private static let captionHeight: CGFloat = 0.74
 
     @State private var narration = LaunchNarration()
     @State private var message = LaunchNarration.script[0].text
     @State private var startedAt = Date()
 
     var body: some View {
-        ZStack {
-            // The same background every tab uses. The cross-dissolve is only
-            // seamless if the two sides sit on one colour — otherwise the fade
-            // carries a background change with it, which reads as a flash.
-            Color(.systemGroupedBackground).ignoresSafeArea()
-            glow
-            VStack(spacing: 34) {
-                pulse
+        GeometryReader { geo in
+            ZStack {
+                // The video's own background, and the same colour the static
+                // UILaunchScreen uses, so the handoff from the launch image to
+                // this view has nothing to see.
+                Color("LaunchBackground").ignoresSafeArea()
+
+                if reduceMotion {
+                    // Reduce Motion takes the movement, not the screen: the
+                    // poster is frame one of the same animation.
+                    Image("LaunchPoster")
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .ignoresSafeArea()
+                } else {
+                    LoopingVideo(resource: "LaunchHeart", extension: "mp4")
+                        .ignoresSafeArea()
+                }
+
                 status
+                    .position(x: geo.size.width / 2,
+                              y: geo.size.height * Self.captionHeight)
             }
-            .padding(.horizontal, 40)
         }
         .task { await narrate() }
+        .task { await releaseOnCeiling() }
         // One element, one label. A rotating string re-announced every 1.25 s
         // would talk over VoiceOver's own reading of it.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading your health data")
         .accessibilityValue(message)
-    }
-
-    // MARK: - The pulse
-
-    /// A soft accent wash behind the mark, so the rings fade into something
-    /// rather than into flat background. Sized past the screen edge on purpose.
-    private var glow: some View {
-        RadialGradient(colors: [Theme.accent.opacity(0.20),
-                                Theme.accent.opacity(0.05),
-                                .clear],
-                       center: .center, startRadius: 0, endRadius: 300)
-            .ignoresSafeArea()
-    }
-
-    @ViewBuilder private var pulse: some View {
-        if reduceMotion {
-            // Reduce Motion takes the movement, not the screen. The rings stay
-            // as a static mark so the layout and the glow are unchanged.
-            ZStack {
-                ring(phase: 0.34)
-                ring(phase: 0.68)
-                heart(scale: 1)
-            }
-        } else {
-            TimelineView(.animation) { context in
-                let t = context.date.timeIntervalSince(startedAt)
-                ZStack {
-                    ForEach(0..<Self.ringCount, id: \.self) { index in
-                        ring(phase: ringPhase(t, index: index))
-                    }
-                    heart(scale: 1 + 0.055 * sin(t * 2 * .pi / Self.period))
-                }
-            }
-        }
-    }
-
-    /// Where ring `index` is in its trip out, as 0...1. Staggered evenly so one
-    /// leaves as the next arrives and the sequence never bunches.
-    private func ringPhase(_ t: Double, index: Int) -> Double {
-        let raw = t / Self.period + Double(index) / Double(Self.ringCount)
-        return raw - raw.rounded(.down)
-    }
-
-    /// Fades out as it grows, on a curve rather than linearly — a ring that
-    /// dims evenly all the way out reads as a hard-edged circle to the last
-    /// frame, which is the difference between a hologram and a loading spinner.
-    private func ring(phase: Double) -> some View {
-        Circle()
-            .stroke(Theme.accent.opacity(pow(1 - phase, 1.7) * 0.5), lineWidth: 1.5)
-            .frame(width: 128, height: 128)
-            .scaleEffect(0.5 + phase * 1.0)
-    }
-
-    private func heart(scale: Double) -> some View {
-        Image(systemName: "heart.fill")
-            .font(.system(size: 52))
-            .foregroundStyle(Theme.accent)
-            .shadow(color: Theme.accent.opacity(0.45), radius: 22)
-            .scaleEffect(scale)
     }
 
     // MARK: - The status line
@@ -115,14 +73,9 @@ struct LaunchScreen: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
-            // Transition inside the identity, frame outside it: the line fades
-            // out and the next fades in, while the box they sit in holds still.
             .transition(.opacity)
             .id(message)
-            // Two lines' worth, held whatever the copy is: a line that wraps at
-            // large Dynamic Type would otherwise shove the pulse up the screen
-            // mid-rotation.
-            .frame(minHeight: 46, alignment: .top)
+            .padding(.horizontal, 40)
     }
 
     // MARK: - Driving it
@@ -132,26 +85,109 @@ struct LaunchScreen: View {
     /// The narration needs the *clock* as well as the phase — its whole job is
     /// to hold a line long enough to read — so it cannot be driven by phase
     /// changes alone, and `LaunchNarration` is a state machine that has to be
-    /// stepped. 80 ms is well under the shortest hold, so no change lands late
+    /// stepped. 100 ms is well under the shortest hold, so no change lands late
     /// enough to see.
     @MainActor private func narrate() async {
         startedAt = Date()
         while !Task.isCancelled {
             let elapsed = Date().timeIntervalSince(startedAt)
-            let phase = model.launchPhase
 
-            let next = narration.line(at: elapsed, phase: phase)
+            let next = narration.line(at: elapsed, phase: model.launchPhase)
             if next != message {
                 withAnimation(.easeInOut(duration: 0.3)) { message = next }
             }
 
-            if LaunchNarration.shouldDismiss(elapsed: elapsed, phase: phase) {
-                // The cross-dissolve: this clears `isLaunching`, which fades
-                // this screen out and the tabs in together — see `RootView`.
-                withAnimation(.easeInOut(duration: 0.5)) { model.finishLaunch() }
+            if LaunchNarration.shouldDismiss(elapsed: elapsed, hasContent: model.isHydrated) {
+                dismiss()
                 return
             }
-            try? await Task.sleep(for: .milliseconds(80))
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    /// The ceiling, on a timer that cannot be starved by what it protects
+    /// against.
+    ///
+    /// `narrate()` is `@MainActor`, so a long synchronous main-thread call
+    /// blocks it — which means the one launch that needs a hard ceiling is the
+    /// one launch where a ceiling polled from that loop cannot fire. It shipped
+    /// that way and the user sat through twenty-five seconds of a twenty-second
+    /// ceiling. **A timeout must not live on the thread it is timing out.**
+    ///
+    /// This one is deliberately *not* `@MainActor`: a `View`'s own methods are
+    /// nonisolated, so the suspension resumes on the cooperative pool and only
+    /// the final hop needs the main actor.
+    private func releaseOnCeiling() async {
+        try? await Task.sleep(for: .seconds(LaunchNarration.hardCeiling))
+        guard !Task.isCancelled else { return }
+        await dismiss()
+    }
+
+    @MainActor private func dismiss() {
+        guard model.isLaunching else { return }
+        // The cross-dissolve: clearing `isLaunching` fades this screen out and
+        // reveals the tabs underneath — see `RootView`.
+        withAnimation(.easeInOut(duration: 0.45)) { model.finishLaunch() }
+    }
+}
+
+/// An `AVPlayerLayer` that loops gaplessly, muted, with no controls.
+///
+/// `AVKit.VideoPlayer` would bring playback controls and a scrubber to a launch
+/// screen, and `AVPlayer.actionAtItemEnd = .none` plus a notification leaves a
+/// visible stall at the loop point. `AVPlayerLooper` over an `AVQueuePlayer` is
+/// the one that actually loops without a seam.
+private struct LoopingVideo: UIViewRepresentable {
+    let resource: String
+    let `extension`: String
+
+    func makeUIView(context: Context) -> PlayerView {
+        let view = PlayerView()
+        guard let url = Bundle.main.url(forResource: resource, withExtension: `extension`) else {
+            return view
+        }
+        let item = AVPlayerItem(url: url)
+        let queue = AVQueuePlayer()
+        // The asset is encoded with no audio track at all, so nothing here can
+        // touch the audio session or interrupt what the user is listening to.
+        // `isMuted` is belt and braces; the display-sleep opt-out matters more —
+        // a launch screen has no business holding the screen awake.
+        queue.isMuted = true
+        queue.preventsDisplaySleepDuringVideoPlayback = false
+        context.coordinator.looper = AVPlayerLooper(player: queue, templateItem: item)
+        view.player = queue
+        queue.play()
+        return view
+    }
+
+    func updateUIView(_ view: PlayerView, context: Context) {}
+
+    static func dismantleUIView(_ view: PlayerView, coordinator: Coordinator) {
+        view.playerLayer.player?.pause()
+        coordinator.looper?.disableLooping()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var looper: AVPlayerLooper?
+    }
+
+    /// A `UIView` backed by `AVPlayerLayer`, so the video is composited by the
+    /// render server rather than blitted through the view hierarchy.
+    final class PlayerView: UIView {
+        override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+
+        var player: AVPlayer? {
+            get { playerLayer.player }
+            set {
+                playerLayer.player = newValue
+                // Fill, matching UILaunchScreen's own scaling of the poster, so
+                // the static launch image and the first video frame line up.
+                playerLayer.videoGravity = .resizeAspectFill
+            }
         }
     }
 }

@@ -229,6 +229,16 @@ final class AppModel {
     /// first, because it costs an assignment and a future caller may want it.
     private(set) var launchPhase: LaunchPhase = .connecting
 
+    /// Whether the cache has been read and the insights evaluated — i.e. whether
+    /// there is a real Today to show.
+    ///
+    /// This, not "the refresh finished", is what the launch screen waits for.
+    /// The first version waited for the whole of `refresh()`, which put the
+    /// network round-trip and the on-device summary *in front of* the app
+    /// instead of behind it and turned an eight-second launch into a
+    /// thirty-second one.
+    private(set) var isHydrated = false
+
     /// Whether the launch screen is on screen.
     ///
     /// Set once, here, and only ever cleared — `RootView.task` runs again when
@@ -285,25 +295,65 @@ final class AppModel {
         self.summarizer = summarizer
         self.profile = dataStore.loadProfile()
         seedIntegrationStatuses()
-        hydrateFromCache()
+        // Small SwiftData reads only. `hydrate()` does the rest, off the main
+        // actor and after the first frame — see the note on it.
+        substanceEvents = dataStore.loadSubstanceEvents()
+        suggestionDismissals = dataStore.loadSuggestionDismissals()
         // Decided here rather than in the view so there is no first frame where
         // the answer is still unknown — a `@State` default cannot read the
         // environment, and one blank frame is the thing being fixed.
         isLaunching = hasCompletedOnboarding
     }
 
-    /// Populate state from persisted data on launch — manual readings plus the
-    /// last-synced Apple Health / wearable samples cached to disk — so the app
-    /// shows your data immediately, before (or without) a fresh network sync.
-    private func hydrateFromCache() {
+    /// Populate state from persisted data — manual readings plus the last-synced
+    /// Apple Health / wearable samples cached to disk — so the app shows your
+    /// data before (or without) a fresh network sync.
+    ///
+    /// **This used to run inside `init`, and that was the blank white screen.**
+    /// `HealthInsightsApp` builds the model as a `@State` default, so every line
+    /// of it ran before SwiftUI could draw a single frame: a JSON decode of a
+    /// six-figure sample array, a full sanitiser pass, the temperature
+    /// reconstruction and then all seventeen insights. On a real history that is
+    /// several seconds during which the app is not white *by choice* — it simply
+    /// has not reached its first frame, and no launch screen written in SwiftUI
+    /// can appear in front of it. (What covers that gap now is the static
+    /// `UILaunchScreen` in `Support/Info.plist`, which needs no code at all.)
+    ///
+    /// Now it is `async`, called from `RootView` after the first frame, and the
+    /// expensive half runs off the main actor. What is left on the main actor is
+    /// only what cannot leave it: SwiftData reads, which are small.
+    func hydrate() async {
+        guard !isHydrated else { return }
+        launchPhase = .reading
+
+        // Main actor, because SwiftData's `mainContext` is. Both are small.
         let manual = dataStore.loadManualSamples()
-        let cached = dataStore.loadCachedSamples()
-        let merged = (manual + cached).sanitizedVitals()
-        samples = TemperatureReconstructor.withReconstructedTemperature(merged)
-        otherSamples = dataStore.loadCachedOther()
-        substanceEvents = dataStore.loadSubstanceEvents()
-        suggestionDismissals = dataStore.loadSuggestionDismissals()
-        recompute()
+        let store = dataStore
+        let engineNow = engine.withSubstanceLog(substanceEvents)
+        let profileNow = profile
+
+        // Off the main actor: the JSON decode, the sanitiser, the temperature
+        // reconstruction and the whole insight pass. Every input is `Sendable`
+        // and every one of these is pure, which is why this hop is safe — the
+        // engine and the sample types were built platform-free for testing, and
+        // that turns out to be the same property that lets them leave the main
+        // thread.
+        let loaded = await Task.detached(priority: .userInitiated) { () -> HydratedState in
+            let cached = store.loadCachedSamples()
+            let other = store.loadCachedOther()
+            let merged = (manual + cached).sanitizedVitals()
+            let samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+            let events = VitalEventReader.events(from: other)
+            let results = engineNow.evaluateAll(samples: samples, events: events,
+                                                profile: profileNow)
+            return HydratedState(samples: samples, other: other, results: results)
+        }.value
+
+        otherSamples = loaded.other
+        samples = loaded.samples
+        engine = engineNow
+        results = loaded.results
+
         // A stored summary written from *these* results is the real thing and is
         // worth showing immediately. Only fall back to the template when there
         // isn't one, or when the results have moved since it was written — the
@@ -315,6 +365,20 @@ final class AppModel {
         } else {
             todaySummary = FoundationModelSummarizer.templateSummary(from: results)
         }
+
+        recordScores(results)
+        invalidateDerivedCaches()
+        // The launch screen waits on this and nothing else. Everything after it
+        // — the provider sync, the ingest, the on-device summary — belongs
+        // behind an app the user can already see and use.
+        isHydrated = true
+    }
+
+    /// What `hydrate()` computes off the main actor, in one `Sendable` parcel.
+    private struct HydratedState: Sendable {
+        let samples: [HealthMetricSample]
+        let other: [RawMetricSample]
+        let results: [InsightResult]
     }
 
     /// Unmodelled imported data, grouped by identifier for the "Other data" browser.
@@ -509,10 +573,10 @@ final class AppModel {
     ///   — where waiting thirty seconds would be nonsense.
     func refresh(force: Bool = false) async {
         let startedAt = Date()
-        // Above the refresh gate on purpose: a launch whose refresh is skipped
-        // as too-soon must still reach `.ready`, or the launch screen waits on a
-        // phase change that is never coming. The screen has its own ceiling as
-        // well, but a splash released by a timeout is a bug the user can see.
+        // Above the refresh gate on purpose: a refresh skipped as too-soon must
+        // still land on `.ready`, so nothing is left narrating a step that is
+        // not running. The launch screen no longer *waits* on this — it waits on
+        // `isHydrated` — but the phase still drives what the copy says.
         defer { launchPhase = .ready }
         launchPhase = .connecting
         // Three pull-to-refresh gestures in three seconds used to pay for three
@@ -542,7 +606,6 @@ final class AppModel {
             default: break
             }
         }
-        launchPhase = .reading
         // Ingest every captured payload before anything else looks at the data.
         // This is what guarantees the vitals layer holds 100% of what the
         // providers sent — including fields nobody has written code for — and it
@@ -721,18 +784,23 @@ final class AppModel {
         // which iterate `engine.models` and so had been skipping it silently.
         engine = engine.withSubstanceLog(substanceEvents)
         results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
+        recordScores(results)
+        // Grounding and substance edits reach here without touching `samples`,
+        // so the sample-set invalidation hook won't have fired.
+        invalidateDerivedCaches()
+    }
 
-        // Today's scores become tomorrow's history. `recordScore` upserts by
-        // day, so running this on every recompute costs one row per insight per
-        // day rather than one per call.
+    /// Today's scores become tomorrow's history. `recordScore` upserts by day,
+    /// so this costs one row per insight per day rather than one per call.
+    ///
+    /// Split out of `recompute()` so `hydrate()` can share it: SwiftData writes
+    /// are main-actor-only and cannot travel with the rest of the insight pass.
+    private func recordScores(_ results: [InsightResult]) {
         for result in results {
             guard let score = result.score else { continue }
             dataStore.recordScore(result.id, score: score, confidence: result.confidence,
                                   contributorCount: result.contributors.count)
         }
-        // Grounding and substance edits reach here without touching `samples`,
-        // so the sample-set invalidation hook won't have fired.
-        invalidateDerivedCaches()
     }
 
     /// Device-raised notifications (irregular rhythm, high/low heart rate…)

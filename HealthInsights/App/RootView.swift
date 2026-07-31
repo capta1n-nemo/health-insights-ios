@@ -20,12 +20,11 @@ struct RootView: View {
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
             }
-            // The other half of the cross-dissolve. Both sides move on the one
-            // animation in `LaunchScreen.narrate()`, so the tabs arrive as the
-            // pulse leaves rather than being cut to. The scale is small on
-            // purpose: enough to read as settling into place, not as a zoom.
-            .opacity(model.isLaunching ? 0 : 1)
-            .scaleEffect(model.isLaunching ? 0.97 : 1)
+            // No .opacity or .scaleEffect on the TabView. Both force the whole
+            // four-tab hierarchy — lists, charts and all — through an offscreen
+            // buffer for every frame of the transition, which is the last thing
+            // a launch that is already fighting for the main thread needs. The
+            // splash fading out on top of it *is* the cross-dissolve.
 
             if model.isLaunching {
                 LaunchScreen()
@@ -35,6 +34,11 @@ struct RootView: View {
         }
         .task {
             if !model.hasCompletedOnboarding { showOnboarding = true }
+            // Read the cache first and let the launch screen go the moment it
+            // lands. The sync that follows runs behind an app the user can
+            // already see — which is where it ran before the launch screen
+            // existed, and putting it back in front was the regression.
+            await model.hydrate()
             await model.refresh()
         }
         .fullScreenCover(isPresented: $showOnboarding) {
