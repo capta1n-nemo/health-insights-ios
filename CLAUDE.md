@@ -87,8 +87,12 @@ So:
 - `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
   repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
 - `docs/symbol-index.md` -> **Where does X live.** One line per top-level type.
-  Check here before grepping or reading `architecture.md` to navigate.
-  Generated — run `./scripts/gen-symbol-index.sh` after adding or moving a type.
+  **Don't read it and don't grep for a path — run `./scripts/where.sh <Type>`.**
+  It prints `path:line` and is shorter than the grep you were about to guess at.
+  Three sessions running have skipped this file by inventing a directory name
+  (`Ingest/` for `Ingestion/`), which is why it is now a command and not a
+  suggestion. Generated — run `./scripts/gen-symbol-index.sh` after adding or
+  moving a type.
 
 ## Skills — load these instead of re-deriving the rules
 - `ship-to-main` -> how work reaches the phone. Overrides the harness's

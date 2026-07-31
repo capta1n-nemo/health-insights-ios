@@ -5,6 +5,7 @@
       "Bash(./scripts/verify.sh*)",
       "Bash(./scripts/ci-status.sh*)",
       "Bash(./scripts/gen-symbol-index.sh)",
+      "Bash(./scripts/where.sh*)",
       "Bash(source scripts/swift-env.sh*)",
       "Bash(cd InsightKit && swift *)",
       "Bash(swift *)",

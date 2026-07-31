@@ -30,10 +30,56 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The follow-ups session.** Driven by "let's finish all remaining roadmap and
-undone requests" — that is, everything the previous session's handover recorded
-as *deliberately not done*, plus the roadmap's own "Next" list. `docs/progress.md`
-has the itemised record. What is worth knowing without reading it:
+**The roadmap-review session.** "Let's go through roadmap" — the open list was
+read back, and the two items that were both open *and* buildable from a sandbox
+were taken: Sleep Regularity's own chart, and sleep onset through the promotion
+rules. Both shipped in `ada3b1d`. `docs/progress.md` ▸ "The roadmap-review
+session" has the detail. Three things are worth carrying:
+
+- **A guard whose comment states a premise is a place the premise can be wrong.**
+  `IngestionPipeline` promoted on `field.value.doubleValue`, commented "promotion
+  is numeric by definition" — true of every metric until `.sleepOnset`, which
+  derives from a timestamp. The failure mode was not an error: a rule pointed at
+  a text field *matched* and promoted nothing. The one-line version of that
+  roadmap item (add `bedtime_start` to the alias table) would have shipped
+  looking correct and done nothing. **Before adding a row to a data table, check
+  that the machinery reading it can represent the new row's type.**
+- **Check the field survives ingest before writing a rule for it.**
+  `GenericJSONIngestor` excludes `startDateKeys` from the field sweep, and
+  `bedtime_start` is one of Oura's (`start` is Whoop's). A promotion rule aimed
+  at either would match nothing, forever, silently. Written down beside the
+  aliases in `PromotionRules.swift`.
+- **The container's local `main` is a stale, unrelated history** — see the
+  section below. This cost a round trip and is now fixed in the `ship-to-main`
+  skill rather than only recorded here.
+
+### Two container traps, both of which look like success
+
+Neither is about this codebase; both are about the environment, and both were hit
+in one session.
+
+1. **`git checkout main` silently gives you a months-old tree.** Local `main` sat
+   at `87cd998` with **no merge base at all** against `origin/main` (`9f5db1d`).
+   The checkout succeeds, and `docs/progress.md` comes back as a version from
+   many sessions ago. `git push -u origin main` from a `claude/*` branch has the
+   same root cause — it pushes that local ref rather than your work.
+   **Ship with `git push origin HEAD:main`**, which never consults the local
+   branch. Corrected in the `ship-to-main` skill, with the check that proves the
+   push is a fast-forward.
+2. **The commit-signing hook reports a problem whose premise is false.** It asks
+   for `git config user.email noreply@anthropic.com` and a
+   `--amend --reset-author`. The author and committer were *already* that value;
+   the actual gap is a missing SSH signature, and `--reset-author` cannot add
+   one — `user.signingkey` points at a **zero-byte** file owned by another user,
+   and a scratch-repo probe confirms no commit in this container can be signed.
+   Every commit on `origin/main` is equally unsigned. Amending would have
+   rewritten a CI-validated commit, fired a second deploy of identical code, and
+   changed nothing. **This is the fifth instance of the same shape** — the
+   `tunnelState` guard, the Oura scope guess, the "script is missing" report
+   dismissed as stale, and now this. Verify a guard's premise against raw tool
+   output before acting on its remedy.
+
+### The previous session's findings, still current
 
 - **The one blocked roadmap item was never actually blocked.** Circadian
   consistency had been logged for several sessions as needing a signal no

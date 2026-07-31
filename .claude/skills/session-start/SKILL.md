@@ -30,9 +30,12 @@ verified against the code. Spot-check one you are about to build on; sweeping th
 codebase to rebuild a picture that is already written down is the single most
 expensive mistake available here, and it has been made.
 
-`docs/symbol-index.md` answers "where does X live" — **check it before grepping
-or guessing a filename.** Skipping it and hunting by filename is a logged,
-repeating waste in `docs/efficiency-log.md`.
+"Where does X live" is **`./scripts/where.sh <Type>`** — it prints `path:line`
+from `docs/symbol-index.md`. Reach for it instead of grepping a path you are
+guessing at. Three sessions running have lost a round trip to inventing a
+directory name (`Ingest/` for `Ingestion/`, `Signals/` for `Baseline/`), which is
+a logged repeat in `docs/efficiency-log.md` and is why this is a command now
+rather than a pointer at a file.
 
 ## 3. State the open roadmap before doing anything
 

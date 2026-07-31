@@ -113,7 +113,9 @@ that is not yet automated is the next thing to automate.
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
 | Lose the working directory in a shell call | 2 | ✅ ruled in `CLAUDE.md` (2026-07-31) |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
-| Hunt for a type by guessing its filename | 2 | ⚠️ partly — `symbol-index.md` exists and was not consulted first |
+| Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
+| **A guard reporting a failure whose own premise is false** | **5** | ⚠️ partly — ruled in `CLAUDE.md` and named five times in `activeContext.md`; no mechanical check exists and it is unclear one can |
+| **A container branch that looks right and isn't** (`git checkout main`) | 1 | ✅ `ship-to-main` now ships with `git push origin HEAD:main`, which never reads the local ref |
 | A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
 | A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
 | **A rule pointing at a script that isn't there** | 1 | ✅ `handover-check.sh` check 7 |
@@ -157,14 +159,24 @@ Ordered by (frequency × cost), cheapest fix first.
       roadmap *unprompted*. Also carries the absolute-path rule and the
       symbol-index reflex, which is where the two remaining re-derivation
       categories were coming from.
-- [ ] **Make `symbol-index.md` the reflex, not the fallback.** Partly addressed
-      by the `session-start` skill naming it; not yet mechanical. The router already
-      says "check here before grepping". It was still skipped. Consider having
-      `verify.sh` print a one-line reminder, or fold the index into the skills
-      that most often precede a hunt.
-- [ ] **A session-start checklist skill** that front-loads the three things every
-      session does (bootstrap, read the two docs, check the roadmap) so they
-      happen in one pass rather than being rediscovered.
+- [x] **Make `symbol-index.md` the reflex, not the fallback.** Done as
+      `scripts/where.sh <Type>`, which prints `path:line`. Two rounds of prose had
+      already failed — the router said "check here before grepping", the
+      `session-start` skill repeated it, and a third session still guessed
+      `Ingest/` for `Ingestion/` and grepped a path that did not exist. An
+      instruction to consult a file loses to a habit; **a command shorter than
+      the grep it replaces does not.** `CLAUDE.md`, the `session-start` skill and
+      `.claude/settings.json` all point at it now.
+- [ ] **Never `git add -A` inside a canary** — carried forward from session 9,
+      still the oldest open item. See above.
+- [ ] **A guard whose premise is false has now cost five round trips** and is the
+      one recurring category with no mechanical check: the `tunnelState` guard,
+      the Oura scope skip, a completeness audit dismissed as stale, and this
+      session's commit-signing hook. The shape is always "a check reports an
+      environmental failure, and the check is what's wrong". A lint cannot see
+      this. The nearest thing to a fix is the rule already in `CLAUDE.md`
+      — verify the premise against raw tool output before acting on the remedy —
+      so this may be a category that stays human. Recorded rather than solved.
 
 ## The log
 
@@ -176,6 +188,43 @@ with guesses.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1–8 | to 2026-07-30 | — | — | — | — | 330 → 520 | 5 skills, symbol index, `ci-status.sh`, named-switch lint | *not measured — protocol did not exist* |
 | 9 | 2026-07-30/31 | 9 | **1** | 2 | 2 (named below) | 520 → 590 | Generic exhaustive-switch lint; `verify.sh --tests <pattern>`; absolute-path rule; the efficiency protocol itself | **Baseline.** 0.56 waste/push |
+| 10 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 590 → 602 | `scripts/where.sh`; `ship-to-main` corrected to `git push origin HEAD:main`; roadmap duplicate deleted | **Better in absolutes, and the ratio is not readable at one push.** 2 waste / 1 push |
+
+### Session 10 notes
+
+**Red CI (0).** One push, green first time. The pre-push hook ran the full gate
+before it left, which is the mechanism working as designed rather than luck.
+
+**Rework (0 commits).** One commit, nothing fixing anything from earlier in the
+session.
+
+**Re-derivations (1), named.** Searched for `.sleepOnset`'s promotion rules and
+the Sleep Regularity insight by guessing directory names — `Ingest/` for
+`Ingestion/` — and grepping paths that do not exist. Two empty greps before
+consulting `docs/symbol-index.md`, which the memory router already said to check
+first. **This is the third session running with exactly this failure**, and it is
+what `scripts/where.sh` exists to retire.
+
+**A misstep that cost a round trip but is not rework.** `git checkout main`
+followed by `git merge --ff-only`, which refused with "unrelated histories" and
+silently swapped the working tree to a months-old snapshot. The cause was a
+container artefact rather than a mistake in reasoning — but the *approach* was
+mine, and the correct one (`git push origin HEAD:main`) touches no local branch
+at all. Counted in the waste figure above; retired as a category in the
+`ship-to-main` skill.
+
+**On the ratio.** 2 waste over 1 push reads as worse than session 9's 0.56, and
+that comparison should not be trusted: at one push the denominator is noise, and
+the absolute waste fell from 5 to 2 with red CI going 1 → 0. The honest summary
+is a cheap session with one repeat of a long-logged failure mode — which is
+precisely the thing that got automated rather than noted.
+
+**What made it cheap.** The two audited docs were trusted rather than
+re-established, so the session opened by stating the roadmap instead of surveying
+the code; the `add-chart` skill supplied the `Chart3DContent`, dash-means-inferred
+and `AreaMark`-hazard rules without a re-read of the chart history; and reading
+`IngestionPipeline` *before* writing the obvious one-line version of the
+promotion item is the only reason that item is not now a silently dead alias row.
 
 ### Session 9 notes
 
