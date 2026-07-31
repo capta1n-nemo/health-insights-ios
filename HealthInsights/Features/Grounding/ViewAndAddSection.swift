@@ -223,9 +223,12 @@ struct ViewAndAddSection: View {
                     }
                 }
                 Spacer(minLength: 4)
+                // Both branches are `Color`. `.tertiary` here would be a
+                // `HierarchicalShapeStyle`, and a ternary whose arms are two
+                // different ShapeStyle types has nothing to unify to.
                 Image(systemName: isUnmet ? "plus.circle.fill" : "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(isUnmet ? Theme.accent : .tertiary)
+                    .foregroundStyle(isUnmet ? Theme.accent : Color.secondary)
             }
             .contentShape(Rectangle())
         }
