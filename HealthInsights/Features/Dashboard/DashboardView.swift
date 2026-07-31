@@ -269,6 +269,7 @@ struct InsightCard: View {
         case .healthWatch: return "sensor.fill"
         case .sleepDebt: return "moon.zzz"
         case .peerStanding: return "chart.bar.xaxis"
+        case .circadianConsistency: return "clock.badge.checkmark"
         }
     }
 }

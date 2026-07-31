@@ -147,6 +147,7 @@ public extension InsightID {
         case .healthWatch: return "healthwatch-v1"
         case .sleepDebt: return "sleepdebt-v1"
         case .peerStanding: return "peerstanding-v1"
+        case .circadianConsistency: return "circadian-v1"
         }
     }
 }

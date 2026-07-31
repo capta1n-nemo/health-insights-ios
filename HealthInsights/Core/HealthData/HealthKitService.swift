@@ -404,7 +404,18 @@ final class HealthKitService {
                     HealthMetricSample(type: .sleepDurationHours, value: seconds / 3600,
                                        start: day, end: day, source: .appleHealth)
                 }
-                continuation.resume(returning: mapped)
+                // The same segments, read for *when* rather than how long.
+                //
+                // These timestamps were being thrown away at this line for the
+                // whole life of the app, which is why circadian consistency was
+                // logged as blocked on a missing signal. It was never missing —
+                // `startDate` is right here, and only the aggregate survived.
+                // Night grouping and the nap filter live in `SleepOnset`, in
+                // InsightKit, because both are rules that can be wrong and the
+                // app target has no test target.
+                let onsets = SleepOnset.samples(fromSegmentStarts: asleep.map(\.startDate),
+                                                source: .appleHealth, calendar: cal)
+                continuation.resume(returning: mapped + onsets)
             }
             store.execute(query)
         }

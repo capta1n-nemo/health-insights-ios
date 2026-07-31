@@ -674,13 +674,14 @@ unused despite tens of thousands of samples.
 | oxygenSaturation | Readiness, Sleep Quality, Vitals Check |
 | respiratoryRate | Readiness, Sleep Quality, Vitals Check |
 | skinTemperatureDeviation | Readiness, Sleep Quality, Vitals Check |
-| sleepDurationHours | Readiness, Sleep Quality |
+| sleepDurationHours | Readiness, Sleep Quality, Sleep Debt, Energy |
+| sleepOnset | Sleep Regularity — signed hours from midnight, branch cut at midday |
 | vo2Max | Cardio Fitness, Cardio Trajectory, Heart Age |
 | vascularAge | Heart Age (as a second opinion, never merged into ours) |
 | bodyMass, bodyFatPercentage, height | Body Composition |
 | leanBodyMass, muscleMass, boneMass, bodyWaterPercentage | Body Composition |
 | bloodPressureSystolic/Diastolic | Blood Pressure, Heart Age, Cardiovascular Risk |
-| stepCount, activeEnergyBurned | Cardio Trajectory |
+| stepCount, activeEnergyBurned | Cardio Trajectory, Energy |
 | dayStrain | *(no reader — Whoop not connected)* |
 
 ## Keychain storage

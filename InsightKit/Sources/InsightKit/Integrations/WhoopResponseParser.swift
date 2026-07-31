@@ -89,6 +89,11 @@ public enum WhoopResponseParser {
     public static func parseSleep(_ data: Data) throws -> [HealthMetricSample] {
         let list = try JSONDecoder().decode(SleepList.self, from: data)
         var samples: [HealthMetricSample] = []
+        // `start` is the moment sleep began, which is what `.sleepOnset` wants.
+        // A record with no score still carries one, so this is gathered before
+        // the guard below rather than inside it.
+        samples += SleepOnset.samples(
+            fromSegmentStarts: list.records.compactMap { date($0.start) }, source: .whoop)
         for record in list.records {
             guard let when = date(record.start), let s = record.score else { continue }
             if let rr = s.respiratory_rate {

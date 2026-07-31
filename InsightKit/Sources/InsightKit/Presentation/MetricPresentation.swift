@@ -73,7 +73,7 @@ public extension MetricType {
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height: return .body
         case .stepCount, .activeEnergyBurned, .vo2Max, .dayStrain: return .activity
-        case .sleepDurationHours: return .sleep
+        case .sleepDurationHours, .sleepOnset: return .sleep
         }
     }
 
@@ -134,6 +134,11 @@ public extension MetricType {
         // is a preferred hue shared with resting heart rate, which
         // `MetricPalette.slots` resolves per chart.
         case .skinTemperature: return 30
+        // Appended for the same reason `.skinTemperature` was: the contiguity
+        // test pins this list to 0..<count, and slotting it beside
+        // `.sleepDurationHours` would renumber eighteen cases so that two
+        // metrics which never share a chart could each keep a preferred hue.
+        case .sleepOnset: return 31
         }
     }
 
@@ -173,7 +178,7 @@ public extension MetricType {
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
-             .sleepDurationHours,
+             .sleepDurationHours, .sleepOnset,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry:
             // Sleep belongs here, not with the daily totals: it already arrives
@@ -215,7 +220,8 @@ public extension MetricType {
             return 30 * minute
         case .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
-             .sleepDurationHours, .bodyTemperature, .skinTemperature,
+             .sleepDurationHours, .sleepOnset,
+             .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned,
              .atrialFibrillationBurden, .heartRateRecovery:
@@ -272,6 +278,16 @@ public extension MetricType {
                      cautionAbove: B(low: 10.0, high: 13.9),
                      caption: "3.9–10.0 mmol/L is the time-in-range target across the whole day, meals included. It is not a fasting normal — fasting normal is 3.9–5.5 mmol/L.",
                      provenance: "Battelino et al., 'Clinical Targets for Continuous Glucose Monitoring Data Interpretation', Diabetes Care 2019 (70–180 mg/dL). Fasting figure from the ADA; level-2 hypo <3.0 and level-2 hyper >13.9 set the shoulders.")
+
+        case .sleepOnset:
+            // No band, and not because nobody has published one. Sleep-timing
+            // guidance is about *regularity* and about alignment with your own
+            // chronotype, not about a clock reading: a shift worker asleep at
+            // 09:00 and a lark asleep at 21:30 are both fine, and shading
+            // 22:00–00:00 as "normal" would tell most of the world their
+            // bedtime is abnormal. `CircadianConsistency` scores the spread
+            // instead, which is the thing the evidence is actually about.
+            return nil
 
         case .restingHeartRate:
             // No low shoulder on purpose: `concernWhenLow` is false for this

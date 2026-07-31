@@ -23,7 +23,7 @@ struct VitalsView: View {
                                  .peripheralPerfusionIndex]),
         ("Body", [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
                   .boneMass, .bodyWaterPercentage, .height, .bloodGlucose]),
-        ("Sleep & recovery", [.sleepDurationHours, .bodyTemperature,
+        ("Sleep & recovery", [.sleepDurationHours, .sleepOnset, .bodyTemperature,
                               .skinTemperature, .skinTemperatureDeviation,
                               .dayStrain]),
         ("Activity & mobility", [.stepCount, .activeEnergyBurned,

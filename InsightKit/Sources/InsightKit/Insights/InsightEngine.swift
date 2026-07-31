@@ -30,7 +30,8 @@ public struct InsightEngine: Sendable {
             EnergyInsight(),
             HealthWatchInsight(),
             SleepDebtInsight(),
-            PeerStandingInsight()
+            PeerStandingInsight(),
+            CircadianConsistencyInsight()
         ]
     }
 

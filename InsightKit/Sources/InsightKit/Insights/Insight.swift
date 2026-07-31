@@ -18,6 +18,7 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     case healthWatch
     case sleepDebt
     case peerStanding
+    case circadianConsistency
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
@@ -33,6 +34,9 @@ public extension InsightID {
              // Watch and Sleep Debt are both claims about today.
              .energy, .healthWatch, .sleepDebt:
             return .daily
+        // Everything else, `.circadianConsistency` included: a fortnight's
+        // spread is not a statement about today, and last night moves it by a
+        // fourteenth.
         default: return .trend
         }
     }

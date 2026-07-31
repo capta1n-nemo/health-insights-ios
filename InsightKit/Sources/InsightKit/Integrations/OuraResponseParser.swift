@@ -27,10 +27,28 @@ public enum OuraResponseParser {
     }
 
     /// Parse a `usercollection/sleep` response.
+    ///
+    /// `bedtime_start` was decoded here for years and used only as a fallback
+    /// for the record's *date* — the time of day was discarded, which is the
+    /// whole reason circadian consistency was logged as blocked on a missing
+    /// signal. It now also produces `.sleepOnset`.
+    ///
+    /// The instant is resolved against `Calendar.current`, not against the
+    /// offset Oura stamps on it. That is right for someone at home and wrong on
+    /// the second night of a trip, where the phone has moved zones and the ring
+    /// recorded the old one. `Calendar` is not a parameter because the typed
+    /// parsers are referenced as `(Data) throws -> [HealthMetricSample]` by the
+    /// provider, and a defaulted argument cannot be dropped from a function
+    /// reference. HealthKit has the same property, so both sources agree.
     public static func parseSleep(_ data: Data) throws -> [HealthMetricSample] {
         let list = try JSONDecoder().decode(SleepList.self, from: data)
         var samples: [HealthMetricSample] = []
+        var bedtimes: [Date] = []
         for record in list.data {
+            if let raw = record.bedtime_start,
+               let instant = ISO8601DateFormatter().date(from: raw) {
+                bedtimes.append(instant)
+            }
             guard let date = date(from: record) else { continue }
             func add(_ type: MetricType, _ value: Double?) {
                 guard let value else { return }
@@ -45,6 +63,7 @@ public enum OuraResponseParser {
                 add(.sleepDurationHours, seconds / 3600)
             }
         }
+        samples += SleepOnset.samples(fromSegmentStarts: bedtimes, source: .oura)
         return samples
     }
 

@@ -96,6 +96,7 @@ struct TelemetryOutboxView: View {
             case .healthWatch: return "Health watch"
             case .sleepDebt: return "Sleep debt"
             case .peerStanding: return "Where you stand"
+            case .circadianConsistency: return "Sleep regularity"
             }
         } ?? raw
     }

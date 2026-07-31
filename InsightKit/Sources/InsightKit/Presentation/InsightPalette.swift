@@ -40,6 +40,7 @@ public extension InsightID {
         case .healthWatch: return 13
         case .sleepDebt: return 14
         case .peerStanding: return 15
+        case .circadianConsistency: return 16
         }
     }
 }

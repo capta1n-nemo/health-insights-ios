@@ -60,6 +60,9 @@ the place to look.
   - `CardiovascularRiskInsight` :13
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
+- `Insights/CircadianConsistency.swift`
+  - `CircadianConsistencyInsight` :138
+  - `CircadianConsistencyModel` :29
 - `Insights/Energy.swift`
   - `EnergyInsight` :301
   - `EnergyModel` :29
@@ -81,14 +84,14 @@ the place to look.
   - `HeartHealthInsight` :129
   - `HeartHealthScore` :13
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :51
-  - `InsightCadence` :26
-  - `InsightConfidence` :43
-  - `InsightDriver` :79
+  - `GroundingRequirement` :55
+  - `InsightCadence` :27
+  - `InsightConfidence` :47
+  - `InsightDriver` :83
   - `InsightID` :4
-  - `InsightModel` :170
-  - `InsightResult` :96
-  - `RequirementStatus` :67
+  - `InsightModel` :174
+  - `InsightResult` :100
+  - `RequirementStatus` :71
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -172,10 +175,10 @@ the place to look.
   - `AxisTickGranularity` :71
   - `Timeframe` :5
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :55
+  - `InsightPalette` :56
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :377
+  - `MetricPalette` :393
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -198,6 +201,8 @@ the place to look.
   - `GapBridge` :90
   - `SeriesBridging` :121
   - `SeriesSegmentation` :53
+- `Signals/SleepOnset.swift`
+  - `SleepOnset` :23
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`

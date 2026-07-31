@@ -28,6 +28,11 @@ public enum MetricValueFormatter {
             return String(format: "%.0f%%", value)
         case .stepCount, .activeEnergyBurned:
             return grouped(value)
+        // Stored as signed hours from midnight and read as a clock time, which
+        // is the only form anybody thinks about a bedtime in. The default
+        // branch would render −1.5 as "-2".
+        case .sleepOnset:
+            return clockString(hoursFromMidnight: value)
         default:
             return "\(Int(value.rounded()))"
         }
@@ -78,6 +83,19 @@ public enum MetricValueFormatter {
         _ = locale
         return String(format: "%.0f cm", metres * 100)
         #endif
+    }
+
+    /// Signed hours from midnight → "23:30".
+    ///
+    /// `formatted(date:time:)` is not used because there is no date here: the
+    /// value is an offset, and materialising it onto some arbitrary day to get
+    /// a `Date` to format would drag in a calendar and a time zone that this
+    /// quantity has already been resolved against at ingest.
+    static func clockString(hoursFromMidnight value: Double) -> String {
+        let minutes = Int((value * 60).rounded())
+        // Modulo into a day, twice, because Swift's `%` keeps the sign.
+        let wrapped = ((minutes % 1440) + 1440) % 1440
+        return String(format: "%02d:%02d", wrapped / 60, wrapped % 60)
     }
 
     private static func grouped(_ value: Double) -> String {

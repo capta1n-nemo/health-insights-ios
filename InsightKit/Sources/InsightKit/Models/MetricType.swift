@@ -36,6 +36,21 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case stepCount                 // count
     case activeEnergyBurned        // kcal
     case sleepDurationHours        // hours
+    /// **Hours from local midnight, signed, with the branch cut at midday.**
+    /// −1.5 is 22:30, +0.5 is 00:30, 0 is midnight exactly.
+    ///
+    /// The obvious encoding is a clock hour in [0, 24), and it is wrong here:
+    /// the mean of 23:30 and 00:30 is midnight, not noon, so every consumer
+    /// would need circular statistics. This app's whole baseline machinery —
+    /// `Baseline.mean`, `zScore`, the regressions, the charts — is linear, and
+    /// making one metric the exception would mean every one of them has to know
+    /// which metric it is holding.
+    ///
+    /// Putting the wrap at *midday* instead makes it linear by construction:
+    /// nobody's sleep onset crosses noon, so no real series ever meets the
+    /// branch cut, and the arithmetic mean is the circular mean. A value outside
+    /// (−12, +12] is not a late night, it is a bug.
+    case sleepOnset                // h from local midnight (negative = before)
     // Three thermal metrics, deliberately distinct. Core and skin are measured
     // in different places, sit two to three degrees apart, and mean different
     // things — judging one against the other's bounds was reporting every
@@ -79,6 +94,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
         case .sleepDurationHours: return "Sleep Duration"
+        case .sleepOnset: return "Sleep Onset"
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
@@ -108,6 +124,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .sleepDurationHours: return "h"
+        // Empty: the formatter renders this as a clock time, and "23:12 h" is
+        // not a thing.
+        case .sleepOnset: return ""
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,
