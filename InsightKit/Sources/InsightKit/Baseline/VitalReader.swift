@@ -68,10 +68,10 @@ public enum VitalReader {
         // twice is one instrument.
         let breakdown = MultiSource.breakdown(metric, from: samples)
         guard !breakdown.sources.isEmpty else { return nil }
+        let buckets = dailyBuckets(metric, breakdown: breakdown, from: samples, calendar: calendar)
 
         var best: (reading: VitalReading, historyCount: Int)?
-        for series in breakdown.sources {
-            let daily = series.bucketed(by: .day, for: metric, calendar: calendar)
+        for (series, daily) in zip(breakdown.sources, buckets) {
             guard let today = daily.last else { continue }
 
             let cutoff = today.date.addingTimeInterval(-Double(windowDays) * 86_400)
@@ -151,15 +151,34 @@ public enum VitalReader {
         let breakdown = MultiSource.breakdown(metric, from: samples)
         let cutoff = days.map { now.addingTimeInterval(-Double($0) * 86_400) } ?? .distantPast
         var byDay: [Date: [Double]] = [:]
-        for series in breakdown.sources {
-            for point in series.bucketed(by: .day, for: metric, calendar: calendar)
-            where point.date >= cutoff {
+        for daily in dailyBuckets(metric, breakdown: breakdown, from: samples, calendar: calendar) {
+            for point in daily where point.date >= cutoff {
                 byDay[point.date, default: []].append(point.value)
             }
         }
         return byDay.keys.sorted().compactMap { day in
             byDay[day].flatMap { Baseline.mean($0) }.map { DailyValue(date: day, value: $0) }
         }
+    }
+
+    /// The day-bucketed series for each source of a metric, in `breakdown.sources`
+    /// order. Both `reading` and `dailySeries` are built on exactly this.
+    ///
+    /// Memoised for the length of an evaluation pass, because bucketing walks
+    /// every reading and asks the calendar for a day boundary — and seven of the
+    /// seventeen insight models ask for resting heart rate, each of which used to
+    /// redo the whole thing. Falls through to computing it when there is no memo
+    /// (a chart, a one-off read) or when `samples` isn't the array the memo was
+    /// opened for.
+    static func dailyBuckets(_ metric: MetricType,
+                             breakdown: MultiSourceBreakdown,
+                             from samples: [HealthMetricSample],
+                             calendar: Calendar) -> [[AggregatedPoint]] {
+        let compute = {
+            breakdown.sources.map { $0.bucketed(by: .day, for: metric, calendar: calendar) }
+        }
+        guard let memo = MultiSource.memo, memo.covers(samples) else { return compute() }
+        return memo.daily(.init(metric: metric, calendar: calendar), compute: compute)
     }
 
     /// Daily values for a metric over a window, oldest first, de-duplicated.

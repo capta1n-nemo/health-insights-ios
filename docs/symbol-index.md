@@ -164,7 +164,8 @@ the place to look.
 - `Models/MetricValueFormatter.swift`
   - `MetricValueFormatter` :10
 - `Models/MultiSource.swift`
-  - `MultiSource` :202
+  - `EvaluationMemo` :220
+  - `MultiSource` :278
   - `MultiSourceBreakdown` :101
   - `SourceActivity` :73
   - `SourceSeries` :5

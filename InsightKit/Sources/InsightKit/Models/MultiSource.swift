@@ -199,11 +199,105 @@ public struct MultiSourceBreakdown: Sendable, Equatable {
     }
 }
 
+/// Memoises the per-metric work of a single evaluation pass.
+///
+/// Seventeen insight models are handed the *same* canonical sample array, and
+/// several read the same metric — resting heart rate is read by seven of them.
+/// Every read used to filter all ~130k samples, de-duplicate them and bucket
+/// them by day from scratch. Nothing about that work varies between the models,
+/// so an evaluation opens one of these and the repeats become dictionary hits.
+///
+/// **Why the identity check is sound rather than a heuristic.** The memo holds a
+/// strong reference to the array it was opened for, so that buffer cannot be
+/// freed while the memo is alive, so no *other* live array can be handed the
+/// same base address. Equal base address and equal count therefore means the
+/// same buffer — and, by copy-on-write, the same contents. Any other array (a
+/// model that filtered its own subset, say) simply misses and is computed the
+/// long way, so the cache can never answer for data it wasn't built from.
+///
+/// Scoped with `MultiSource.$memo`, so it lives exactly as long as the
+/// evaluation that opened it and can never go stale against changed data.
+public final class EvaluationMemo: @unchecked Sendable {
+    private let canonical: [HealthMetricSample]
+    private let base: UInt
+    private let count: Int
+    private let lock = NSLock()
+    private var breakdowns: [MetricType: MultiSourceBreakdown] = [:]
+    private var dailyBuckets: [DailyKey: [[AggregatedPoint]]] = [:]
+    private var byType: [MetricType: [HealthMetricSample]] = [:]
+
+    /// Bucketing depends on the calendar, and tests pass fixed ones.
+    struct DailyKey: Hashable {
+        let metric: MetricType
+        let calendar: Calendar
+    }
+
+    public init(_ samples: [HealthMetricSample]) {
+        canonical = samples
+        count = samples.count
+        base = samples.withUnsafeBufferPointer { UInt(bitPattern: $0.baseAddress) }
+    }
+
+    /// Whether `samples` is the very array this memo was opened for.
+    func covers(_ samples: [HealthMetricSample]) -> Bool {
+        guard count > 0, samples.count == count else { return false }
+        return samples.withUnsafeBufferPointer { UInt(bitPattern: $0.baseAddress) } == base
+    }
+
+    func breakdown(_ metric: MetricType, compute: () -> MultiSourceBreakdown) -> MultiSourceBreakdown {
+        lock.lock()
+        if let hit = breakdowns[metric] { lock.unlock(); return hit }
+        lock.unlock()
+        // Computed outside the lock: it is pure, so a rare duplicate under
+        // contention costs a little work and yields the same answer, which is
+        // cheaper than serialising every model behind one mutex.
+        let value = compute()
+        lock.lock(); breakdowns[metric] = value; lock.unlock()
+        return value
+    }
+
+    func samples(of metric: MetricType, compute: () -> [HealthMetricSample]) -> [HealthMetricSample] {
+        lock.lock()
+        if let hit = byType[metric] { lock.unlock(); return hit }
+        lock.unlock()
+        let value = compute()
+        lock.lock(); byType[metric] = value; lock.unlock()
+        return value
+    }
+
+    func daily(_ key: DailyKey, compute: () -> [[AggregatedPoint]]) -> [[AggregatedPoint]] {
+        lock.lock()
+        if let hit = dailyBuckets[key] { lock.unlock(); return hit }
+        lock.unlock()
+        let value = compute()
+        lock.lock(); dailyBuckets[key] = value; lock.unlock()
+        return value
+    }
+}
+
 public enum MultiSource {
+
+    /// The memo in force for the current evaluation, if any. `nil` outside one,
+    /// which is why every entry point still works uncached.
+    @TaskLocal public static var memo: EvaluationMemo?
+
+    /// Run `body` with a memo covering `samples`.
+    ///
+    /// `InsightEngine` opens this around a whole evaluation. Charts and the app's
+    /// own one-off reads deliberately don't — a single read has nothing to reuse.
+    public static func withMemo<T>(for samples: [HealthMetricSample],
+                                   _ body: () throws -> T) rethrows -> T {
+        try $memo.withValue(EvaluationMemo(samples), operation: body)
+    }
 
     /// Collapse the same physical device arriving twice (e.g. Oura via its API
     /// and Oura mirrored into Apple Health) into one sample. Two samples match
     /// when they share a device family, the same minute, and the same value.
+    ///
+    /// **Returns samples oldest → newest**, whatever order they arrived in: the
+    /// loop below walks a sorted copy and appends first occurrences, so the
+    /// output inherits that order. `breakdown(_:from:)` relies on this to avoid
+    /// re-sorting each group — keep it true if this is ever rewritten.
     public static func deduplicate(_ samples: [HealthMetricSample]) -> [HealthMetricSample] {
         // A struct key rather than an interpolated string: this runs once per
         // sample and string formatting dominated the cost on large histories.
@@ -235,6 +329,12 @@ public enum MultiSource {
 
     /// Build the per-source breakdown for a metric from a mixed sample set.
     public static func breakdown(_ type: MetricType, from samples: [HealthMetricSample]) -> MultiSourceBreakdown {
+        guard let memo, memo.covers(samples) else { return uncachedBreakdown(type, from: samples) }
+        return memo.breakdown(type) { uncachedBreakdown(type, from: samples) }
+    }
+
+    private static func uncachedBreakdown(_ type: MetricType,
+                                          from samples: [HealthMetricSample]) -> MultiSourceBreakdown {
         let ofType = deduplicate(samples.filter { $0.type == type })
         var families: [MetricSource: String] = [:]
         let groups = Dictionary(grouping: ofType) { sample -> String in
@@ -244,9 +344,12 @@ public enum MultiSource {
             return family
         }
         let series: [SourceSeries] = groups.map { _, arr in
-            // Represent the group by its most recent sample's source label.
-            let sorted = arr.sorted { $0.start < $1.start }
-            return SourceSeries(source: sorted.last!.source, samples: sorted)
+            // `arr` is already oldest → newest: `deduplicate` returns sorted
+            // samples and `Dictionary(grouping:)` preserves the source order
+            // within each group. Re-sorting here was an O(n log n) pass over as
+            // many as 78k readings, repeated for every insight that reads the
+            // metric. Represent the group by its most recent sample's source label.
+            SourceSeries(source: arr.last!.source, samples: arr)
         }
         // Most data first, then alphabetical for stability.
         .sorted { a, b in

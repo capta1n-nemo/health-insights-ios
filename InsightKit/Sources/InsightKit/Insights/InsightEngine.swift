@@ -52,11 +52,20 @@ public struct InsightEngine: Sendable {
     /// that don't read them get the defaulted overload and are unaffected.
     public func evaluateAll(samples: [HealthMetricSample], events: [VitalEvent] = [],
                             profile: UserHealthProfile, now: Date = Date()) -> [InsightResult] {
-        models.map { $0.evaluate(samples: samples, events: events, profile: profile, now: now) }
+        // Every model below is handed the same array, and many read the same
+        // metrics — resting heart rate is read by seven of them. The memo makes
+        // the second and later reads of a metric dictionary hits instead of
+        // another filter-deduplicate-bucket pass over the whole history. It is
+        // scoped to this call, so it cannot go stale against changed data.
+        MultiSource.withMemo(for: samples) {
+            models.map { $0.evaluate(samples: samples, events: events, profile: profile, now: now) }
+        }
     }
 
     public func result(for id: InsightID, samples: [HealthMetricSample], profile: UserHealthProfile, now: Date = Date()) -> InsightResult? {
-        models.first { $0.id == id }?.evaluate(samples: samples, profile: profile, now: now)
+        MultiSource.withMemo(for: samples) {
+            models.first { $0.id == id }?.evaluate(samples: samples, profile: profile, now: now)
+        }
     }
 
     /// The union of grounding requirements the user should be prompted for,

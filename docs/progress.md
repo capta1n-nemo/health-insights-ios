@@ -715,6 +715,48 @@ recalled.
 
 ### The performance and interaction pass
 
+- [x] **Cold-launch hydration: the insight pass is 3.7× faster, and it needed no
+      product decision at all.** This was logged as blocked on a question for the
+      user — read the whole history on launch, or a recent window with the rest
+      loaded behind Today? — on the assumption that every cheap fix changes what
+      the first frame knows. Measuring it first showed the premise was wrong.
+
+      The cost was not the volume of data; it was the same work repeated.
+      `MultiSource.breakdown` filtered all ~130k samples and sorted the survivors
+      on **every** call, `Array.samples(of:)` did the same (and is the base of
+      `latest` / `latestValue` / `meanValue`), and both were called once per
+      metric *per insight model* — resting heart rate is read by seven of the
+      seventeen. Separately, `SourceSeries.bucketed` asked
+      `Calendar.dateInterval(of:for:)` once per sample, which was ~400 ms of a
+      ~470 ms heart-rate read on its own.
+
+      Three semantics-preserving changes, all in InsightKit:
+      `EvaluationMemo` (a `@TaskLocal` memo scoped to one `evaluateAll`, so it
+      cannot outlive the data it was built from); day-interval reuse in
+      `bucketed`, which holds the previous reading's interval while the next one
+      still falls inside it; and dropping a re-sort of each group in `breakdown`
+      that `deduplicate` had already done.
+
+      Same benchmark either side, 131,400 samples / 24.7 MB (x86 Linux — the
+      ratios travel, the absolutes don't): `evaluateAll` 1774 → **476 ms**,
+      whole hydration block 2796 → **1564 ms**.
+
+      Two things worth keeping. **"This needs a product decision" is a claim
+      about the implementation and it can be wrong** — the same shape as "no
+      provider gives us a bedtime", which also turned out to be a fact about the
+      parsers rather than the world. And **a cache is only worth having if its
+      answers are provably the uncached ones**: `EvaluationMemo`'s identity check
+      is a buffer-identity argument rather than a fingerprint, and
+      `EvaluationMemoTests` asserts both that memoised results match uncached
+      ones and that a memo never answers for an array it was not opened for.
+
+      Still open, and this one *does* need the user: the JSON decode is now 68%
+      of what remains. The cache writes a full `UUID` string and a
+      `{id, displayName}` source object per reading when there are a handful of
+      distinct sources; interning them would cut file and decode together, but it
+      changes the on-disk format and needs a migration path. Measured dead end
+      recorded so nobody repeats it — `PropertyListEncoder(.binary)` is *slower*
+      than JSON here (2190 ms vs 1026 ms).
 - [x] **The substance log page was slow because one call did far too much.**
       Tapping a chip called `recompute()`, which evaluates all seventeen insights
       across the whole sample set and then discards every derived cache. Exactly

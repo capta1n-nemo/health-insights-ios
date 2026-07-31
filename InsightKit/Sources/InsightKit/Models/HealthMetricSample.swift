@@ -95,8 +95,17 @@ public struct HealthMetricSample: Codable, Sendable, Identifiable, Hashable {
 
 public extension Array where Element == HealthMetricSample {
     /// Samples of a given type, oldest → newest.
+    ///
+    /// A filter over the whole history plus a sort of what survives — on a real
+    /// three-year set that is ~130k elements scanned and up to 78k sorted. It is
+    /// also the base of `latest`, `latestValue` and `meanValue`, so a model that
+    /// asks "which of these metrics do I have?" pays it once per candidate.
+    /// Inside an evaluation pass the result is memoised; everywhere else this is
+    /// exactly what it always was.
     func samples(of type: MetricType) -> [HealthMetricSample] {
-        filter { $0.type == type }.sorted { $0.start < $1.start }
+        let compute = { filter { $0.type == type }.sorted { $0.start < $1.start } }
+        guard let memo = MultiSource.memo, memo.covers(self) else { return compute() }
+        return memo.samples(of: type, compute: compute)
     }
 
     /// Most recent sample of a type, if any.

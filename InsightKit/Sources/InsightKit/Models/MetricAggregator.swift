@@ -102,9 +102,33 @@ public extension SourceSeries {
 
         var order: [Date] = []
         var groups: [Date: [Double]] = [:]
+        // `Calendar.dateInterval(of:for:)` resolves timezone and DST rules, and
+        // calling it once per sample was by far the most expensive thing in this
+        // function: on a three-year heart-rate series (~78k readings) it was
+        // ~400 ms of a ~470 ms `VitalReader.reading`, and every insight that
+        // reads a vital pays it again.
+        //
+        // Series arrive sorted, so consecutive readings nearly always land in the
+        // bucket the previous one did — hold that interval and reuse it while it
+        // still contains the sample. Correctness does not depend on the input
+        // being sorted: a miss simply asks the calendar again. And it is DST-safe,
+        // because the only interval ever reused is one the calendar itself
+        // produced, for an instant inside it.
+        //
+        // The bounds are compared explicitly rather than with
+        // `DateInterval.contains`, which is closed at the end — a reading at
+        // exactly midnight would be attributed to the day before.
+        var cachedBucket: DateInterval?
         for sample in samples {
-            let start = calendar.dateInterval(of: component, for: sample.start)?.start
-                ?? sample.start
+            let start: Date
+            if let cachedBucket, sample.start >= cachedBucket.start, sample.start < cachedBucket.end {
+                start = cachedBucket.start
+            } else if let interval = calendar.dateInterval(of: component, for: sample.start) {
+                cachedBucket = interval
+                start = interval.start
+            } else {
+                start = sample.start
+            }
             if groups[start] == nil { order.append(start) }
             groups[start, default: []].append(sample.value)
         }

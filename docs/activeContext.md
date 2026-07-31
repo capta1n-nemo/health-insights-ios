@@ -30,6 +30,14 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
+**The roadmap-continuation session (latest).** "Continue with roadmap" — the
+open list was read back, and the only substantial item buildable from a sandbox
+was the hydration cost left over from session 11. It was recorded as needing a
+product decision first; measuring it showed it did not, and the insight pass is
+now 3.7× faster with no change to what the first frame knows. See "Immediate
+next steps" below for the numbers and for the one part that *does* still need
+the user (the cache format). Nothing in this session has been seen on the phone.
+
 **The loading-screen session, in four rounds of user feedback.** Built the
 splash, shipped a 32-second launch with it, fixed that, replaced the animation
 with a live Metal particle heart, broke the user's build for four deploys, and
@@ -537,20 +545,68 @@ request. This is the same failure shape as the `tunnelState` guard below.
 
 ## Immediate next steps
 
-**The one piece of real engineering left over from session 11: hydration takes
-about twelve seconds on the user's data.** Measured from their screen recording
-— Today was released by the launch screen's ceiling at 8 s and only populated at
-~12–13 s. `AppModel.hydrate()` now runs off the main actor, so it no longer
-freezes anything, but it is not *faster*; the work was moved, not reduced. It
-is a JSON decode of ~128,000 samples (`DataStore.loadCachedSamples`) plus
-`sanitizedVitals`, the temperature reconstruction, and seventeen insight models
-each walking the full set.
+**Hydration was ~12 s on the user's data. The insight half of it is now 3.7×
+faster, and the question this section used to ask does not need asking.**
 
-This one needs a decision from the user before code: **should a cold launch read
-the whole history, or a recent window with the rest loaded behind Today?** Every
-cheap fix (a windowed read, a binary cache, an index built once and shared)
-changes what the first frame knows, so it is their call, not an implementation
-detail. Ask before building.
+It said a decision was needed first — whole history, or a recent window with the
+rest loaded behind Today? — because every cheap fix was assumed to change what
+the first frame knows. **That premise was wrong, and measuring it is what showed
+so.** The cost was never the *volume* of data. It was the same work done over
+and over: `MultiSource.breakdown` filtered all ~130k samples and sorted the
+result on every call, `Array.samples(of:)` did the same, and both were called
+once per metric *per insight model* — resting heart rate is read by seven of the
+seventeen. Nothing about that work varies between the models.
+
+So there was no tradeoff to put to the user. Fixed with three semantics-
+preserving changes, all in InsightKit, all covered by `EvaluationMemoTests`:
+
+- **`EvaluationMemo`, scoped to one evaluation pass** (`MultiSource.withMemo`,
+  opened by `InsightEngine.evaluateAll` and `result(for:)`). Memoises
+  `breakdown`, `Array.samples(of:)` and the per-source daily buckets. It is a
+  `@TaskLocal`, so it lives exactly as long as the evaluation and can never go
+  stale against changed data.
+- **The day-bucket reuse in `SourceSeries.bucketed`.** It asked
+  `Calendar.dateInterval(of:for:)` once per sample — ~400 ms of a ~470 ms
+  heart-rate read. Series arrive sorted, so it now holds the previous reading's
+  interval and reuses it while the next reading still falls inside.
+- **The redundant re-sort in `breakdown`** — `deduplicate` already returns
+  oldest → newest and `Dictionary(grouping:)` preserves that order, so each
+  group was being re-sorted for nothing (78k elements, for heart rate).
+
+Measured on a synthetic 131,400-sample / 24.7 MB set, the same benchmark either
+side of the change (x86 Linux, so read the *ratios*, not the absolutes):
+
+| stage | before | after |
+| --- | --- | --- |
+| `loadCachedSamples` (JSON decode) | 1002 ms | 1002 ms |
+| `sanitizedVitals` + temperature | 21 ms | 19 ms |
+| `evaluateAll` (17 models) | 1774 ms | **476 ms** |
+| total | 2796 ms | **1564 ms** |
+
+**Two things to carry, and one thing left.**
+
+- **"This needs a product decision" is a claim about the implementation, and it
+  can be wrong.** Exactly the shape of "no provider gives us a bedtime": a
+  tradeoff recorded as inherent turned out to be an artefact of how the code was
+  written. Measure before escalating a decision to the user.
+- **The memo's identity check is sound, not a fingerprint.** It holds a strong
+  reference to the array it was opened for, so that buffer cannot be freed while
+  the memo lives, so no *other* live array can be handed its base address. Equal
+  base address and equal count therefore means the same buffer, and by
+  copy-on-write the same contents. Anything else misses and is computed the long
+  way. `testMemoDoesNotAnswerForADifferentArray` and
+  `testEqualLengthCopyIsNotTreatedAsTheSameArray` pin it.
+
+**What is left is the decode, and it is now 68% of the remaining time.** The
+JSON is ~190 bytes per sample, and most of that is repetition: a full `UUID`
+string and a `{id, displayName}` source object written out for every single
+reading, when there are only a handful of distinct sources. Interning the source
+table would cut both the file and the decode substantially. That one *does* need
+the user, because it changes the on-disk cache format and so needs a migration
+path — the existing format has a test pinning it (`RawValue` as a bare JSON
+scalar) for exactly this reason. **Ask before building that one.** Note the
+measured dead end: `PropertyListEncoder(.binary)` is *slower* than JSON here
+(2190 ms vs 1026 ms), so "just use a binary cache" is not the answer.
 
 The ten-item feedback list is closed and so is every roadmap item that could be
 closed from a sandbox. What remains falls into three groups.
