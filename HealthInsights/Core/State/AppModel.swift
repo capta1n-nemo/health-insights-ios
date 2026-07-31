@@ -220,6 +220,27 @@ final class AppModel {
     private(set) var results: [InsightResult] = []
     private(set) var todaySummary: String = ""
     private(set) var isSyncing = false
+
+    /// Which part of the refresh is running, for the launch screen to narrate.
+    ///
+    /// `isSyncing` is one flag over two waits that feel nothing alike — the
+    /// provider round-trip and the on-device summariser — and the launch copy
+    /// exists to tell them apart. Kept up to date on every refresh, not just the
+    /// first, because it costs an assignment and a future caller may want it.
+    private(set) var launchPhase: LaunchPhase = .connecting
+
+    /// Whether the launch screen is on screen.
+    ///
+    /// Set once, here, and only ever cleared — `RootView.task` runs again when
+    /// the app returns to the foreground, and a splash over a warm app would be
+    /// a worse bug than the blank white screen this replaces. False from the
+    /// start for a first run, where onboarding owns the window instead.
+    private(set) var isLaunching = false
+
+    /// Called by the launch screen once it has both a finished refresh and its
+    /// minimum time on screen. See `LaunchNarration.shouldDismiss`.
+    func finishLaunch() { isLaunching = false }
+
     /// When the last refresh actually completed. Shown on the Today card, which
     /// is what keeps a floored pull-to-refresh from reading as a broken one.
     private(set) var lastRefreshedAt: Date?
@@ -265,6 +286,10 @@ final class AppModel {
         self.profile = dataStore.loadProfile()
         seedIntegrationStatuses()
         hydrateFromCache()
+        // Decided here rather than in the view so there is no first frame where
+        // the answer is still unknown — a `@State` default cannot read the
+        // environment, and one blank frame is the thing being fixed.
+        isLaunching = hasCompletedOnboarding
     }
 
     /// Populate state from persisted data on launch — manual readings plus the
@@ -484,6 +509,12 @@ final class AppModel {
     ///   — where waiting thirty seconds would be nonsense.
     func refresh(force: Bool = false) async {
         let startedAt = Date()
+        // Above the refresh gate on purpose: a launch whose refresh is skipped
+        // as too-soon must still reach `.ready`, or the launch screen waits on a
+        // phase change that is never coming. The screen has its own ceiling as
+        // well, but a splash released by a timeout is a bug the user can see.
+        defer { launchPhase = .ready }
+        launchPhase = .connecting
         // Three pull-to-refresh gestures in three seconds used to pay for three
         // full syncs and three model round-trips. The gesture isn't ignored
         // silently — `lastRefreshedAt` is on the Today card, so a suppressed pull
@@ -511,6 +542,7 @@ final class AppModel {
             default: break
             }
         }
+        launchPhase = .reading
         // Ingest every captured payload before anything else looks at the data.
         // This is what guarantees the vitals layer holds 100% of what the
         // providers sent — including fields nobody has written code for — and it
@@ -555,6 +587,7 @@ final class AppModel {
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
+        launchPhase = .summarising
         await refreshSummaryIfChanged(now: startedAt, diag: diag)
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))

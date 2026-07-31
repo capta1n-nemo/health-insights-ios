@@ -6,18 +6,32 @@ struct RootView: View {
     @State private var showOnboarding = false
 
     var body: some View {
-        TabView {
-            TodayView()
-                .tabItem { Label("Today", systemImage: "sun.max.fill") }
+        ZStack {
+            TabView {
+                TodayView()
+                    .tabItem { Label("Today", systemImage: "sun.max.fill") }
 
-            VitalsView()
-                .tabItem { Label("Vitals", systemImage: "waveform.path.ecg") }
+                VitalsView()
+                    .tabItem { Label("Vitals", systemImage: "waveform.path.ecg") }
 
-            InsightsListView()
-                .tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }
+                InsightsListView()
+                    .tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            }
+            // The other half of the cross-dissolve. Both sides move on the one
+            // animation in `LaunchScreen.narrate()`, so the tabs arrive as the
+            // pulse leaves rather than being cut to. The scale is small on
+            // purpose: enough to read as settling into place, not as a zoom.
+            .opacity(model.isLaunching ? 0 : 1)
+            .scaleEffect(model.isLaunching ? 0.97 : 1)
+
+            if model.isLaunching {
+                LaunchScreen()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
         .task {
             if !model.hasCompletedOnboarding { showOnboarding = true }

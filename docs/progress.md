@@ -572,23 +572,51 @@ recalled.
       on effect size *and* an absolute floor, because a person whose clean nights
       sit in a very tight band gets a tiny divisor and a fifth of a bpm would
       otherwise clear half a standard deviation.
-- [ ] **App-launch loading screen.** The first 2–5 seconds while data fetches and
-      the summary generates are a blank white screen. Wanted: a centred,
-      breathing health icon (heartbeat or pulse motif — the reference feel is the
-      Apple Watch first-pairing hologram), a status line rotating every 1–1.5 s
-      that mixes the functional with the light ("Checking in with your health
-      apps", "Extracting the latest data", "Generating insights", "Herding
-      cats"), a cross-dissolve into Today rather than a hard cut, and a lighter
-      reassurance state past 6–8 s instead of looping the same cycle forever.
+- [x] **App-launch loading screen.** `LaunchScreen.swift` draws it, and the parts
+      that can be *wrong* live in `Presentation/LaunchNarration.swift` in
+      InsightKit, with tests — the app target has no test target and the two
+      failure modes here are both invisible to a compiler.
 
-      Notes for whoever builds it: `RootView` already refreshes on appear and
-      `AppModel.isSyncing` is the flag, so the gate exists — what is missing is a
-      phase distinct enough to narrate, because "syncing" covers both the
-      provider round-trip and the FoundationModels pass and those are the two
-      steps the copy wants to distinguish. The rotating copy must be driven by a
-      timer rather than by real phase transitions, or a fast launch will flash
-      three messages in half a second. And the fallback state needs to be a
-      different sentence, not a slower rotation of the same ones.
+      Shipped: a centred `heart.fill` breathing on a 2.6 s cycle with three
+      staggered rings radiating out of it, a status line rotating every 1.25 s,
+      a cross-dissolve into the tabs, and a separate reassurance register past
+      7 s. `AppModel.launchPhase` is the new signal — `isSyncing` was one flag
+      over two waits that feel nothing alike.
+
+      **The timer paces, the phase clamps**, and the two constraints in the
+      original scope turn out to pull in opposite directions. Phase-driven alone,
+      a warm launch flashes three messages in half a second. Timer-driven alone —
+      which is what the scope asked for — it announces "Generating insights"
+      while the network request it depends on is still out. So the timer sets the
+      pace and the phase sets a *window*: never a line whose phase hasn't been
+      reached (the ceiling), and skip ahead rather than narrate a wait that has
+      already finished (the floor). The invariant the tests actually pin is the
+      simpler one underneath both: **nothing replaces a line before it has been
+      on screen long enough to read** — not a phase that jumped three steps, not
+      the handover into the reassurance copy.
+
+      Three floors exist because each is the kind that gets dropped in a
+      refactor. `minimumOnScreen` (0.9 s) stops a fully-cached launch from
+      flickering the splash in and out inside a quarter-second, which is worse
+      than never showing it. `hardCeiling` (20 s) releases the screen whatever
+      the phase says, because a splash that never leaves is the worst thing this
+      file could ship and it only takes one refresh path that forgets to reach
+      `.ready` — `AppModel.refresh()` therefore sets `.ready` in a `defer`
+      declared *above* the too-soon refresh gate. And the last line of each
+      phase is the one a slow step parks on, so it is never the joke.
+
+      Two smaller ones, both about not lying: no progress bar, because the launch
+      has no measurable fraction complete and a bar filling at a rate unrelated
+      to the work is a lie the user learns to distrust. And the splash sits on
+      `systemGroupedBackground` — the same colour every tab uses — because a
+      cross-dissolve between two different backgrounds carries a flash with it.
+
+      `isLaunching` is decided in `AppModel.init` from `hasCompletedOnboarding`
+      rather than in the view: `@State` cannot read the environment for its
+      default, and one blank frame is the exact thing being fixed. It only ever
+      goes true → false, so the splash cannot reappear on a later foreground —
+      `RootView.task` runs again then, and a splash over a warm app would be a
+      worse bug than the blank screen this replaces.
 
 - [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
       roadmap note rather than a build, and deliberately left as one. It belongs

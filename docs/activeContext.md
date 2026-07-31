@@ -30,11 +30,38 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The roadmap-review session.** "Let's go through roadmap" — the open list was
-read back, and the two items that were both open *and* buildable from a sandbox
-were taken: Sleep Regularity's own chart, and sleep onset through the promotion
-rules. Both shipped in `ada3b1d`. `docs/progress.md` ▸ "The roadmap-review
-session" has the detail. Three things are worth carrying:
+**The loading-screen session.** "Build the loading screen ... from the previous
+unfinished items" — the app-launch splash scoped several sessions ago, and the
+only remaining feedback-list item that could be built from a sandbox. Shipped;
+`docs/progress.md` ▸ "App-launch loading screen" has the full detail. What is
+worth carrying:
+
+- **A brief's own constraint can be half of a pair, with the other half unstated.**
+  The scope said the copy "must be driven by a timer rather than by real phase
+  transitions, or a fast launch will flash three messages in half a second" —
+  correct, and the failure it names is real. Followed literally it produces the
+  opposite lie: a status line announcing "Generating insights" while the network
+  request it depends on is still out. The resolution is that neither drives it —
+  **the timer paces, the phase clamps** — and the invariant underneath both is
+  simpler than either: nothing replaces a line before it has been on screen long
+  enough to read. When a brief explains *why* a constraint exists, check whether
+  the reason has a mirror image.
+- **The new state is `AppModel.launchPhase`, not `isSyncing`.** The scope had
+  already identified this: one flag covered the provider round-trip and the
+  FoundationModels pass, and those are exactly the two waits the copy exists to
+  tell apart. `refresh()` sets `.ready` in a `defer` declared *above* the
+  too-soon refresh gate, so a skipped refresh still releases the screen.
+- **Every floor on this screen is one that gets dropped in a refactor**, which is
+  why they are all constants in InsightKit with tests rather than magic numbers
+  in the view: a minimum on-screen time so a cached launch doesn't flicker, a
+  hard ceiling so a stalled refresh can't trap the user, and a minimum dwell per
+  line. A launch screen that never leaves is the worst outcome available here.
+
+**The roadmap-review session** (previous). "Let's go through roadmap" — the open
+list was read back, and the two items that were both open *and* buildable from a
+sandbox were taken: Sleep Regularity's own chart, and sleep onset through the
+promotion rules. Both shipped in `ada3b1d`. `docs/progress.md` ▸ "The
+roadmap-review session" has the detail. Three things are worth carrying:
 
 - **A guard whose comment states a premise is a place the premise can be wrong.**
   `IngestionPipeline` promoted on `field.value.doubleValue`, commented "promotion
@@ -172,9 +199,9 @@ three fresh complaints. The findings from that half:
   `EnergyCurveChart` both use a *single-series* `AreaMark` safely; the hazard was
   always about two-series filled bands.
 - **Oura's ~4–6 months of history** is still unexplained. Offered, not taken up.
-- **The app-launch loading screen and the LiDAR body scan** are open by request —
-  the LiDAR one was explicitly a roadmap note rather than a build. Both are
-  scoped in `docs/progress.md`.
+- **The LiDAR body scan** is still open by request — explicitly a roadmap note
+  rather than a build, and scoped in `docs/progress.md`. The app-launch loading
+  screen that sat beside it is **done**; see "Current focus".
 - **Two efficiency-roadmap items remain**: making `symbol-index.md` a reflex
   rather than a fallback, and a session-start checklist skill. The close-out gate
   (`scripts/handover-check.sh`) is done. See `docs/efficiency-log.md`.
@@ -447,8 +474,18 @@ closed from a sandbox. What remains falls into three groups.
 
 ### 1. Only the user can do these
 
-- **The on-device walkthrough.** Nothing from the last four sessions has been
+- **The on-device walkthrough.** Nothing from the last five sessions has been
   seen on a phone. Newest first:
+  - **Cold launch** — the splash. Check the heart breathes rather than sitting
+    still, that the rings radiate outward and fade instead of popping, that the
+    status line changes at a readable pace (not a strobe on a fast launch, not
+    frozen on a slow one), that it *cross-dissolves* into Today rather than
+    cutting, and that the background does not change shade as it goes. Then two
+    negatives, which are the ones worth the trouble: **background the app and
+    return — the splash must not come back**, and a first-run install must go
+    straight to onboarding with no splash before it. If a launch runs past ~7 s,
+    the copy should change register entirely ("Still going — that's a lot of
+    history to read"), not loop the step names again.
   - **Insights ▸ Sleep Regularity ▸ "Your fortnight"** — a new chart above the
     score history. Points are the nights, the dashed line is the usual bedtime,
     the shaded band is the spread. Check the y axis reads **clock times** and not
@@ -520,8 +557,9 @@ closed from a sandbox. What remains falls into three groups.
 
 ### 3. The ten-item feedback list — five of the six deltas are closed
 
-The six open clauses found by re-reading the list are now five closed and one
-deliberately parked. What is worth carrying forward:
+The six open clauses found by re-reading the list are now closed, bar the LiDAR
+body scan, which is a roadmap note by request rather than a build. What is worth
+carrying forward:
 
 - **"That technique has a fatal flaw" is not "this is impossible".** Gap
   bridging shipped straight rather than smoothed, with a written argument that a
@@ -565,7 +603,7 @@ and a seventh was added by the user.**
 | 4 | Sleep Quality's remaining Oura/Whoop/Apple inputs | ✅ efficiency, deep, REM |
 | 5 | Substance log as a general data source | ✅ feeds the suggestion engine |
 | 6 | Camera + LiDAR guided body scan | ⬜ roadmap note by request, scoped in `progress.md` |
-| 7 | App-launch loading screen | ⬜ **new**, scoped in `progress.md` |
+| 7 | App-launch loading screen | ✅ `LaunchScreen` + tested `LaunchNarration` |
 
 Plus three direct complaints, all fixed: the substance log page's lag (one call
 running the whole engine over the whole sample set), the date picker hidden
