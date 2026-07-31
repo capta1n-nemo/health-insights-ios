@@ -576,6 +576,39 @@ final class AppModel {
     /// - Parameter force: bypass the manual-refresh floor. Used by the paths that
     ///   *know* something changed — logging a substance, saving a grounding value
     ///   — where waiting thirty seconds would be nonsense.
+    /// Discard every cached provider sample and re-sync from scratch.
+    ///
+    /// Pull-to-refresh cannot do this, and the reason is the cache-merge in
+    /// `refresh`: a source that returns nothing keeps its cached samples, so a
+    /// provider that quietly fails to sync serves the same stale values forever.
+    /// That behaviour is right — it stops a disconnected ring wiping its own
+    /// history from the app — but it means "refresh" and "replace" are different
+    /// requests, and only the first had a gesture.
+    ///
+    /// It is also the only way to be *certain* a parser fix has taken effect. A
+    /// fix changes what the raw payload turns into; it cannot change samples
+    /// that were parsed months ago and are being merged forward untouched.
+    ///
+    /// Nothing the user typed is at risk: manual readings, grounding, substance
+    /// logs and feedback are SwiftData and are not part of this cache.
+    func rebuildFromProviders() async {
+        let diag = DiagnosticsLog.shared
+        let discarded = dataStore.clearSyncedCaches()
+        diag.info("Rebuild",
+                  "Discarded \(discarded.samples) cached sample(s) and \(discarded.other) other reading(s)",
+                  detail: "Every connected provider will be re-read from its own API and "
+                        + "re-parsed by the current build. A provider that fails to respond "
+                        + "contributes nothing rather than its previous cached copy, so its "
+                        + "signals will be missing until it syncs successfully.")
+        // In-memory too, or the insight pass would keep evaluating the samples
+        // that were just deleted from disk and the rebuild would look like a
+        // no-op until the next launch.
+        samples = []
+        otherSamples = []
+        await refresh(force: true)
+        diag.ok("Rebuild", "Rebuilt \(samples.count) sample(s) from \(registry.integrations.filter { if case .connected = $0.status { return true } else { return false } }.count) connected provider(s)")
+    }
+
     func refresh(force: Bool = false) async {
         let startedAt = Date()
         // Above the refresh gate on purpose: a refresh skipped as too-soon must

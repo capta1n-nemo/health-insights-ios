@@ -44,15 +44,15 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 
 | Insight | Tab | `Hdr` | `Drv` | `V&A` | bespoke | `ScrHx` | `Goes` | `Patt` | `1st` | `Chg` | `Hist` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ◐ | ○ | ○ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Readiness | Today | ● | ◐ | ○ | ◐ "How this is weighted" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Sleep | Today | ● | ◐ | ○ | ◐ "Your fortnight" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Energy | Today | ● | ◐ | ○ | ◐ "Today" curve | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Substance Impact | Today | ● | ◐ | ● | ◐ "Cardiovascular load" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Heart Health | Insights | ● | ◐ | ● | ○ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Heart Health | Insights | ● | ◐ | ● | ◐ "How this is weighted" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Fitness | Insights | ● | ◐ | ● | ◐ "Fitness age over time" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ◐ | ● | ◐ "Heart age over time" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Blood Pressure | Insights | ● | ◐ | ● | ◐ "Your readings" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Body Composition | Insights | ● | ◐ | ● | ○ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Body Composition | Insights | ● | ◐ | ● | ◐ "What you're made of" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 
 **Ten of the twelve sections are uniform across all nine cards.** The two that
 are not:
@@ -140,8 +140,15 @@ different bodies. Unchanged by the consolidation.
 
 ### Still open
 
-7. **Three cards have no bespoke section**: Heart Health, Body Composition,
-   Readiness. Phase 2.
+7. ~~**Three cards have no bespoke section**~~ — **closed.** All nine now have
+   one. Heart Health and Readiness share `weightedContributionCard` ("How this
+   is weighted"), drawn from `InsightResult.contributors`' renormalised weight —
+   no new type and no model change, exactly as Phase 2 predicted. Body
+   Composition got "What you're made of", backed by `BodyCompositionSplit` in
+   InsightKit (12 tests). **The bespoke switch keeps its `default:`** even though
+   all nine cases are now named: making it exhaustive would add a sixth
+   build-breaking switch over `InsightID`, which `activeContext.md` singles out
+   as the most expensive way to add a feature here.
 8. **Caveat footnotes and header trailing stats are ad-hoc.** Deferred so the
    rule is applied once, across new and old sections together.
 9. **Two presentation flags no view consults** —

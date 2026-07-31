@@ -208,6 +208,8 @@ the place to look.
   - `GapBridge` :90
   - `SeriesBridging` :123
   - `SeriesSegmentation` :53
+- `Signals/BodyCompositionSplit.swift`
+  - `BodyCompositionSplit` :13
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9

@@ -137,6 +137,31 @@ final class DataStore {
         try? data.write(to: otherCacheURL, options: .atomic)
     }
 
+    /// Throw away every cached provider sample, so the next sync rebuilds from
+    /// what the providers actually serve rather than merging into what is here.
+    ///
+    /// The cache-merge in `AppModel.refresh` deliberately *keeps* the samples of
+    /// any source that returned nothing this sync, so a disconnected or offline
+    /// device's history doesn't vanish from the app. That is right almost always
+    /// and wrong in one case: when a parser has been fixed and the stale copy is
+    /// the thing being replaced. Then a source that quietly fails to sync keeps
+    /// serving the old, wrong values indefinitely and no amount of pulling to
+    /// refresh dislodges them.
+    ///
+    /// **Only the provider cache.** Manual entries, grounding, substance logs,
+    /// feedback and score history are SwiftData and are not touched — this
+    /// deletes two JSON files that exist purely so the app has something to draw
+    /// before the first sync of a launch returns.
+    ///
+    /// Returns what was discarded, because a rebuild that silently did nothing
+    /// looks exactly like a rebuild that worked.
+    nonisolated func clearSyncedCaches() -> (samples: Int, other: Int) {
+        let discarded = (samples: loadCachedSamples().count, other: loadCachedOther().count)
+        try? FileManager.default.removeItem(at: syncedCacheURL)
+        try? FileManager.default.removeItem(at: otherCacheURL)
+        return discarded
+    }
+
     // MARK: - Today summary
 
     private var summaryURL: URL {

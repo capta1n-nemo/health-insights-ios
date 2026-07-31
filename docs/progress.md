@@ -445,15 +445,27 @@ own. The audit is in `docs/card-sections.md` ▸ "Still open".
 sections is worth building is a question about what data exists, and that is now
 answerable rather than guessable.
 
-- [ ] **Three cards still have no bespoke section**: Heart Health, Body
-      Composition, Readiness.
-- [ ] **One weighted-contribution card** would serve Heart Health and Readiness,
+- [x] **Three cards still have no bespoke section**: Heart Health, Body
+      Composition, Readiness. **Done** — all nine cards now have one.
+- [x] **One weighted-contribution card** would serve Heart Health and Readiness,
       drawn from `InsightResult.contributors` — which already carries a
       renormalised `weight`, so **no new type and no model changes are needed**.
+      **Done, and the prediction held exactly**: `weightedContributionCard`, no
+      new type, no model touched. It draws only `weight > 0` contributors —
+      Readiness appends the vitals it merely *scans* at weight 0, and a
+      zero-width bar would imply they were weighed and found irrelevant when
+      they were never in the average. They are a footnote instead.
+- [x] **Body Composition** — the composition split. **Done**: "What you're made
+      of", a stacked bar of fat / muscle / bone over body mass, backed by
+      `BodyCompositionSplit` in InsightKit with 12 tests. Body water is a
+      footnote, not a block: it is a share of tissue already drawn as muscle, so
+      a block would count the same kilograms twice. A scale that disagrees with
+      itself (muscle + bone > lean) collapses to one undivided lean block rather
+      than drawing a bar that sums past the person's weight.
 - [ ] **Heart Health** could also carry the percentile standings it absorbed,
       which it currently states only as sentences.
-- [ ] **Body Composition** — the composition split, **plus the "view & add" scan
-      entry** the user asked for (a fourth `ContributionRoute`).
+- [ ] **Body Composition** — the **"view & add" scan entry** the user asked for
+      (a fourth `ContributionRoute`). The composition split half is done, above.
 - [ ] **Readiness** — a z-score strip over the vitals it now scans.
 - [ ] The risk card and Fitness both compute projections nothing draws.
 - [ ] The two chrome rules — caveat footnotes and header trailing stats —

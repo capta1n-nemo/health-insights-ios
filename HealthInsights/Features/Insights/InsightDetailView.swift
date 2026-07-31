@@ -51,6 +51,18 @@ struct InsightDetailView: View {
             sleepRegularityCard
         case .substanceImpact:
             substanceLoadCard
+        case .heartHealth, .readiness:
+            // Both are weighted composites, and neither showed how. One section
+            // serves them because `InsightResult.contributors` already carries
+            // the renormalised weight — no new type, no model change.
+            weightedContributionCard
+        case .bodyComposition:
+            bodyCompositionSplitCard
+        // Kept, though all nine cases are now named: making this exhaustive
+        // would add a *sixth* build-breaking switch over `InsightID` to the
+        // `add-insight` path, which `docs/activeContext.md` singles out as the
+        // most expensive way to add a feature here. A new insight having no
+        // bespoke section until someone writes one is the right default anyway.
         default:
             EmptyView()
         }
@@ -432,6 +444,144 @@ struct InsightDetailView: View {
     /// as it builds each component — so adding an input to a score adds a line
     /// here with no edit to this file. Where a model doesn't yet report its
     /// components, its declared `candidateMetrics` stand in.
+    // MARK: - Phase 2 bespoke sections
+
+    /// How a weighted composite divides its score, for the two cards that are
+    /// one: Heart Health and Readiness.
+    ///
+    /// Both state a number and their drivers narrate the components, but neither
+    /// showed the *arithmetic* — which signal is 40% of this and which is 5%.
+    /// `InsightResult.contributors` has carried the renormalised weight since the
+    /// consolidation, so this needs no new type and no model change.
+    ///
+    /// Only weighted contributors are drawn. Readiness appends the vitals it
+    /// merely *scans* at weight 0, and showing those as zero-width bars would
+    /// imply they were weighed and found irrelevant, when in fact they were
+    /// never in the average. They are counted in a footnote instead.
+    @ViewBuilder private var weightedContributionCard: some View {
+        if let result {
+            let weighted = result.contributors.filter { $0.weight > 0 }.byInfluence
+            let scanned = result.contributors.count - weighted.count
+            if weighted.count >= 2 {
+                let slots = MetricPalette.slots(for: weighted.map(\.metric))
+                Card {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("How this is weighted").font(.headline)
+                        Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        ForEach(weighted, id: \.metric) { contribution in
+                            weightRow(contribution, slots: slots)
+                        }
+
+                        if scanned > 0 {
+                            Divider()
+                            Text("\(scanned) more signal\(scanned == 1 ? " is" : "s are") checked for anything unusual but not scored — a scan reports outliers rather than averaging them in.")
+                                .font(.caption2).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func weightRow(_ contribution: MetricContribution,
+                           slots: [MetricType: Int]) -> some View {
+        let tint = Theme.metricColor(contribution.metric, slots: slots)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(contribution.metric.displayName).font(.subheadline)
+                Spacer()
+                if !contribution.detail.isEmpty {
+                    Text(contribution.detail)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text("\(Int((contribution.weight * 100).rounded()))%")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(tint)
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(tint.opacity(0.15))
+                    Capsule().fill(tint)
+                        .frame(width: max(2, geometry.size.width * contribution.weight))
+                }
+            }
+            .frame(height: 6)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(contribution.metric.displayName), "
+            + "\(Int((contribution.weight * 100).rounded())) percent of the score")
+    }
+
+    /// What the weight on the scale is made of.
+    ///
+    /// Body Composition narrates six measurements as separate lines and scores
+    /// none of them — its contributor weights are deliberately zero — so it had
+    /// numbers and no picture of the thing they jointly describe. The arithmetic
+    /// is `BodyCompositionSplit` in InsightKit, where it is tested; this only
+    /// draws it.
+    @ViewBuilder private var bodyCompositionSplitCard: some View {
+        if let split = BodyCompositionSplit.from(samples: model.samples) {
+            let slots = MetricPalette.slots(for: split.parts.map(\.metric))
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("What you're made of").font(.headline)
+                        Spacer()
+                        Text(String(format: "%.1f kg", split.total))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+
+                    GeometryReader { geometry in
+                        HStack(spacing: 1.5) {
+                            ForEach(split.parts, id: \.metric) { part in
+                                Rectangle()
+                                    .fill(Theme.metricColor(part.metric, slots: slots))
+                                    .frame(width: max(2, (geometry.size.width - 4.5) * part.fraction))
+                            }
+                        }
+                        .clipShape(Capsule())
+                    }
+                    .frame(height: 14)
+
+                    ForEach(split.parts, id: \.metric) { part in
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Theme.metricColor(part.metric, slots: slots))
+                                .frame(width: 8, height: 8)
+                            Text(part.label).font(.subheadline)
+                            Spacer()
+                            Text(String(format: "%.1f kg", part.kilograms))
+                                .font(.caption.monospacedDigit())
+                            Text("\(Int((part.fraction * 100).rounded()))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
+                    }
+
+                    // Water is a share of tissue already drawn as muscle, so it
+                    // is a footnote rather than a block — putting it in the bar
+                    // would count the same kilograms twice.
+                    if let water = split.waterPercentage {
+                        Divider()
+                        Text(String(format: "Body water is %.1f%% of your mass — held inside the lean tissue above rather than beside it, which is why it isn't its own block.", water))
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if split.isPartial {
+                        Text("These readings don't quite add up to your weight — they come from separate estimates the scale makes independently.")
+                            .font(.caption2).foregroundStyle(Theme.warn)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder private func contributorsCard(_ result: InsightResult) -> some View {
         let contributions = resolvedContributions(result)
         let series = model.overlaySeries(for: insightID, contributions: contributions,

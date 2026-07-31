@@ -8,10 +8,13 @@ import UIKit
 /// entirely on-device; helps pin down why a device "won't connect" or why a
 /// stat is missing.
 struct TroubleshootingView: View {
+    @Environment(AppModel.self) private var model
     @State private var log = DiagnosticsLog.shared
     @State private var filter: DiagnosticsLog.Status?
     @State private var copied = false
     @State private var resetCopied: Task<Void, Never>?
+    @State private var confirmingRebuild = false
+    @State private var isRebuilding = false
     /// Which entries have their evidence expanded. Details are long (a server's
     /// error body plus what to do about it), so they stay folded until asked for.
     @State private var expanded: Set<UUID> = []
@@ -37,6 +40,24 @@ struct TroubleshootingView: View {
                 .pickerStyle(.segmented)
             } footer: {
                 Text("A running record of syncs, API calls and imported data. Tap any line with a \u{201C}Details\u{201D} arrow to see the exact request, the provider's own error message, and what to do about it. Nothing here leaves your phone unless you copy it.")
+            }
+
+            Section {
+                Button {
+                    Haptics.tap()
+                    confirmingRebuild = true
+                } label: {
+                    HStack {
+                        Label("Rebuild data from providers", systemImage: "arrow.clockwise.circle")
+                        if isRebuilding {
+                            Spacer()
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRebuilding)
+            } footer: {
+                Text("Pull to refresh *merges* new readings into what's already stored, and a provider that fails to respond keeps its last-known copy — which is what you want when a device is simply offline, and not what you want when the app's reading of that data has changed. Rebuilding throws the stored copy away and re-reads every connected provider from scratch. Manual entries, grounding answers, substance logs and feedback are kept.")
             }
 
             // Anything red gets its own summary at the top, so a problem doesn't
@@ -70,6 +91,19 @@ struct TroubleshootingView: View {
         }
         .navigationTitle("Troubleshooting")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Rebuild data from providers?",
+                            isPresented: $confirmingRebuild, titleVisibility: .visible) {
+            Button("Rebuild", role: .destructive) {
+                isRebuilding = true
+                Task {
+                    await model.rebuildFromProviders()
+                    isRebuilding = false
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Every reading synced from Apple Health, Oura, Withings and any other connected provider is discarded and fetched again. This takes as long as a normal sync.\n\nAnything you entered yourself is kept. A provider that can't be reached right now will have no data until it syncs successfully, so it's worth checking you're online first.")
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
