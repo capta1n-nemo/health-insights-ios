@@ -126,6 +126,37 @@ final class SleepQualityStagesTests: XCTestCase {
                        "declared contributor weights must sum to the score's own coefficients")
     }
 
+    /// The sum test above is a floor, not the invariant.
+    ///
+    /// Summing the declared weights catches a term whose declaration drifted on
+    /// its own — which is the bug that actually happened. It is blind to a
+    /// *swap*: move 0.06 from respiratory rate to blood oxygen in both the
+    /// declaration and nowhere else, and the sum is still 1.0 while the chart
+    /// now over-credits one signal and under-credits the other.
+    ///
+    /// This measures the real thing without parsing source: hold every input
+    /// fixed, move one of them, and check that the score moves by the declared
+    /// weight times the sub-score's own change. Δscore ÷ Δsub-score *is* the
+    /// applied coefficient, by definition.
+    func testBloodOxygenMovesTheScoreByExactlyItsDeclaredWeight() throws {
+        func evaluateWith(spo2: Double) -> InsightResult {
+            var s = samples(hours: 8, efficiency: 88, deepMinutes: 96, remMinutes: 96)
+            s.append(HealthMetricSample(type: .oxygenSaturation, value: spo2,
+                                        start: TestClock.day(0), source: .oura))
+            return SleepQualityInsight().evaluate(samples: s, profile: .init(), now: sqNow)
+        }
+        // Two saturations either side of a band edge, so the sub-score moves by
+        // a known amount: 97% scores 100, 93% scores 60 (see `oxygenScore`).
+        let high = try XCTUnwrap(evaluateWith(spo2: 97).score)
+        let low = try XCTUnwrap(evaluateWith(spo2: 93).score)
+        let declared = try XCTUnwrap(
+            evaluateWith(spo2: 97).contributors.first { $0.metric == .oxygenSaturation }).weight
+
+        let appliedCoefficient = (high - low) / (100.0 - 60.0)
+        XCTAssertEqual(appliedCoefficient, declared, accuracy: 0.005,
+                       "the score moves by \(appliedCoefficient) per point of blood-oxygen sub-score, but the card declares \(declared) — the chart and the score disagree about how much this signal counts")
+    }
+
     /// Contributors must stay a subset of what the model declares it may read.
     func testContributorsStayWithinCandidateMetrics() {
         let result = evaluate(samples(hours: 8, efficiency: 90, deepMinutes: 90,

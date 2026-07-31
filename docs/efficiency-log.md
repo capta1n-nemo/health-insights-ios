@@ -60,6 +60,13 @@ There are two tiers of that, and the second one matters more:
    on the model choosing to run `verify.sh`. Tier 2 does not depend on the model
    at all, which is the only real answer to "a rule the model can skip".
 
+There is a tier 3, and the red team found it by asking the obvious question:
+**what enforces the enforcer?** `verify.sh` was checked by the hook, and the hook
+was checked by `verify.sh`. Deleting or `chmod -x`ing either one made the whole
+arrangement fail open, silently. So the lint now also runs as a `lint` job in
+GitHub Actions, gating the recorded verdict — a tier that exists whether or not
+any harness, hook or model is involved.
+
 Anything that can be moved to tier 2 should be — with one caveat learnt
 immediately. The hook declares `if: "Bash(git push*)"` and fired anyway on an
 ordinary `cat`, which would have run the full test suite on every shell command
@@ -114,7 +121,9 @@ that is not yet automated is the next thing to automate.
 | **The user having to prompt the handover by hand** | 3+ | ✅ trigger widened to intent; checks moved into `verify.sh` (2026-07-31) |
 | **A `[~]` half-done marker surviving a push** | 1 | ✅ `verify.sh` fails on any `- [~]` |
 | Not stating the open roadmap until asked | 3+ | ✅ `session-start` skill |
-| **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` — a hook, so the harness enforces it, not the model |
+| **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness |
+| A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
+| A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | Device verification | every | ❌ not automatable — only the user can do it |
 

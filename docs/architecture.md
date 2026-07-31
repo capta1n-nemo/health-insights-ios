@@ -726,7 +726,8 @@ Both are now behind `#if canImport(Darwin)`:
   empirically rather than assumed: a JSON `true` is `c`, an integer is `i`, a
   double is `d`. `boolValue` is no help — it is true for any non-zero number.
 
-Result: **330/330 tests pass on Swift 6.0.3 / Ubuntu 24.04.** The tooling is:
+Result: **the full suite passes on Swift 6.0.3 / Ubuntu 24.04** — `swift test` prints
+the count, which is why one is not repeated here. The tooling is:
 
 | Script | What it does |
 | --- | --- |
@@ -754,7 +755,7 @@ parsers, which is where the bugs have actually been.
 ## Verification
 
 - **`./scripts/verify.sh --tests`** — the gate. Lints the traps this repo has
-  been broken by, then runs the 330-test InsightKit suite: the risk equations
+  been broken by, then runs the InsightKit suite: the risk equations
   against published worked examples, the statistics against hand-computed
   fixtures. It **installs a Swift toolchain itself** if the sandbox has none,
   so it works anywhere — see "Running the tests anywhere" above.

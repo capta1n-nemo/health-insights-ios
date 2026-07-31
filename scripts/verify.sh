@@ -228,17 +228,33 @@ fi
 # runs before every push, and that one runs only when somebody remembers a
 # ceremony.
 missing_scripts=""
-# `.claude/settings.json` is in the list because a hook pointing at a deleted
-# script fails *silently* — the harness runs nothing and the push it was meant to
-# gate sails through, which is strictly worse than a rule nobody read.
+uncommitted_scripts=""
 for f in CLAUDE.md .claude/commands/*.md .claude/skills/*/SKILL.md .claude/settings.json; do
     [ -f "$f" ] || continue
-    for ref in $(grep -oE '[.]/scripts/[A-Za-z0-9_-]+[.]sh' "$f" 2>/dev/null | sort -u); do
-        [ -x "${ref#./}" ] || missing_scripts="$missing_scripts $ref (in $f)"
+    # Match every spelling, not just `./scripts/x.sh`. An absolute path is what
+    # `CLAUDE.md` itself mandates for shell calls, and a bare `scripts/x.sh` is
+    # what most prose uses — so the original `[.]/scripts/` pattern was blind to
+    # the majority of real references, including every one in the skill that was
+    # written to *carry* the absolute-path rule.
+    for ref in $(grep -ohE '(/[A-Za-z0-9._/-]*)?scripts/[A-Za-z0-9_-]+[.]sh' "$f" 2>/dev/null \
+                 | sed 's#.*/scripts/#scripts/#' | sort -u); do
+        if [ ! -x "$ref" ]; then
+            missing_scripts="$missing_scripts $ref (in $f)"
+        elif ! git ls-files --error-unmatch "$ref" >/dev/null 2>&1; then
+            # The exact way `handover-check.sh` was lost: it existed on disk, ran,
+            # was canaried, and was never committed — so the rules pointed at a
+            # file a fresh clone would not have. Asking the filesystem cannot see
+            # that; asking git can.
+            uncommitted_scripts="$uncommitted_scripts $ref (in $f)"
+        fi
     done
 done
 if [ -n "$missing_scripts" ]; then
     note "Rules reference scripts that are missing or not executable:$missing_scripts"
+    fail=1
+fi
+if [ -n "$uncommitted_scripts" ]; then
+    note "Rules reference scripts that exist here but are NOT COMMITTED — a fresh clone will not have them:$uncommitted_scripts"
     fail=1
 fi
 
@@ -253,10 +269,14 @@ fi
 # or the unfinished clause is its own `[ ]` item with its own sentence. Being
 # made to split it is the point — that is the fix for the failure mode, not a
 # formatting preference.
-if [ -f docs/progress.md ]; then
-    partial=$(grep -nE '^- \[~\]' docs/progress.md || true)
+if [ -d docs ]; then
+    # Every audited doc, any bullet character, any indentation, and any box that
+    # is neither open nor done. The first version matched `^- [~]` in one file,
+    # so an indented item, a `*` bullet, a `[-]`, or the same marker in
+    # activeContext.md all walked straight past it.
+    partial=$(grep -nE '^[[:space:]]*[-*] \[[^ xX]\]' docs/*.md 2>/dev/null || true)
     if [ -n "$partial" ]; then
-        note 'docs/progress.md has half-done `- [~]` items. Split each into a done `[x]` and an open `[ ]` — a multi-clause item hides its unfinished clauses:'
+        note 'Half-done checkbox markers — only `[ ]` and `[x]` are legitimate. Split each into a done `[x]` and an open `[ ]`, because a multi-clause item hides its unfinished clauses:'
         printf '%s\n' "$partial"
         fail=1
     fi

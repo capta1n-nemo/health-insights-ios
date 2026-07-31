@@ -17,6 +17,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The repo's own lint, run where nothing local can skip it.
+  #
+  # `verify.sh` is enforced locally by a PreToolUse hook, and that enforcement is
+  # circular: the hook is what runs the lint, and the lint is what checks the hook
+  # still exists. Delete or chmod -x the hook script and the whole thing fails
+  # open silently. Running it here breaks the circle — this job exists
+  # independently of any harness, and its verdict feeds refs/ci/failed, which the
+  # close-out gate already reads.
+  #
+  # Ubuntu and no toolchain: the lint is pure text checks and takes under a
+  # second. The Swift suite is `unit-tests` below.
+  lint:
+    name: Repo lint (verify.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run verify.sh
+        run: ./scripts/verify.sh
+
   unit-tests:
     name: InsightKit unit tests
     runs-on: macos-15
@@ -56,7 +75,7 @@ jobs:
   # Read it with: scripts/ci-status.sh [sha]
   record-status:
     name: Record CI result
-    needs: [unit-tests, app-build]
+    needs: [lint, unit-tests, app-build]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -66,7 +85,8 @@ jobs:
       - name: Push verdict to refs/ci/<result>/<sha>
         run: |
           set -euo pipefail
-          if [ "${{ needs.unit-tests.result }}" = "success" ] \
+          if [ "${{ needs.lint.result }}" = "success" ] \
+             && [ "${{ needs.unit-tests.result }}" = "success" ] \
              && [ "${{ needs.app-build.result }}" = "success" ]; then
             result=passed
           else
