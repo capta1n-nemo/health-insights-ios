@@ -93,15 +93,16 @@ struct LaunchParticleView: UIViewRepresentable {
             do {
                 library = try device.makeLibrary(source: Self.shaderSource, options: nil)
             } catch {
-                DiagnosticsLog.shared.fail("Launch screen",
-                                           "Particle shader failed to compile",
-                                           detail: "\(error)")
+                // `DiagnosticsLog` is `@MainActor` and this is not, so the hop is
+                // explicit. Stringified first because an `Error` existential is
+                // not `Sendable` and cannot cross on its own.
+                report("Particle shader failed to compile", detail: "\(error)")
                 return
             }
             guard let vertex = library.makeFunction(name: "launchParticleVertex"),
                   let fragment = library.makeFunction(name: "launchParticleFragment")
             else {
-                DiagnosticsLog.shared.fail("Launch screen", "Particle shader is missing a function")
+                report("Particle shader is missing a function")
                 return
             }
 
@@ -137,6 +138,15 @@ struct LaunchParticleView: UIViewRepresentable {
                     self?.points = buffer
                     self?.count = cloud.count
                 }
+            }
+        }
+
+        /// Surface a renderer failure where the user can actually find it —
+        /// Settings ▸ Troubleshooting — rather than leaving a blank launch
+        /// screen to be guessed at.
+        private func report(_ message: String, detail: String? = nil) {
+            Task { @MainActor in
+                DiagnosticsLog.shared.fail("Launch screen", message, detail: detail)
             }
         }
 
