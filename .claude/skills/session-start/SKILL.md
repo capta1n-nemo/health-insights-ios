@@ -30,9 +30,10 @@ verified against the code. Spot-check one you are about to build on; sweeping th
 codebase to rebuild a picture that is already written down is the single most
 expensive mistake available here, and it has been made.
 
-"Where does X live" is **`./scripts/where.sh <Type>`** — it prints `path:line`
-from `docs/symbol-index.md`. Reach for it instead of grepping a path you are
-guessing at. Three sessions running have lost a round trip to inventing a
+"Where does X live" is **`./scripts/where.sh <name>`** — it prints `path:line`
+from `docs/symbol-index.md`, and falls back to member declarations when the name
+is a method or property rather than a type. Reach for it instead of grepping a
+path you are guessing at, **whatever kind of name you are looking for**. Three sessions running have lost a round trip to inventing a
 directory name (`Ingest/` for `Ingestion/`, `Signals/` for `Baseline/`), which is
 a logged repeat in `docs/efficiency-log.md` and is why this is a command now
 rather than a pointer at a file.

@@ -114,6 +114,8 @@ that is not yet automated is the next thing to automate.
 | Lose the working directory in a shell call | 2 | ✅ ruled in `CLAUDE.md` (2026-07-31) |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
+| **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
+| **A recorded product decision that was really an implementation artefact** | **2** | ⬜ open — "no provider gives us a bedtime" (session 10) and "windowed read or whole history?" (session 12). Both were logged as blocked on something inherent; both dissolved on first inspection. No mechanical check is possible; the rule is *measure before escalating a decision to the user* |
 | **A guard reporting a failure whose own premise is false** | **5** | ⚠️ partly — ruled in `CLAUDE.md` and named five times in `activeContext.md`; no mechanical check exists and it is unclear one can |
 | **A container branch that looks right and isn't** (`git checkout main`) | 1 | ✅ `ship-to-main` now ships with `git push origin HEAD:main`, which never reads the local ref |
 | A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
@@ -191,6 +193,24 @@ Ordered by (frequency × cost), cheapest fix first.
       an artifact, so the difference is *visible* rather than discovered by a
       build failure. A full parity gate is probably not worth it; knowing what
       the other machine actually has is.
+- [x] **Make `where.sh` answer for members, not only types.** Done in session 12,
+      which lost a round trip guessing that `bucketed` lived in
+      `MultiSource.swift` (`MetricAggregator.swift`). The script's own miss
+      message said "grep is right for those" — which sends the reader back to
+      naming a file, the exact habit the type lookup exists to retire. A reflex
+      that only answers one kind of question is not a reflex; it now falls back
+      to `git grep` for declarations and only gives up when there is nothing.
+- [ ] **A "blocked on a decision" note needs a measurement before it is
+      believed.** Twice now a roadmap item has been recorded as needing the user
+      to choose between tradeoffs, and twice the tradeoff was an artefact of the
+      implementation rather than a fact about the problem — Sleep Regularity's
+      "no provider gives us a bedtime" (session 10) and hydration's "whole
+      history or a recent window?" (session 12). Each cost the user nothing
+      directly, but each parked real work for several sessions behind a question
+      that did not need asking. No lint can catch this. The nearest mechanical
+      version: when `activeContext.md` says *ask before building*, require the
+      note to carry the measurement that establishes the tradeoff is real — and
+      treat a missing one as the first thing to go and get.
 - [ ] **A guard whose premise is false has now cost five round trips** and is the
       one recurring category with no mechanical check: the `tunnelState` guard,
       the Oura scope skip, a completeness audit dismissed as stale, and this
@@ -212,6 +232,51 @@ with guesses.
 | 9 | 2026-07-30/31 | 9 | **1** | 2 | 2 (named below) | 520 → 590 | Generic exhaustive-switch lint; `verify.sh --tests <pattern>`; absolute-path rule; the efficiency protocol itself | **Baseline.** 0.56 waste/push |
 | 10 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 590 → 602 | `scripts/where.sh`; `ship-to-main` corrected to `git push origin HEAD:main`; roadmap duplicate deleted | **Better in absolutes, and the ratio is not readable at one push.** 2 waste / 1 push |
 | 11 | 2026-07-31 | 12 | **1** | 5 | 1 (named below) | 602 → 634 | `refs/deploy/*` + `deploy-status.sh`; `verify.sh` serial-retry and log retention; "a push is not an install" in `CLAUDE.md` + `ship-to-main`; `LaunchNarration` + `LaunchParticleField` tests (22) | **Worse. The most expensive session recorded** — 6 waste / 12 pushes, plus 4 deploys that installed nothing |
+| 12 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 634 → 644 | `where.sh` answers for members, not just types; `EvaluationMemoTests` (10) pin a cache against its uncached path | **Better, and on every column.** 1 waste / 1 push; green CI and an installed deploy first time |
+
+### Session 12 notes
+
+**Red CI (0), rework (0), one push, installed first time.** The gate ran before
+the push and CI agreed with it, which is the mechanism working rather than luck.
+
+**The substantive result: a "needs a decision from the user" item did not.**
+`activeContext.md` had hydration parked behind a question — read the whole
+history on a cold launch, or a recent window with the rest behind Today? — on the
+premise that every cheap fix changes what the first frame knows. Benchmarking it
+before asking showed the cost was not volume at all but repetition:
+`MultiSource.breakdown` and `Array.samples(of:)` each filtered and sorted the
+whole ~130k-sample history *per metric per model*, and resting heart rate is read
+by seven of the seventeen. `evaluateAll` 1774 → 476 ms, hydration block
+2796 → 1564 ms, no change to what any frame knows.
+
+**This is the second time an item was parked behind a tradeoff that wasn't
+real** — "no provider gives us a bedtime" was the first. Both are now a ledger
+row and a roadmap item: when a note says *ask before building*, the note should
+carry the measurement proving the tradeoff exists.
+
+**Re-derivations (1), named.** Guessed that `bucketed` lived in
+`MultiSource.swift` and grepped it; it is in `MetricAggregator.swift`. One dead
+round trip. `where.sh` could not have answered — it indexed only top-level types
+and its miss message explicitly sent the reader to grep. That is the failure the
+type lookup was built to retire, one level down, so the fix taken was the
+category one: `where.sh` now falls back to member declarations.
+
+**One avoidable full-suite run.** Five full runs (three `verify.sh --tests`, two
+bare `swift test` for counts). `--filter` was used correctly for the new test
+file; the run straight after it was redundant with the pre-push gate that
+followed. Small, but it is the same shape as session 9's six runs and worth not
+letting drift back.
+
+**What made it cheap.** The `session-start` skill opened with the roadmap and the
+gate rather than a survey; `where.sh` was used for nine lookups and only failed
+on the one kind it did not cover; and the two audited docs were trusted, which is
+what left budget for a benchmark. The benchmark itself is the transferable part —
+the before/after was taken with the *same* harness either side by stashing the
+change, rather than comparing two differently-generated runs, which is the only
+reason the 3.7× is quotable.
+
+**Not device-verified.** The numbers are an x86 Linux benchmark of the same code
+paths, not a measurement on the phone. Ratios travel; absolutes do not.
 
 ### Session 11 notes
 

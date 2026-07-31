@@ -93,8 +93,12 @@ So:
 - `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
   repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
 - `docs/symbol-index.md` -> **Where does X live.** One line per top-level type.
-  **Don't read it and don't grep for a path — run `./scripts/where.sh <Type>`.**
+  **Don't read it and don't grep for a path — run `./scripts/where.sh <name>`.**
   It prints `path:line` and is shorter than the grep you were about to guess at.
+  **It answers for methods and properties too**, not just types: it falls back to
+  member declarations when the name is not a top-level type. That half was added
+  because the type-only version sent the reader back to grep, and a reader
+  grepping has to name a file — which is the same failure one level down.
   Three sessions running have skipped this file by inventing a directory name
   (`Ingest/` for `Ingestion/`), which is why it is now a command and not a
   suggestion. Generated — run `./scripts/gen-symbol-index.sh` after adding or

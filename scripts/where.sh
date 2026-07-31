@@ -44,12 +44,34 @@ matches=$(awk -v needle="$1" '
     }
 ' "$INDEX")
 
-if [ -z "$matches" ]; then
-    echo "No type matching '$1' in $INDEX." >&2
-    echo "If you have just added it, run ./scripts/gen-symbol-index.sh." >&2
-    echo "If it is not a top-level type (a method, a case, a property), the" >&2
-    echo "index does not carry it — grep is right for those." >&2
-    exit 1
+if [ -n "$matches" ]; then
+    echo "$matches"
+    exit 0
 fi
 
-echo "$matches"
+# Not a top-level type. Fall back to member declarations rather than sending the
+# reader away to grep.
+#
+# This half was added in session 12, which lost a round trip guessing that
+# `bucketed` lived in `MultiSource.swift` (it is in `MetricAggregator.swift`).
+# The old miss-message said "grep is right for those" — and a reader who falls
+# back to grep has to name a file, which is the exact failure the type lookup
+# was built to retire, reappearing one level down. One reflex has to answer
+# "where does X live" for *any* X, or it is not a reflex.
+#
+# `git grep` rather than the filesystem: a declaration in an untracked file is
+# not yet part of the codebase, and `verify.sh` makes the same choice.
+members=$(git grep -nE \
+    "(func|var|let|case|init|subscript|typealias|associatedtype)[[:space:]]+\`?$1\`?([^A-Za-z0-9_]|$)" \
+    -- '*.swift' 2>/dev/null | head -40)
+
+if [ -n "$members" ]; then
+    echo "No top-level type matching '$1' — these are member declarations:" >&2
+    echo "$members"
+    exit 0
+fi
+
+echo "Nothing matching '$1' in $INDEX, and no member declaration either." >&2
+echo "If you have just added it, run ./scripts/gen-symbol-index.sh." >&2
+echo "If it is only ever a call site, git grep is right: git grep -n '$1' -- '*.swift'" >&2
+exit 1

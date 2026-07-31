@@ -278,9 +278,15 @@ three fresh complaints. The findings from that half:
 - **The LiDAR body scan** is still open by request — explicitly a roadmap note
   rather than a build, and scoped in `docs/progress.md`. The app-launch loading
   screen that sat beside it is **done**; see "Current focus".
-- **Two efficiency-roadmap items remain**: making `symbol-index.md` a reflex
-  rather than a fallback, and a session-start checklist skill. The close-out gate
-  (`scripts/handover-check.sh`) is done. See `docs/efficiency-log.md`.
+- **The open efficiency-roadmap items are now these** — the two this line used to
+  name (`symbol-index.md` as a reflex, a session-start checklist skill) were both
+  built sessions ago as `scripts/where.sh` and `.claude/skills/session-start/`,
+  and this bullet had gone stale claiming otherwise. Currently open: a
+  build-environment parity check between CI and the user's Mac (the top item, and
+  the one that cost four deploys); never `git add -A` inside a canary; the
+  false-premise guard category, which may stay human; and — new this session — a
+  *"blocked on a decision" note should carry the measurement that proves the
+  tradeoff is real*. See `docs/efficiency-log.md`, which is the authority.
 
 ## Two regressions I shipped, and what they cost
 
