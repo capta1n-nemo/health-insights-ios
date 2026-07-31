@@ -60,7 +60,18 @@ There are two tiers of that, and the second one matters more:
    on the model choosing to run `verify.sh`. Tier 2 does not depend on the model
    at all, which is the only real answer to "a rule the model can skip".
 
-Anything that can be moved to tier 2 should be.
+Anything that can be moved to tier 2 should be — with one caveat learnt
+immediately. The hook declares `if: "Bash(git push*)"` and fired anyway on an
+ordinary `cat`, which would have run the full test suite on every shell command
+in the session. **A hook that fires on everything is a hook that gets deleted**,
+so `pre-push-gate.sh` now decides from the command on stdin itself and treats
+the declared filter as an optimisation rather than a guarantee. A non-push exits
+in 36 ms.
+
+Also worth recording: a red-team subagent left a probe skill behind in
+`.claude/skills/`, and the *repo's own new check* caught it — the probe
+referenced a non-existent script and the gate refused the push. That is the
+mechanism working on its author, which is the only test of it that counts.
 
 Everything left in the ceremony should be there because it *genuinely cannot* be
 mechanised — the prose judgement about what a session learnt — and everything

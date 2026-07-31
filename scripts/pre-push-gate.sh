@@ -33,10 +33,30 @@ allow() {
     exit 0
 }
 
-# A push of nothing is not worth gating, and neither is a `git push --help`.
 input=$(cat 2>/dev/null || true)
-case "$input" in
+
+# Decide from the command itself rather than trusting the hook's `if` filter.
+#
+# The filter is declared as `if: "Bash(git push*)"` in settings.json and this
+# gate was still invoked on an ordinary `cat`, which would have run the full test
+# suite on every shell command in the session. Whether that is a version
+# difference or a misreading of the syntax does not much matter: a hook that
+# fires on everything is a hook that gets deleted, so the script decides for
+# itself and the filter is left in place as an optimisation only.
+command=$(printf '%s' "$input" | python3 -c '
+import json, sys
+try:
+    print(json.load(sys.stdin).get("tool_input", {}).get("command", ""))
+except Exception:
+    print("")
+' 2>/dev/null || true)
+
+case "$command" in
+    # Only a real push. `--dry-run` changes nothing on the remote, and `--help`
+    # is not a push at all.
     *--help*|*--dry-run*) allow ;;
+    *"git push"*) ;;
+    *) allow ;;
 esac
 
 if ! output=$(./scripts/verify.sh --tests 2>&1); then
