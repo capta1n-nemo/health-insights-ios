@@ -468,13 +468,24 @@ answerable rather than guessable.
       Energy) can now show "What comes first" / "What changed".
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
-- [ ] Heart & fitness age and Fitness trajectory on the phone: both are new cards
-      on the Insights tab. Worth checking the three-age comparison row renders on
-      the narrowest device, and that a profile with no blood pressure shows the
-      fitness half alone rather than an empty card.
-- [ ] The ingestion pipeline and Vitals Check on the phone — see
-      `activeContext.md` for the specific things to look at, including that the
-      Oura setup screen no longer raises the "Paste from your Mac?" prompt.
+- [ ] **The nine cards on the phone** (`c2afd04`, installed). Neither "Heart &
+      Fitness Age" nor "Fitness Trajectory" exists any more — this item used to
+      name both. What to look at now: Fitness carries VO₂max, its trajectory and
+      fitness age; the risk card carries heart age; Heart Health shows the
+      percentile standings it absorbed; Readiness names an outlier vital and
+      warns when several signals lean together; Sleep opens with last night.
+      A profile with no blood pressure should still score Fitness — that
+      asymmetry is the reason the two ages were split.
+- [ ] The ingestion pipeline on the phone — see `activeContext.md`, including
+      that the Oura setup screen no longer raises the "Paste from your Mac?"
+      prompt. (Vitals Check is no longer a card; its scan is a Readiness
+      component.)
+- [ ] **The nap fix, proved from the data rather than by eye** (`c2afd04`).
+      Pull to refresh, then Settings ▸ Export my data ▸ inventory. Two numbers
+      settle it: `sleepDurationHours` median should rise from **5.62 h**, and
+      `restingHeartRate` max should fall from **119**. No re-sync is needed —
+      `sync()` pulls 730 days and the cache merge replaces a source's samples
+      wholesale, so an ordinary refresh rebuilds Oura's history.
 
 ## Next
 
@@ -510,7 +521,11 @@ Listed cheapest-first — the second one can't start without new plumbing.
 ### Integrations
 - [ ] Explain why Oura's API serves only ~4–6 months of history against years of
       ring data mirrored through Apple Health. No `next_token`, byte counts match
-      record counts, so it isn't client-side truncation. Offered, not yet taken up.
+      record counts, so it isn't client-side truncation. **Narrowed 2026-08-01**:
+      it is not our request window either — `OAuthIntegration.sync()` asks for
+      730 days unconditionally, and the export confirms Oura returns 2026-03-16
+      onward against Apple Health's 2024-08. The limit is Oura's; nothing on our
+      side is worth re-investigating.
 - [ ] Hume Band direct API (today flows in via Apple Health only).
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 

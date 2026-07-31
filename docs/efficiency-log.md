@@ -134,9 +134,32 @@ that is not yet automated is the next thing to automate.
 | **`swift test --parallel` exits non-zero with every test passing** | 3 | ✅ automated — `verify.sh` re-runs serially and only forgives a clean log, loudly |
 | **A feature that gates work which already ran in the background** | 1 | ⬜ open — no mechanical check; the rule is in `activeContext.md` |
 | **Tune a visual against opinion instead of measurement** | 1 (3 rounds) | ⬜ open — the method (measure the reference, iterate) is recorded but not tooled |
+| **Assume what data exists by reading the parsers instead of looking at the data** | **3** | ✅ automated — **Settings ▸ Export my data** (2026-08-01, session 13). Fired three times: *"no provider gives us a bedtime"* (session 10 — the field was in every payload, discarded at ingest), *"`dayStrain` is unread because Whoop isn't connected"* (the parser had been emitting it all along; what was missing was a reader), and Oura naps counted as nights. All three were claims about the **code**, stated as claims about the **data**. The export ends the guessing |
+| **A protocol member that should be a requirement but sits only in an extension** | 1 | ✅ `testOverridesSurviveExistentialDispatch`. Callers hold `any InsightModel`; extension-only dispatches statically, so every model silently gets the default and the overrides are dead code **whose own tests still pass**, because those hold the concrete type |
+| **Reach for the GitHub Actions API to read a build failure** | 1 | ⬜ **open** — `ci-status.sh` gives a verdict, not a diagnostic. See roadmap |
+| **Fit a bound to the one artefact you happened to observe** | 1 | ⬜ open — no mechanical check. The rule: a bound rejects the *impossible*, never the *alarming*. 119 bpm is a real resting heart rate in AF |
+| **Order-dependence inside a parse loop** | 1 | ⬜ open — the nap guard fixed duration and left sleep onset poisoned because it sat below the bedtime collection. A test per *consumer* of the loop is what caught it |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
+
+### `scripts/ci-logs.sh <sha>` — why it went red, without the 450 KB
+
+**The candidate this session earned.** Its single re-derivation cost a
+453,184-character response to answer "which file failed to compile". The
+prohibition in `CLAUDE.md` is about reading *status* cheaply — `ci-status.sh`
+solved that — and says nothing about reading a *diagnostic*, so there is no
+cheap path and the expensive one gets taken.
+
+`ci-status.sh` already proves the mechanism: `ci.yml`'s record-status job pushes
+a verdict to `refs/ci/{passed,failed}/<sha>`, and `git ls-remote` reads it for
+almost nothing. The same job can write the failing `error:` lines — a few
+hundred bytes — to `refs/ci/diag/<sha>`, and `ci-logs.sh` reads them the same
+way.
+
+This retires the *category*: every future red CI, not this one. That is the
+column the log says matters, and it is the cheapest remaining item on the
+ledger that is still open.
 
 Ordered by (frequency × cost), cheapest fix first.
 
@@ -233,6 +256,61 @@ with guesses.
 | 10 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 590 → 602 | `scripts/where.sh`; `ship-to-main` corrected to `git push origin HEAD:main`; roadmap duplicate deleted | **Better in absolutes, and the ratio is not readable at one push.** 2 waste / 1 push |
 | 11 | 2026-07-31 | 12 | **1** | 5 | 1 (named below) | 602 → 634 | `refs/deploy/*` + `deploy-status.sh`; `verify.sh` serial-retry and log retention; "a push is not an install" in `CLAUDE.md` + `ship-to-main`; `LaunchNarration` + `LaunchParticleField` tests (22) | **Worse. The most expensive session recorded** — 6 waste / 12 pushes, plus 4 deploys that installed nothing |
 | 12 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 634 → 644 | `where.sh` answers for members, not just types; `EvaluationMemoTests` (10) pin a cache against its uncached path | **Better, and on every column.** 1 waste / 1 push; green CI and an installed deploy first time |
+| 13 | 2026-07-31/08-01 | 8 | **1** | 1 | 1 (named below) | 644 → 672 | **Settings ▸ Export my data** + `DataInventory`; `ContributionRoute` derived from `requirements` rather than a sixth `InsightID` switch; `MetricType.plausibleRange`; `NapContaminationTests` (12), `ContributionRouteTests` (10), `DataInventoryTests` (10); `add-insight` documents `contributions` | **Better — the best waste ratio recorded.** 3 waste / 8 pushes = 0.375, against a 0.56 baseline. The compounding column is the strongest yet: the export found two real defects in production data the first time it was used |
+
+### Session 13 notes
+
+Three asks in one session: audit which sections every card renders, then make
+them consistent, then consolidate seventeen cards into nine — plus a data export
+that immediately paid for itself.
+
+**The one red CI** (`553e33f`): `isUnmet ? Theme.accent : .tertiary`. `Color`
+has static `primary`, `secondary` and `white` — which is why the twelve other
+colour ternaries in the app target compile — but **no `tertiary`**, so the two
+arms had no common type. Nothing local catches this class: SwiftUI does not
+exist on Linux, so CI alone compiles the app target. Fixed by `42efe4c`, which
+is also the session's single rework commit.
+
+**The one re-derivation, named**: I called `mcp__github__actions_list` to find
+the failed run and got a **453,184-character** response.
+`CLAUDE.md` ▸ Primary Verification Commands already says *"Never use the GitHub
+Actions API for this; its smallest response is over 100K tokens"*, and
+`ci-status.sh` repeats it in its own header. It did not fire because the rule is
+about reading *status* and I wanted *logs* — which is precisely the gap, and is
+now a roadmap item.
+
+**Near-misses, not counted** (the protocol counts rework *commits*, and all
+three were caught before landing) — recorded because each is a category:
+
+- The nap guard was first placed *below* the bedtime collection, so it fixed
+  sleep duration and left naps still poisoning sleep onset. **Order inside a
+  parse loop is load-bearing.**
+- A test asserted the sanitizer rejects 119 bpm. It should not: 119 is a real
+  resting heart rate in atrial fibrillation, and the ceiling would have been
+  fitted to one user's bad record. **A bound rejects the impossible, never the
+  alarming.**
+- `VitalReader`'s API shape was guessed (`VitalReader(samples:now:)`) rather than
+  read; it is a static enum. `where.sh` answered it in one call afterwards.
+
+**What made this session cheap despite its size.** Eight pushes, one red. The
+consolidation touched 55 Swift files and thirteen test files and went green
+first time, because the *old tests were repointed rather than deleted* — and
+they caught four real regressions the merge would otherwise have shipped
+silently: weight-0 contributions counting toward "is this day well-founded" in
+`ScoreHistory`, the vitals panel dropping off the overlay chart, an
+irregular-rhythm flag no longer outranking an ordinary day, and "we couldn't
+judge this vital" being folded in with the normal ones. A fifth — Sleep's
+regularity term computing against the real present instead of the `now` it was
+handed — was caught by the contributor-weight invariant from session 11.
+
+**The compounding item that matters.** Settings ▸ Export my data was built for
+one reason: nobody working on this app can see the user's data, so every "what
+signals do we have?" question had been answered by reading the parsers. On first
+use it found that Oura naps were being counted as nights — a defect no code
+review would have found, because nothing in the parser looks wrong and every
+test passed. What gave it away was a median sleep of 5.62 h with a minimum of
+0.01 h. That failure has now fired three times (see the ledger); the export
+retires the category.
 
 ### Session 12 notes
 
