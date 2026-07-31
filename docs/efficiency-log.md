@@ -127,6 +127,11 @@ that is not yet automated is the next thing to automate.
 | A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
 | A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
+| **Report "deployed" when nothing was installed** | 1 session, 4 times in it | ✅ automated — `deploy.yml` writes `refs/deploy/*`, `scripts/deploy-status.sh` reads it, `CLAUDE.md` and `ship-to-main` now require it |
+| **A build that CI can compile and the user's Mac cannot** | 1 | ⚠️ partly — the `.metal` dependency is gone, but the two environments still differ and nothing compares them. See roadmap |
+| **`swift test --parallel` exits non-zero with every test passing** | 3 | ✅ automated — `verify.sh` re-runs serially and only forgives a clean log, loudly |
+| **A feature that gates work which already ran in the background** | 1 | ⬜ open — no mechanical check; the rule is in `activeContext.md` |
+| **Tune a visual against opinion instead of measurement** | 1 (3 rounds) | ⬜ open — the method (measure the reference, iterate) is recorded but not tooled |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
@@ -169,6 +174,23 @@ Ordered by (frequency × cost), cheapest fix first.
       `.claude/settings.json` all point at it now.
 - [ ] **Never `git add -A` inside a canary** — carried forward from session 9,
       still the oldest open item. See above.
+- [x] **Make "is it on the phone?" answerable.** Done as `refs/deploy/*` plus
+      `scripts/deploy-status.sh`. Until this session nothing recorded whether a
+      deploy installed anything, `ci-status.sh` was mistaken for an answer, and
+      four consecutive failed deploys were reported to the user as successes
+      while he sat looking at an hours-old build. The cheapest possible fix —
+      one workflow step and one script — for the single most expensive failure
+      recorded in this log.
+- [ ] **A build-environment parity check between CI and the user's Mac.** The
+      top open item, and the one that cost four deploys. `ci.yml` runs on
+      GitHub's `macos-15`; `deploy.yml` runs on a Mac whose Xcode components,
+      SDK version and installed toolchains nobody has enumerated. A `.metal`
+      file compiled on one and not the other, and CI's green tick actively
+      misled. Cheapest useful version: a step in `deploy.yml` that prints
+      `xcodebuild -version`, the SDK, and `xcrun metal --version` into a ref or
+      an artifact, so the difference is *visible* rather than discovered by a
+      build failure. A full parity gate is probably not worth it; knowing what
+      the other machine actually has is.
 - [ ] **A guard whose premise is false has now cost five round trips** and is the
       one recurring category with no mechanical check: the `tunnelState` guard,
       the Oura scope skip, a completeness audit dismissed as stale, and this
@@ -189,6 +211,73 @@ with guesses.
 | 1–8 | to 2026-07-30 | — | — | — | — | 330 → 520 | 5 skills, symbol index, `ci-status.sh`, named-switch lint | *not measured — protocol did not exist* |
 | 9 | 2026-07-30/31 | 9 | **1** | 2 | 2 (named below) | 520 → 590 | Generic exhaustive-switch lint; `verify.sh --tests <pattern>`; absolute-path rule; the efficiency protocol itself | **Baseline.** 0.56 waste/push |
 | 10 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 590 → 602 | `scripts/where.sh`; `ship-to-main` corrected to `git push origin HEAD:main`; roadmap duplicate deleted | **Better in absolutes, and the ratio is not readable at one push.** 2 waste / 1 push |
+| 11 | 2026-07-31 | 12 | **1** | 5 | 1 (named below) | 602 → 634 | `refs/deploy/*` + `deploy-status.sh`; `verify.sh` serial-retry and log retention; "a push is not an install" in `CLAUDE.md` + `ship-to-main`; `LaunchNarration` + `LaunchParticleField` tests (22) | **Worse. The most expensive session recorded** — 6 waste / 12 pushes, plus 4 deploys that installed nothing |
+
+### Session 11 notes
+
+**The headline is not in the table.** Four deploys in a row installed nothing
+and were reported to the user as successes. He spent an hour on an hours-old
+build, asked twice where his app was, and was right both times. No column
+counted that, because until this session nothing in the repository recorded
+whether a deploy reached the phone. That is now `refs/deploy/*` and
+`deploy-status.sh`, and it is the single most valuable thing this session
+produced.
+
+The mechanism of the error is worth stating precisely, because the pieces all
+looked correct: `ci.yml` runs on GitHub's runners and writes `refs/ci/*`;
+`ci-status.sh` reads it cheaply; `CLAUDE.md` said, in as many words, to announce
+deployment once the push landed. So the instruction, the available signal and
+the claim all lined up behind a question none of them was asking. **A green tick
+that answers a different question is worse than no tick.**
+
+**Red CI (1).** `047342b` — two `DiagnosticsLog` calls (`@MainActor`) from
+MTKView's renderer (not). An error even in Swift 5 mode, so the app target would
+not compile. Cost: one CI cycle, one deploy cycle, one fix commit. Entirely
+avoidable: **I pushed it without waiting for `ci-status.sh`**, and CI is the only
+thing in this sandbox that compiles the app target at all.
+
+**Rework (5) — the worst figure in this log.**
+1. `671c752` fixes `7f53f43`: the launch screen gated the whole refresh, turning
+   an ~8 s launch into ~32 s. Found by the user, on the phone.
+2. `047342b` fixes `ae7c03a`: the `.metal` file broke the user's Mac build.
+3. `4084f03` fixes `047342b`: the isolation error above.
+4. `9991731` fixes `ae7c03a` and `7f53f43`: density, colour, and the 3× launch
+   image flash.
+5. `5addcdf` fixes `9991731`: the status line was still unreadable — the first
+   attempt corrected its colour but not its position, and it was sitting in 37%
+   ink.
+
+Four of the five were found by the user looking at his phone. **CI was green for
+every one of them.** That is not a CI failure; it is the shape of this project —
+the app target has no test target and the only real gate is a device.
+
+**Re-derivations (1), named.** The commit-signing stop hook. `activeContext.md`
+▸ "Two container traps" item 2 already recorded it in full — identity already
+correct, key file zero bytes, all of `origin/main` unsigned — and it was
+re-verified from raw output anyway at the start of the session. Defensible under
+the repo's own "verify the guard's premise" rule, but it is still a fact the
+docs held being established a sixth time. The user then asked for the subject to
+be dropped entirely; both the skill and the audit are now two lines saying
+"closed, do not re-derive".
+
+**Two agent workflows were launched and neither was used.** One ran ~70 minutes.
+Both problems they were investigating had already been diagnosed by hand — by
+reading the code and frame-differencing the user's screen recording — and fixed
+before either finished. The user noticed the spend and was right to. Nothing in
+the repo prevents this; the rule is simply *don't start a fan-out for a question
+you are already answering*.
+
+**What made the session expensive, in one line:** three of the four rounds were
+spent discovering that a thing which passed every check available in the sandbox
+did not work on the only machine that matters.
+
+**What made it cheap where it was cheap.** The `session-start` skill opened with
+the roadmap instead of a survey. `where.sh` was used instead of guessing a
+directory — the three-session repeat did not recur. The
+`ScoreHistory.replay` optimisation (O(days×n) → one pass) shipped with an
+equivalence test against a naive reference rather than a hope, and the launch
+copy, the point cloud and the replay all landed with tests that run on Linux —
+32 new tests, which is why none of the five reworks were *logic* errors.
 
 ### Session 10 notes
 

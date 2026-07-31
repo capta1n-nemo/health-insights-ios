@@ -30,10 +30,24 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The loading-screen session.** Built the splash, **shipped a 32-second launch
-with it**, and then fixed that. The user caught it on the phone, as they have
-caught every regression here. `docs/progress.md` ▸ "App-launch loading screen"
-has the full account; the four things worth carrying:
+**The loading-screen session, in four rounds of user feedback.** Built the
+splash, shipped a 32-second launch with it, fixed that, replaced the animation
+with a live Metal particle heart, broke the user's build for four deploys, and
+tuned the result against measurements of their own reference. Every single
+defect was found by the user on the phone, not by CI. Read the efficiency log's
+session-11 notes before the next one — this was the most expensive session
+recorded.
+
+**The one structural thing to know before touching anything:**
+`ci-status.sh` proves the code *compiles on GitHub's runners*.
+`deploy-status.sh` proves it *reached the phone*, and `deploy.yml` runs on the
+user's own Mac. They are different questions, the second is the one that
+matters, and for most of this session only the first was being asked — which is
+how "deployment triggered" got said four times over failed deploys. **A push is
+not an install. Run both.**
+
+`docs/progress.md` ▸ "App-launch loading screen" has the full account; the
+things worth carrying:
 
 - **A screen that covers a wait can become a screen that causes one.** The
   splash waited for the whole of `refresh()` before revealing Today — but that
@@ -62,12 +76,32 @@ has the full account; the four things worth carrying:
   that needed it was the one launch that could not fire it. Now it sleeps off
   the main actor and hops back only to act.
 
-Also: the animation is no longer drawn in SwiftUI. It is the user's own
-Gemini-generated particle video, played through `AVPlayerLooper` — hardware
-decode, off the main thread, so it keeps moving when the main actor does not.
-A `TimelineView` redrawing a shadowed symbol and a full-screen gradient every
-frame is a bad idea *specifically* on a screen that exists because the main
-thread is busy.
+- **CI green does not mean the user's Mac can build it.** `ci.yml` runs on
+  GitHub's `macos-15`; `deploy.yml` runs on the user's own Mac, and that is the
+  only machine that installs anything. Adding a `.metal` file broke *their*
+  build for four consecutive deploys — Xcode 26 ships the Metal compiler as a
+  separately downloadable component and their Mac does not have it — while CI
+  passed every time, because GitHub's image does. **Any build input that is not
+  plain Swift is a place the two environments can differ.** The shader is now
+  compiled at runtime with `makeLibrary(source:)`, which needs no toolchain on
+  either machine.
+- **The launch heart is drawn live by Metal, not played from a file.** The video
+  it replaced was 608×1078 on a screen that upscales ~2.4×, with its density and
+  speed baked in — and those were exactly the complaints. `LaunchParticleField`
+  (InsightKit, tested) builds the cloud; `LaunchParticleView` draws it. Density,
+  colour and speed are now constants, which matters because they were tuned
+  three times.
+- **Tune against a measurement, not against an opinion.** "Too light, not dense
+  enough" was answered by measuring the user's own reference frame — ink
+  coverage 30.6%, mean saturation 53.2, mean luminance 168, darkest 5% at 125 —
+  and iterating the renderer until it matched (33.4 / 53.6 / 171 / 137). The
+  first attempt had been washing 82% of the way to white. Same method placed the
+  caption: sweeping ink coverage in horizontal bands found 1.6% at 0.58–0.63
+  against 37% where the text had been sitting.
+- **A semantic colour is only semantic if the surface under it is too.** The
+  status line used `.secondary` on a screen that deliberately commits to a light
+  background whatever the system appearance is. On a phone in dark mode that
+  resolves to a *light* grey, and the copy vanished.
 
 **Earlier in the same session**, before the regression was reported:
 
@@ -503,26 +537,50 @@ request. This is the same failure shape as the `tunnelState` guard below.
 
 ## Immediate next steps
 
+**The one piece of real engineering left over from session 11: hydration takes
+about twelve seconds on the user's data.** Measured from their screen recording
+— Today was released by the launch screen's ceiling at 8 s and only populated at
+~12–13 s. `AppModel.hydrate()` now runs off the main actor, so it no longer
+freezes anything, but it is not *faster*; the work was moved, not reduced. It
+is a JSON decode of ~128,000 samples (`DataStore.loadCachedSamples`) plus
+`sanitizedVitals`, the temperature reconstruction, and seventeen insight models
+each walking the full set.
+
+This one needs a decision from the user before code: **should a cold launch read
+the whole history, or a recent window with the rest loaded behind Today?** Every
+cheap fix (a windowed read, a binary cache, an index built once and shared)
+changes what the first frame knows, so it is their call, not an implementation
+detail. Ask before building.
+
 The ten-item feedback list is closed and so is every roadmap item that could be
 closed from a sandbox. What remains falls into three groups.
 
 ### 1. Only the user can do these
 
-- **The on-device walkthrough.** Nothing from the last five sessions has been
-  seen on a phone. Newest first:
-  - **Cold launch — time it.** The whole point of the second pass. From tapping
-    the icon there should be **no white screen at all**: the grey background and
-    the heart appear immediately (that is `UILaunchScreen`, before any code),
-    then the video takes over and plays *smoothly* — if it stutters or freezes,
-    something is back on the main thread. Today should arrive in a couple of
-    seconds, populated, with the sync spinner still going on the Today card.
+- **The on-device walkthrough.** The launch screen and Insights *have* now been
+  seen and reported on — that is how every defect in session 11 was found. The
+  older items below still have not. Newest first:
+  - **Cold launch — time it, and this is the one still genuinely unknown.**
+    Confirmed already, from the user's own screenshots: no white screen, the
+    heart draws, the animation is smooth, Insights no longer freezes. What has
+    *not* been confirmed since the last three changes is the timing.
+    From tapping the icon: flat `#D9D9D9` (that is `UILaunchScreen`, before any
+    code), then the heart — dense rose mist, drifting slowly, ring framing the
+    screen — then Today, populated, with the sync spinner still turning.
     **A sync finishing after Today appears is correct now, not a bug.**
-    Then the negatives, which are the ones worth the trouble: **background the
-    app and return — the splash must not come back**; a first-run install must
-    go straight to onboarding with no splash; and the status line must not
-    strobe on a fast launch. Past ~4 s the copy should change register entirely
-    ("Still going — that's a lot of history to read") rather than loop the step
-    names, and nothing should ever hold the screen past 8 s.
+    The negatives are the ones worth the trouble: **background the app and
+    return — the splash must not come back**; a first-run install must go
+    straight to onboarding with no splash; the status line must not strobe; and
+    the heart must not flash at the wrong size on the handover from the static
+    launch screen (it did, at 3×, when the poster was in the asset catalog's 1x
+    slot — hence colour-only now).
+    Past ~4 s the copy should change register entirely ("Still going — that's a
+    lot of history to read"), and nothing should hold the screen past 8 s.
+  - **If the launch screen is a plain grey rectangle with text and no heart**,
+    the Metal shader compiled on CI but failed at runtime on the device. It
+    logs to Settings ▸ Troubleshooting rather than failing silently — that is
+    the first place to look, and it is the one part of the renderer no test
+    here can reach.
   - **Insights ▸ Sleep Regularity ▸ "Your fortnight"** — a new chart above the
     score history. Points are the nights, the dashed line is the usual bedtime,
     the shaded band is the spread. Check the y axis reads **clock times** and not

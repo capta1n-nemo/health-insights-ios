@@ -637,8 +637,8 @@ recalled.
         sanitiser, the temperature reconstruction and all seventeen insights.
         The app was not white by choice; it had not reached its first frame.
         Fixed twice over: `UILaunchScreen` was an empty dict (= plain white) and
-        now carries a colour and a poster, which needs no code and appears
-        instantly; and hydration moved to an async `hydrate()` with the
+        now carries a launch colour, which needs no code and appears instantly;
+        and hydration moved to an async `hydrate()` with the
         expensive half on a detached task. **That hop was free because the
         engine and sample types were already `Sendable` — built platform-free so
         they could be tested on Linux, which turns out to be the same property
@@ -647,11 +647,10 @@ recalled.
         on the main thread — `TimelineView` at display rate, a shadowed symbol
         and a full-screen gradient every frame — so it stopped dead exactly when
         real work started, which is when a loading animation most needs to move.
-        It is now a pre-rendered particle video played through `AVPlayerLooper`:
-        hardware-decoded, off the main thread, indifferent to a busy main actor.
-        `RootView` also stopped applying `.opacity`/`.scaleEffect` to the whole
-        `TabView`, which forced four tabs of lists and charts through an
-        offscreen buffer for every frame of the transition.
+        It became a hardware-decoded video, and then — see below — a live Metal
+        render. `RootView` also stopped applying `.opacity`/`.scaleEffect` to
+        the whole `TabView`, which forced four tabs of lists and charts through
+        an offscreen buffer for every frame of the transition.
 
       And one that is worth its own line, because it is a general trap:
       **the hard ceiling could not fire.** It was polled from the `@MainActor`
@@ -661,12 +660,46 @@ recalled.
       hops back only to act. **A timeout must not live on the thread it is
       timing out.**
 
-      The asset is the user's own Gemini-generated video, cropped out of the
-      phone mockup, de-captioned with `delogo` and trimmed before its end fade.
-      Gemini's sparkle provenance watermark is still in the bottom right, left
-      deliberately rather than stripped. The splash is **always light**, on the
-      video's own `#D9D9D9`, and `UILaunchScreen` uses the same colour so the
-      static-to-animated handoff has nothing to see.
+      **Then the animation was replaced a second time, and this is what ships.**
+      The video was the user's own Gemini render, cropped out of a phone mockup
+      and de-captioned — but it was 608×1078 on a screen that upscales it ~2.4×,
+      with its dot density and its speed fixed at generation time. All three of
+      those were the next round of feedback, and none is fixable inside a file:
+      you cannot add dots to a video. It is now generated live —
+      `LaunchParticleField` (InsightKit, nine tests) builds an 85k/240k point
+      cloud on the implicit heart surface by ray-bisection; `LaunchParticleView`
+      draws it as Metal point sprites, turning once every eighteen seconds.
+
+      Four things that cost a round trip each and are worth not repeating:
+
+      - **A `.metal` file broke the user's build and CI could not see it.**
+        Xcode 26 ships the Metal compiler as a separately downloadable
+        component; GitHub's `macos-15` image has it and the user's Mac does not,
+        so `CompileMetalFile` failed with exit 65 on the only machine that
+        installs anything while CI stayed green. The shader is now compiled at
+        runtime with `makeLibrary(source:)`, which needs no toolchain anywhere.
+        **Any build input that is not plain Swift is a place the two build
+        environments can differ.**
+      - **`UILaunchScreen`'s image was drawn at 3×.** The poster went into the
+        asset catalog's *1x* slot, so iOS read 1179×2556 as points and drew it
+        centred and cropped on a 3× screen — the heart flashed in enormous, then
+        cut to size. The launch screen is colour-only now: a flat colour cannot
+        be the wrong size, and guessing at the right scale slot costs a deploy
+        cycle to test.
+      - **Density and colour were matched by measurement, not by eye.** The
+        first version read as "too light, not dense enough" and measuring the
+        user's own reference frame said exactly why: ink coverage 30.6% against
+        15.9%, saturation 53.2 against 23.7, darkest 5% at 125 against 187. The
+        highlight was mixing 82% of the way to white. Now 33.4 / 53.6 / 137.
+      - **The status line was placed where the mist is thickest.** Sweeping ink
+        coverage in horizontal bands: 1.6% at 0.58–0.63, 37% at 0.74–0.79 —
+        where it had been, because that is where the *reference* put its
+        caption, and this ring has no gap there. It also used `.secondary` on a
+        screen that commits to a light background whatever the system says, so
+        on a phone in dark mode it resolved to light grey and vanished.
+
+      The splash is **always light**, on `#D9D9D9`, and `UILaunchScreen` uses
+      the same colour so the static-to-live handoff has nothing to see.
 
 - [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
       roadmap note rather than a build, and deliberately left as one. It belongs
