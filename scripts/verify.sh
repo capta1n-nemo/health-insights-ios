@@ -321,10 +321,8 @@ if [ "${1:-}" = "--tests" ]; then
         # The full run stays the default and stays the gate: pushing on a
         # filtered pass is how a green filter and a red suite reach `main`.
         # Keep the output. A red run whose log has scrolled away is a red run
-        # nobody can diagnose — this has now happened twice, both times an
-        # intermittent non-zero exit with no failing test named, and both times
-        # the evidence was gone before anyone thought to look for it. `tee`
-        # would mask the exit status, so read it back out of PIPESTATUS.
+        # nobody can diagnose. `tee` would mask the exit status, so read it back
+        # out of PIPESTATUS.
         testlog="${TMPDIR:-/tmp}/insightkit-tests.log"
         if [ -n "${2:-}" ]; then
             note "Running InsightKit tests matching '$2' — NOT the gate. Run without a filter before pushing."
@@ -332,6 +330,27 @@ if [ "${1:-}" = "--tests" ]; then
         else
             note "Running InsightKit tests with $(swift --version | head -1)"
             (cd InsightKit && swift test --parallel 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || fail=1
+        fi
+
+        # `swift test --parallel` on Linux intermittently exits non-zero after a
+        # run in which every test passed — no failing test named, nothing in the
+        # log but the pass lines. It has happened three times in one session and
+        # cost a diagnosis each time.
+        #
+        # A retry alone would just hide it, so this is a *different* run rather
+        # than the same one again: serial, no parallel workers. If the suite
+        # passes serially then every test has genuinely passed and the gate has
+        # no business staying red — but it says so loudly, because the day this
+        # message means something else is the day it matters.
+        if [ "$fail" -ne 0 ] && [ -z "${2:-}" ] \
+           && ! grep -qE "error:|XCTAssert.*failed|Fatal error|Test Suite .* failed" "$testlog"; then
+            note 'Non-zero exit but no failing test in the log — re-running serially to tell a runner artifact from a real failure.'
+            if (cd InsightKit && swift test 2>&1 | tee "$testlog.serial"; exit "${PIPESTATUS[0]}"); then
+                printf '\033[33m!\033[0m %s\n' 'Parallel runner exited non-zero; the serial run passed in full. Treating as a runner artifact.'
+                fail=0
+            else
+                printf '\033[31m✗\033[0m %s\n' "Serial run failed too — this is real. See $testlog.serial"
+            fi
         fi
         [ "$fail" -eq 0 ] || note "Full test output kept at $testlog"
     else

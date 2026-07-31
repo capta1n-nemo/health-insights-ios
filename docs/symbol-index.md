@@ -120,7 +120,7 @@ the place to look.
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
-  - `ScoreTrend` :140
+  - `ScoreTrend` :204
 - `Insights/SleepDebt.swift`
   - `SleepDebtInsight` :109
   - `SleepDebtModel` :25

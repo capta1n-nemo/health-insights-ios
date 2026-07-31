@@ -47,6 +47,11 @@ final class AppModel {
         bloodPressureCache = nil
         scoreHistories.removeAll()
         scoreHistoryTasks.removeAll()
+        // The queue holds requests for data that has just been superseded, so
+        // it goes with them. Anything still wanted is asked for again on the
+        // next render — which is the same contract `scoreHistories` has always
+        // had, and is why dropping it here cannot lose a chart.
+        scoreHistoryQueue.removeAll()
         scoreHistoryGeneration &+= 1
         ageHistory.removeAll()
         ageHistoryRunning = false
@@ -838,6 +843,25 @@ final class AppModel {
     /// that has since been replaced.
     @ObservationIgnored private var scoreHistoryGeneration = 0
 
+    /// Requested replays not yet started, oldest request first.
+    @ObservationIgnored private var scoreHistoryQueue: [InsightID] = []
+
+    /// How many replays may run at once.
+    ///
+    /// Being off the main actor is not the same as being free. The Insights tab
+    /// asks for a history for *every* scored insight the moment it opens — one
+    /// call per card, plus the comparison chart asking for all of them — and
+    /// each was starting its own `Task.detached` at `.userInitiated`. Seventeen
+    /// CPU-bound replays across a six-core phone does not block the main thread
+    /// in the actor sense; it starves it of a core, which looks exactly the
+    /// same from the outside. On the user's recording the list froze solid for
+    /// four to six seconds at a time while scrolling.
+    ///
+    /// Two at `.utility` leaves the interface a clear run of the CPU. The
+    /// charts still fill in progressively, which is what they were designed to
+    /// do — `scoreHistory(for:)` has always returned `[]` on first ask.
+    private static let maxConcurrentReplays = 2
+
     /// Score over time for one insight — stored days where we have them, laid
     /// over days reconstructed from the raw samples.
     ///
@@ -847,27 +871,46 @@ final class AppModel {
     /// per replayed day. Correct, but far too slow to run inside a view body.
     func scoreHistory(for id: InsightID, days: Int = 90) -> [ScorePoint] {
         if let cached = scoreHistories[id] { return cached }
-        guard !scoreHistoryTasks.contains(id) else { return [] }
-        guard let model = engine.models.first(where: { $0.id == id }) else { return [] }
-        scoreHistoryTasks.insert(id)
+        guard !scoreHistoryTasks.contains(id), !scoreHistoryQueue.contains(id) else { return [] }
+        guard engine.models.contains(where: { $0.id == id }) else { return [] }
+        scoreHistoryQueue.append(id)
+        drainScoreHistoryQueue(days: days)
+        return []
+    }
 
-        let samples = self.samples
-        let events = self.vitalEvents
-        let profile = self.profile
-        let stored = dataStore.scoreHistory(for: id)
-        let generation = scoreHistoryGeneration
-        Task.detached(priority: .userInitiated) {
-            let replayed = ScoreHistory.replay(model: model, samples: samples,
-                                               events: events,
-                                               profile: profile, days: days)
-            let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
-            await MainActor.run { [weak self] in
-                guard let self, self.scoreHistoryGeneration == generation else { return }
-                self.scoreHistories[id] = merged
-                self.scoreHistoryTasks.remove(id)
+    /// Start queued replays up to the concurrency limit.
+    private func drainScoreHistoryQueue(days: Int) {
+        while scoreHistoryTasks.count < Self.maxConcurrentReplays,
+              !scoreHistoryQueue.isEmpty {
+            let id = scoreHistoryQueue.removeFirst()
+            guard scoreHistories[id] == nil,
+                  let model = engine.models.first(where: { $0.id == id }) else { continue }
+            scoreHistoryTasks.insert(id)
+
+            let samples = self.samples
+            let events = self.vitalEvents
+            let profile = self.profile
+            let stored = dataStore.scoreHistory(for: id)
+            let generation = scoreHistoryGeneration
+            // `.utility`, not `.userInitiated`: nobody is waiting on this — the
+            // chart it fills is already on screen and already correct without
+            // it. Whoever is scrolling *is* waiting, and should win the CPU.
+            Task.detached(priority: .utility) {
+                let replayed = ScoreHistory.replay(model: model, samples: samples,
+                                                   events: events,
+                                                   profile: profile, days: days)
+                let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.scoreHistoryTasks.remove(id)
+                    if self.scoreHistoryGeneration == generation {
+                        self.scoreHistories[id] = merged
+                    }
+                    // Whatever the generation, a slot just freed up.
+                    self.drainScoreHistoryQueue(days: days)
+                }
             }
         }
-        return []
     }
 
     /// Heart age and fitness age over time. Same shape and same reasons as
@@ -988,6 +1031,7 @@ final class AppModel {
         // to be rebuilt — but only this card's.
         scoreHistories[.substanceImpact] = nil
         scoreHistoryTasks.remove(.substanceImpact)
+        scoreHistoryQueue.removeAll { $0 == .substanceImpact }
     }
 
     func result(for id: InsightID) -> InsightResult? {

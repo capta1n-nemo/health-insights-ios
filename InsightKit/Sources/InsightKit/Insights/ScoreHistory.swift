@@ -63,6 +63,29 @@ public enum ScoreHistory {
         var points: [ScorePoint] = []
         points.reserveCapacity(days)
 
+        // The replay walks oldest day to newest, so `cut` only ever moves
+        // forward and the visible prefix can be *grown* rather than rebuilt.
+        //
+        // It used to be `Array(sorted[..<cut])` plus `Set(visible.map(\.type))`
+        // — two full passes over the whole visible history, on every one of the
+        // ninety days. That is O(days × n) to compute something O(n) tells you,
+        // and with seventeen models replaying at once it is what froze the
+        // Insights tab for four seconds at a time while the user scrolled.
+        // Growing the prefix makes the whole replay one pass over `sorted`.
+        var visible: [HealthMetricSample] = []
+        visible.reserveCapacity(sorted.count)
+        var consumed = 0
+        // Distinct metric types present, maintained as the prefix grows. Only
+        // the *count* of keys is ever read; the values keep it correct if the
+        // defensive rebuild below ever has to run.
+        var typeCounts: [MetricType: Int] = [:]
+
+        // Events get the same treatment, and for the same reason — the old
+        // `events.filter { $0.date < asOf }` rescanned them once per day.
+        let sortedEvents = events.sorted { $0.date < $1.date }
+        var visibleEvents: [VitalEvent] = []
+        var eventsConsumed = 0
+
         let today = calendar.startOfDay(for: now)
         for offset in stride(from: days - 1, through: 0, by: -1) {
             guard let dayStart = calendar.date(byAdding: .day, value: -offset, to: today),
@@ -75,17 +98,44 @@ public enum ScoreHistory {
             let cut = firstIndex(in: sorted, atOrAfter: asOf)
             guard cut > 0 else { continue }
 
-            let visible = Array(sorted[..<cut])
+            if cut > consumed {
+                for sample in sorted[consumed..<cut] {
+                    visible.append(sample)
+                    typeCounts[sample.type, default: 0] += 1
+                }
+                consumed = cut
+            } else if cut < consumed {
+                // Unreachable while the loop runs forwards through time, which
+                // it does by construction. Kept because the alternative failure
+                // is silent and wrong — a day shown more history than it had —
+                // and because `calendar` and `now` are injectable, so a test or
+                // a future caller could hand this a sequence that isn't
+                // monotonic. Correctness here does not depend on the loop's
+                // shape staying what it is today.
+                visible = Array(sorted[..<cut])
+                typeCounts = visible.reduce(into: [:]) { $0[$1.type, default: 0] += 1 }
+                consumed = cut
+            }
+
             // A cheap pre-check on the samples, so a day with nothing to say
             // never pays for a full evaluation.
-            let present = Set(visible.map(\.type)).count
+            let present = typeCounts.count
             guard present >= minimumContributors else { continue }
 
             // Events are truncated on the same contract as samples: a
             // notification raised after the day being replayed cannot have
             // affected the score the user was shown on it.
+            let eventCut = firstIndexOfEvent(in: sortedEvents, atOrAfter: asOf)
+            if eventCut > eventsConsumed {
+                visibleEvents.append(contentsOf: sortedEvents[eventsConsumed..<eventCut])
+                eventsConsumed = eventCut
+            } else if eventCut < eventsConsumed {
+                visibleEvents = Array(sortedEvents[..<eventCut])
+                eventsConsumed = eventCut
+            }
+
             let result = model.evaluate(samples: visible,
-                                        events: events.filter { $0.date < asOf },
+                                        events: visibleEvents,
                                         profile: profile, now: asOf)
             guard let score = result.score else { continue }
 
@@ -113,6 +163,20 @@ public enum ScoreHistory {
         while low < high {
             let mid = (low + high) / 2
             if samples[mid].start < date { low = mid + 1 } else { high = mid }
+        }
+        return low
+    }
+
+    /// The same binary search over events sorted by `date`. Separate rather than
+    /// generic because the two types key their time off different properties —
+    /// a sample's `start`, an event's `date` — and a protocol to unify two call
+    /// sites would be more machinery than the six lines it saves.
+    static func firstIndexOfEvent(in events: [VitalEvent], atOrAfter date: Date) -> Int {
+        var low = 0
+        var high = events.count
+        while low < high {
+            let mid = (low + high) / 2
+            if events[mid].date < date { low = mid + 1 } else { high = mid }
         }
         return low
     }
