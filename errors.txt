@@ -1,0 +1,2 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/DesignSystem/SleepOnsetStripChart.swift:51:68: error: 'Night' is not a member type of enum 'InsightKit.CircadianConsistencyModel'
+** BUILD FAILED **
