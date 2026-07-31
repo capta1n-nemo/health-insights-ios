@@ -207,7 +207,7 @@ final class HealthWatchTests: XCTestCase {
     }
 
     func testTooLittleDataSaysSoRatherThanGuessing() {
-        let result = HealthWatchInsight().evaluate(samples: nightly(.restingHeartRate, [55, 56]),
+        let result = ReadinessInsight().evaluate(samples: nightly(.restingHeartRate, [55, 56]),
                                                    profile: .init(), now: cardNow)
         XCTAssertNil(result.score)
         XCTAssertEqual(result.headline, "Building baseline")
@@ -215,7 +215,7 @@ final class HealthWatchTests: XCTestCase {
 
     /// Wording guardrail: this is an observation, never a diagnosis.
     func testItNeverDiagnoses() {
-        let result = HealthWatchInsight().evaluate(samples: history(illDays: 3),
+        let result = ReadinessInsight().evaluate(samples: history(illDays: 3),
                                                    profile: .init(), now: cardNow)
         let text = (result.explanation + " " + result.drivers.joined(separator: " ")).lowercased()
         // Naming a cause, or telling someone what to do about it, is where a
@@ -225,7 +225,8 @@ final class HealthWatchTests: XCTestCase {
                        "diagnosis of", "suggests you"] {
             XCTAssertFalse(text.contains(banned), "Health Watch diagnosed: \(text)")
         }
-        XCTAssertTrue(result.explanation.contains("not a diagnosis"))
+        XCTAssertTrue(result.drivers.joined().contains("not a diagnosis"),
+                      "the disclaimer must travel with the finding, not only with the card")
     }
 }
 
@@ -363,7 +364,7 @@ final class PeerStandingTests: XCTestCase {
     }
 
     func testWithoutAgeAndSexThereIsNobodyToCompareTo() {
-        let result = PeerStandingInsight().evaluate(
+        let result = HeartHealthInsight().evaluate(
             samples: nightly(.restingHeartRate, Array(repeating: 55.0, count: 10)),
             profile: .init(), now: cardNow)
         XCTAssertNil(result.score)
@@ -372,7 +373,7 @@ final class PeerStandingTests: XCTestCase {
 
     /// A centile describes where you sit, not whether anything is wrong.
     func testItIsHonestAboutBeingAnApproximation() {
-        let result = PeerStandingInsight().evaluate(
+        let result = HeartHealthInsight().evaluate(
             samples: nightly(.restingHeartRate, Array(repeating: 55.0, count: 10)),
             profile: profile(age: 40, male: true), now: cardNow)
         XCTAssertTrue(result.explanation.contains("approximation"))
@@ -380,7 +381,7 @@ final class PeerStandingTests: XCTestCase {
     }
 
     func testItSitsOnTheInsightsTab() {
-        XCTAssertEqual(InsightID.peerStanding.cadence, .trend)
+        XCTAssertEqual(InsightID.heartHealth.cadence, .trend)
     }
 }
 
@@ -389,7 +390,7 @@ final class NewCardRegistrationTests: XCTestCase {
 
     func testEveryNewCardIsRegistered() {
         let ids = Set(InsightEngine().models.map(\.id))
-        for id in [InsightID.energy, .healthWatch, .sleepDebt, .peerStanding] {
+        for id in [InsightID.energy, .readiness, .sleep, .heartHealth] {
             XCTAssertTrue(ids.contains(id), "\(id.rawValue) is not in the engine")
         }
     }
@@ -402,7 +403,7 @@ final class NewCardRegistrationTests: XCTestCase {
     }
 
     func testTheThreeNewDailyCardsLandOnToday() {
-        for id in [InsightID.energy, .healthWatch, .sleepDebt] {
+        for id in [InsightID.energy, .readiness, .sleep] {
             XCTAssertEqual(id.cadence, .daily, "\(id.rawValue) is on the wrong tab")
         }
     }

@@ -1,14 +1,23 @@
 import Foundation
 
-/// Heart age + fitness age as one card.
+/// The heart-age and fitness-age analysis, shared by two cards.
 ///
-/// They degrade independently and that is the point: fitness age needs only a
-/// VO₂max reading (which an Apple Watch supplies unprompted), while heart age
-/// needs the grounding facts the risk equations require. Someone who has
-/// entered nothing still gets a real number as soon as their watch reports.
-public struct HeartAgeInsight: InsightModel {
-    public let id: InsightID = .heartAge
-    public let title = "Heart & Fitness Age"
+/// **No longer a card of its own.** Heart & Fitness Age computed two numbers
+/// that belong in different places: the heart age inverts the same SCORE2/ASCVD
+/// equations `CardiovascularRiskInsight` already runs, and the fitness age is
+/// `FitnessInsight`'s subject. Keeping it as a third card meant a screen whose
+/// two halves had different owners, different inputs and different failure
+/// modes.
+///
+/// They degrade independently and that is still the point: fitness age needs
+/// only a VO₂max reading (which an Apple Watch supplies unprompted), while heart
+/// age needs the grounding facts the risk equations require.
+///
+/// *What was lost*: the three-age row that put your real age, heart age and
+/// fitness age side by side. It cannot survive the split, and the sentence it
+/// carried — that a fit heart can still run high blood pressure — now sits on
+/// the risk card.
+public struct HeartAgeAnalyser {
 
     public init() {}
 
@@ -141,96 +150,6 @@ public struct HeartAgeInsight: InsightModel {
             vascularAgeSource: vascularReading?.sourceName)
     }
 
-    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
-                         now: Date) -> InsightResult {
-        let unmet = unmetRequirements(profile: profile, now: now)
-        let analysis = analyse(samples: samples, profile: profile, now: now)
-
-        guard analysis.headlineAge != nil else {
-            return InsightResult(
-                id: id, title: title, primaryValue: nil, headline: "Add your details",
-                score: nil, confidence: .low,
-                explanation: "Add your date of birth and sex, and this turns your numbers into two ages you can feel: how old your heart is behaving, and how old your fitness is.",
-                drivers: [], unmetRequirements: unmet)
-        }
-
-        // The ages themselves and the modifiable gap lead; your real age and the
-        // per-engine breakdown are context you'd only open if curious.
-        var drivers: [InsightDriver] = []
-        if let age = analysis.chronologicalAge {
-            drivers.append(.routine("Your age: \(Int(age.rounded()))"))
-        }
-
-        if let heart = analysis.heart, let heartAge = heart.heartAge,
-           let excess = heart.excessYears {
-            drivers.append(InsightDriver(text: "Heart age: \(Self.heartAgePhrase(heartAge, capped: heart.isCapped)) — \(Self.excessPhrase(excess))", isNotable: excess >= 1))
-            if heart.readings.count > 1 {
-                for reading in heart.readings {
-                    drivers.append(.routine(String(format: "%@ puts it at %@", reading.engine.rawValue,
-                                                    Self.heartAgePhrase(reading.heartAge, capped: reading.isCapped))))
-                }
-            }
-            if let mine = heart.riskPercent, let optimal = heart.optimalRiskPercent {
-                drivers.append(.notable(String(format: "10-year risk %.1f%% vs %.1f%% at optimal levels — that gap is the modifiable part",
-                                                mine, optimal)))
-            }
-        }
-
-        if let fitness = analysis.fitness {
-            drivers.append(InsightDriver(
-                text: String(format: "Fitness age: %@ (VO₂max %.0f mL/kg·min)",
-                             Self.fitnessAgePhrase(fitness.fitnessAge, capped: fitness.isCapped),
-                             fitness.vo2),
-                isNotable: (fitness.yearsYounger ?? 0) < 0))
-            if let reference = fitness.referenceForOwnAge {
-                drivers.append(.routine(String(format: "Reference for your age: %.0f mL/kg·min", reference)))
-            }
-        } else {
-            drivers.append(.notable("No cardio-fitness reading yet — an Apple Watch estimates VO₂max on outdoor walks and runs, and Oura reports one too"))
-        }
-
-        // A provider's own vascular-age estimate, shown beside ours rather than
-        // folded into it. Two models built on different inputs disagreeing is
-        // information; averaging them away is not.
-        if let vascularValue = analysis.vascularAgeUsed {
-            var gapIsNotable = false
-            var line = String(format: "%@ estimates your vascular age at %.0f",
-                              analysis.vascularAgeSource ?? "Your wearable", vascularValue)
-            if let age = analysis.chronologicalAge {
-                let gap = vascularValue - age
-                gapIsNotable = gap >= 1
-                if abs(gap) < 1 {
-                    line += " — level with your actual age"
-                } else {
-                    line += String(format: " — %.0f year%@ %@ your actual age",
-                                   abs(gap), abs(gap) < 1.5 ? "" : "s", gap > 0 ? "above" : "below")
-                }
-            }
-            // A second opinion that disagrees with ours is information.
-            drivers.append(InsightDriver(text: line, isNotable: gapIsNotable))
-        }
-
-        for projection in analysis.projections {
-            drivers.append(.routine(String(format: "At %.0f, if today's numbers hold: about %.1f%%",
-                                           projection.age, projection.percent)))
-        }
-        if analysis.assumedCholesterol && analysis.heart != nil {
-            drivers.append(.notable("Cholesterol assumed average — add a blood test to sharpen the heart age"))
-        }
-
-        return InsightResult(
-            id: id, title: title,
-            primaryValue: analysis.headlineAge,
-            headline: Self.headline(analysis),
-            score: Self.score(analysis),
-            confidence: Self.confidence(analysis, profile: profile, now: now),
-            explanation: Self.explanation(analysis),
-            driverLines: drivers.filter { $0.isNotable == true }
-                + drivers.filter { $0.isNotable != true },
-            unmetRequirements: unmet,
-            contributors: Self.contributors(analysis))
-    }
-
     /// The sensed metrics behind the two ages, so the detail chart plots what
     /// the calculation read. Weight 0 throughout: these ages come from published
     /// equations over grounding facts, not a weighted blend of these series, and
@@ -240,7 +159,7 @@ public struct HeartAgeInsight: InsightModel {
     /// own `latestValue` calls, which could plot a different number than the card
     /// computed from — the chart and the headline disagreeing about the same
     /// measurement, silently.
-    static func contributors(_ analysis: HeartAgeInsight.Analysis) -> [MetricContribution] {
+    static func contributors(_ analysis: HeartAgeAnalyser.Analysis) -> [MetricContribution] {
         var out: [MetricContribution] = []
         if let systolic = analysis.systolicUsed {
             out.append(.init(metric: .bloodPressureSystolic, higherIsBetter: false, weight: 0,

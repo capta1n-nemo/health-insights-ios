@@ -119,12 +119,16 @@ final class ContributorsTests: XCTestCase {
     }
 
     func testVitalsCheckChartsEveryVitalItScanned() {
-        let result = VitalSignsInsight().evaluate(samples: fullCoverage(),
+        let result = ReadinessInsight().evaluate(samples: fullCoverage(),
                                                   profile: profile, now: contributorNow)
         // Every spec except the ones deliberately standing down. The fixture
         // supplies data for all of them, so a spec that is scanned must chart.
         let expected = VitalSignsCheck.specs.filter { $0.supersededBy == nil }.map(\.metric)
-        XCTAssertEqual(Set(result.contributors.map(\.metric)), Set(expected))
+        // A superset now: Readiness charts its own scored components as well as
+        // every vital the scan covered. The rule the merge had to preserve is
+        // that nothing scanned goes unplotted.
+        XCTAssertTrue(Set(result.contributors.map(\.metric)).isSuperset(of: Set(expected)),
+                      "a scanned vital stopped being charted")
     }
 
     /// The other half of the rule above: a derived metric standing down is not
@@ -132,7 +136,7 @@ final class ContributorsTests: XCTestCase {
     /// an affine shift of the deviation it was reconstructed from, so charting
     /// both would draw one signal as two lines and score it twice.
     func testADerivedVitalStandsDownWhenItsSourceSignalSpoke() {
-        let result = VitalSignsInsight().evaluate(samples: fullCoverage(),
+        let result = ReadinessInsight().evaluate(samples: fullCoverage(),
                                                   profile: profile, now: contributorNow)
         let charted = Set(result.contributors.map(\.metric))
         XCTAssertTrue(charted.contains(.skinTemperatureDeviation))
@@ -268,7 +272,7 @@ final class MetricColourSlotTests: XCTestCase {
     /// exactly why the chart draws only the ones away from baseline by default —
     /// but the hues it does hand out must still all differ.
     func testACrowdedChartStillSpendsEveryHueBeforeRepeating() {
-        let metrics = VitalSignsInsight().candidateMetrics
+        let metrics = ReadinessInsight().candidateMetrics
         XCTAssertGreaterThan(metrics.count, MetricPalette.hueCount)
         let slots = MetricPalette.slots(for: metrics)
         XCTAssertEqual(Set(slots.values).count, MetricPalette.hueCount)
@@ -324,7 +328,7 @@ final class VitalEventTests: XCTestCase {
     func testAnIrregularRhythmFlagsOnItsOwn() {
         let event = VitalEvent(kind: .irregularRhythm, date: now.addingTimeInterval(-3600),
                                sourceName: "Apple Watch")
-        let result = VitalSignsInsight().evaluate(samples: [], events: [event],
+        let result = ReadinessInsight().evaluate(samples: [], events: [event],
                                                   profile: UserHealthProfile(), now: now)
         XCTAssertEqual(result.headline, "Irregular rhythm")
         XCTAssertLessThan(result.score ?? 100, 50)
@@ -338,9 +342,9 @@ final class VitalEventTests: XCTestCase {
                                start: now.addingTimeInterval(-Double(13 - i) * 86_400),
                                source: .appleHealth)
         }
-        let clean = VitalSignsInsight().evaluate(samples: samples, events: [],
+        let clean = ReadinessInsight().evaluate(samples: samples, events: [],
                                                  profile: UserHealthProfile(), now: now)
-        let flagged = VitalSignsInsight().evaluate(
+        let flagged = ReadinessInsight().evaluate(
             samples: samples,
             events: [VitalEvent(kind: .irregularRhythm, date: now.addingTimeInterval(-3600),
                                 sourceName: "Apple Watch")],
@@ -365,9 +369,9 @@ final class VitalEventTests: XCTestCase {
                                source: .oura)
         }
         let event = VitalEvent(kind: .irregularRhythm, date: now, sourceName: "Apple Watch")
-        let without = RestingHeartRateTrendInsight().evaluate(
+        let without = HeartHealthInsight().evaluate(
             samples: samples, profile: UserHealthProfile(), now: now)
-        let with = RestingHeartRateTrendInsight().evaluate(
+        let with = HeartHealthInsight().evaluate(
             samples: samples, events: [event], profile: UserHealthProfile(), now: now)
         XCTAssertEqual(without.headline, with.headline)
         XCTAssertEqual(without.explanation, with.explanation)

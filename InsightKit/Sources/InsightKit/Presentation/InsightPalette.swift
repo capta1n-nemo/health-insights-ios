@@ -21,26 +21,19 @@ public extension InsightID {
     /// claim: the four daily cards, then the trend cards.
     var colourSlot: Int {
         switch self {
+        // The daily block first, because those are the four most likely to be
+        // drawn against each other on the comparison chart, and the first slots
+        // are the hues that separate best.
         case .readiness: return 0
-        case .sleepQuality: return 1
-        case .vitalSigns: return 2
+        case .sleep: return 1
+        case .energy: return 2
         case .substanceImpact: return 3
+        // Then the trend block.
         case .heartHealth: return 4
-        case .cardioFitness: return 5
-        case .heartAge: return 6
-        case .cardiovascularRisk: return 7
-        case .cardioTrajectory: return 8
-        case .bloodPressure: return 9
-        case .restingHeartRateTrend: return 10
-        case .bodyComposition: return 11
-        // The four newest. Energy and Health Watch are the two most likely to be
-        // compared against Readiness, so they take the slots after the daily
-        // block rather than the end of the list.
-        case .energy: return 12
-        case .healthWatch: return 13
-        case .sleepDebt: return 14
-        case .peerStanding: return 15
-        case .circadianConsistency: return 16
+        case .fitness: return 5
+        case .cardiovascularRisk: return 6
+        case .bloodPressure: return 7
+        case .bodyComposition: return 8
         }
     }
 }

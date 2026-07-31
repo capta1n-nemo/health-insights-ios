@@ -141,7 +141,7 @@ public enum SuggestionEngine {
             title: "\(leaning.count) signals are leaning the same way",
             detail: "\(named.capitalizedFirst) have all moved in the direction an immune response pushes them, over the last \(HealthWatchModel.recentDays) days against a fortnight that ended before they started. Individually each is inside the noise; together they are a pattern. An observation about your own numbers, not a diagnosis — if you feel unwell, that is the better information.",
             basis: .convergingSignals,
-            insight: .healthWatch,
+            insight: .readiness,
             metric: leaning.first?.metric,
             // The card's own score, read as concern. It already accumulates
             // votes rather than taking the worst, so it is the right scale here.
@@ -191,7 +191,7 @@ public enum SuggestionEngine {
                            volume.metric.unit, volume.vo2WhenBusier,
                            volume.vo2WhenLighter, volume.weeksCompared),
             basis: .yourOwnData,
-            insight: .cardioTrajectory,
+            insight: .fitness,
             metric: volume.metric,
             strength: strength)]
     }
@@ -370,7 +370,7 @@ public enum SuggestionEngine {
                                } ?? "your recent average",
                                reading.sourceName),
                 basis: .signalOffBaseline,
-                insight: .vitalSigns,
+                insight: .readiness,
                 metric: reading.metric,
                 // Two SDs is the floor for appearing here at all; four is as
                 // strong as this evidence gets.

@@ -203,13 +203,36 @@ public struct HeartHealthInsight: InsightModel {
             : out.components.count == 2 ? .moderate : .low
         let lines = out.components
             .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
-        let explanation = "Composite heart-health score of \(Int(out.score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
+        var explanation = "Composite heart-health score of \(Int(out.score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
 
+        // Where You Stand, absorbed. It was a card of its own reading the same
+        // three metrics this one already scores — but the *framing* is not a
+        // duplicate: a score says how you are doing, a centile says against
+        // whom, and this is the only place in the app that compares the user to
+        // published population figures rather than to their own baseline.
+        //
+        // Lines, not score terms. `PeerStandingModel` reads exactly the metrics
+        // `HeartHealthScore` has already weighted, so scoring them again would
+        // count the same measurements twice.
+        var standingLines: [InsightDriver] = []
+        if let standing = PeerStandingModel.evaluate(samples: samples, profile: profile, now: now) {
+            standingLines = standing.standings
+                .sorted { $0.percentile > $1.percentile }
+                .map { s in
+                    InsightDriver(
+                        text: "\(s.metric.displayName) \(MetricValueFormatter.string(s.value, s.metric)) — \(s.phrase) for your age and sex",
+                        // The weak ones are what a person would want to look at.
+                        isNotable: s.percentile < 40)
+                }
+            explanation += " Across \(standing.standings.count) measure\(standing.standings.count == 1 ? "" : "s") you sit around the \(Int(standing.overall.rounded()))th centile for people your age and sex — an approximation to published figures, not a lookup into a real distribution — and a centile describes where you sit, not whether anything is wrong."
+        }
+
+        let all = lines + standingLines
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: band, score: out.score, confidence: confidence,
             explanation: explanation,
-            driverLines: lines.filter { $0.isNotable == true } + lines.filter { $0.isNotable != true },
+            driverLines: all.filter { $0.isNotable == true } + all.filter { $0.isNotable != true },
             unmetRequirements: unmet, contributors: out.contributions)
     }
 

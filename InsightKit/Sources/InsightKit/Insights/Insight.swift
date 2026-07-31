@@ -1,24 +1,34 @@
 import Foundation
 
-/// Stable identifiers for the insights shipped in the MVP.
+/// Stable identifiers for the insight cards.
+///
+/// **Nine, consolidated from seventeen.** The seventeen overlapped heavily —
+/// three cards were built on VO₂max, three on sleep duration, and three did the
+/// same "scan my signals against my own baseline" job — which made the app read
+/// as a list of metrics rather than a set of answers.
+///
+/// The maths behind the merged cards was **kept**, as components: `VO2Trajectory`,
+/// `FitnessAgeModel`, `HeartAgeModel`, `SleepDebtModel`,
+/// `CircadianConsistencyModel`, `VitalSignsCheck`, `HealthWatchModel` and
+/// `PeerStandingModel` all still exist with their tests. Only the card wrappers
+/// and their identifiers went.
 public enum InsightID: String, Codable, Sendable, CaseIterable {
     case cardiovascularRisk
     case heartHealth
-    case heartAge
     case bloodPressure
-    case readiness
-    case substanceImpact
-    case sleepQuality
-    case cardioFitness
-    case cardioTrajectory
     case bodyComposition
-    case restingHeartRateTrend
-    case vitalSigns
+    /// VO₂max level, its trajectory against the age norm, and fitness age.
+    /// Absorbed Cardio Fitness, Fitness Trajectory and the fitness half of
+    /// Heart & Fitness Age.
+    case fitness
+    /// Last night and the pattern behind it. Absorbed Sleep Quality, Sleep Debt
+    /// and Sleep Regularity.
+    case sleep
+    /// The morning score, plus the vitals scan and the early warning that used
+    /// to be two more cards reading the same signals.
+    case readiness
     case energy
-    case healthWatch
-    case sleepDebt
-    case peerStanding
-    case circadianConsistency
+    case substanceImpact
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
@@ -29,14 +39,17 @@ public enum InsightCadence: Sendable { case daily, trend }
 public extension InsightID {
     var cadence: InsightCadence {
         switch self {
-        case .readiness, .substanceImpact, .sleepQuality, .vitalSigns,
-             // Energy is a *right now* number and changes hour to hour; Health
-             // Watch and Sleep Debt are both claims about today.
-             .energy, .healthWatch, .sleepDebt:
+        // Energy is a *right now* number and changes hour to hour. Readiness is
+        // a claim about today. Sleep now leads with last night — which is why it
+        // moved here: its ancestor `circadianConsistency` was a trend card
+        // because a fortnight's spread is not a statement about today, but the
+        // merged card opens with how you actually slept, and that is the first
+        // thing anyone checks in the morning.
+        case .readiness, .sleep, .energy, .substanceImpact:
             return .daily
-        // Everything else, `.circadianConsistency` included: a fortnight's
-        // spread is not a statement about today, and last night moves it by a
-        // fourteenth.
+        // VO₂max, body composition, risk and blood pressure all move over
+        // months. `default:` is deliberate rather than exhaustive here — a new
+        // insight is far more often a trend than a daily one.
         default: return .trend
         }
     }
@@ -139,6 +152,23 @@ public struct InsightResult: Sendable, Equatable {
     /// it builds each component. This is what the detail screen charts, so it
     /// cannot drift from the maths the way a hand-written list does.
     public let contributors: [MetricContribution]
+
+    /// The same result with more lines, notable ones still first.
+    ///
+    /// Exists for the merged cards: Readiness computes its score, then appends
+    /// what the vitals scan and the early warning found. Re-partitioning here
+    /// rather than at the call site is what keeps the ordering invariant — the
+    /// card preview shows `drivers.first`, so a routine line arriving after a
+    /// notable one must not be able to reach the front.
+    public func appending(driverLines extra: [InsightDriver]) -> InsightResult {
+        let all = driverLines + extra
+        return InsightResult(
+            id: id, title: title, primaryValue: primaryValue, headline: headline,
+            score: score, confidence: confidence, explanation: explanation,
+            driverLines: all.filter { $0.isNotable == true }
+                + all.filter { $0.isNotable != true },
+            unmetRequirements: unmetRequirements, contributors: contributors)
+    }
 
     /// For insights that don't distinguish notable lines from routine ones.
     public init(

@@ -168,11 +168,16 @@ final class InsightPaletteTests: XCTestCase {
     /// The four pairs that used to collide, named so a future reshuffle can't
     /// quietly recreate them.
     func testThePreviouslyCollidingPairsAreSeparable() {
+        // Re-derived after the merge to nine cards. Nine insights share eight
+        // validated hues, so exactly one preference collision exists by
+        // construction — `bodyComposition` at slot 8 wraps onto `readiness` at
+        // slot 0 — and the resolver has to break it. The rest are pairs a
+        // future reshuffle could plausibly recreate.
         let pairs: [(InsightID, InsightID)] = [
-            (.heartAge, .bloodPressure),
-            (.cardioFitness, .bodyComposition),
-            (.heartHealth, .restingHeartRateTrend),
-            (.cardioTrajectory, .substanceImpact)
+            (.readiness, .bodyComposition),
+            (.cardiovascularRisk, .bloodPressure),
+            (.fitness, .heartHealth),
+            (.sleep, .substanceImpact)
         ]
         for (a, b) in pairs {
             let slots = InsightPalette.slots(for: [a, b])

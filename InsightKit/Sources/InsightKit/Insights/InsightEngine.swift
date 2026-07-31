@@ -9,29 +9,23 @@ public struct InsightEngine: Sendable {
     public let models: [any InsightModel]
 
     public init(models: [any InsightModel]? = nil) {
+        // Nine, consolidated from seventeen — see `InsightID`. The daily block
+        // first, in the order Today shows them.
         self.models = models ?? [
             ReadinessInsight(),
-            VitalSignsInsight(),
-            SleepQualityInsight(),
-            HeartHealthInsight(),
-            CardioFitnessInsight(),
-            CardioTrajectoryInsight(),
-            CardiovascularRiskInsight(preferredEngine: .combined),
-            HeartAgeInsight(),
-            BloodPressureInsight(),
-            RestingHeartRateTrendInsight(),
-            BodyCompositionInsight(),
+            SleepInsight(),
+            EnergyInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
             // `withSubstanceLog(_:)`. Registering it here is what finally puts it
             // in front of everything that iterates `models` — score recording,
             // score replay, the comparison chart — all of which skipped it
             // silently while it was built by a free function.
             SubstanceImpactInsight(),
-            EnergyInsight(),
-            HealthWatchInsight(),
-            SleepDebtInsight(),
-            PeerStandingInsight(),
-            CircadianConsistencyInsight()
+            HeartHealthInsight(),
+            FitnessInsight(),
+            CardiovascularRiskInsight(preferredEngine: .combined),
+            BloodPressureInsight(),
+            BodyCompositionInsight()
         ]
     }
 

@@ -141,6 +141,20 @@ public enum ReadinessScore {
 
 /// `InsightModel` adapter. Readiness needs no grounding — it's built entirely
 /// from sensed signals compared to the user's own history.
+/// How you are today: the morning score, the vitals scan, and the early warning.
+///
+/// One card from three. Readiness scored recovery, Vitals Check listed which
+/// signals sat outside their usual range, and Health Watch reported several
+/// leaning the same way at once — three cards doing one job, *scanning your
+/// signals against your own baseline*, and all three reading HRV and resting
+/// heart rate to do it.
+///
+/// **The two absorbed models are unchanged.** `VitalSignsCheck` and
+/// `HealthWatchModel` keep their own tests and are called here as components.
+/// They contribute **driver lines**, not score terms: Readiness already weights
+/// the signals it scores, and adding a second opinion on the same measurements
+/// would count them twice — the double-counting this app has had to unpick
+/// before.
 public struct ReadinessInsight: InsightModel {
     public let id: InsightID = .readiness
     public let title = "Readiness"
@@ -148,15 +162,115 @@ public struct ReadinessInsight: InsightModel {
 
     public var requirements: [GroundingRequirement] { [] }
 
-    /// Everything `ReadinessScore.evaluate` can read. Both HRV flavours appear
-    /// because it prefers rMSSD and falls back to SDNN.
+    /// Everything `ReadinessScore.evaluate` can read, plus the wider set the two
+    /// absorbed scanners cover. Both HRV flavours appear because readiness
+    /// prefers rMSSD and falls back to SDNN.
     public var candidateMetrics: [MetricType] {
-        [.heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .restingHeartRate,
-         .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate,
-         .oxygenSaturation]
+        var metrics: [MetricType] = [
+            .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .restingHeartRate,
+            .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate,
+            .oxygenSaturation
+        ]
+        // Union, order-preserving: the scanners add heart rate, walking heart
+        // rate, body and skin temperature and the rest of the vitals panel, and
+        // a duplicate here would draw the same series twice on the overlay.
+        // `{ $0.metric }` rather than `\.metric` on `watched`: it is an array of
+        // tuples, and a key path into a tuple element is a compile error.
+        for extra in VitalSignsCheck.specs.map(\.metric) + HealthWatchModel.watched.map({ $0.metric })
+        where !metrics.contains(extra) {
+            metrics.append(extra)
+        }
+        return metrics
     }
 
-    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
+    /// The samples-only overload the protocol requires. Readiness reads events,
+    /// so this is the degraded path — a caller with no event source still gets
+    /// the score and the vitals scan, just not the device-raised flags.
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
+                         now: Date) -> InsightResult {
+        evaluate(samples: samples, events: [], profile: profile, now: now)
+    }
+
+    public func evaluate(samples: [HealthMetricSample], events: [VitalEvent],
+                         profile: UserHealthProfile, now: Date) -> InsightResult {
+        let base = score(samples: samples, profile: profile, now: now)
+        let scan = VitalSignsCheck.evaluate(samples: samples, events: events, now: now)
+        let watch = HealthWatchModel.evaluate(samples: samples, now: now)
+
+        // Notable lines from the two scanners, appended to whatever readiness
+        // already had to say. A device-raised event leads outright — an
+        // irregular-rhythm notification is a judgement Apple already made, and
+        // burying it under a recovery score would be the wrong call.
+        var extra: [InsightDriver] = scan.events.map {
+            .notable("\($0.kind.displayName): \($0.kind.note)")
+        }
+        let flagged = scan.unusual + scan.watch
+        extra += flagged.map { .notable(VitalSignsCheck.describe($0)) }
+        // A vital we couldn't judge counts as notable: "not enough history" is a
+        // thing to know, not reassurance, and folding it in with the normal
+        // readings would let one measurement read as a clean bill.
+        extra += scan.unknown.map { .notable(VitalSignsCheck.describe($0)) }
+        if let watch, watch.leaning.count >= 2 {
+            // The disclaimer travels with the finding, not just with the card.
+            // Health Watch carried it in its own explanation; losing the card
+            // must not lose the sentence, and a driver line can be read aloud
+            // by the summariser well away from any screen disclaimer.
+            extra.append(.notable("\(watch.leaning.count) signals are leaning the same way at once — individually inside the noise, together the pattern a body tends to show before an illness announces itself. An observation about your own numbers, not a diagnosis — if you feel unwell, treat that as the better information."))
+        }
+        extra += scan.readings.filter { $0.status == .normal }
+            .map { .routine(VitalSignsCheck.describe($0)) }
+        extra += scan.stale.map { .routine(VitalSignsCheck.describe($0, now: now)) }
+
+        // Every vital the scan looked at reaches the chart, at weight 0 where
+        // readiness didn't already score it. Without this the merge would have
+        // quietly stopped charting two-thirds of the vitals panel: the overlay
+        // draws `contributors`, and readiness only scores six of the seventeen
+        // signals the scan covers.
+        var contributors = base.contributors
+        let alreadyScored = Set(contributors.map(\.metric))
+        for reading in scan.readings where !alreadyScored.contains(reading.metric) {
+            let spec = VitalSignsCheck.specs.first { $0.metric == reading.metric }
+            contributors.append(MetricContribution(
+                metric: reading.metric,
+                higherIsBetter: spec.flatMap { $0.concernWhenHigh ? false : ($0.concernWhenLow ? true : nil) },
+                weight: 0,
+                detail: MetricValueFormatter.string(reading.value, reading.metric)))
+        }
+
+        // A device-raised flag outranks a day of ordinary numbers.
+        //
+        // Apple has already made this judgement with no baseline and no
+        // z-score, and burying it under a recovery band would be the wrong
+        // call — it was the Vitals Check card's headline before the merge, and
+        // losing that would be a safety regression rather than a tidy-up.
+        if let event = scan.events.first {
+            return InsightResult(
+                id: id, title: title,
+                primaryValue: base.primaryValue ?? Double(scan.readings.count),
+                headline: event.kind.displayName,
+                // Floored, not zeroed: the rest of the morning is still true.
+                score: Swift.min(base.score ?? 45, 45),
+                confidence: base.confidence,
+                explanation: "Your \(event.sourceName) flagged \(event.kind.displayName.lowercased()) — \(event.kind.note). " + base.explanation,
+                driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
+                    + (base.driverLines + extra).filter { $0.isNotable != true },
+                unmetRequirements: base.unmetRequirements,
+                contributors: contributors)
+        }
+
+        return InsightResult(
+            id: id, title: title, primaryValue: base.primaryValue,
+            headline: base.headline, score: base.score, confidence: base.confidence,
+            explanation: base.explanation,
+            driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
+                + (base.driverLines + extra).filter { $0.isNotable != true },
+            unmetRequirements: base.unmetRequirements, contributors: contributors)
+    }
+
+    /// The readiness score proper. Split out so the merged `evaluate` above
+    /// reads as "score, then scan, then warn" rather than one long function.
+    private func score(samples: [HealthMetricSample], profile: UserHealthProfile,
+                       now: Date) -> InsightResult {
         guard let out = ReadinessScore.evaluate(samples: samples, now: now) else {
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "Building baseline",

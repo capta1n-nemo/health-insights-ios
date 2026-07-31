@@ -200,7 +200,7 @@ final class HeartAgeModelTests: XCTestCase {
 
 // MARK: - The insight surface
 
-final class HeartAgeInsightTests: XCTestCase {
+final class HeartAgeAnalyserTests: XCTestCase {
     private let now = Date()
 
     private func profile(age: Double, male: Bool = true, systolic: Double? = nil,
@@ -226,114 +226,110 @@ final class HeartAgeInsightTests: XCTestCase {
     func testFitnessAgeAloneWorksWithNoGroundingBeyondAgeAndSex() {
         // The half that needs nothing from the user must still land: an Apple
         // Watch supplies VO₂max unprompted.
-        let insight = HeartAgeInsight()
+        let insight = HeartAgeAnalyser()
         let analysis = insight.analyse(samples: vo2(44), profile: profile(age: 50), now: now)
         XCTAssertNil(analysis.heart)
         XCTAssertEqual(analysis.fitness!.fitnessAge, 35, accuracy: 0.01)
 
-        let result = insight.evaluate(samples: vo2(44), profile: profile(age: 50), now: now)
-        XCTAssertEqual(result.headline, "Fitness age 35")
-        XCTAssertEqual(result.confidence, .low)          // no clinical half yet
-        XCTAssertEqual(result.primaryValue!, 35, accuracy: 0.01)
-        XCTAssertTrue(result.drivers.contains { $0.contains("Fitness age: 35") })
+        // And it reaches the user on the Fitness card, which asks for nothing
+        // the risk equations need.
+        let result = FitnessInsight().evaluate(samples: vo2(44), profile: profile(age: 50),
+                                               now: now)
+        XCTAssertEqual(result.primaryValue!, 44, accuracy: 0.01)   // the VO₂max itself
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Fitness age 35") },
+                      result.drivers.joined(separator: " | "))
     }
 
+    // MARK: - Where the card's two halves went
+    //
+    // Heart & Fitness Age is no longer a card. `HeartAgeAnalyser` still computes
+    // both ages and every test above still exercises it directly — what changed
+    // is who *renders* them: the heart age moved to Heart Attack & Stroke Risk,
+    // which already runs the same SCORE2/ASCVD equations this inverts, and the
+    // fitness age moved to Fitness.
+
     func testBloodPressureUnlocksHeartAge() {
-        let insight = HeartAgeInsight()
         let p = profile(age: 55, systolic: 150)
-        let analysis = insight.analyse(samples: vo2(38), profile: p, now: now)
+        let analysis = HeartAgeAnalyser().analyse(samples: vo2(38), profile: p, now: now)
         XCTAssertNotNil(analysis.heart)
         XCTAssertTrue(analysis.assumedCholesterol)
         XCTAssertGreaterThan(analysis.heart!.heartAge!, 55)   // 150 mmHg is not optimal
+    }
 
-        let result = insight.evaluate(samples: vo2(38), profile: p, now: now)
-        XCTAssertTrue(result.headline.hasPrefix("Heart age"))
-        XCTAssertEqual(result.confidence, .moderate)          // cholesterol assumed
-        XCTAssertTrue(result.drivers.contains { $0.contains("Cholesterol assumed average") })
+    /// The heart age reaches the user, on the risk card.
+    func testHeartAgeIsReportedByTheRiskCard() {
+        let result = CardiovascularRiskInsight(preferredEngine: .combined)
+            .evaluate(samples: vo2(38), profile: profile(age: 55, systolic: 150), now: now)
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Heart age") },
+                      "heart age should be a line on the risk card")
         XCTAssertTrue(result.drivers.contains { $0.contains("modifiable part") })
     }
 
-    func testRealCholesterolRaisesConfidence() {
-        let result = HeartAgeInsight().evaluate(
-            samples: vo2(38), profile: profile(age: 55, systolic: 150, cholesterol: true),
-            now: now)
-        XCTAssertEqual(result.confidence, .high)
+    /// And says where its other half went, because the two can disagree and the
+    /// card that used to show them side by side is gone.
+    func testTheRiskCardPointsAtFitnessAgeRatherThanLeavingItUnexplained() {
+        let result = CardiovascularRiskInsight(preferredEngine: .combined)
+            .evaluate(samples: vo2(38), profile: profile(age: 55, systolic: 150), now: now)
+        XCTAssertTrue(result.drivers.contains { $0.contains("Fitness card") })
     }
 
-    func testMeasuredBloodPressureIsUsedWhenNoCuffReadingIsLogged() {
-        // A cuff reading synced through Apple Health counts as grounding.
-        var samples = vo2(40)
-        samples.append(HealthMetricSample(type: .bloodPressureSystolic, value: 128,
-                                          start: now, source: .appleHealth))
-        let analysis = HeartAgeInsight().analyse(samples: samples, profile: profile(age: 50),
-                                                 now: now)
-        XCTAssertNotNil(analysis.heart)
+    /// The fitness age reaches the user, on the Fitness card — and needs no
+    /// blood pressure to do it, which was the whole reason the two halves were
+    /// worth separating.
+    func testFitnessAgeIsReportedByTheFitnessCardWithoutAnyClinicalGrounding() {
+        let result = FitnessInsight().evaluate(samples: vo2(42),
+                                               profile: profile(age: 50), now: now)
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Fitness age") })
+        XCTAssertNotNil(result.score)
     }
 
     func testNothingToSayWithoutAgeOrSex() {
-        let result = HeartAgeInsight().evaluate(samples: vo2(44), profile: UserHealthProfile(),
-                                                now: now)
+        let result = FitnessInsight().evaluate(samples: vo2(44), profile: UserHealthProfile(),
+                                               now: now)
         XCTAssertNil(result.primaryValue)
         XCTAssertEqual(result.headline, "Add your details")
         XCTAssertTrue(result.unmetRequirements.contains { $0.kind == .dateOfBirth })
     }
 
-    func testYoungUserGetsFitnessAgeAndProjectionsButNoHeartAge() {
-        // Under 40 both equations are extrapolation, so the clinical half is
-        // withheld rather than guessed at — but the sensed half still shows, and
-        // the equations *are* valid at the ages being projected to.
-        let insight = HeartAgeInsight()
+    /// Under 40 both risk equations are extrapolation, so the clinical half is
+    /// withheld rather than guessed at — while the sensed half still shows.
+    /// That asymmetry is why the split works.
+    func testYoungUserGetsFitnessAgeButNoHeartAge() {
         let p = profile(age: 32, systolic: 150)
-        let analysis = insight.analyse(samples: vo2(42), profile: p, now: now)
+        let analysis = HeartAgeAnalyser().analyse(samples: vo2(42), profile: p, now: now)
         XCTAssertNil(analysis.heart)
         XCTAssertNotNil(analysis.fitness)
         XCTAssertFalse(analysis.projections.isEmpty)
 
-        // The reason there's no heart age is their age, not a missing reading —
-        // saying "add a blood pressure" here would send them after data they
-        // already gave us.
-        let result = insight.evaluate(samples: vo2(42), profile: p, now: now)
-        XCTAssertTrue(result.explanation.contains("40–79"))
-        XCTAssertFalse(result.explanation.contains("Add a blood-pressure reading"))
-    }
-
-    func testMissingBloodPressureIsNamedAsTheReasonWhenItIsTheReason() {
-        let result = HeartAgeInsight().evaluate(samples: vo2(42),
-                                               profile: profile(age: 55), now: now)
-        XCTAssertTrue(result.explanation.contains("Add a blood-pressure reading"))
-    }
-
-    func testDialScoreFallsAsTheHeartAgesPastYou() {
-        let insight = HeartAgeInsight()
-        let level = insight.evaluate(samples: [], profile: profile(age: 55, systolic: 120,
-                                                                  cholesterol: false), now: now)
-        let strained = insight.evaluate(samples: [], profile: profile(age: 55, systolic: 175),
-                                        now: now)
-        XCTAssertNotNil(level.score)
-        XCTAssertGreaterThan(level.score!, strained.score!)
-        XCTAssertGreaterThanOrEqual(strained.score!, 0)
+        let fitness = FitnessInsight().evaluate(samples: vo2(42), profile: p, now: now)
+        XCTAssertNotNil(fitness.score, "fitness does not wait on the risk equations")
     }
 
     func testExcessPhrasingReadsAsEnglish() {
-        XCTAssertEqual(HeartAgeInsight.excessPhrase(0.4), "about the same as your real age")
-        XCTAssertEqual(HeartAgeInsight.excessPhrase(1.2), "1 year older than you are")
-        XCTAssertEqual(HeartAgeInsight.excessPhrase(-6), "6 years younger than you are")
+        XCTAssertEqual(HeartAgeAnalyser.excessPhrase(0.4), "about the same as your real age")
+        XCTAssertEqual(HeartAgeAnalyser.excessPhrase(1.2), "1 year older than you are")
+        XCTAssertEqual(HeartAgeAnalyser.excessPhrase(-6), "6 years younger than you are")
     }
 
     func testCappedAgesAreSaidOutLoudRatherThanShownAsFact() {
-        XCTAssertEqual(HeartAgeInsight.heartAgePhrase(79, capped: true), "79 or older")
-        XCTAssertEqual(HeartAgeInsight.heartAgePhrase(40, capped: true), "40 or younger")
-        XCTAssertEqual(HeartAgeInsight.fitnessAgePhrase(20, capped: true), "20 or younger")
-        XCTAssertEqual(HeartAgeInsight.fitnessAgePhrase(75, capped: true), "75 or older")
-        XCTAssertEqual(HeartAgeInsight.fitnessAgePhrase(52.4, capped: false), "52")
+        XCTAssertEqual(HeartAgeAnalyser.heartAgePhrase(79, capped: true), "79 or older")
+        XCTAssertEqual(HeartAgeAnalyser.heartAgePhrase(40, capped: true), "40 or younger")
+        XCTAssertEqual(HeartAgeAnalyser.fitnessAgePhrase(20, capped: true), "20 or younger")
+        XCTAssertEqual(HeartAgeAnalyser.fitnessAgePhrase(75, capped: true), "75 or older")
+        XCTAssertEqual(HeartAgeAnalyser.fitnessAgePhrase(52.4, capped: false), "52")
     }
 
-    func testRegisteredInTheEngine() {
+    /// The card is gone; both of its halves are registered and reachable.
+    func testBothHalvesAreRegisteredInTheEngine() {
         let engine = InsightEngine()
-        XCTAssertTrue(engine.models.contains { $0.id == .heartAge })
-        let result = engine.result(for: .heartAge, samples: vo2(44),
-                                  profile: profile(age: 50), now: now)
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result!.id.cadence, .trend)
+        XCTAssertFalse(engine.models.contains { $0.id.rawValue == "heartAge" },
+                       "Heart & Fitness Age was merged and should not be registered")
+        for id in [InsightID.fitness, .cardiovascularRisk] {
+            XCTAssertTrue(engine.models.contains { $0.id == id }, "\(id) missing")
+            let result = engine.result(for: id, samples: vo2(44),
+                                       profile: profile(age: 50), now: now)
+            XCTAssertNotNil(result)
+            XCTAssertEqual(result!.id.cadence, .trend)
+        }
     }
 }

@@ -54,7 +54,14 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
                                         events: events.filter { $0.date < asOf },
                                         profile: profile, now: asOf)
             guard let score = result.score else { continue }
-            let used = result.contributors.isEmpty ? present : result.contributors.count
+            // Mirrors `ScoreHistory.replay`: a weight-0 contribution is reported,
+            // not scored, so it cannot be what makes a day well-founded. This
+            // reference exists to check the *optimisation* is faithful, so it
+            // has to restate the rule rather than an older version of it.
+            let weighted = result.contributors.filter { $0.weight > 0 }.count
+            let used = result.contributors.isEmpty
+                ? present
+                : (weighted > 0 ? weighted : result.contributors.count)
             guard used >= ScoreHistory.minimumContributors else { continue }
 
             points.append(ScorePoint(date: dayStart, score: score,
@@ -129,7 +136,7 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
             out.append(.init(type: .heartRate, value: 60 + Double(i % 7),
                              start: date, source: .appleHealth))
         }
-        assertAgrees(VitalSignsInsight(), samples: out, days: 30)
+        assertAgrees(ReadinessInsight(), samples: out, days: 30)
     }
 
     /// The metric-count pre-check is the part that changed representation —
@@ -158,7 +165,7 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
         let events = (0..<12).map { i in
             VitalEvent(kind: .highHeartRate, date: TestClock.day(i * 3), sourceName: "Apple Watch")
         }
-        assertAgrees(VitalSignsInsight(), samples: dense(days: 40),
+        assertAgrees(ReadinessInsight(), samples: dense(days: 40),
                      events: events, days: 40)
     }
 
@@ -173,8 +180,8 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
     func testAgreesAcrossModels() {
         let samples = dense(days: 40)
         assertAgrees(ReadinessInsight(), samples: samples, days: 40)
-        assertAgrees(VitalSignsInsight(), samples: samples, days: 40)
-        assertAgrees(SleepQualityInsight(), samples: samples, days: 40)
+        assertAgrees(ReadinessInsight(), samples: samples, days: 40)
+        assertAgrees(SleepInsight(), samples: samples, days: 40)
     }
 
     /// The invariant the optimisation rests on, asserted directly rather than

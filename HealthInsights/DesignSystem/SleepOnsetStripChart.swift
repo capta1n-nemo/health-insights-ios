@@ -38,7 +38,7 @@ import InsightKit
 struct SleepOnsetStripChart: View {
     let output: CircadianConsistencyModel.Output
 
-    private var tint: Color { Theme.insightTint(.circadianConsistency) }
+    private var tint: Color { Theme.insightTint(.sleep) }
 
     /// The two block centres actually in play. One entry when no weekday/weekend
     /// shift was measurable, which is also when both centres are the same number

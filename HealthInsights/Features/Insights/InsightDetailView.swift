@@ -32,19 +32,22 @@ struct InsightDetailView: View {
 
     /// The card's own picture of its own subject, where it has one.
     ///
-    /// Collected into a single switch so the placement rule is stated once. Five
-    /// insights have one; the rest draw their inputs through the shared overlay
-    /// below, which for a single-metric insight already *is* its chart.
+    /// Collected into a single switch so the placement rule is stated once. The
+    /// rest draw their inputs through the shared overlay below, which for a
+    /// single-metric insight already *is* its chart.
     @ViewBuilder private var bespokeSection: some View {
         switch insightID {
-        case .heartAge:
-            ageComparisonCard
+        case .cardiovascularRisk:
+            // Heart age, where the equations that produce it already live.
+            ageHistoryCard
+        case .fitness:
+            // Fitness age against the chronological line.
             ageHistoryCard
         case .bloodPressure:
             bloodPressureChartCard
         case .energy:
             energyCurveCard
-        case .circadianConsistency:
+        case .sleep:
             sleepRegularityCard
         case .substanceImpact:
             substanceLoadCard
@@ -173,47 +176,33 @@ struct InsightDetailView: View {
         }
     }
 
-    /// Three ages side by side. The whole point of this insight is the gap
-    /// between them, which a number buried in a sentence doesn't convey.
-    @ViewBuilder private var ageComparisonCard: some View {
-        let analysis = HeartAgeInsight().analyse(samples: model.samples,
-                                                 profile: model.profile, now: Date())
-        if analysis.heart != nil || analysis.fitness != nil {
-            Card {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("How old are you behaving?").font(.headline)
-                    HStack(alignment: .top, spacing: 0) {
-                        ageColumn("You", value: analysis.chronologicalAge, tint: .primary)
-                        if let heart = analysis.heart, let heartAge = heart.heartAge {
-                            Divider().frame(height: 44)
-                            ageColumn("Heart", value: heartAge,
-                                      tint: Self.tint(excessYears: heart.excessYears ?? 0))
-                        }
-                        if let fitness = analysis.fitness {
-                            Divider().frame(height: 44)
-                            ageColumn("Fitness", value: fitness.fitnessAge,
-                                      tint: Self.tint(excessYears: -(fitness.yearsYounger ?? 0)))
-                        }
-                    }
-                    Text("Heart age comes from the risk equations, fitness age from your VO₂max against age norms. They can disagree — a fit heart can still carry high blood pressure.")
-                        .font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    /// The ages over time, which the three-number card structurally cannot show.
+    /// The age this card owns, over time.
     ///
     /// The pace is the finding, not the level: your real age advances a year per
     /// year regardless, so a heart age gaining 1.0 a year is holding station and
     /// one gaining 0.6 is catching up even though its number keeps rising.
+    ///
+    /// One chart, two owners. Heart & Fitness Age used to draw both lines beside
+    /// a three-age row; that row could not survive the cards being split by
+    /// subject, so each card now draws its own age against the chronological
+    /// line and the risk card carries the sentence about them disagreeing.
     @ViewBuilder private var ageHistoryCard: some View {
-        let points = model.heartAgeHistory()
+        // Filtered to this card's own age by blanking the other, rather than
+        // by teaching the chart a mode: `AgePoint` already carries both as
+        // optionals and `AgeHistoryChart` already skips a nil, so the data is
+        // the cheaper place to make the cut and the chart stays one thing.
+        let points = model.heartAgeHistory().map { point in
+            insightID == .fitness
+                ? AgePoint(date: point.date, chronological: point.chronological,
+                           heart: nil, fitness: point.fitness)
+                : AgePoint(date: point.date, chronological: point.chronological,
+                           heart: point.heart, fitness: nil)
+        }
         if points.count >= 3 {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Both ages over time").font(.headline)
+                    Text(insightID == .fitness ? "Fitness age over time"
+                                               : "Heart age over time").font(.headline)
                     AgeHistoryChart(points: points)
                     if let pace = points.yearsPerYear {
                         Text(Self.pacePhrase(pace))
@@ -239,25 +228,6 @@ struct InsightDetailView: View {
             return String(format: "Gaining on it: %.1f years per year against the 1.0 of the calendar, so the gap is closing by about %.1f a year.", yearsPerYear, -gap)
         }
         return String(format: "Running ahead: %.1f years per year against the 1.0 of the calendar, so the gap is widening by about %.1f a year.", yearsPerYear, gap)
-    }
-
-    private func ageColumn(_ label: String, value: Double?, tint: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(value.map { "\(Int($0.rounded()))" } ?? "—")
-                .font(.title.weight(.bold))
-                .monospacedDigit()
-                .foregroundStyle(tint)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    /// Years ahead of your real age, coloured the way the rest of the app does:
-    /// behind your years is good, well ahead needs attention.
-    private static func tint(excessYears: Double) -> Color {
-        if excessYears >= 3 { return Theme.bad }
-        if excessYears <= -3 { return Theme.good }
-        return Theme.warn
     }
 
     /// What's driving this — departures first, the reassuring majority behind a

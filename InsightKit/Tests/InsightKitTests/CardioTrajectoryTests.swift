@@ -222,7 +222,7 @@ final class CardioTrajectoryInsightTests: XCTestCase {
     }
 
     func testNeedsAgeAndSexBeforeItCanJudgeATrend() {
-        let result = CardioTrajectoryInsight().evaluate(
+        let result = FitnessInsight().evaluate(
             samples: linearYear(from: 38, to: 40), profile: UserHealthProfile(), now: afterAYear)
         XCTAssertNil(result.primaryValue)
         XCTAssertEqual(result.headline, "Add your details")
@@ -230,34 +230,38 @@ final class CardioTrajectoryInsightTests: XCTestCase {
     }
 
     func testImprovingTrendIsHeadlinedAndScoredAboveMidDial() {
-        let result = CardioTrajectoryInsight().evaluate(
+        let result = FitnessInsight().evaluate(
             samples: linearYear(from: 38, to: 40), profile: profile(), now: afterAYear)
-        XCTAssertEqual(result.headline, "Improving")
-        XCTAssertEqual(result.primaryValue!, 2, accuracy: 0.1)
-        XCTAssertGreaterThan(result.score!, 60)          // 60 is "matching the decline"
-        XCTAssertEqual(result.confidence, .high)         // 52 readings over a year
-        XCTAssertTrue(result.drivers.contains { $0.contains("Net of ageing") })
-        XCTAssertTrue(result.drivers.contains { $0.contains("Fitness age") })
+        // The card headlines the *level* — "how fit am I" is first a question
+        // about where you are — and carries the direction as a line.
+        XCTAssertEqual(result.primaryValue!, 40, accuracy: 0.1)   // the VO₂max itself
+        XCTAssertEqual(result.confidence, .high)                  // 52 readings over a year
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Improving") })
+        XCTAssertTrue(result.drivers.contains { $0.contains("net of ageing") })
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Fitness age") })
     }
 
     func testHoldingLevelScoresAboveTheAgeTypicalMidpoint() {
-        let result = CardioTrajectoryInsight().evaluate(
+        let result = FitnessInsight().evaluate(
             samples: linearYear(from: 40, to: 40), profile: profile(), now: afterAYear)
-        XCTAssertEqual(result.headline, "Holding")
-        XCTAssertEqual(result.score!, 68, accuracy: 1e-6)   // 60 + 0.4 × 20
-        XCTAssertTrue(result.explanation.contains("holding level is already a gain"))
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Holding") })
+        // Holding level beats the age-typical decline, so the trajectory half
+        // scores above its 60 midpoint and pulls the composite up.
+        let declining = FitnessInsight().evaluate(
+            samples: linearYear(from: 42, to: 39), profile: profile(), now: afterAYear)
+        XCTAssertGreaterThan(result.score!, declining.score!)
     }
 
     func testDecliningTrendScoresBelowTheMidpoint() {
-        let result = CardioTrajectoryInsight().evaluate(
+        let result = FitnessInsight().evaluate(
             samples: linearYear(from: 42, to: 39), profile: profile(), now: afterAYear)
-        XCTAssertEqual(result.headline, "Declining")
-        XCTAssertLessThan(result.score!, 60)
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Declining") })
         XCTAssertGreaterThanOrEqual(result.score!, 0)
+        XCTAssertLessThanOrEqual(result.score!, 100)
     }
 
     func testNoReadingsSaysSoWithoutPretendingToATrend() {
-        let result = CardioTrajectoryInsight().evaluate(samples: [], profile: profile(),
+        let result = FitnessInsight().evaluate(samples: [], profile: profile(),
                                                        now: afterAYear)
         XCTAssertEqual(result.headline, "No readings yet")
         XCTAssertNil(result.score)
@@ -265,26 +269,28 @@ final class CardioTrajectoryInsightTests: XCTestCase {
     }
 
     func testTooFewReadingsIsDistinguishedFromNone() {
-        let result = CardioTrajectoryInsight().evaluate(samples: vo2Weekly([40, 41, 42]),
+        let result = FitnessInsight().evaluate(samples: vo2Weekly([40, 41, 42]),
                                                        profile: profile(), now: day(21))
-        XCTAssertEqual(result.headline, "Not enough history")
-        XCTAssertTrue(result.explanation.contains("3 cardio-fitness readings"))
+        // Three readings is a level but not a trajectory, and the card says so
+        // rather than drawing a line through them.
+        XCTAssertNotNil(result.score, "a level does not wait on a trajectory")
+        XCTAssertTrue(result.drivers.contains { $0.contains("Not enough readings yet for a trajectory") })
     }
 
     func testStaleReadingsSayTheyAreStaleRatherThanMissing() {
-        let result = CardioTrajectoryInsight().evaluate(
+        let result = FitnessInsight().evaluate(
             samples: linearYear(from: 38, to: 40), profile: profile(),
             now: afterAYear.addingTimeInterval(200 * 86_400))
-        XCTAssertEqual(result.headline, "Out of date")
-        XCTAssertTrue(result.explanation.contains("days old"))
+        XCTAssertTrue(result.drivers.contains { $0.contains("days ago") },
+                      "a stale reading must say it is stale rather than read as current")
     }
 
     func testRegisteredInTheEngineAsATrendInsight() {
         let engine = InsightEngine()
-        XCTAssertTrue(engine.models.contains { $0.id == .cardioTrajectory })
-        let result = engine.result(for: .cardioTrajectory, samples: linearYear(from: 38, to: 40),
+        XCTAssertTrue(engine.models.contains { $0.id == .fitness })
+        let result = engine.result(for: .fitness, samples: linearYear(from: 38, to: 40),
                                   profile: profile(), now: afterAYear)!
-        XCTAssertEqual(result.headline, "Improving")
+        XCTAssertTrue(result.drivers.contains { $0.hasPrefix("Improving") })
         XCTAssertEqual(result.id.cadence, .trend)
     }
 }

@@ -127,37 +127,14 @@ final class SharedBaselineTests: XCTestCase {
 
     // MARK: - Resting Heart Rate trend
 
-    /// The card had `score: nil` hard-coded, so its bubble was empty.
-    func testRestingHeartRateTrendNowScores() {
-        let samples = (0...20).map { sample(.restingHeartRate, 55 + Double($0 % 3), $0) }
-        let result = RestingHeartRateTrendInsight().evaluate(
-            samples: samples, profile: UserHealthProfile(), now: now)
-        XCTAssertNotNil(result.score)
-    }
-
-    /// A month of upward drift and a month of downward drift both sit on their
-    /// own baseline, so a same-day z-score alone cannot tell them apart. The
-    /// card is named for the trend, so the trend has to reach the score.
-    func testUpwardDriftScoresBelowDownwardDrift() {
-        // `back` counts backwards, so subtracting it makes today the highest.
-        let rising = (0...27).map { sample(.restingHeartRate, 70 - Double($0) * 0.4, $0) }
-        let falling = (0...27).map { sample(.restingHeartRate, 55 + Double($0) * 0.4, $0) }
-
-        let up = RestingHeartRateTrendInsight().evaluate(
-            samples: rising, profile: UserHealthProfile(), now: now)
-        let down = RestingHeartRateTrendInsight().evaluate(
-            samples: falling, profile: UserHealthProfile(), now: now)
-        XCTAssertLessThan(up.score ?? 100, down.score ?? 0)
-        XCTAssertTrue(up.drivers.contains { $0.contains("Trending up") })
-        XCTAssertTrue(down.drivers.contains { $0.contains("Trending down") })
-    }
-
-    /// Level and trend are separate terms, and neither alone is the score.
-    func testScoreCombinesLevelAndDrift() {
-        let flat = RestingHeartRateTrendInsight.score(z: 0, weeklyDrift: 0)
-        XCTAssertEqual(flat ?? 0, 70, accuracy: 0.001)
-        XCTAssertLessThan(RestingHeartRateTrendInsight.score(z: 2, weeklyDrift: 0) ?? 100, flat ?? 0)
-        XCTAssertLessThan(RestingHeartRateTrendInsight.score(z: 0, weeklyDrift: 1) ?? 100, flat ?? 0)
-        XCTAssertNil(RestingHeartRateTrendInsight.score(z: nil, weeklyDrift: nil))
-    }
+    // The three tests that stood here exercised the Resting Heart Rate card:
+    // that it scored at all, that upward drift scored below downward drift, and
+    // that its score combined level with drift.
+    //
+    // That card is gone. Resting heart rate was never unique to it — it is a
+    // scored component of Heart Health and a read of Readiness, Blood Pressure,
+    // Energy and Fitness — so what the merge dropped is the *trend framing*,
+    // along with `RestingHeartRateTrendInsight.score(z:weeklyDrift:)`, which
+    // nothing else called. Deleted rather than repointed: asserting Heart Health
+    // emits "Trending up" would be testing a behaviour that no longer exists.
 }

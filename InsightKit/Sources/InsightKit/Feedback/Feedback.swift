@@ -131,28 +131,25 @@ public extension InsightID {
     /// attribute error to a specific model revision.
     var modelVersion: String {
         switch self {
-        case .cardiovascularRisk: return "cvrisk-score2-2021_ascvd-2013"
-        case .heartHealth: return "hearthealth-v1"
-        case .heartAge: return "heartage-vascular-v1"
+        // v2 of the risk card: it now also reports heart age, inverting the same
+        // equations it already ran.
+        case .cardiovascularRisk: return "cvrisk-score2-2021_ascvd-2013-v2"
+        // v2: percentile standing against published norms joined the card.
+        case .heartHealth: return "hearthealth-v2"
         case .bloodPressure: return "bp-estimator-v2"
-        case .readiness: return "readiness-v1"
-        case .substanceImpact: return "substance-v1"
-        // v2: the stage breakdown joined the score and every other term was
-        // rebalanced to make room. A recorded score is only comparable with
-        // another score from the same model, so a weight change is a version
-        // change — nothing in the build enforces this, which is why it is
-        // written down in the `add-insight` skill too.
-        case .sleepQuality: return "sleep-v2"
-        case .cardioFitness: return "cardiofitness-v1"
-        case .cardioTrajectory: return "vo2trajectory-v1"
+        // The three merged cards start at v1 under their own names. A recorded
+        // score is only comparable with another from the same model, and these
+        // blend components that were previously scored separately — so carrying
+        // a predecessor's version string across would be a lie about
+        // comparability, which is exactly what this field exists to prevent.
+        case .fitness: return "fitness-v1"
+        case .sleep: return "sleep-v1"
+        // v2: absorbed the vitals scan and the multi-signal early warning that
+        // used to be two separate cards, which changes what the score means.
+        case .readiness: return "readiness-v2"
         case .bodyComposition: return "bodycomp-v1"
-        case .restingHeartRateTrend: return "rhrtrend-v1"
-        case .vitalSigns: return "vitalsigns-v1"
         case .energy: return "energy-v1"
-        case .healthWatch: return "healthwatch-v1"
-        case .sleepDebt: return "sleepdebt-v1"
-        case .peerStanding: return "peerstanding-v1"
-        case .circadianConsistency: return "circadian-v1"
+        case .substanceImpact: return "substance-v1"
         }
     }
 }

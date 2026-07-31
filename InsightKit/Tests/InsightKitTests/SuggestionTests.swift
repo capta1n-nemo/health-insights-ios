@@ -73,7 +73,7 @@ final class SuggestionTests: XCTestCase {
             result(.cardiovascularRisk, score: nil,
                    unmet: [requirement(.cuffSystolic, mandatory: true),
                            requirement(.ascvdRaceGroup, mandatory: false)]),
-            result(.heartAge, score: nil, unmet: [requirement(.cuffSystolic, mandatory: true)]),
+            result(.cardiovascularRisk, score: nil, unmet: [requirement(.cuffSystolic, mandatory: true)]),
             result(.bloodPressure, score: nil, unmet: [requirement(.cuffSystolic, mandatory: true)])
         ]
         let ranked = suggestions(results: results)
@@ -211,7 +211,7 @@ final class SuggestionsFromTheNewCardsTests: XCTestCase {
 
         let top = try XCTUnwrap(suggestions(samples).first)
         XCTAssertEqual(top.basis, .convergingSignals)
-        XCTAssertEqual(top.insight, .healthWatch)
+        XCTAssertEqual(top.insight, .readiness)
         // The count in the sentence is the model's, not a second opinion.
         XCTAssertTrue(top.title.hasPrefix("\(watch.leaning.count) signals"), top.title)
     }

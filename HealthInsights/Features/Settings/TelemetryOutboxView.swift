@@ -80,23 +80,15 @@ struct TelemetryOutboxView: View {
     private func prettyInsight(_ raw: String) -> String {
         InsightID(rawValue: raw).map { id in
             switch id {
-            case .cardiovascularRisk: return "Heart attack & stroke risk"
-            case .heartHealth: return "Heart health"
-            case .heartAge: return "Heart & fitness age"
-            case .bloodPressure: return "Blood pressure"
             case .readiness: return "Readiness"
-            case .substanceImpact: return "Substance impact"
-            case .sleepQuality: return "Sleep quality"
-            case .cardioFitness: return "Cardio fitness"
-            case .cardioTrajectory: return "Fitness trajectory"
-            case .bodyComposition: return "Body composition"
-            case .restingHeartRateTrend: return "Resting heart rate"
-            case .vitalSigns: return "Vitals check"
+            case .sleep: return "Sleep"
             case .energy: return "Energy"
-            case .healthWatch: return "Health watch"
-            case .sleepDebt: return "Sleep debt"
-            case .peerStanding: return "Where you stand"
-            case .circadianConsistency: return "Sleep regularity"
+            case .substanceImpact: return "Substance impact"
+            case .heartHealth: return "Heart health"
+            case .fitness: return "Fitness"
+            case .cardiovascularRisk: return "Heart attack & stroke risk"
+            case .bloodPressure: return "Blood pressure"
+            case .bodyComposition: return "Body composition"
             }
         } ?? raw
     }

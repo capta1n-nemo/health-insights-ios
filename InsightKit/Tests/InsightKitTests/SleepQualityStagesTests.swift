@@ -35,7 +35,7 @@ final class SleepQualityStagesTests: XCTestCase {
     }
 
     private func evaluate(_ samples: [HealthMetricSample]) -> InsightResult {
-        SleepQualityInsight().evaluate(samples: samples, profile: .init(), now: sqNow)
+        SleepInsight().evaluate(samples: samples, profile: .init(), now: sqNow)
     }
 
     /// The design decision worth pinning. A six-hour sleeper with textbook
@@ -117,9 +117,22 @@ final class SleepQualityStagesTests: XCTestCase {
                                        start: TestClock.day(0), source: .oura))
         full.append(HealthMetricSample(type: .skinTemperatureDeviation, value: 0.1,
                                        start: TestClock.day(0), source: .oura))
-        let result = SleepQualityInsight().evaluate(samples: full, profile: .init(),
+        // Bedtimes, so the regularity term is in play too. It arrived when
+        // Sleep Regularity merged into this card, and without it the fixture
+        // would be one term short of complete — which is exactly what this
+        // assertion is for.
+        for night in 0..<8 {
+            let bedtime = TestClock.day(night).addingTimeInterval(-12 * 3600)
+                .addingTimeInterval(23 * 3600)
+            full.append(HealthMetricSample(
+                type: .sleepOnset,
+                value: SleepOnset.hoursFromMidnight(bedtime, calendar: TestClock.utc) ?? 0,
+                start: SleepOnset.night(of: bedtime, calendar: TestClock.utc),
+                source: .oura))
+        }
+        let result = SleepInsight().evaluate(samples: full, profile: .init(),
                                                     now: sqNow)
-        XCTAssertEqual(result.contributors.count, 7,
+        XCTAssertEqual(result.contributors.count, 8,
                        "a term stopped contributing — update the expected sum below deliberately")
         let total = result.contributors.map(\.weight).reduce(0, +)
         XCTAssertEqual(total, 1.0, accuracy: 0.001,
@@ -143,7 +156,7 @@ final class SleepQualityStagesTests: XCTestCase {
             var s = samples(hours: 8, efficiency: 88, deepMinutes: 96, remMinutes: 96)
             s.append(HealthMetricSample(type: .oxygenSaturation, value: spo2,
                                         start: TestClock.day(0), source: .oura))
-            return SleepQualityInsight().evaluate(samples: s, profile: .init(), now: sqNow)
+            return SleepInsight().evaluate(samples: s, profile: .init(), now: sqNow)
         }
         // Two saturations either side of a band edge, so the sub-score moves by
         // a known amount: 97% scores 100, 93% scores 60 (see `oxygenScore`).
@@ -161,7 +174,7 @@ final class SleepQualityStagesTests: XCTestCase {
     func testContributorsStayWithinCandidateMetrics() {
         let result = evaluate(samples(hours: 8, efficiency: 90, deepMinutes: 90,
                                       remMinutes: 90))
-        let candidates = Set(SleepQualityInsight().candidateMetrics)
+        let candidates = Set(SleepInsight().candidateMetrics)
         for contribution in result.contributors {
             XCTAssertTrue(candidates.contains(contribution.metric), "\(contribution.metric)")
         }

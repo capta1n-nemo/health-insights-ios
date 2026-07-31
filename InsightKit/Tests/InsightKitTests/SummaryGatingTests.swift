@@ -23,15 +23,15 @@ final class SummaryFingerprintTests: XCTestCase {
     }
 
     func testIdenticalResultsFingerprintIdentically() {
-        let a = [result(.readiness, score: 72), result(.sleepQuality, score: 80)]
-        let b = [result(.readiness, score: 72), result(.sleepQuality, score: 80)]
+        let a = [result(.readiness, score: 72), result(.sleep, score: 80)]
+        let b = [result(.readiness, score: 72), result(.sleep, score: 80)]
         XCTAssertEqual(fingerprint(a), fingerprint(b))
     }
 
     /// Sorted by id, so changing the engine's registration order doesn't silently
     /// invalidate every stored summary.
     func testRegistrationOrderDoesNotMatter() {
-        let forwards = [result(.readiness, score: 72), result(.sleepQuality, score: 80)]
+        let forwards = [result(.readiness, score: 72), result(.sleep, score: 80)]
         XCTAssertEqual(fingerprint(forwards), fingerprint(forwards.reversed()))
     }
 
@@ -82,7 +82,7 @@ final class SummaryFingerprintTests: XCTestCase {
     func testAnInsightAppearingChangesTheFingerprint() {
         XCTAssertNotEqual(fingerprint([result(.readiness, score: 72)]),
                           fingerprint([result(.readiness, score: 72),
-                                       result(.vitalSigns, score: 88)]))
+                                       result(.readiness, score: 88)]))
     }
 }
 

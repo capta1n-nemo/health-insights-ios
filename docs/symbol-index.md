@@ -51,47 +51,44 @@ the place to look.
   - `BloodPressureInsight` :506
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
-- `Insights/CardioFitnessInsight.swift`
-  - `CardioFitnessInsight` :5
 - `Insights/CardioTrajectory.swift`
-  - `CardioTrajectoryInsight` :302
   - `VO2Trajectory` :11
 - `Insights/CardiovascularRiskInsight.swift`
   - `CardiovascularRiskInsight` :13
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
 - `Insights/CircadianConsistency.swift`
-  - `CircadianConsistencyInsight` :182
   - `CircadianConsistencyModel` :29
 - `Insights/Energy.swift`
   - `EnergyInsight` :301
   - `EnergyModel` :29
 - `Insights/FitnessAgeModel.swift`
   - `FitnessAgeModel` :18
+- `Insights/FitnessInsight.swift`
+  - `FitnessInsight` :14
 - `Insights/GroundingRenewal.swift`
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
-  - `HealthWatchInsight` :168
   - `HealthWatchModel` :32
+- `Insights/HeartAgeAnalyser.swift`
+  - `HeartAgeAnalyser` :20
 - `Insights/HeartAgeHistory.swift`
   - `AgePoint` :4
   - `HeartAgeHistory` :40
-- `Insights/HeartAgeInsight.swift`
-  - `HeartAgeInsight` :9
 - `Insights/HeartAgeModel.swift`
   - `HeartAgeModel` :13
 - `Insights/HeartHealthScore.swift`
   - `HeartHealthInsight` :129
   - `HeartHealthScore` :13
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :55
-  - `InsightCadence` :27
-  - `InsightConfidence` :47
-  - `InsightDriver` :83
-  - `InsightID` :4
-  - `InsightModel` :191
-  - `InsightResult` :100
-  - `RequirementStatus` :71
+  - `GroundingRequirement` :68
+  - `InsightCadence` :37
+  - `InsightConfidence` :60
+  - `InsightDriver` :96
+  - `InsightID` :15
+  - `InsightModel` :221
+  - `InsightResult` :113
+  - `RequirementStatus` :84
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -104,28 +101,24 @@ the place to look.
   - `PatternFinder` :48
   - `PatternKind` :4
 - `Insights/PeerStanding.swift`
-  - `PeerStandingInsight` :147
   - `PeerStandingModel` :21
 - `Insights/PeriodContrast.swift`
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :144
+  - `ReadinessInsight` :158
   - `ReadinessScore` :15
-- `Insights/RestingHeartRateTrendInsight.swift`
-  - `RestingHeartRateTrendInsight` :5
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
   - `ScoreChangeReader` :90
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
-  - `ScoreTrend` :204
+  - `ScoreTrend` :214
 - `Insights/SleepDebt.swift`
-  - `SleepDebtInsight` :109
   - `SleepDebtModel` :25
-- `Insights/SleepQualityInsight.swift`
-  - `SleepQualityInsight` :5
+- `Insights/SleepInsight.swift`
+  - `SleepInsight` :18
 - `Insights/SuggestionVisibility.swift`
   - `SuggestionDismissal` :4
   - `SuggestionVisibility` :43
@@ -141,7 +134,6 @@ the place to look.
   - `VitalEventReader` :103
 - `Insights/VitalSignsInsight.swift`
   - `VitalSignsCheck` :39
-  - `VitalSignsInsight` :471
 - `Integrations/OuraResponseParser.swift`
   - `OuraResponseParser` :13
 - `Integrations/WhoopResponseParser.swift`
@@ -184,7 +176,7 @@ the place to look.
 - `Presentation/ContributionRoute.swift`
   - `ContributionRoute` :14
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :56
+  - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14

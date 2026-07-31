@@ -20,13 +20,13 @@ final class AdditionalInsightsTests: XCTestCase {
         let samples = [sample(.sleepDurationHours, 7.5, daysAgo: 2),
                        sample(.sleepDurationHours, 8.0, daysAgo: 1),
                        sample(.sleepDurationHours, 7.8, daysAgo: 0)]
-        let r = SleepQualityInsight().evaluate(samples: samples, profile: .init(), now: Date())
+        let r = SleepInsight().evaluate(samples: samples, profile: .init(), now: Date())
         XCTAssertNotNil(r.primaryValue)
         XCTAssertGreaterThan(r.score ?? 0, 70)
     }
 
     func testSleepQualityNoDataIsGraceful() {
-        let r = SleepQualityInsight().evaluate(samples: [], profile: .init(), now: Date())
+        let r = SleepInsight().evaluate(samples: [], profile: .init(), now: Date())
         XCTAssertNil(r.primaryValue)
         XCTAssertEqual(r.headline, "No data yet")
     }
@@ -35,10 +35,13 @@ final class AdditionalInsightsTests: XCTestCase {
         let samples = [sample(.vo2Max, 46, daysAgo: 20),
                        sample(.vo2Max, 47, daysAgo: 10),
                        sample(.vo2Max, 48, daysAgo: 0)]
-        let r = CardioFitnessInsight().evaluate(samples: samples, profile: profile(age: 35, male: true), now: Date())
+        let r = FitnessInsight().evaluate(samples: samples, profile: profile(age: 35, male: true), now: Date())
         XCTAssertEqual(r.primaryValue!, 48, accuracy: 1e-9)
-        XCTAssertEqual(r.confidence, .high)
-        XCTAssertTrue(r.drivers.contains { $0.contains("Trend") })
+        // Three readings over twenty days is a level but not a trajectory, so
+        // the card scores the level and says the trajectory isn't there yet.
+        XCTAssertEqual(r.confidence, .moderate)
+        XCTAssertTrue(r.drivers.contains { $0.contains("VO₂max 48") })
+        XCTAssertTrue(r.drivers.contains { $0.contains("Not enough readings yet for a trajectory") })
     }
 
     func testBodyCompositionBMI() {
@@ -54,13 +57,18 @@ final class AdditionalInsightsTests: XCTestCase {
                        sample(.restingHeartRate, 59, daysAgo: 3),
                        sample(.restingHeartRate, 60, daysAgo: 2),
                        sample(.restingHeartRate, 72, daysAgo: 0)]
-        let r = RestingHeartRateTrendInsight().evaluate(samples: samples, profile: .init(), now: Date())
-        XCTAssertEqual(r.headline, "72 bpm")
-        XCTAssertTrue(r.explanation.contains("elevated"))
+        // The Resting Heart Rate card is gone; resting HR is a scored component
+        // of Heart Health, which is where the merge put it.
+        let r = HeartHealthInsight().evaluate(samples: samples,
+                                              profile: profile(age: 40, male: true), now: Date())
+        XCTAssertTrue(r.contributors.contains { $0.metric == .restingHeartRate },
+                      "resting heart rate must still reach a score somewhere")
+        XCTAssertTrue(r.drivers.contains { $0.contains("Resting heart rate") },
+                      r.drivers.joined(separator: " | "))
     }
 
     func testEngineRegistersAllInsights() {
         let ids = Set(InsightEngine().models.map(\.id))
-        XCTAssertTrue(ids.isSuperset(of: [.sleepQuality, .cardioFitness, .bodyComposition, .restingHeartRateTrend]))
+        XCTAssertTrue(ids.isSuperset(of: [.sleep, .fitness, .bodyComposition, .heartHealth]))
     }
 }

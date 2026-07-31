@@ -193,12 +193,25 @@ final class CircadianConsistencyTests: XCTestCase {
         XCTAssertEqual(jetlag, 3, accuracy: 0.35)
     }
 
+    /// Sleep needs a duration as well as a bedtime — it is a card about the
+    /// night, and regularity is one term of it.
+    private func nightsWithDuration(_ offsets: [Double]) -> [HealthMetricSample] {
+        samples(offsets) + (0..<offsets.count).map { night in
+            HealthMetricSample(type: .sleepDurationHours, value: 7.6,
+                               start: TestClock.day(night), source: .oura)
+        }
+    }
+
     func testTheCardScoresAndNamesTheHour() throws {
-        let result = CircadianConsistencyInsight().evaluate(
-            samples: samples(Array(repeating: 0, count: 12)), profile: .init(), now: circNow)
+        let result = SleepInsight().evaluate(
+            samples: nightsWithDuration(Array(repeating: 0, count: 12)),
+            profile: .init(), now: circNow)
         XCTAssertNotNil(result.score)
-        XCTAssertTrue(result.headline.contains("23:00"), result.headline)
-        XCTAssertEqual(result.id, .circadianConsistency)
+        // The bedtime is a line on the Sleep card, not its headline — the
+        // headline is the night's band, because Sleep leads with last night.
+        XCTAssertTrue(result.drivers.contains { $0.contains("23:00") },
+                      result.drivers.joined(separator: " | "))
+        XCTAssertEqual(result.id, .sleep)
     }
 
     // MARK: - The series the chart draws
@@ -256,22 +269,28 @@ final class CircadianConsistencyTests: XCTestCase {
                        accuracy: 1e-9)
     }
 
-    /// It is a fortnight's shape, not a claim about today, so it belongs on the
-    /// Insights tab.
-    func testItIsATrendCard() {
-        XCTAssertEqual(InsightID.circadianConsistency.cadence, .trend)
+    /// Regularity is a fortnight's shape, but the card it now lives on opens
+    /// with last night — so Sleep sits on Today, where people look for it.
+    func testSleepIsADailyCard() {
+        XCTAssertEqual(InsightID.sleep.cadence, .daily)
     }
 
     /// The one thing this card must never say. Chronotype is constitutional and
     /// shift work is a job; the score is the spread and never the hour.
     func testTheCardNeverJudgesTheHour() {
+        var scoreAtFirstBedtime: Double?
         for offsets in [Array(repeating: 0.0, count: 12),      // 23:00
                         Array(repeating: 2.5, count: 12),      // 01:30
                         Array(repeating: -4.0, count: 12)] {   // 19:00
-            let result = CircadianConsistencyInsight().evaluate(
-                samples: samples(offsets), profile: .init(), now: circNow)
-            XCTAssertEqual(result.score ?? -1, 100, accuracy: 0.0001,
+            let result = SleepInsight().evaluate(
+                samples: nightsWithDuration(offsets), profile: .init(), now: circNow)
+            // Regularity is one weighted term of Sleep now, so the composite is
+            // not 100 — but it must be *identical* across the three bedtimes,
+            // which is the property this test exists for.
+            XCTAssertEqual(result.score ?? -1, scoreAtFirstBedtime ?? result.score ?? -2,
+                           accuracy: 0.0001,
                            "a perfectly regular sleeper was marked down for the hour they keep")
+            scoreAtFirstBedtime = scoreAtFirstBedtime ?? result.score
             let text = (result.explanation + " " + result.drivers.joined(separator: " "))
                 .lowercased()
             for phrase in ["too late", "too early", "should be", "later than you should"] {

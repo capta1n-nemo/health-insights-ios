@@ -32,7 +32,7 @@ public struct AgePoint: Sendable, Equatable, Identifiable {
 /// something else entirely after a year at 42.
 ///
 /// Rebuilt the same way `ScoreHistory` rebuilds a score: by **truncation**, not
-/// by passing a past `now`. `HeartAgeInsight.analyse` reads the latest value of
+/// by passing a past `now`. `HeartAgeAnalyser.analyse` reads the latest value of
 /// each series, so replaying a past day means handing it only the samples that
 /// existed by then. Grounding facts (cholesterol, smoking, a cuff reading) are
 /// taken as they stand today — the profile has no history to replay, and saying
@@ -49,7 +49,7 @@ public enum HeartAgeHistory {
                               calendar: Calendar = .current,
                               now: Date = Date()) -> [AgePoint] {
         guard days > 0 else { return [] }
-        let insight = HeartAgeInsight()
+        let insight = HeartAgeAnalyser()
         let relevant = Set(insight.candidateMetrics)
         let sorted = samples.filter { relevant.contains($0.type) }
             .sorted { $0.start < $1.start }

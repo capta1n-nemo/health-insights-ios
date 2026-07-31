@@ -174,6 +174,41 @@ public struct CardiovascularRiskInsight: InsightModel {
         if profile.isSmoker { drivers.append(.notable("Current smoker")) }
         if profile.hasDiabetes { drivers.append(.notable("Diabetes")) }
 
+        // Heart age, absorbed from the card that used to carry it alongside
+        // fitness age. It belongs here rather than anywhere else because
+        // `HeartAgeAnalyser` inverts *these* equations — the same SCORE2/ASCVD
+        // run above, read backwards against an optimal-risk reference person. A
+        // percentage and an age are the same finding in two units, and they were
+        // on two different screens.
+        //
+        // Fitness age went to `FitnessInsight`. The one thing the split loses is
+        // the side-by-side row, so the sentence it carried is said here instead.
+        let ageAnalysis = HeartAgeAnalyser().analyse(samples: samples, profile: profile, now: now)
+        if let heart = ageAnalysis.heart, let heartAge = heart.heartAge {
+            drivers.append(InsightDriver(
+                text: String(format: "Heart age %@%.0f%@", heart.isCapped ? "about " : "",
+                             heartAge,
+                             (heart.excessYears).map {
+                                 abs($0) < 1 ? " — level with your actual age"
+                                     : String(format: " — %.0f years %@ your actual age",
+                                              abs($0), $0 > 0 ? "above" : "below")
+                             } ?? ""),
+                isNotable: (heart.excessYears ?? 0) >= 1))
+            if let mine = heart.riskPercent, let optimal = heart.optimalRiskPercent {
+                drivers.append(.notable(String(format: "10-year risk %.1f%% against %.1f%% at optimal levels — that gap is the modifiable part",
+                                               mine, optimal)))
+            }
+            drivers.append(.routine("Heart age and fitness age can disagree — a fit heart can still carry high blood pressure. Fitness age is on the Fitness card."))
+        }
+        if let vascular = ageAnalysis.vascularAgeUsed {
+            // A provider's own estimate, reported beside ours rather than folded
+            // into it. Two models built on different inputs disagreeing is
+            // information; averaging them away is not.
+            drivers.append(.routine(String(format: "%@ estimates your vascular age at %.0f",
+                                           ageAnalysis.vascularAgeSource ?? "Your wearable",
+                                           vascular)))
+        }
+
         var explanation: String
         if usedModels.count > 1 {
             explanation = String(format: "Estimated %.1f%% chance of a heart attack or stroke in the next 10 years (%@). This is the consensus of two validated models — %@ (%.1f%%) and %@ (%.1f%%) — shown as a range because they were built on different populations.",
@@ -234,7 +269,7 @@ public struct CardiovascularRiskInsight: InsightModel {
     ///
     /// Risk is multiplicative — every SCORE2 and ASCVD coefficient is a
     /// log-hazard — so the continuous analogue of a risk band is a logistic in
-    /// *log* risk. That is the same family as `HeartAgeInsight.score`, written
+    /// *log* risk. That is the same family as `HeartAgeAnalyser.score`, written
     /// here as a power because it reads better than an exp-of-log:
     ///
     ///     100 / (1 + (pct / centre)^exponent)

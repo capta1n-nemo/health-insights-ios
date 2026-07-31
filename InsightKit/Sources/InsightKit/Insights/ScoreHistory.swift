@@ -143,7 +143,17 @@ public enum ScoreHistory {
             // four nights before its HRV component fires at all, so early days
             // can hold three metrics and still be scored off sleep alone. Where
             // the model reports its components, that count is the honest one.
-            let used = result.contributors.isEmpty ? present : result.contributors.count
+            //
+            // And a contribution at **weight 0 is reported, not scored** — a
+            // vital the card charts and narrates but does not average in. This
+            // used to count them, so a card that scanned seventeen signals and
+            // weighted six looked well-founded on a day it was scored off one.
+            // Falls back to the full count for the cards that are *entirely*
+            // weight-0 by design, where the alternative is plotting nothing.
+            let weighted = result.contributors.filter { $0.weight > 0 }.count
+            let used = result.contributors.isEmpty
+                ? present
+                : (weighted > 0 ? weighted : result.contributors.count)
             guard used >= minimumContributors else { continue }
 
             points.append(ScorePoint(date: dayStart, score: score,

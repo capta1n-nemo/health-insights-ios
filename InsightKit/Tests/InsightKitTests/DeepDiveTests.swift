@@ -217,12 +217,14 @@ final class TrendInsightContributorsTests: XCTestCase {
     }
 
     func testCardioFitnessAndRestingHeartRateTrendBothReportTheirMetric() {
-        XCTAssertEqual(CardioFitnessInsight()
+        // Each still reports its own metric; both now also carry context
+        // metrics at weight 0, so this is containment rather than equality.
+        XCTAssertTrue(FitnessInsight()
             .evaluate(samples: samples(), profile: profile(), now: deepNow)
-            .contributors.map(\.metric), [.vo2Max])
-        XCTAssertEqual(RestingHeartRateTrendInsight()
+            .contributors.contains { $0.metric == .vo2Max && $0.weight == 1 })
+        XCTAssertTrue(HeartHealthInsight()
             .evaluate(samples: samples(), profile: profile(), now: deepNow)
-            .contributors.map(\.metric), [.restingHeartRate])
+            .contributors.contains { $0.metric == .restingHeartRate })
     }
 }
 
@@ -287,13 +289,13 @@ final class ScoreCorrectnessTests: XCTestCase {
     /// and a capped fitness age can manufacture a forty-year excess on its own.
     func testHeartAgeScoreNeverBottomsOutAtZero() {
         for excess in stride(from: 0.0, through: 60.0, by: 5.0) {
-            let analysis = HeartAgeInsight.Analysis(
+            let analysis = HeartAgeAnalyser.Analysis(
                 chronologicalAge: 35, heart: nil,
                 fitness: FitnessAgeModel.Output(fitnessAge: 35 + excess, vo2: 30,
                                                 referenceForOwnAge: 44,
                                                 yearsYounger: -excess, isCapped: excess > 30),
                 projections: [], assumedCholesterol: false, systolicUsed: nil)
-            let score = HeartAgeInsight.score(analysis)
+            let score = HeartAgeAnalyser.score(analysis)
             XCTAssertNotNil(score)
             XCTAssertGreaterThan(score!, 0, "a \(Int(excess))-year excess should not read as zero")
         }
@@ -301,7 +303,7 @@ final class ScoreCorrectnessTests: XCTestCase {
 
     func testHeartAgeScoreIsMonotonicAndCentredOnYourRealAge() {
         func score(_ excess: Double) -> Double {
-            HeartAgeInsight.score(HeartAgeInsight.Analysis(
+            HeartAgeAnalyser.score(HeartAgeAnalyser.Analysis(
                 chronologicalAge: 40, heart: nil,
                 fitness: FitnessAgeModel.Output(fitnessAge: 40 + excess, vo2: 40,
                                                 referenceForOwnAge: 42,

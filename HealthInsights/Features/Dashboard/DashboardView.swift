@@ -319,23 +319,15 @@ struct InsightCard: View {
 
     private var iconName: String {
         switch result.id {
-        case .cardiovascularRisk: return "waveform.path.ecg"
-        case .heartHealth: return "heart.fill"
-        case .heartAge: return "hourglass"
-        case .bloodPressure: return "gauge.medium"
         case .readiness: return "bolt.heart"
-        case .substanceImpact: return "wineglass"
-        case .sleepQuality: return "moon.stars.fill"
-        case .cardioFitness: return "figure.run"
-        case .cardioTrajectory: return "chart.line.uptrend.xyaxis"
-        case .bodyComposition: return "figure.arms.open"
-        case .restingHeartRateTrend: return "heart.text.square"
-        case .vitalSigns: return "stethoscope"
+        case .sleep: return "moon.stars.fill"
         case .energy: return "bolt.batteryblock"
-        case .healthWatch: return "sensor.fill"
-        case .sleepDebt: return "moon.zzz"
-        case .peerStanding: return "chart.bar.xaxis"
-        case .circadianConsistency: return "clock.badge.checkmark"
+        case .substanceImpact: return "wineglass"
+        case .heartHealth: return "heart.fill"
+        case .fitness: return "figure.run"
+        case .cardiovascularRisk: return "waveform.path.ecg"
+        case .bloodPressure: return "gauge.medium"
+        case .bodyComposition: return "figure.arms.open"
         }
     }
 }

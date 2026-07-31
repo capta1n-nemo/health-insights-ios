@@ -1,15 +1,34 @@
 import Foundation
 
-/// Transparent sleep-quality score: duration vs need, night-to-night
-/// consistency, and respiratory stability against the personal baseline.
-public struct SleepQualityInsight: InsightModel {
-    public let id: InsightID = .sleepQuality
-    public let title = "Sleep Quality"
+/// Sleep: last night, and the pattern behind it.
+///
+/// One card from three. Sleep Quality scored the *night*, Sleep Debt scored how
+/// far *behind* you were, and Sleep Regularity scored *when* you went to bed —
+/// three cards all reading `sleepDurationHours` and each answering a third of
+/// one question.
+///
+/// **The maths was kept.** `SleepDebtModel` and `CircadianConsistencyModel` are
+/// unchanged and still have their own tests; this card calls them as components,
+/// exactly as it already called `VitalReader` and `Baseline`.
+///
+/// Consistency and regularity are deliberately **both** here and are not the
+/// same thing: consistency is the spread of how *long* you sleep, regularity the
+/// spread of *when* you start. A shift worker with an iron seven hours has one
+/// and not the other.
+public struct SleepInsight: InsightModel {
+    public let id: InsightID = .sleep
+    public let title = "Sleep"
     public init() {}
     public var requirements: [GroundingRequirement] { [] }
+    /// `sleepOnset` arrives with the regularity component. The two absolute
+    /// temperatures are new: the card already read the *deviation*, but Whoop
+    /// and Oura report absolutes too and nothing was reading them — a night's
+    /// absolute skin temperature is the same evidence in a different unit, and
+    /// on a device that reports only the absolute it was the whole signal.
     public var candidateMetrics: [MetricType] {
-        [.sleepDurationHours, .sleepEfficiency, .sleepDeepMinutes, .sleepRemMinutes,
-         .oxygenSaturation, .respiratoryRate, .skinTemperatureDeviation]
+        [.sleepDurationHours, .sleepOnset, .sleepEfficiency, .sleepDeepMinutes,
+         .sleepRemMinutes, .oxygenSaturation, .respiratoryRate,
+         .skinTemperatureDeviation, .skinTemperature, .bodyTemperature]
     }
 
     /// The share of a night the published figures put deep and REM sleep at,
@@ -123,13 +142,42 @@ public struct SleepQualityInsight: InsightModel {
             return Swift.max(30, 100 - outside * 100 * 4)
         }()
 
+        // MARK: The two components this card absorbed
+
+        // How far behind you are, against a need learned from your own nights.
+        // Neutral 75 until there are enough nights to say, matching how every
+        // other absent component here behaves.
+        let debt = SleepDebtModel.evaluate(samples: samples, now: now)
+        let debtScore = debt.map { SleepDebtModel.score(debtHours: $0.debtHours) } ?? 75
+
+        // When you go to bed, not how long for. Scores the *spread* and never
+        // the hour — chronotype is largely constitutional and shift work is a
+        // job, and there is a test sweeping three very different bedtimes to
+        // keep it that way.
+        // `now:` matters and its absence would be silent. `ScoreHistory.replay`
+        // reconstructs a past day by handing the model that day as `now`; a
+        // component defaulting to the real present would read a window that the
+        // replayed samples do not reach, contribute its neutral 75 to every
+        // replayed day, and quietly flatten the history.
+        let regularity = CircadianConsistencyModel.evaluate(samples: samples, now: now)
+        let regularityScore = regularity.map {
+            CircadianConsistencyModel.score(spreadHours: $0.spreadHours)
+        } ?? 75
+
         // Duration keeps the largest share — nothing about a night's
-        // composition rescues four hours of it — and the two new terms come out
-        // of what respiratory rate and temperature were carrying, which are the
-        // weakest evidence here.
-        let score = durationScore * 0.38 + consistencyScore * 0.15
-            + efficiencyScore * 0.15 + restorativeScore * 0.12
-            + respScore * 0.06 + oxygenScore * 0.09 + tempScore * 0.05
+        // composition rescues four hours of it. The two absorbed terms are
+        // funded out of duration and the weakest evidence here, rather than by
+        // inflating the total: debt is duration measured against a need, and
+        // regularity is the one thing on this card that is not about duration at
+        // all, which is why it earns more than the breathing terms.
+        //
+        // These must sum to 1, and every weight repeated in `contributors`
+        // below must equal its coefficient here. They drifted apart once
+        // already when the stage breakdown was added.
+        let score = durationScore * 0.30 + debtScore * 0.12
+            + consistencyScore * 0.10 + regularityScore * 0.10
+            + efficiencyScore * 0.13 + restorativeScore * 0.10
+            + oxygenScore * 0.07 + respScore * 0.05 + tempScore * 0.03
         let band = Self.band(score)
         // Each line classified by the sub-score behind it, so the detail card
         // leads with whatever cost the night its marks.
@@ -139,6 +187,25 @@ public struct SleepQualityInsight: InsightModel {
             InsightDriver.component("Consistency: \(Int(consistencyScore))/100",
                                     score: consistencyScore)
         ]
+        if let debt {
+            drivers.append(.component(
+                debt.debtHours < 1
+                    ? String(format: "Sleep debt: clear, against a need of %.1f h", debt.needHours)
+                    : String(format: "Sleep debt: %.1f h behind a need of %.1f h — about %d night%@ of an extra hour to clear",
+                             debt.debtHours, debt.needHours, debt.nightsToClear,
+                             debt.nightsToClear == 1 ? "" : "s"),
+                score: debtScore))
+        }
+        if let regularity {
+            var line = String(format: "Bedtime: %@, varying by about %.1f h",
+                              MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
+                              regularity.spreadHours)
+            if let jetlag = regularity.socialJetlagHours, abs(jetlag) >= 0.5 {
+                line += String(format: " (weekends %.1f h %@)", abs(jetlag),
+                               jetlag > 0 ? "later" : "earlier")
+            }
+            drivers.append(.component(line, score: regularityScore))
+        }
         if let latest = efficiencyReading?.value {
             drivers.append(.component(String(format: "Efficiency: %.0f%% of your time in bed asleep", latest),
                                       score: efficiencyScore))
@@ -179,33 +246,44 @@ public struct SleepQualityInsight: InsightModel {
         // two statements of one number — the score uses the coefficient, the
         // detail chart uses this — and they drifted apart once already when the
         // terms were rebalanced to make room for the stage breakdown.
+        // Duration carries its own term, the consistency term (the spread of
+        // this same series) and the debt term (this same series against a
+        // learned need) — three coefficients, one measurement, so one line.
         var contributors = [MetricContribution(
-            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.53,
-            detail: String(format: "%.1f h · consistency %d/100",
-                           lastNight, Int(consistencyScore)))]
+            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.52,
+            detail: String(format: "%.1f h · consistency %d/100%@",
+                           lastNight, Int(consistencyScore),
+                           debt.map { String(format: " · %.1f h behind", $0.debtHours) } ?? ""))]
+        if let regularity {
+            contributors.append(.init(
+                metric: .sleepOnset, higherIsBetter: nil, weight: 0.10,
+                detail: String(format: "%@ ± %.1f h",
+                               MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
+                               regularity.spreadHours)))
+        }
         if let latest = efficiencyReading?.value {
             contributors.append(.init(metric: .sleepEfficiency, higherIsBetter: true,
-                                      weight: 0.15, detail: String(format: "%.0f%%", latest)))
+                                      weight: 0.13, detail: String(format: "%.0f%%", latest)))
         }
         if let latest = deepReading?.value {
             contributors.append(.init(metric: .sleepDeepMinutes, higherIsBetter: nil,
-                                      weight: 0.06, detail: String(format: "%.0f min", latest)))
+                                      weight: 0.05, detail: String(format: "%.0f min", latest)))
         }
         if let latest = remReading?.value {
             contributors.append(.init(metric: .sleepRemMinutes, higherIsBetter: nil,
-                                      weight: 0.06, detail: String(format: "%.0f min", latest)))
+                                      weight: 0.05, detail: String(format: "%.0f min", latest)))
         }
         if let latest = spo2Reading?.value {
             contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
-                                      weight: 0.09, detail: String(format: "%.0f%%", latest)))
+                                      weight: 0.07, detail: String(format: "%.0f%%", latest)))
         }
         if let latest = respReading?.value {
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
-                                      weight: 0.06, detail: String(format: "%.0f br/min", latest)))
+                                      weight: 0.05, detail: String(format: "%.0f br/min", latest)))
         }
         if let dev = tempReading?.value {
             contributors.append(.init(metric: .skinTemperatureDeviation, higherIsBetter: nil,
-                                      weight: 0.05, detail: String(format: "%+.1f °C", dev)))
+                                      weight: 0.03, detail: String(format: "%+.1f °C", dev)))
         }
 
         // A stale night can't buy high confidence however long the history is.

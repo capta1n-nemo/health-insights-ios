@@ -75,9 +75,9 @@ final class VitalSignsTests: XCTestCase {
     }
 
     func testNoDataProducesAGracefulResult() {
-        let result = VitalSignsInsight().evaluate(samples: [], profile: UserHealthProfile(), now: vitalsNow)
+        let result = ReadinessInsight().evaluate(samples: [], profile: UserHealthProfile(), now: vitalsNow)
         XCTAssertNil(result.primaryValue)
-        XCTAssertEqual(result.headline, "No data yet")
+        XCTAssertEqual(result.headline, "Building baseline")
     }
 
     // MARK: - Driver lines
@@ -89,15 +89,20 @@ final class VitalSignsTests: XCTestCase {
         var samples = series(.restingHeartRate, settled(.restingHeartRate, 55) + [78])
         samples += series(.heartRate, settled(.heartRate, 70) + [70])
         samples += series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5) + [97])
-        let result = VitalSignsInsight().evaluate(samples: samples,
+        let result = ReadinessInsight().evaluate(samples: samples,
                                                   profile: UserHealthProfile(), now: vitalsNow)
 
-        let notable = result.driverLines.filter { $0.isNotable == true }
-        let routine = result.driverLines.filter { $0.isNotable == false }
+        // Counted over the vitals the scan covers rather than over every line:
+        // Readiness adds its own component lines, and pinning a total here would
+        // make this test fail every time a component is added to the score.
+        let scanned: (InsightDriver) -> Bool = { line in
+            ["Resting Heart Rate", "Heart Rate", "Blood Oxygen"].contains { line.text.contains($0) }
+        }
+        let notable = result.driverLines.filter { $0.isNotable == true && scanned($0) }
+        let routine = result.driverLines.filter { $0.isNotable == false && scanned($0) }
         XCTAssertEqual(notable.count, 1)
         XCTAssertTrue(notable.first?.text.contains("Resting Heart Rate") ?? false)
         XCTAssertEqual(routine.count, 2, "the normal vitals are kept, just folded away")
-        XCTAssertEqual(result.driverLines.count, 3, "no vital is dropped, only deferred")
     }
 
     /// Notable lines come first, because the Today card previews `drivers.first`
@@ -105,16 +110,23 @@ final class VitalSignsTests: XCTestCase {
     func testTheFirstDriverIsTheOneWorthSeeing() {
         var samples = series(.heartRate, settled(.heartRate, 70) + [70])
         samples += series(.oxygenSaturation, settled(.oxygenSaturation, 97, jitter: 0.5) + [88])
-        let result = VitalSignsInsight().evaluate(samples: samples,
+        let result = ReadinessInsight().evaluate(samples: samples,
                                                   profile: UserHealthProfile(), now: vitalsNow)
-        XCTAssertTrue(result.drivers.first?.contains("Blood Oxygen") ?? false)
+        // First among the notable lines, and notable at all — the Today card
+        // previews `drivers.first` and must not lead with a reassurance.
+        XCTAssertEqual(result.driverLines.first?.isNotable, true)
+        XCTAssertTrue(result.driverLines.filter { $0.isNotable == true }
+            .contains { $0.text.contains("Blood Oxygen") },
+            result.drivers.joined(separator: " | "))
     }
 
     /// A vital we couldn't judge is something to know, not reassurance.
     func testAVitalWithoutEnoughHistoryIsNotFoldedAway() {
-        let result = VitalSignsInsight().evaluate(samples: series(.restingHeartRate, [55, 56]),
+        let result = ReadinessInsight().evaluate(samples: series(.restingHeartRate, [55, 56]),
                                                   profile: UserHealthProfile(), now: vitalsNow)
-        XCTAssertEqual(result.driverLines.filter { $0.isNotable == true }.count, 1)
+        XCTAssertTrue(result.driverLines.contains {
+            $0.isNotable == true && $0.text.contains("Resting Heart Rate")
+        }, "a vital we couldn't judge is something to know, not reassurance")
     }
 
     /// An insight that doesn't classify must not have its whole list hidden —
@@ -128,8 +140,8 @@ final class VitalSignsTests: XCTestCase {
     }
 
     func testVitalSignsIsATodayCard() {
-        XCTAssertEqual(InsightID.vitalSigns.cadence, .daily)
-        XCTAssertTrue(InsightEngine().models.contains { $0.id == .vitalSigns })
+        XCTAssertEqual(InsightID.readiness.cadence, .daily)
+        XCTAssertTrue(InsightEngine().models.contains { $0.id == .readiness })
     }
 
     // MARK: - The defects that made 100 trivial
@@ -365,7 +377,9 @@ final class VascularAgePromotionTests: XCTestCase {
             HealthMetricSample(type: .vascularAge, value: 32, start: now, source: .oura),
             HealthMetricSample(type: .vo2Max, value: 44, start: now, source: .appleHealth)
         ]
-        let drivers = HeartAgeInsight()
+        // Reported by the risk card now — a provider's own vascular-age
+        // estimate sits beside ours rather than being folded into it.
+        let drivers = CardiovascularRiskInsight(preferredEngine: .combined)
             .evaluate(samples: samples, profile: profile, now: now)
             .drivers.joined(separator: "\n")
         XCTAssertTrue(drivers.contains("vascular age"), drivers)
