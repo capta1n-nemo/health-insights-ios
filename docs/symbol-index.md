@@ -297,6 +297,8 @@ the place to look.
   - `AgeHistoryChart` :15
 - `DesignSystem/BloodPressureChart.swift`
   - `BloodPressureChart` :18
+- `DesignSystem/BodyCompositionTrendChart.swift`
+  - `BodyCompositionTrendChart` :32
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/Haptics.swift`

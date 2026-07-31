@@ -76,6 +76,15 @@ struct InsightDetailView: View {
     /// it, and there was no way to change the window at all.
     private var usesTimeframe: Bool {
         guard let result else { return false }
+        // Body Composition's trend reads the window too, and it can render on a
+        // history with too few replayable days to produce a score chart — so
+        // without this the card would draw a timeframe-driven section with no
+        // way to change the timeframe, which is the exact bug the comment above
+        // describes.
+        if insightID == .bodyComposition,
+           BodyCompositionSplit.series(samples: model.samples).points.count >= 2 {
+            return true
+        }
         return model.scoreHistory(for: insightID).count >= 2
             || !model.overlaySeries(for: insightID,
                                     contributions: resolvedContributions(result),
@@ -523,9 +532,17 @@ struct InsightDetailView: View {
     /// numbers and no picture of the thing they jointly describe. The arithmetic
     /// is `BodyCompositionSplit` in InsightKit, where it is tested; this only
     /// draws it.
+    /// Hues for every band that can appear, water included, resolved once so the
+    /// bar, the legend and the trend chart cannot disagree about a colour.
+    private var compositionSlots: [MetricType: Int] {
+        MetricPalette.slots(for: [.bodyFatPercentage, .muscleMass, .boneMass,
+                                  .leanBodyMass, .bodyWaterPercentage])
+    }
+
     @ViewBuilder private var bodyCompositionSplitCard: some View {
         if let split = BodyCompositionSplit.from(samples: model.samples) {
-            let slots = MetricPalette.slots(for: split.parts.map(\.metric))
+            let slots = compositionSlots
+            let waterTint = Theme.metricColor(.bodyWaterPercentage, slots: slots)
             Card {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
@@ -538,9 +555,21 @@ struct InsightDetailView: View {
                     GeometryReader { geometry in
                         HStack(spacing: 1.5) {
                             ForEach(split.parts, id: \.metric) { part in
+                                let width = max(2, (geometry.size.width - 4.5) * part.fraction)
                                 Rectangle()
                                     .fill(Theme.metricColor(part.metric, slots: slots))
-                                    .frame(width: max(2, (geometry.size.width - 4.5) * part.fraction))
+                                    .frame(width: width)
+                                    // Water drawn *inside* its host rather than
+                                    // beside it: a block of its own would count
+                                    // the same kilograms twice, once as muscle
+                                    // and again as water.
+                                    .overlay(alignment: .leading) {
+                                        if let water = split.water, water.host == part.metric {
+                                            Rectangle()
+                                                .fill(waterTint.opacity(0.55))
+                                                .frame(width: width * water.fractionOfHost)
+                                        }
+                                    }
                             }
                         }
                         .clipShape(Capsule())
@@ -548,27 +577,51 @@ struct InsightDetailView: View {
                     .frame(height: 14)
 
                     ForEach(split.parts, id: \.metric) { part in
-                        HStack(spacing: 8) {
-                            Circle()
-                                .fill(Theme.metricColor(part.metric, slots: slots))
-                                .frame(width: 8, height: 8)
-                            Text(part.label).font(.subheadline)
-                            Spacer()
-                            Text(String(format: "%.1f kg", part.kilograms))
-                                .font(.caption.monospacedDigit())
-                            Text("\(Int((part.fraction * 100).rounded()))%")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 34, alignment: .trailing)
+                        VStack(spacing: 3) {
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Theme.metricColor(part.metric, slots: slots))
+                                    .frame(width: 8, height: 8)
+                                Text(part.label).font(.subheadline)
+                                Spacer()
+                                Text(String(format: "%.1f kg", part.kilograms))
+                                    .font(.caption.monospacedDigit())
+                                Text("\(Int((part.fraction * 100).rounded()))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 34, alignment: .trailing)
+                            }
+                            // The sub-dot: indented under its host, so the
+                            // legend says "part of that" rather than "beside it".
+                            if let water = split.water, water.host == part.metric {
+                                HStack(spacing: 8) {
+                                    Rectangle().fill(.clear).frame(width: 10)
+                                    Image(systemName: "arrow.turn.down.right")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.secondary)
+                                    Circle().fill(waterTint.opacity(0.55))
+                                        .frame(width: 6, height: 6)
+                                    Text("of which water").font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text(String(format: "%.1f kg", water.kilograms))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                    Text("\(Int((water.fractionOfHost * 100).rounded()))%")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 34, alignment: .trailing)
+                                }
+                            }
                         }
                     }
 
-                    // Water is a share of tissue already drawn as muscle, so it
-                    // is a footnote rather than a block — putting it in the bar
-                    // would count the same kilograms twice.
-                    if let water = split.waterPercentage {
-                        Divider()
-                        Text(String(format: "Body water is %.1f%% of your mass — held inside the lean tissue above rather than beside it, which is why it isn't its own block.", water))
+                    if let water = split.water, water.exceedsHost {
+                        Text("Your total body water is larger than the muscle it's drawn inside — ordinary, since blood and organs hold water too, but it means the shaded part is capped rather than exact.")
+                            .font(.caption2).foregroundStyle(Theme.warn)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if split.water != nil {
+                        Text("Water is shaded inside the tissue holding it rather than given its own block — it's already counted there, and showing it twice would make you heavier than you are.")
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -577,7 +630,41 @@ struct InsightDetailView: View {
                             .font(.caption2).foregroundStyle(Theme.warn)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    bodyCompositionTrend
                 }
+            }
+        }
+    }
+
+    /// The same bands, over the window the screen's own timeframe picker is set
+    /// to — deliberately that control rather than a second one, so the card has
+    /// one idea of "how far back" across all its sections.
+    @ViewBuilder private var bodyCompositionTrend: some View {
+        let series = BodyCompositionSplit.series(samples: model.samples)
+        let start = timeframe.startDate()
+        let visible = series.points.filter { start == nil || $0.date >= start! }
+        // Two weigh-ins is the floor for a trend: one is the bar above again.
+        if visible.count >= 2 {
+            Divider()
+            HStack(alignment: .firstTextBaseline) {
+                Text("How that has changed").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(visible.count) weigh-ins")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            BodyCompositionTrendChart(
+                points: visible,
+                finerSplitBegins: series.finerSplitBegins.flatMap { date in
+                    visible.contains { $0.date >= date } ? date : nil
+                })
+            Text("Height is your weight, split the same way as above. The top edge is what the scale read, so a band thinning while the total falls is where the weight came off.")
+                .font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let begins = series.finerSplitBegins, visible.contains(where: { $0.date >= begins }) {
+                Text("Muscle and bone are only separated from \(begins.formatted(date: .abbreviated, time: .omitted)), when your scale started reporting them. Before that the lean part is drawn undivided rather than guessed at.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

@@ -53,6 +53,108 @@ final class BodyCompositionSplitTests: XCTestCase {
         XCTAssertFalse(split.parts.contains { $0.label.contains("ater") })
     }
 
+    // MARK: - Water drawn inside its host
+
+    /// 110.73 kg × 52.20% = 57.8 kg of water, inside 73.19 kg of muscle — 79% of
+    /// the muscle block. Roughly what physiology predicts (muscle is ~75% water,
+    /// and blood and organs carry the rest), which is the sanity check on the
+    /// whole idea of drawing it as an inset.
+    func testWaterSitsInsideTheMuscleBlock() throws {
+        let inset = try XCTUnwrap(try XCTUnwrap(BodyCompositionSplit.from(samples: actual)).water)
+        XCTAssertEqual(inset.host, .muscleMass)
+        XCTAssertEqual(inset.kilograms, 57.80, accuracy: 0.05)
+        XCTAssertEqual(inset.fractionOfHost, 0.79, accuracy: 0.01)
+        XCTAssertFalse(inset.exceedsHost)
+    }
+
+    /// Without a muscle reading the lean block hosts it. Never fat — the point
+    /// of the inset is that water is held in lean tissue.
+    func testWaterFallsBackToTheLeanBlock() throws {
+        let inset = try XCTUnwrap(try XCTUnwrap(BodyCompositionSplit.from(samples: [
+            sample(.bodyMass, 100), sample(.bodyFatPercentage, 30),
+            sample(.bodyWaterPercentage, 50),
+        ])).water)
+        XCTAssertEqual(inset.host, .leanBodyMass)
+        XCTAssertEqual(inset.kilograms, 50, accuracy: 0.001)
+        XCTAssertEqual(inset.fractionOfHost, 50.0 / 70.0, accuracy: 0.001)
+    }
+
+    /// Total body water can genuinely exceed muscle mass. Clamp and flag rather
+    /// than drawing an inset that overflows the block it is inside.
+    func testWaterExceedingItsHostIsClampedAndFlagged() throws {
+        let inset = try XCTUnwrap(try XCTUnwrap(BodyCompositionSplit.from(samples: [
+            sample(.bodyMass, 100), sample(.leanBodyMass, 60),
+            sample(.muscleMass, 40), sample(.boneMass, 3),
+            sample(.bodyWaterPercentage, 55),   // 55 kg of water in a 40 kg block
+        ])).water)
+        XCTAssertEqual(inset.host, .muscleMass)
+        XCTAssertTrue(inset.exceedsHost)
+        XCTAssertEqual(inset.fractionOfHost, 1, "clamped, not overflowing")
+    }
+
+    func testNoWaterReadingMeansNoInset() throws {
+        XCTAssertNil(try XCTUnwrap(BodyCompositionSplit.from(samples: [
+            sample(.bodyMass, 100), sample(.bodyFatPercentage, 25),
+        ])).water)
+    }
+
+    // MARK: - The series
+
+    private func dayOffset(_ n: Int) -> Double { Double(n) }
+
+    /// One point per weigh-in, and none invented in between. A carry-forward
+    /// build would draw a body changing on days nothing was measured.
+    func testOnePointPerMeasuredDay() {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 100, daysAgo: 10), sample(.bodyFatPercentage, 30, daysAgo: 10),
+            sample(.bodyMass, 99, daysAgo: 5), sample(.bodyFatPercentage, 29, daysAgo: 5),
+        ], calendar: TestClock.utc)
+        XCTAssertEqual(series.points.count, 2)
+        XCTAssertLessThan(series.points[0].date, series.points[1].date, "oldest first")
+    }
+
+    /// A weigh-in with no composition reading yields no point rather than a
+    /// point with a guessed composition.
+    func testAWeightWithNoCompositionIsSkipped() {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 100, daysAgo: 10),
+            sample(.bodyMass, 99, daysAgo: 5), sample(.bodyFatPercentage, 29, daysAgo: 5),
+        ], calendar: TestClock.utc)
+        XCTAssertEqual(series.points.count, 1)
+    }
+
+    /// The shape of this user's real history: fat and lean back to 2020, then
+    /// muscle and bone from the day the Body Smart arrived. Each day gets the
+    /// finest split its own readings support, so the lean band subdivides
+    /// visibly rather than the old data being fabricated or the new flattened.
+    func testTheSplitSubdividesOnTheDayTheScaleStartedReportingMore() throws {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 120, daysAgo: 30), sample(.bodyFatPercentage, 35, daysAgo: 30),
+            sample(.bodyMass, 115, daysAgo: 10), sample(.bodyFatPercentage, 33, daysAgo: 10),
+            sample(.leanBodyMass, 77, daysAgo: 10), sample(.muscleMass, 73, daysAgo: 10),
+            sample(.boneMass, 4, daysAgo: 10),
+        ], calendar: TestClock.utc)
+        XCTAssertEqual(series.points[0].split.parts.map(\.label), ["Fat", "Lean"])
+        XCTAssertEqual(series.points[1].split.parts.map(\.label), ["Fat", "Muscle", "Bone"])
+        XCTAssertEqual(series.finerSplitBegins, series.points[1].date)
+    }
+
+    /// A window that is entirely fine-grained has no transition to explain, and
+    /// a caption about one would point at nothing.
+    func testNoTransitionIsReportedWhenTheWholeWindowIsTheSameResolution() {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 115, daysAgo: 10), sample(.bodyFatPercentage, 33, daysAgo: 10),
+            sample(.leanBodyMass, 77, daysAgo: 10), sample(.muscleMass, 73, daysAgo: 10),
+            sample(.boneMass, 4, daysAgo: 10),
+        ], calendar: TestClock.utc)
+        XCTAssertNil(series.finerSplitBegins)
+    }
+
+    func testAnEmptyHistoryProducesNoPoints() {
+        XCTAssertTrue(BodyCompositionSplit.series(samples: [],
+                                                  calendar: TestClock.utc).points.isEmpty)
+    }
+
     // MARK: - Partial and inconsistent input
 
     /// Fat and lean partition body mass, so either one implies the other.
