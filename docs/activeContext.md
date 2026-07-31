@@ -30,11 +30,46 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The loading-screen session.** "Build the loading screen ... from the previous
-unfinished items" — the app-launch splash scoped several sessions ago, and the
-only remaining feedback-list item that could be built from a sandbox. Shipped;
-`docs/progress.md` ▸ "App-launch loading screen" has the full detail. What is
-worth carrying:
+**The loading-screen session.** Built the splash, **shipped a 32-second launch
+with it**, and then fixed that. The user caught it on the phone, as they have
+caught every regression here. `docs/progress.md` ▸ "App-launch loading screen"
+has the full account; the four things worth carrying:
+
+- **A screen that covers a wait can become a screen that causes one.** The
+  splash waited for the whole of `refresh()` before revealing Today — but that
+  work had *always* run behind an already-visible app, with a spinner on the
+  Today card. The feature took correctly-backgrounded work and put it in front
+  of the user. **When adding a gate, check what the user could already see
+  without it.** It now waits on `isHydrated` — enough data to draw Today — and
+  nothing else.
+- **A SwiftUI launch screen cannot cover the pre-first-frame gap.** 7–8 s of the
+  report was `AppModel.init` — a `@State` default, so it runs before SwiftUI
+  draws anything — doing a JSON decode of ~128k samples plus all seventeen
+  insights. The app was not white by choice; it had not reached its first frame.
+  Only `UILaunchScreen` in `Support/Info.plist` covers that, and it was an empty
+  dict, which renders plain white. **If you are asked to fix a blank screen at
+  launch, find out whether the app has drawn its first frame yet.**
+- **`Sendable` for testability is `Sendable` for concurrency.** Moving hydration
+  off the main actor was nearly free because `HealthMetricSample`, `InsightEngine`,
+  `InsightResult` and `UserHealthProfile` were already `Sendable` — built
+  platform-free so InsightKit could be tested on Linux. The same property let
+  them leave the main thread. `DataStore`'s four *file*-backed cache accessors
+  are now `nonisolated`; the SwiftData ones cannot follow, because `mainContext`
+  is main-actor by construction.
+- **A timeout must not live on the thread it is timing out.** The 20 s hard
+  ceiling was polled from the `@MainActor` narration loop, so it was starved by
+  exactly the main-thread work it existed to protect against. The one launch
+  that needed it was the one launch that could not fire it. Now it sleeps off
+  the main actor and hops back only to act.
+
+Also: the animation is no longer drawn in SwiftUI. It is the user's own
+Gemini-generated particle video, played through `AVPlayerLooper` — hardware
+decode, off the main thread, so it keeps moving when the main actor does not.
+A `TimelineView` redrawing a shadowed symbol and a full-screen gradient every
+frame is a bad idea *specifically* on a screen that exists because the main
+thread is busy.
+
+**Earlier in the same session**, before the regression was reported:
 
 - **A brief's own constraint can be half of a pair, with the other half unstated.**
   The scope said the copy "must be driven by a timer rather than by real phase
@@ -486,16 +521,19 @@ closed from a sandbox. What remains falls into three groups.
 
 - **The on-device walkthrough.** Nothing from the last five sessions has been
   seen on a phone. Newest first:
-  - **Cold launch** — the splash. Check the heart breathes rather than sitting
-    still, that the rings radiate outward and fade instead of popping, that the
-    status line changes at a readable pace (not a strobe on a fast launch, not
-    frozen on a slow one), that it *cross-dissolves* into Today rather than
-    cutting, and that the background does not change shade as it goes. Then two
-    negatives, which are the ones worth the trouble: **background the app and
-    return — the splash must not come back**, and a first-run install must go
-    straight to onboarding with no splash before it. If a launch runs past ~7 s,
-    the copy should change register entirely ("Still going — that's a lot of
-    history to read"), not loop the step names again.
+  - **Cold launch — time it.** The whole point of the second pass. From tapping
+    the icon there should be **no white screen at all**: the grey background and
+    the heart appear immediately (that is `UILaunchScreen`, before any code),
+    then the video takes over and plays *smoothly* — if it stutters or freezes,
+    something is back on the main thread. Today should arrive in a couple of
+    seconds, populated, with the sync spinner still going on the Today card.
+    **A sync finishing after Today appears is correct now, not a bug.**
+    Then the negatives, which are the ones worth the trouble: **background the
+    app and return — the splash must not come back**; a first-run install must
+    go straight to onboarding with no splash; and the status line must not
+    strobe on a fast launch. Past ~4 s the copy should change register entirely
+    ("Still going — that's a lot of history to read") rather than loop the step
+    names, and nothing should ever hold the screen past 8 s.
   - **Insights ▸ Sleep Regularity ▸ "Your fortnight"** — a new chart above the
     score history. Points are the nights, the dashed line is the usual bedtime,
     the shaded band is the spread. Check the y axis reads **clock times** and not

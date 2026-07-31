@@ -618,6 +618,56 @@ recalled.
       `RootView.task` runs again then, and a splash over a warm app would be a
       worse bug than the blank screen this replaces.
 
+      **The first version of the above shipped a 32-second launch, and the user
+      reported it.** Three causes, only one of them new. Written out because the
+      shape of the mistake is more reusable than the fix:
+
+      - **The screen gated the app instead of bridging to it.** It waited for
+        the whole of `refresh()` — network sync, ingest, insight pass, on-device
+        summary — before revealing Today. Before the launch screen existed, the
+        tabs were up from the first frame and every bit of that ran *behind*
+        them, with a spinner on the Today card saying so. So the feature took
+        work that was already correctly backgrounded and put it in front of the
+        user. `shouldDismiss` now takes `hasContent`, fed by `isHydrated`:
+        **the screen waits for enough data to draw Today and nothing else.**
+      - **A SwiftUI launch screen cannot cover the pre-first-frame gap**, and
+        7–8 s of the report was exactly that gap. `AppModel` is a `@State`
+        default, so its `init` ran before SwiftUI drew anything — and its `init`
+        did the whole hydration: a JSON decode of a six-figure sample array, the
+        sanitiser, the temperature reconstruction and all seventeen insights.
+        The app was not white by choice; it had not reached its first frame.
+        Fixed twice over: `UILaunchScreen` was an empty dict (= plain white) and
+        now carries a colour and a poster, which needs no code and appears
+        instantly; and hydration moved to an async `hydrate()` with the
+        expensive half on a detached task. **That hop was free because the
+        engine and sample types were already `Sendable` — built platform-free so
+        they could be tested on Linux, which turns out to be the same property
+        that lets them leave the main thread.**
+      - **The animation froze for ten seconds** because it was drawn in SwiftUI
+        on the main thread — `TimelineView` at display rate, a shadowed symbol
+        and a full-screen gradient every frame — so it stopped dead exactly when
+        real work started, which is when a loading animation most needs to move.
+        It is now a pre-rendered particle video played through `AVPlayerLooper`:
+        hardware-decoded, off the main thread, indifferent to a busy main actor.
+        `RootView` also stopped applying `.opacity`/`.scaleEffect` to the whole
+        `TabView`, which forced four tabs of lists and charts through an
+        offscreen buffer for every frame of the transition.
+
+      And one that is worth its own line, because it is a general trap:
+      **the hard ceiling could not fire.** It was polled from the `@MainActor`
+      narration loop, so it was starved by precisely the main-thread work it
+      existed to protect against — the one launch that needed a ceiling was the
+      one launch that could not use it. It now sleeps off the main actor and
+      hops back only to act. **A timeout must not live on the thread it is
+      timing out.**
+
+      The asset is the user's own Gemini-generated video, cropped out of the
+      phone mockup, de-captioned with `delogo` and trimmed before its end fade.
+      Gemini's sparkle provenance watermark is still in the bottom right, left
+      deliberately rather than stripped. The splash is **always light**, on the
+      video's own `#D9D9D9`, and `UILaunchScreen` uses the same colour so the
+      static-to-animated handoff has nothing to see.
+
 - [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
       roadmap note rather than a build, and deliberately left as one. It belongs
       beside the other unstructured-data captures: a guided capture producing
