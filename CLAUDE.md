@@ -90,6 +90,12 @@ So:
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
 - `docs/progress.md` -> Feature roadmap checklist.
+- `docs/card-sections.md` -> **Which sections each card renders.** The
+  seventeen-by-seventeen insight-detail matrix, the five metric-detail layouts,
+  and the eight known inconsistencies with the `file:line` that proves each.
+  Read it before adding or moving a section on any card screen — the columns
+  come from `InsightDetailView.body` and the rows from `InsightID.allCases`, so
+  either change invalidates part of it.
 - `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
   repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
 - `docs/symbol-index.md` -> **Where does X live.** One line per top-level type.

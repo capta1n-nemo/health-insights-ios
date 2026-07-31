@@ -30,7 +30,27 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The roadmap-continuation session (latest).** "Continue with roadmap" — the
+**The card-section audit session (latest).** The user asked which sections each
+card in the app renders, and where they disagree. The answer is now
+`docs/card-sections.md` — a seventeen-insight × seventeen-section matrix, the
+five metric-detail layouts, and eight named inconsistencies each with the
+`file:line` that proves it. **No code changed; this was an audit by request.**
+
+The two findings worth carrying without opening it:
+
+- **Half the insight detail screen is already consistent.** Eight of the
+  seventeen sections render identically for all seventeen insights. The
+  variation is concentrated in six `id`-gated columns (touching 5 insights) and
+  two cadence-gated ones (off for 7).
+- **The sharpest gap is not the missing charts, it is the timeframe picker.**
+  It lives inside "Score over time" (`InsightDetailView.swift:299`) but drives
+  the contributors overlay, the patterns card and the lag card. An insight with
+  under two replayable days loses the control for three sections that still use
+  it. Invisible until a history is thin, which is why it had not been reported.
+
+The gaps are options, not a backlog — the user has them to choose from.
+
+**The roadmap-continuation session (previous).** "Continue with roadmap" — the
 open list was read back, and the only substantial item buildable from a sandbox
 was the hydration cost left over from session 11. It was recorded as needing a
 product decision first; measuring it showed it did not, and the insight pass is
