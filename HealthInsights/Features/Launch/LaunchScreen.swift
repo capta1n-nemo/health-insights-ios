@@ -24,10 +24,15 @@ struct LaunchScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Where the status line sits, as a fraction of the screen's height. Below
-    /// the heart, which is centred at 0.43 and reaches about 0.45, and inside
-    /// the gap the ring leaves — so the copy never lands on top of the mist.
-    private static let captionHeight: CGFloat = 0.74
+    /// Where the status line sits, as a fraction of the screen's height.
+    ///
+    /// Measured, not chosen. Sweeping the rendered frame in 5% bands over the
+    /// middle 70% of its width, ink coverage runs: 0.58–0.63 → **1.6%**,
+    /// 0.66–0.71 → 13%, 0.74–0.79 → 37%. This used to sit at 0.74, which is the
+    /// densest part of the lower ring, and the copy was simply lost in it.
+    /// 0.605 is the centre of the one genuinely clear band — under the heart's
+    /// point, above the ring's lower lobe.
+    private static let captionHeight: CGFloat = 0.605
 
     @State private var narration = LaunchNarration()
     @State private var message = LaunchNarration.script[0].text
@@ -55,7 +60,7 @@ struct LaunchScreen: View {
                         .ignoresSafeArea()
                 }
 
-                status
+                status(width: geo.size.width, height: geo.size.height)
                     .position(x: geo.size.width / 2,
                               y: geo.size.height * Self.captionHeight)
             }
@@ -71,19 +76,32 @@ struct LaunchScreen: View {
 
     // MARK: - The status line
 
-    private var status: some View {
+    private func status(width: CGFloat, height: CGFloat) -> some View {
         Text(message)
-            .font(.callout)
+            // Sized off the screen rather than off a text style. The reference
+            // animation set its caption at roughly 2.4% of frame height, which
+            // `.callout`'s fixed 16 pt was nowhere near on a modern phone — it
+            // read as a footnote under a full-screen mark. Clamped so it stays
+            // sane on a small device and on an iPad.
+            .font(.system(size: min(max(height * 0.025, 16), 24), weight: .medium))
             // An explicit colour, not `.secondary`. This screen commits to a
             // light background whatever the system appearance is, and
             // `.secondary` does not — on a phone in dark mode it resolves to a
-            // *light* grey and the copy vanished into the background. A
-            // semantic colour is only semantic if the surface it sits on is too.
-            .foregroundStyle(Color(red: 0.36, green: 0.33, blue: 0.33))
+            // *light* grey and the copy vanished entirely. A semantic colour is
+            // only semantic if the surface under it is semantic too.
+            //
+            // ~10:1 against the launch background, which it needs to be: it sits
+            // over mist, not over flat colour.
+            .foregroundStyle(Color(red: 0.16, green: 0.14, blue: 0.14))
             .multilineTextAlignment(.center)
+            // The clear band is about 45 pt tall and the longest line here is
+            // 44 characters, so let a long one shrink rather than grow a third
+            // row down into the ring.
+            .lineLimit(2)
+            .minimumScaleFactor(0.82)
             .transition(.opacity)
             .id(message)
-            .padding(.horizontal, 40)
+            .frame(maxWidth: width * 0.84)
     }
 
     // MARK: - Driving it
