@@ -30,7 +30,51 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The card-consolidation session (latest).** Three pushes, all installed:
+**The data-export session (latest).** The export built last session was used for
+the first time, and it immediately found **two defects in signals the app
+already models** — not the missing signals everyone expected.
+
+- **Oura naps were being counted as nights.** `OuraResponseParser.SleepRecord`
+  never decoded `type`, so `late_nap` and `rest` segments became
+  `.sleepDurationHours` — and because `bucketStatistic` *averages* same-day
+  sleep, a 7.5 h night plus a 20-minute nap reached the user as a 4 h night.
+  The same records also lent their **awake** heart rate to `.restingHeartRate`,
+  which seven models read, and an evening nap could become the night's
+  *bedtime*, because `SleepOnset` keeps the earliest segment and −4.0 h is
+  inside its plausible band. Sleep, Readiness, Energy, Heart Health, Fitness and
+  Blood Pressure were all downstream of it.
+- **`MetricSanitizer` had no upper bound**, only `value > 0`. Now every metric
+  declares a `plausibleRange`.
+
+**The rule this establishes**: *"we don't have X" and "X looks fine" are both
+claims about the code until somebody has looked at the distribution.* Nothing in
+the parser looked wrong; every test passed. What gave it away was a median sleep
+of 5.62 h with a minimum of 0.01 h.
+
+Three things worth carrying:
+
+- **A bound must reject the impossible, never the alarming.** The artefact that
+  started this was a resting heart rate of 119. It was tempting to set the
+  ceiling just under it — that would have been fitting the bound to one user's
+  bad record, and 119 bpm is a real resting heart rate in atrial fibrillation.
+  It is an artefact because of *where it came from*, not its value. The nap
+  filter removes it; the bound is for values no living person produces.
+- **Order matters inside a parse loop.** The nap guard was first placed after the
+  bedtime was collected, so naps still poisoned sleep onset. The fix only works
+  at the top of the loop.
+- **Check whether a migration is needed before building one.** The plan assumed
+  the corrupted history needed a wipe-and-re-sync. It does not: `sync()` always
+  pulls a 730-day window, and the cache merge already replaces *all* of a
+  source's samples when it returns data. The next ordinary refresh rebuilds
+  Oura's history through the corrected parser on its own.
+
+`docs/data-opportunities.md` is new: the ranked list of signals nothing reads
+yet, each with the published basis for whether it can be scored honestly, plus
+how Oura's own scores should be handled. **Ask for a fresh export before
+building from it** — the numbers that prove the fix are the sleep-duration
+median and the resting-HR maximum.
+
+**The card-consolidation session (previous).** Three pushes, all installed:
 Phase 1 of the consistency work (`42efe4c`), the data export (`0d8bc48`), and
 **seventeen insight cards merged into nine** (`367e0ab`).
 

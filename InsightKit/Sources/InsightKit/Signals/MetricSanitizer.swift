@@ -41,11 +41,92 @@ public extension MetricType {
     }
 }
 
+public extension MetricType {
+    /// The range a reading has to fall in to be a reading at all.
+    ///
+    /// **Why an upper bound was needed.** Until this existed the only rule was
+    /// `value > 0`, and the user's own data export showed why that is not
+    /// enough: their modelled resting heart rate ran to **119 bpm** against a
+    /// median of 56 — one degenerate Oura record whose entire surviving
+    /// heart-rate series was a single sample taken while awake. A baseline is a
+    /// 28-day rolling window, so one such value inflates the standard deviation
+    /// roughly tenfold and **silences the resting-heart-rate anomaly detector
+    /// for four weeks**. Readiness, the multi-signal early warning and the
+    /// vitals scan all read that z-score. A bad reading does not just show a
+    /// wrong number; it stops the app noticing anything.
+    ///
+    /// **These are survival limits, not clinical ones**, and that distinction is
+    /// the whole design. The job is to reject values a living person cannot
+    /// produce, never to reject values that are merely *bad news*. A resting
+    /// heart rate of 95 is a finding and is kept; 119 as a sleeping low is an
+    /// artefact. Where a real reading and an artefact genuinely overlap the
+    /// bound goes wide, because a missed anomaly is recoverable and a discarded
+    /// real measurement is not.
+    ///
+    /// `nil` means unbounded above — for metrics where no honest ceiling exists
+    /// (a step count, a duration) or where `requiresPositiveValue` already says
+    /// everything worth saying.
+    var plausibleRange: ClosedRange<Double>? {
+        switch self {
+        // Heart. Documented human resting extremes run from ~27 bpm (endurance
+        // athletes, and lower in case reports) to tachycardia; a *resting* or
+        // *sleeping* figure above 120 is a measurement of something other than
+        // rest. Instantaneous heart rate gets the wide band, because a real
+        // maximum during exercise reaches it.
+        case .restingHeartRate: return 25...120
+        case .walkingHeartRateAverage: return 30...180
+        case .heartRate: return 25...240
+        // HRV. rMSSD and SDNN both live in single-to-triple-digit milliseconds;
+        // a reading past ~400 ms is an artefact of a dropped beat, not autonomic
+        // tone.
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN: return 1...400
+        case .heartRateRecovery: return 0...100
+        // Respiration and oxygenation. SpO₂ below 70 is outside what consumer
+        // pulse oximetry is validated to report at all, and above 100 is
+        // impossible.
+        case .respiratoryRate: return 4...60
+        case .oxygenSaturation: return 70...100
+        // Pressure. Above these a cuff is misreporting; a hypertensive crisis is
+        // well inside the band and must stay inside it.
+        case .bloodPressureSystolic: return 60...300
+        case .bloodPressureDiastolic: return 30...200
+        // Temperature, in °C. Survivable core temperature, generously bounded.
+        case .bodyTemperature, .skinTemperature: return 25...45
+        // Body. Deliberately wide: these are the metrics where being wrong about
+        // somebody's body is worst, and a scale reporting a real 200 kg must be
+        // believed.
+        case .bodyMass, .leanBodyMass, .muscleMass: return 20...400
+        case .boneMass: return 0.5...10
+        case .bodyFatPercentage, .bodyWaterPercentage: return 1...80
+        case .height: return 0.5...2.6
+        case .bloodGlucose: return 1...40
+        // Percentages that are percentages.
+        case .walkingSteadiness, .walkingAsymmetry, .sleepEfficiency,
+             .atrialFibrillationBurden, .peripheralPerfusionIndex:
+            return 0...100
+        // Fitness and provider estimates.
+        case .vo2Max: return 5...100
+        case .vascularAge: return 10...120
+        case .dayStrain: return 0...21          // Whoop's own scale
+        // No honest ceiling, or none needed. Sleep duration is bounded by the
+        // day; a very long recorded sleep is usually a real illness or a real
+        // device error, and the app should show it rather than hide it.
+        case .sleepDurationHours: return 0...24
+        case .sleepOnset: return -12...12       // the encoding's own range
+        case .sleepDeepMinutes, .sleepRemMinutes: return 0...(24 * 60)
+        case .skinTemperatureDeviation: return -15...15
+        case .stepCount, .activeEnergyBurned: return nil
+        }
+    }
+}
+
 public extension Array where Element == HealthMetricSample {
     /// Drop samples that can't be real — a non-positive value for a metric that
-    /// must be positive. Keeps everything else untouched. This prevents "0 bpm"
-    /// resting-heart-rate tiles (e.g. from an Oura day with no HR data) and stops
-    /// placeholder zeros from dragging multi-source averages and graphs down.
+    /// must be positive, or one outside the metric's `plausibleRange`. Keeps
+    /// everything else untouched. This prevents "0 bpm" resting-heart-rate tiles
+    /// (e.g. from an Oura day with no HR data), stops placeholder zeros from
+    /// dragging multi-source averages down, and stops a single artefact from
+    /// setting a baseline nothing can then depart from.
     func sanitizedVitals() -> [HealthMetricSample] {
         partitionedVitals().kept
     }
@@ -59,7 +140,9 @@ public extension Array where Element == HealthMetricSample {
         var dropped: [HealthMetricSample] = []
         kept.reserveCapacity(count)
         for sample in self {
-            if !sample.type.requiresPositiveValue || sample.value > 0 {
+            let positiveEnough = !sample.type.requiresPositiveValue || sample.value > 0
+            let inRange = sample.type.plausibleRange.map { $0.contains(sample.value) } ?? true
+            if positiveEnough && inRange {
                 kept.append(sample)
             } else {
                 dropped.append(sample)

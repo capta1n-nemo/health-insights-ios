@@ -19,6 +19,20 @@ public enum OuraResponseParser {
     private struct SleepRecord: Decodable {
         let day: String?                       // "YYYY-MM-DD"
         let bedtime_start: String?             // ISO8601 with offset
+        /// `long_sleep` | `sleep` | `late_nap` | `rest`.
+        ///
+        /// Decoded at last, and it is the difference between a sleep card that
+        /// works and one that lies. Oura's `sleep` endpoint returns **segments**,
+        /// not nights: naps and "rest" periods arrive in the same list as the
+        /// night. Nothing read this field, so every one of them became a night —
+        /// and because `MetricType.bucketStatistic` averages same-day sleep
+        /// samples, a 7.5 h night plus a 20-minute nap was reported to the user
+        /// as a 4 h night.
+        ///
+        /// Found from the user's own data export: sleep duration had a median of
+        /// 5.6 h and a *minimum of 0.01 h* — a 36-second `rest` record scored as
+        /// a night's sleep.
+        let type: String?
         let lowest_heart_rate: Double?
         let average_heart_rate: Double?
         let average_hrv: Double?
@@ -53,6 +67,16 @@ public enum OuraResponseParser {
         var samples: [HealthMetricSample] = []
         var bedtimes: [Date] = []
         for record in list.data {
+            // **First, before anything reads this record.** Naps and rest
+            // periods are real, and they are not nights. They stay in the raw
+            // catalogue under `oura.sleep.*`; what they must not do is become a
+            // night's duration, lend their *awake* heart rate to
+            // `.restingHeartRate`, or — the subtlest of the three — become the
+            // night's bedtime. An 8 pm nap encodes as −4.0 h, which is inside
+            // `SleepOnset.plausibleHours`, and `SleepOnset.samples` keeps the
+            // *earliest* segment of each night. So a nap would outrank the real
+            // 11 pm bedtime and quietly become it.
+            guard Self.isNight(record.type) else { continue }
             if let raw = record.bedtime_start,
                let instant = ISO8601DateFormatter().date(from: raw) {
                 bedtimes.append(instant)
@@ -93,6 +117,20 @@ public enum OuraResponseParser {
         f.timeZone = TimeZone(identifier: "UTC")
         return f
     }()
+
+    /// Whether a sleep segment is a night.
+    ///
+    /// **An unrecognised or absent `type` counts as a night**, deliberately. The
+    /// alternative — a allow-list that drops anything it doesn't know — would
+    /// empty the sleep card the day Oura adds a value, and it would do it
+    /// silently. This repo has shipped a guard whose premise was wrong twice
+    /// (the `tunnelState` deploy check, the Oura scope skip); both failed by
+    /// rejecting something valid. Rejecting only what is *known* to be a nap
+    /// fails the safe way instead.
+    static func isNight(_ type: String?) -> Bool {
+        guard let type = type?.lowercased() else { return true }
+        return !["late_nap", "nap", "rest"].contains(type)
+    }
 
     private static func date(from record: SleepRecord) -> Date? {
         if let day = record.day, let d = dayFormatter.date(from: day) { return d }
