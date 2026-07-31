@@ -68,6 +68,8 @@ that is not yet automated is the next thing to automate.
 | Hunt for a type by guessing its filename | 2 | ⚠️ partly — `symbol-index.md` exists and was not consulted first |
 | A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
 | A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
+| **A rule pointing at a script that isn't there** | 1 | ✅ `handover-check.sh` check 7 |
+| **`git add -A` in a canary, then `git reset --hard`** | 1 | ⬜ **open** — see roadmap |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
@@ -91,6 +93,11 @@ Ordered by (frequency × cost), cheapest fix first.
       guarantees it rots again; the fix taken was to delete it and point at the
       thing that generates it. Keep counts only where they are recomputed —
       `swift test`, `gen-symbol-index.sh`, this log.
+- [ ] **Never `git add -A` inside a canary.** A canary that staged everything
+      swept an untracked new script into a throwaway commit, and the
+      `git reset --hard` that undid the canary deleted the script with it. The
+      rules kept pointing at it for three commits. Use `git stash -u`, or commit
+      the real work *before* running any canary that resets.
 - [ ] **Make `symbol-index.md` the reflex, not the fallback.** The router already
       says "check here before grepping". It was still skipped. Consider having
       `verify.sh` print a one-line reminder, or fold the index into the skills
@@ -128,6 +135,20 @@ chart draws this?" before committing a rendering change.
    router already says to check the index first.
 2. Ran `./scripts/verify.sh --tests` six times when the InsightKit-only work
    needed `swift test --filter` and one full run before pushing.
+
+**A third rework, and the worst of the session.** `scripts/handover-check.sh`
+was written, run, canaried — and then destroyed by a *different* canary, whose
+`git add -A` swept the still-untracked file into a throwaway commit that
+`git reset --hard` then discarded. `CLAUDE.md` and the handover command were
+committed pointing at a file that was no longer in the tree.
+
+The instructive part is not the git accident. A completeness audit **reported
+the script missing**, and the report was dismissed as stale on the grounds that
+the script had just been written — the same "answer from memory rather than
+check" failure as the `tunnelState` guard and the Oura scope guess, now four
+instances. Check 7 of the gate closes the mechanical half: any `./scripts/*.sh`
+named in `CLAUDE.md`, the handover command or a skill must exist and be
+executable.
 
 **What made this session cheap where it was cheap.** The two audited docs were
 trusted rather than re-established, which is what let the session open with work
