@@ -527,6 +527,17 @@ public struct BloodPressureInsight: InsightModel {
         ]
     }
 
+    /// The dated log, **not** the two grounding facts the derived default would
+    /// produce.
+    ///
+    /// `requirements` names `.cuffSystolic` and `.cuffDiastolic` because that is
+    /// how the grounding *prompt* works, but what this card actually takes is a
+    /// reading with a date on it, calibrating towards a target. Rendering it as
+    /// two profile facts would offer the user a single latest number where the
+    /// model wants a series — and would hide the calibration progress that says
+    /// how many more are needed.
+    public var contributions: [ContributionRoute] { [.bloodPressureReadings] }
+
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         // Latest trusted reading: prefer fresh grounding, else most recent sample.
         let sys = profile.cuffSystolic ?? samples.latestValue(.bloodPressureSystolic)

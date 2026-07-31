@@ -33,6 +33,12 @@ public struct SubstanceImpactInsight: InsightModel {
     /// log; there is no fact it needs anyone to type in.
     public var requirements: [GroundingRequirement] { [] }
 
+    /// The log itself. Without this override the derived default would return
+    /// nothing — `requirements` is empty — and the one card whose whole input is
+    /// something the user types would be the one card with no way to type it.
+    /// It was reachable only from a toolbar button on a different tab.
+    public var contributions: [ContributionRoute] { [.substanceLog] }
+
     /// `profile` is deliberately unused — no arm of this analysis is age- or
     /// sex-adjusted, and a reader should not have to work that out.
     public func evaluate(samples: [HealthMetricSample],

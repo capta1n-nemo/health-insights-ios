@@ -24,50 +24,93 @@ struct InsightDetailView: View {
 
     private var result: InsightResult? { model.result(for: insightID) }
 
+    /// What this card lets the user view and add, asked of the model rather than
+    /// decided here — see `ContributionRoute`.
+    private var contributionRoutes: [ContributionRoute] {
+        model.engine.models.first { $0.id == insightID }?.contributions ?? []
+    }
+
+    /// The card's own picture of its own subject, where it has one.
+    ///
+    /// Collected into a single switch so the placement rule is stated once. Five
+    /// insights have one; the rest draw their inputs through the shared overlay
+    /// below, which for a single-metric insight already *is* its chart.
+    @ViewBuilder private var bespokeSection: some View {
+        switch insightID {
+        case .heartAge:
+            ageComparisonCard
+            ageHistoryCard
+        case .bloodPressure:
+            bloodPressureChartCard
+        case .energy:
+            energyCurveCard
+        case .circadianConsistency:
+            sleepRegularityCard
+        case .substanceImpact:
+            substanceLoadCard
+        default:
+            EmptyView()
+        }
+    }
+
+    /// Whether any section below reads `timeframe`.
+    ///
+    /// The picker used to live inside "Score over time" while also driving the
+    /// overlay, the patterns card and the lag card — so an insight with under
+    /// two replayable days lost the control for three sections that still used
+    /// it, and there was no way to change the window at all.
+    private var usesTimeframe: Bool {
+        guard let result else { return false }
+        return model.scoreHistory(for: insightID).count >= 2
+            || !model.overlaySeries(for: insightID,
+                                    contributions: resolvedContributions(result),
+                                    timeframe: timeframe).isEmpty
+    }
+
+    @ViewBuilder private var timeframePicker: some View {
+        if usesTimeframe {
+            Picker("Timeframe", selection: $timeframe) {
+                ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
                     headerCard(result)
-                    if insightID == .heartAge {
-                        ageComparisonCard
-                        ageHistoryCard
-                    }
-                    if !result.unmetRequirements.isEmpty {
-                        requirementsCard(result)
-                    }
                     if !result.drivers.isEmpty {
                         driversCard(result)
                     }
-                    if insightID == .bloodPressure {
-                        bloodPressureLogLink
+                    // What this card takes from the user, in the one shape every
+                    // card uses. Gated *here* rather than inside the view: a
+                    // struct View with an empty body is still a VStack child and
+                    // would take spacing either side of it, so the nine cards
+                    // that ask for nothing would carry a double gap.
+                    if !contributionRoutes.isEmpty {
+                        ViewAndAddSection(routes: contributionRoutes,
+                                          unmetRequirements: result.unmetRequirements)
                     }
-                    // Before the score history, not after: Energy's subject is
-                    // today, and the month of morning scores is the supporting
-                    // context rather than the finding.
-                    if insightID == .energy {
-                        energyCurveCard
-                    }
-                    // Same argument as Energy's placement: the fortnight of
-                    // bedtimes *is* the finding, and the month of scores derived
-                    // from it is the supporting context.
-                    if insightID == .circadianConsistency {
-                        sleepRegularityCard
-                    }
+                    // One rule for every bespoke section: above "Score over
+                    // time". The card's own subject is the finding; the months
+                    // of scores derived from it are the supporting context.
+                    // Three different placements used to encode the same idea.
+                    bespokeSection
+                    timeframePicker
                     scoreHistoryCard
-                    if insightID == .substanceImpact {
-                        substanceLoadCard
-                    }
                     contributorsCard(result)
                     patternsCard(result)
-                    // The deep-dive pair belongs to the Insights tab's question
-                    // ("what has been happening to me over months"), not to
-                    // Today's ("how am I right now"), so it's gated on cadence
-                    // rather than shown on every screen.
-                    if insightID.cadence == .trend {
-                        laggedCard(result)
-                        periodContrastCard(result)
-                    }
+                    // No longer gated on cadence. The gate argued from the
+                    // *tab's* question, but this screen is reached from either
+                    // tab and is identical from both — and the daily insights
+                    // are the ones with the densest series for a lag to work on.
+                    // The sample-count and effect-size floors inside `LagFinder`
+                    // and `PeriodContrast` already decide when there is nothing
+                    // to say, which is how every other section here works.
+                    laggedCard(result)
+                    periodContrastCard(result)
                     contributorLinksCard(result)
                     feedbackCard(result)
                     disclaimerCard
@@ -104,22 +147,27 @@ struct InsightDetailView: View {
         }
     }
 
-    private func requirementsCard(_ result: InsightResult) -> some View {
-        Card {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Add these for a better estimate", systemImage: "exclamationmark.circle")
-                    .font(.headline)
-                ForEach(result.unmetRequirements) { req in
-                    Button { groundingKind = req.kind } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(req.kind.displayName).font(.subheadline)
-                                Text(req.rationale).font(.caption2).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "plus.circle.fill").foregroundStyle(Theme.accent)
+    /// Blood pressure's own picture, on the card that talks about it.
+    ///
+    /// It used to be a link to `MetricDetailView`, which made this the one
+    /// insight whose chart lived on another screen — behind the calibration
+    /// detail and the full dated history, neither of which is what you open the
+    /// card to see. Both still exist there; this is the same `BloodPressureChart`
+    /// component, not a second copy.
+    @ViewBuilder private var bloodPressureChartCard: some View {
+        let readings = model.bloodPressureReadings
+        if !readings.isEmpty {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Your readings").font(.headline)
+                        Spacer()
+                        if let latest = readings.first {
+                            Text(latest.category)
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                    }.buttonStyle(.plain)
+                    }
+                    BloodPressureChart(readings: readings, timeframe: timeframe)
                 }
             }
         }
@@ -296,10 +344,8 @@ struct InsightDetailView: View {
                         Spacer()
                         Text(trendPhrase(history)).font(.caption).foregroundStyle(.secondary)
                     }
-                    Picker("Timeframe", selection: $timeframe) {
-                        ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                    // The picker that used to live here is now above every
+                    // section that reads `timeframe`, this one included.
                     ScoreHistoryChart(points: history,
                                       window: window(spanning: scoreSpan(history)),
                                       showsTrend: insightID.cadence == .trend)
@@ -637,26 +683,6 @@ struct InsightDetailView: View {
                 }
             }
         }
-    }
-
-    private var bloodPressureLogLink: some View {
-        NavigationLink {
-            MetricDetailView(subject: .bloodPressure)
-        } label: {
-            Card {
-                HStack {
-                    Image(systemName: "list.bullet.rectangle").foregroundStyle(Theme.accent)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("View & add readings").font(.subheadline.weight(.semibold))
-                        Text("Log cuff readings with dates — the estimate needs a few")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     // Discreet, only-in-detail feedback loop: rate accuracy and (optionally)

@@ -89,7 +89,7 @@ the place to look.
   - `InsightConfidence` :47
   - `InsightDriver` :83
   - `InsightID` :4
-  - `InsightModel` :174
+  - `InsightModel` :191
   - `InsightResult` :100
   - `RequirementStatus` :71
 - `Insights/InsightEngine.swift`
@@ -149,9 +149,9 @@ the place to look.
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
 - `Models/GroundingInput.swift`
-  - `GroundingInput` :60
+  - `GroundingInput` :99
   - `GroundingKind` :7
-  - `UserHealthProfile` :82
+  - `UserHealthProfile` :121
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :71
   - `MetricSource` :5
@@ -181,6 +181,8 @@ the place to look.
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
+- `Presentation/ContributionRoute.swift`
+  - `ContributionRoute` :14
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :56
 - `Presentation/LaunchNarration.swift`
@@ -294,6 +296,8 @@ the place to look.
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
   - `AgeHistoryChart` :15
+- `DesignSystem/BloodPressureChart.swift`
+  - `BloodPressureChart` :18
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/Haptics.swift`
@@ -344,6 +348,8 @@ the place to look.
   - `GroundingPromptBanner` :6
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
+- `Features/Grounding/ViewAndAddSection.swift`
+  - `ViewAndAddSection` :20
 - `Features/Insights/InsightDetailView.swift`
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`
@@ -357,7 +363,7 @@ the place to look.
 - `Features/Launch/LaunchScreen.swift`
   - `LaunchScreen` :23
 - `Features/Metrics/BloodPressureSections.swift`
-  - `BloodPressureSections` :13
+  - `BloodPressureSections` :12
 - `Features/Metrics/MetricDetailView.swift`
   - `MetricDetailView` :8
 - `Features/Metrics/MetricViewStrategy.swift`

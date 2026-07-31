@@ -116,6 +116,23 @@ public struct InsightResult: Sendable, Equatable {
     public let driverLines: [InsightDriver]
     /// The same lines as plain text, which is all most callers want.
     public var drivers: [String] { driverLines.map(\.text) }
+
+    /// Whether a tab should list this card at all.
+    ///
+    /// **One rule for both tabs.** Today filtered on `primaryValue != nil` and
+    /// Insights filtered on nothing, so an ungrounded trend insight showed an
+    /// "Add your details" placeholder while an ungrounded daily one silently
+    /// vanished — two answers to one question.
+    ///
+    /// The rule is not "whichever tab was right": it is that a card with no
+    /// number earns its place only when there is something the user can *do*
+    /// about it. Simply dropping Today's filter would have put up to seven dead
+    /// cards on a fresh install, because the daily insights declare no grounding
+    /// requirements at all — their empty state is "connect a wearable", which a
+    /// placeholder card cannot help with.
+    public var isWorthShowing: Bool {
+        primaryValue != nil || !unmetRequirements.isEmpty
+    }
     /// Grounding requirements still unmet, so the UI can prompt.
     public let unmetRequirements: [GroundingRequirement]
     /// The metrics that actually fed this result, emitted by the scoring code as
@@ -185,6 +202,14 @@ public protocol InsightModel: Sendable {
     /// what it reads or it won't compile, the same way `MetricType.presentation`
     /// refuses to let a new metric go uncategorised.
     var candidateMetrics: [MetricType] { get }
+    /// What the user can view and add for this insight — see
+    /// `ContributionRoute`, which also carries the default implementation.
+    ///
+    /// **A protocol requirement, not merely an extension member.** Callers hold
+    /// `any InsightModel`, and a member that existed only in an extension would
+    /// dispatch statically — every model would silently get the default and the
+    /// two overrides below would never run.
+    var contributions: [ContributionRoute] { get }
     /// Compute the result from current data. Never throws — degrades gracefully
     /// to a low-confidence / not-yet-available result and reports what's missing.
     func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult

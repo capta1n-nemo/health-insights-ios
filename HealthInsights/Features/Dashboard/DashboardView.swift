@@ -10,7 +10,7 @@ struct TodayView: View {
     @State private var showSubstanceLog = false
 
     private var dailyResults: [InsightResult] {
-        model.results.filter { $0.id.cadence == .daily && $0.primaryValue != nil }
+        model.results.filter { $0.id.cadence == .daily && $0.isWorthShowing }
     }
 
     var body: some View {

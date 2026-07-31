@@ -37,6 +37,45 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
     /// re-prompt. `nil` means it never goes stale (e.g. date of birth).
     public var id: String { rawValue }
 
+    /// How a stored value reads back to the user.
+    ///
+    /// Lives here rather than in the view because every one of these is a
+    /// `Double` on the way in and several are not numbers on the way out — a
+    /// date of birth is an epoch, a sex is 0 or 1, a smoker is a flag. A view
+    /// printing the raw value would show "802915200" where it meant an age, and
+    /// nothing would catch it. Exhaustive, so a new kind has to say.
+    ///
+    /// Date of birth reads as an age rather than a date deliberately: it needs
+    /// no date-formatting API (several of which are Darwin-only and would take
+    /// InsightKit off Linux), and the age is the thing every model actually
+    /// uses.
+    public func formatted(_ value: Double, asOf now: Date = Date()) -> String {
+        switch self {
+        case .dateOfBirth:
+            let born = Date(timeIntervalSince1970: value)
+            let years = now.timeIntervalSince(born) / (365.2425 * 24 * 3600)
+            guard years > 0 else { return "—" }
+            return "\(Int(years.rounded(.down))) years old"
+        case .biologicalSex:
+            return value == 0 ? "Male" : "Female"
+        case .ascvdRaceGroup:
+            return value == 1 ? "Black / African American" : "White / Other"
+        case .score2Region:
+            switch value {
+            case 0: return "Low risk region"
+            case 2: return "High risk region"
+            case 3: return "Very high risk region"
+            default: return "Moderate risk region"
+            }
+        case .totalCholesterol, .hdlCholesterol:
+            return String(format: "%.1f mmol/L", value)
+        case .currentSmoker, .hasDiabetes, .onBPMedication:
+            return value >= 0.5 ? "Yes" : "No"
+        case .cuffSystolic, .cuffDiastolic:
+            return String(format: "%.0f mmHg", value)
+        }
+    }
+
     public var freshness: TimeInterval? {
         switch self {
         case .dateOfBirth, .biologicalSex, .ascvdRaceGroup, .score2Region:

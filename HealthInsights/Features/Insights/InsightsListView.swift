@@ -12,7 +12,7 @@ struct InsightsListView: View {
     @AppStorage("suggestionsExpanded") private var isExpanded = false
 
     private var trendResults: [InsightResult] {
-        model.results.filter { $0.id.cadence == .trend }
+        model.results.filter { $0.id.cadence == .trend && $0.isWorthShowing }
     }
 
     var body: some View {
