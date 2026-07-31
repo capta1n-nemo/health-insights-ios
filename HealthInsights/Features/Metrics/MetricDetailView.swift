@@ -50,6 +50,12 @@ struct MetricDetailView: View {
 
     /// Whether a dashed connector can appear at this zoom at all, so the key is
     /// only shown when the encoding is actually in play. O(1) — no history scan.
+    /// The after-windows to shade behind this metric's chart, if it is one the
+    /// substance analyzer compares at all.
+    private var substanceWindows: [SubstanceWindow] {
+        model.substanceWindows(for: metric)
+    }
+
     private var canBridge: Bool {
         let bucket = BucketSize.forWindow(window)
         return SeriesBridging.maxBridgeableGap(for: allData.type, bucket: bucket, window: window)
@@ -137,12 +143,21 @@ struct MetricDetailView: View {
                                  window: window,
                                  logarithmic: logScale,
                                  onVisibleRangeChange: { visibleRange = $0 },
-                                 selection: $scrubbed)
+                                 selection: $scrubbed,
+                                 substanceWindows: substanceWindows)
                 Text("Drag across the chart to read individual points; swipe it sideways to move back through your history.")
                     .font(.caption2).foregroundStyle(.tertiary)
                 if canBridge {
                     Text("A dashed stretch joins two readings across a gap — nothing was measured along it.")
                         .font(.caption2).foregroundStyle(.tertiary)
+                }
+                // The window was stated on the Substance Impact card and drawn
+                // nowhere, so seeing which readings it covered meant doing date
+                // arithmetic in your head against a chart.
+                if !substanceWindows.isEmpty {
+                    Text("The shaded columns are the \(Int(SubstanceResponseAnalyzer.afterWindow / 3600)) hours after something you logged — the readings Substance Impact compares against your unlogged days. It marks when, not whether anything happened.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 // A shaded band with no words is a coloured rectangle. The range
                 // carries its own sentence and its own attribution, so a number

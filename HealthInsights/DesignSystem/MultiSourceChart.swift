@@ -50,6 +50,13 @@ struct MultiSourceChart: View {
     /// Lets an owner observe the scrub position, so the breakdown beneath can
     /// follow the crosshair. Falls back to private state when not supplied.
     var selection: Binding<Date?>?
+    /// Stretches the substance analyzer treats as affected by a logged event.
+    ///
+    /// Passed in already merged rather than as the log itself, so this chart
+    /// stays ignorant of `SubstanceEvent` — it draws spans, and what a span
+    /// means is InsightKit's question. Empty for the twenty metrics the analyzer
+    /// does not watch, and for anyone who has logged nothing.
+    var substanceWindows: [SubstanceWindow] = []
 
     /// The instant being scrubbed over, when no owner supplied a binding.
     @State private var localSelection: Date?
@@ -257,6 +264,7 @@ struct MultiSourceChart: View {
     private func allMarks(in range: ClosedRange<Date>) -> some ChartContent {
         let plot = plot(in: range)
         bandMarks(across: range)
+        substanceMarks(in: range)
         bridgeMarks(plot.bridges)
         seriesMarks(plot.segments)
     }
@@ -282,6 +290,32 @@ struct MultiSourceChart: View {
                           yEnd: .value("High", band.upper))
                 .foregroundStyle((band.kind == .normal ? Theme.good : Theme.warn)
                     .opacity(band.kind == .normal ? 0.09 : 0.06))
+        }
+    }
+
+    /// The after-window behind the readings it applies to.
+    ///
+    /// Vertical stripes, and no y bounds: the claim is about a stretch of *time*
+    /// in which every reading is affected, not about a region of the plot. Given
+    /// a y range it would read as a normal band, which is what the horizontal
+    /// stripes above already mean on this same chart — two encodings that look
+    /// alike and say different things is the mistake the dash rule was written
+    /// to stop.
+    ///
+    /// Below the reference bands' own opacity so the two can overlap without
+    /// either becoming unreadable, and in a neutral grey rather than a substance
+    /// hue: "a log sits here" is not a judgement, and colouring it good or bad
+    /// would make it one.
+    @ChartContentBuilder
+    private func substanceMarks(in range: ClosedRange<Date>) -> some ChartContent {
+        ForEach(substanceWindows.filter { $0.overlaps(range) }) { window in
+            RectangleMark(
+                // Clipped to the plotted range: an unclipped span can widen the
+                // x domain, and an 18-hour window either side of a Year view
+                // would move the axis for a stripe nobody can see.
+                xStart: .value("From", Swift.max(window.start, range.lowerBound)),
+                xEnd: .value("To", Swift.min(window.end, range.upperBound)))
+                .foregroundStyle(Color.secondary.opacity(0.10))
         }
     }
 

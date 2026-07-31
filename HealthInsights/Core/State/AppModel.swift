@@ -66,7 +66,10 @@ final class AppModel {
     /// ingested, its type, whether it feeds a vital, and what it might map to.
     private(set) var fieldCatalogue = FieldCatalogue()
     private(set) var substanceEvents: [SubstanceEvent] = [] {
-        didSet { substanceLoadCache = nil }
+        didSet {
+            substanceLoadCache = nil
+            substanceWindowCache = nil
+        }
     }
 
     /// Decaying daily cardiovascular load from the substance log.
@@ -76,6 +79,22 @@ final class AppModel {
     /// history. Invalidated by `substanceEvents` above rather than by
     /// `invalidateDerivedCaches()` — it is a function of the log, not of samples.
     @ObservationIgnored private var substanceLoadCache: [SubstanceLoadPoint]?
+
+    @ObservationIgnored private var substanceWindowCache: [SubstanceWindow]?
+
+    /// The after-windows to shade behind a vital's chart.
+    ///
+    /// Empty for a metric the analyzer doesn't compare, because a shaded stretch
+    /// behind a weight chart would assert a relationship nothing here has
+    /// looked for. `comparedMetrics` is derived from the analyzer's own watched
+    /// table, so the two can't drift apart.
+    func substanceWindows(for metric: MetricType) -> [SubstanceWindow] {
+        guard SubstanceResponseAnalyzer.comparedMetrics.contains(metric) else { return [] }
+        if let substanceWindowCache { return substanceWindowCache }
+        let built = SubstanceResponseAnalyzer.affectedWindows(events: substanceEvents)
+        substanceWindowCache = built
+        return built
+    }
 
     /// The load series the Substance Impact detail screen charts.
     func substanceLoadSeries(days: Int = 90) -> [SubstanceLoadPoint] {

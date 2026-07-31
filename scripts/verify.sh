@@ -130,6 +130,88 @@ if [ -n "$insight_names" ]; then
     fi
 fi
 
+# --- Any exhaustive switch, anywhere, over an InsightKit enum ---------------
+#
+# The checks above name each switch individually, which only ever catches the
+# switches somebody remembered to list. Adding `.convergingSignals` to
+# `Suggestion.Basis` broke CI on a switch in `InsightsListView` that no list
+# here mentioned — the same shape as the `.vitalSigns` break before it, and the
+# reason this generic pass exists.
+#
+# Swift already requires a switch with no `default:` to name every case, so the
+# rule needs no per-switch knowledge: find switch blocks with no default that
+# mention this enum's cases, and report any case they leave out. The coverage
+# floor is what stops a switch over some *other* type with a coincidentally
+# similar case name being flagged.
+# Case names of `enum $2` in file $1, at any nesting depth — `Suggestion.Basis`
+# is declared inside a struct, so an anchored `^public enum` finds nothing.
+enum_cases() {
+    awk -v want="$2" '
+        !inside && $0 ~ ("enum[[:space:]]+" want "[[:space:]:{]") {
+            match($0, /^[[:space:]]*/); indent = RLENGTH; inside = 1; next
+        }
+        inside {
+            match($0, /^[[:space:]]*/)
+            if (RLENGTH <= indent && $0 ~ /^[[:space:]]*\}/) { inside = 0; next }
+            if ($0 ~ /^[[:space:]]*case [a-z]/) {
+                sub(/^[[:space:]]*case /, ""); sub(/[^A-Za-z0-9].*$/, ""); print
+            }
+        }
+    ' "$1" 2>/dev/null | sort -u
+}
+
+# $1 = label, rest = case names.
+check_every_switch_over() {
+    local label=$1
+    shift
+    local names=("$@")
+    [ "${#names[@]}" -lt 2 ] && return
+    local floor=$(( (${#names[@]} + 1) / 2 ))
+    local report
+
+    report=$(
+        for file in $(git ls-files '*.swift' | grep -v '/Tests/'); do
+            awk -v names="${names[*]}" -v floor="$floor" -v file="$file" '
+                # Open a block at the first `switch`, close it at the `}` that
+                # sits at the same indentation. A nested switch is deeper, so it
+                # never closes its parent.
+                !inside && /^[[:space:]]*(.* = )?switch[[:space:]]/ {
+                    match($0, /^[[:space:]]*/)
+                    indent = RLENGTH; inside = 1; body = ""; line = NR
+                }
+                inside {
+                    body = body "\n" $0
+                    if (NR > line) {
+                        match($0, /^[[:space:]]*/)
+                        if (RLENGTH <= indent && $0 ~ /^[[:space:]]*\}/) {
+                            split(names, want, " ")
+                            hit = 0; missing = ""
+                            for (i in want) {
+                                if (body ~ ("[.]" want[i] "[^A-Za-z0-9]")) hit++
+                                else missing = missing " " want[i]
+                            }
+                            if (hit >= floor && missing != "" && body !~ /\n[[:space:]]*default:/)
+                                print file ":" line " does not mention:" missing
+                            inside = 0
+                        }
+                    }
+                }
+            ' "$file"
+        done
+    )
+    if [ -n "$report" ]; then
+        note "Exhaustive switches over $label are missing cases:"
+        printf '%s\n' "$report"
+        fail=1
+    fi
+}
+
+# shellcheck disable=SC2046
+check_every_switch_over MetricType $metric_names
+# shellcheck disable=SC2046
+check_every_switch_over "Suggestion.Basis" \
+    $(enum_cases InsightKit/Sources/InsightKit/Insights/Suggestions.swift Basis)
+
 # chartStyleIndex must stay contiguous from zero, or the metrics most likely to
 # share a chart lose first claim on the eight hues.
 dupes=$(grep -oE 'return [0-9]+$' InsightKit/Sources/InsightKit/Presentation/MetricPresentation.swift 2>/dev/null \

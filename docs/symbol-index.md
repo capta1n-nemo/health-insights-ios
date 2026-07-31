@@ -215,6 +215,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
+  - `SubstanceWindow` :327
 - `Text/PlainText.swift`
   - `PlainText` :8
 

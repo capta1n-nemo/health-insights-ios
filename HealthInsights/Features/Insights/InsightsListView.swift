@@ -92,6 +92,11 @@ struct InsightsListView: View {
     /// well-founded the line is, not about how urgent it is.
     private func colour(for basis: Suggestion.Basis) -> Color {
         switch basis {
+        // Several signals agreeing is the best-founded thing this app says, so
+        // it takes the same green as an observation from the user's own history
+        // rather than a louder hue. The dot ranks evidence; the row's position
+        // at the top of the list is what says this one is time-critical.
+        case .convergingSignals: return Theme.good
         case .yourOwnData: return Theme.good
         case .unlockAnInsight: return Theme.warn
         case .signalOffBaseline: return Theme.accent

@@ -316,3 +316,67 @@ public enum SubstanceResponseAnalyzer {
             contributors: contributors)
     }
 }
+
+/// The stretch after a logged event during which the analyzer treats a reading
+/// as affected — as something a chart can draw.
+///
+/// The card has always *stated* this window ("readings within 18 hours of a log
+/// are compared against your clean nights") and never shown it, so the reader
+/// had to hold a date arithmetic problem in their head to see which part of a
+/// line the sentence was about. This is that sentence, drawn.
+public struct SubstanceWindow: Sendable, Equatable, Identifiable {
+    public let start: Date
+    public let end: Date
+    /// Every substance logged inside this span. More than one when overlapping
+    /// windows were merged.
+    public let substances: [SubstanceClass]
+
+    public init(start: Date, end: Date, substances: [SubstanceClass]) {
+        self.start = start
+        self.end = end
+        self.substances = substances
+    }
+
+    public var id: Date { start }
+    public func overlaps(_ range: ClosedRange<Date>) -> Bool {
+        start <= range.upperBound && end >= range.lowerBound
+    }
+}
+
+public extension SubstanceResponseAnalyzer {
+
+    /// The after-windows of a log, merged where they overlap.
+    ///
+    /// Merged, and that is the whole design question. Three coffees across a
+    /// morning produce three eighteen-hour windows covering nearly the same
+    /// stretch; drawn as three rectangles they stack, and stacked translucent
+    /// fills compound into a band darker than a single one — so the chart would
+    /// encode *how many logs* in a channel that is supposed to say only
+    /// *affected or not*. One merged span at one opacity says the true thing.
+    ///
+    /// Which substances went into a span is kept rather than collapsed, because
+    /// the legend beneath names them and "alcohol and caffeine" is a different
+    /// read from "alcohol".
+    static func affectedWindows(events: [SubstanceEvent],
+                                after: TimeInterval = afterWindow) -> [SubstanceWindow] {
+        let sorted = events.sorted { $0.timestamp < $1.timestamp }
+        var out: [SubstanceWindow] = []
+        for event in sorted {
+            let start = event.timestamp
+            let end = start.addingTimeInterval(after)
+            if let last = out.last, start <= last.end {
+                out[out.count - 1] = SubstanceWindow(
+                    start: last.start,
+                    // `max` rather than the new end: a later event with a
+                    // shorter window must not shorten a span already open.
+                    end: Swift.max(last.end, end),
+                    substances: last.substances.contains(event.substance)
+                        ? last.substances : last.substances + [event.substance])
+            } else {
+                out.append(SubstanceWindow(start: start, end: end,
+                                           substances: [event.substance]))
+            }
+        }
+        return out
+    }
+}
