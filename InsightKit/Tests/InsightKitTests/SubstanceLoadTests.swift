@@ -250,3 +250,95 @@ final class SubstanceWatchedMetricsTests: XCTestCase {
         XCTAssertTrue(analysis.effects.isEmpty)
     }
 }
+
+/// The after-window, as something a chart can draw. It has always been *stated*
+/// on the card and never shown, which left the reader doing date arithmetic
+/// against a chart to see which readings the sentence was about.
+final class SubstanceWindowTests: XCTestCase {
+
+    private let after = SubstanceResponseAnalyzer.afterWindow
+
+    func testOneEventBecomesOneWindowOfTheStatedLength() throws {
+        let windows = SubstanceResponseAnalyzer.affectedWindows(
+            events: [event(.alcohol, daysAgo: 2)])
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertEqual(windows.count, 1)
+        XCTAssertEqual(window.end.timeIntervalSince(window.start), after, accuracy: 1)
+        XCTAssertEqual(window.substances, [.alcohol])
+    }
+
+    /// The design question. Three coffees across a morning produce three
+    /// near-identical eighteen-hour spans; drawn as three rectangles they stack,
+    /// and stacked translucent fills compound into a band darker than a single
+    /// one — so the chart would encode *how many logs* in a channel meant to say
+    /// only *affected or not*.
+    func testOverlappingWindowsMergeIntoOne() throws {
+        let windows = SubstanceResponseAnalyzer.affectedWindows(events: [
+            event(.caffeine, daysAgo: 2),
+            event(.caffeine, daysAgo: 2 - 2.0 / 24),   // two hours later
+            event(.caffeine, daysAgo: 2 - 4.0 / 24)
+        ])
+        XCTAssertEqual(windows.count, 1)
+        let window = try XCTUnwrap(windows.first)
+        // The span runs from the first log to eighteen hours past the last.
+        XCTAssertEqual(window.end.timeIntervalSince(window.start), after + 4 * 3600,
+                       accuracy: 1)
+    }
+
+    /// A later event with a window that ends *earlier* must not shorten a span
+    /// already open — the `max` in the merge, which a plain assignment would get
+    /// wrong and nothing else would catch.
+    func testAMergedSpanIsNeverShortenedByALaterEvent() throws {
+        let windows = SubstanceResponseAnalyzer.affectedWindows(events: [
+            event(.alcohol, daysAgo: 2),
+            event(.caffeine, daysAgo: 2 - 1.0 / 24)
+        ], after: after)
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertGreaterThanOrEqual(window.end.timeIntervalSince(window.start), after)
+    }
+
+    /// Which substances went into a span is kept rather than collapsed: the
+    /// caption names them, and "alcohol and caffeine" is a different read from
+    /// "alcohol".
+    func testAMergedSpanRemembersEverySubstanceInIt() throws {
+        let windows = SubstanceResponseAnalyzer.affectedWindows(events: [
+            event(.alcohol, daysAgo: 2),
+            event(.caffeine, daysAgo: 2 - 3.0 / 24),
+            event(.alcohol, daysAgo: 2 - 5.0 / 24)
+        ])
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertEqual(Set(window.substances), [.alcohol, .caffeine])
+        XCTAssertEqual(window.substances.count, 2, "a repeat should not be listed twice")
+    }
+
+    func testWellSeparatedEventsStaySeparateWindows() {
+        XCTAssertEqual(SubstanceResponseAnalyzer.affectedWindows(events: [
+            event(.alcohol, daysAgo: 8),
+            event(.alcohol, daysAgo: 2)
+        ]).count, 2)
+    }
+
+    func testAnEmptyLogShadesNothing() {
+        XCTAssertTrue(SubstanceResponseAnalyzer.affectedWindows(events: []).isEmpty)
+    }
+
+    /// The overlap test the chart filters on, including the case where the
+    /// window straddles the visible range entirely.
+    func testOverlapIsInclusiveAndHandlesAStraddle() {
+        let window = SubstanceWindow(start: loadDay(5), end: loadDay(1),
+                                     substances: [.alcohol])
+        XCTAssertTrue(window.overlaps(loadDay(4)...loadDay(2)), "range inside the window")
+        XCTAssertTrue(window.overlaps(loadDay(6)...loadDay(0)), "window inside the range")
+        XCTAssertTrue(window.overlaps(loadDay(6)...loadDay(5)), "touching at one edge")
+        XCTAssertFalse(window.overlaps(loadDay(9)...loadDay(6)))
+    }
+
+    /// Events arriving newest-first must produce the same windows as
+    /// oldest-first — the store's order is not something this may depend on.
+    func testTheLogsOrderDoesNotMatter() {
+        let events = [event(.alcohol, daysAgo: 2), event(.caffeine, daysAgo: 6),
+                      event(.nicotine, daysAgo: 2 - 1.0 / 24)]
+        XCTAssertEqual(SubstanceResponseAnalyzer.affectedWindows(events: events),
+                       SubstanceResponseAnalyzer.affectedWindows(events: events.reversed()))
+    }
+}

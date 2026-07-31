@@ -291,6 +291,54 @@ The Vitals Check fix, applied everywhere it was also true.
       `GoldenDataset` with the shapes a phone actually produces — which
       immediately showed that a *sustained* fever contaminates its own baseline.
 
+### The follow-ups session — closing what was written down as "not done"
+
+- [x] **Energy has a chart.** The model computed an hourly curve from the day it
+      shipped and nothing drew it, so the one insight whose subject is *within* a
+      day was presented like the ones whose subject is a month. An area, because
+      the quantity genuinely is a volume; a plain `Chart` rather than
+      `ScrollableMetricChart`, because a day is never wider than the screen and
+      panning would only let you drag today off the edge.
+- [x] **Health Watch and Energy reach the suggestion list.** Convergence — several
+      independent signals leaning the same way — gets a `Basis` of its own,
+      ranked above everything, and suppresses the same metric reappearing as a
+      lone departure further down. Energy contributes the morning charge against
+      the user's own best week of the quarter, which is deliberately not sleep
+      duration: charge is duration *and* overnight recovery, so it separates
+      seven hours that worked from seven that didn't.
+- [x] **`MetricOverlayChart` bridges its gaps.** The pairing is generic in
+      InsightKit and returns the endpoints themselves, because this chart encodes
+      anomaly as opacity and needs both z-scores. The open question — how a dash
+      interacts with per-span opacity — resolved to *the quieter end wins*: a
+      bridge was measured nowhere, so taking the maximum would let one spike pull
+      a week of silence forward as though something had been seen in it.
+- [x] **The substance after-window is shaded**, not just stated. Overlapping
+      windows merge (three coffees must not compound into a darker band, which
+      would encode *how many logs* in a channel meant to say only *affected or
+      not*), and the stripes have no y bounds — this chart already uses
+      horizontal bands to mean a reference range.
+- [x] **Three files split.** `OAuthIntegration` (858 lines) into one per
+      provider; `AdditionalInsights` into one per insight plus shared phrasing;
+      `HeartAge` into model, model and card. Swift's `private` is file-scoped, so
+      a split always widens what the moved code touched — exactly one member.
+- [x] **Oura pagination, implemented rather than warned about.** The client read
+      only the first page for its whole life and logged a warning that never
+      fired; a warning that has not fired is not evidence that it cannot, and the
+      failure mode is silent history loss on the long back-fill a first sync
+      performs. A failed page fails its whole collection rather than returning a
+      truncated series, because half a history is indistinguishable downstream
+      from a short one.
+- [x] **The `heartrate` scope is no longer requested.** Nothing ever called the
+      endpoint; it serves ~50k five-minute samples Apple Health already mirrors
+      in full. Asking for a permission you never use is the one privacy smell an
+      on-device app has no excuse for. Reinstating it is three named steps in a
+      comment in `OuraProvider`.
+- [x] **A generic exhaustive-switch lint.** The per-switch list in `verify.sh`
+      only ever caught the switches somebody remembered to list, and CI broke on
+      a `Suggestion.Basis` switch no list mentioned. Swift already requires a
+      switch with no `default:` to name every case, so the new pass needs no
+      per-switch knowledge. Proved with two canaries.
+
 ## In progress / not yet device-verified
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
@@ -312,21 +360,31 @@ Listed cheapest-first — the second one can't start without new plumbing.
       own constants so the card's figure and the chart's line are one quantity.
       The card's number now peaks higher and tails off where it used to hold flat
       for a fortnight and vanish overnight.
-- [ ] Sleep-debt and circadian consistency from bedtime variance. **Blocked on a
-      new signal**: no provider currently gives us a bedtime. Apple Health and
-      Oura both stamp `sleepDurationHours` at the *start of the calendar day*, so
-      sleep-onset time would need its own `MetricType` (a clock-hour value, with
-      circular statistics — the mean of 23:30 and 00:30 is midnight, not noon)
-      plus parser work in all three providers.
+- [x] **Sleep Regularity — and the signal was never missing.** This was logged as
+      blocked because "no provider gives us a bedtime". That was true of what the
+      app *ingested* and false of what the providers *serve*: HealthKit's sleep
+      segments carry a real `startDate`, Oura's `bedtime_start` was already being
+      decoded and used only as a fallback for the record's date, and Whoop's
+      records carry `start`. All three were collapsed to hours-per-calendar-day
+      on the way in and the timestamp discarded.
+
+      The encoding is the part worth keeping. The proposed clock hour in [0, 24)
+      needs circular statistics — the mean of 23:30 and 00:30 is midnight, not
+      noon — and this app's whole baseline machinery is linear. `.sleepOnset`
+      instead stores **signed hours from midnight with the branch cut at
+      midday**, where no real bedtime falls: the arithmetic mean is then the
+      circular mean, for free, and no consumer changes.
+
+      The card scores the *spread* and deliberately never the hour — chronotype
+      is constitutional and shift work is a job — with a test sweeping three very
+      different bedtimes to assert a regular sleeper is never marked down.
+      Social jetlag is reported on its own line and removed from the spread, so a
+      consistent weekend lie-in reads as regular rather than as randomness.
 
 ### Integrations
 - [ ] Explain why Oura's API serves only ~4–6 months of history against years of
       ring data mirrored through Apple Health. No `next_token`, byte counts match
       record counts, so it isn't client-side truncation. Offered, not yet taken up.
-- [ ] Oura pagination (`next_token`) — logged as a warning when it appears, which
-      it hasn't yet. Implement on first sighting, not before.
-- [ ] Oura's `heartrate` endpoint is never called despite the scope being
-      requested; direct Oura contributes no heart-rate samples.
 - [ ] Hume Band direct API (today flows in via Apple Health only).
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 
@@ -390,10 +448,11 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
 - [x] A golden dataset — a seeded *generator* rather than a recorded blob, so
       each shape is stated in a readable line. It immediately found that a
       sustained fever contaminates its own rolling baseline.
-- [ ] Split the largest files. `MetricOverlayLegend` is out of
-      `MetricOverlayChart` (verified clean: no file-private coupling either way).
-      `OAuthIntegration.swift` (858 lines), `AdditionalInsights.swift` and
-      `HeartAge.swift` remain — still unverified, so read before acting.
+- [x] Split the largest files. All four done. `AppModel.swift` (786) and
+      `InsightDetailView.swift` (653) are now the largest and are deliberately
+      **not** split: Swift's `private` is file-scoped, so an extension-based
+      split of either widens every member the moved code touches, and both are
+      dense with private state.
 
 ### Charts
 - [ ] Filled `AreaMark` min/max bands (currently shipped as outlined
