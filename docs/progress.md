@@ -400,29 +400,37 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
 
 - [x] 5. Every contributing source listed in the drill-down; the Sleep Quality
       "five components, four metrics" gap explained rather than hidden.
-- [x] 6. Sleep Quality — respiratory rate from the night rather than the last ten
-      minutes, and consistency no longer stuck at 0/100.
-- [x] 8. Blood pressure scores from the AHA bands (the *drift counter* half is
-      still outstanding — see below).
+- [~] 6. Sleep Quality — respiratory rate from the night rather than the last ten
+      minutes, and consistency no longer stuck at 0/100. The third clause,
+      "expand inputs using additional available Oura/Apple Health data", is only
+      partly met: it gained overnight blood oxygen and skin temperature, but the
+      Oura parser still decodes seven fields of a sleep record and ignores the
+      stage breakdown entirely. See the delta list below.
+- [~] 8. Blood pressure scores from the AHA bands, and calibration honours
+      "five once, then two per thirty days". **The drift counter itself was never
+      built** — there is no figure anywhere saying how far the estimate has moved
+      from the last cuff reading. Verified: no such quantity exists in
+      `BloodPressureEstimator`.
 - [x] 9. Heart & Fitness Age scores from a logistic, and both ages are charted
       over time.
 - [x] 4a. Colour bands on the blood-pressure chart.
 - [x] 4b. Gaps bridged with a dashed connector on the metric-detail chart,
       bounded by the metric's own join distance and by a quarter of the visible
-      window. Deliberately straight rather than smoothed — the endpoints are
-      already bucket aggregates, and a curve would invent an extremum exactly
-      where nothing was measured. **`MetricOverlayChart` still breaks at gaps**;
-      bridging it needs a `NormalizedPoint` overload and a decision about how a
-      dash interacts with its per-span opacity.
+      window, on the metric-detail chart *and* the insight overlay.
+      **Deliberately straight rather than smoothed, which is not what was
+      asked for** — see "The one place the build disagrees with the brief" below.
 - [x] 4c. Reference bands on the eight metrics with a published normal range,
       each carrying its own caption and provenance. Heart rate deliberately gets
       none: its bounds are for the *day's* value and that chart plots raw samples.
 - [x] 1. Today summary gated on a fingerprint of the results, plus a 30-second
       floor on manual refresh and a last-updated line so a floored pull reads as
       "up to date" rather than broken.
-- [x] 2. "Improve Your Health" — a section on the Insights tab, from three
-      sources only (your own history, a fact the app is missing, a signal off
-      baseline), ranked by how well-founded each is.
+- [~] 2. "Improve Your Health" — the *engine* is done: a section on the Insights
+      tab, from four bases (signals converging, your own history, a fact the app
+      is missing, a signal off baseline), ranked by how well-founded each is.
+      **The lifecycle half was never built** — nothing is dismissible, nothing
+      appears on Today, and there is no notion of a suggestion being finished.
+      See "The suggestion lifecycle" below.
 - [x] 3. Grounding renewal — a fourth state (`expiringSoon`) and a countdown in
       Settings, warning proportionally to each fact's own lifetime. A cadence
       type on `GroundingRequirement` was *not* needed: blood pressure's
@@ -430,13 +438,99 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
       protects is.
 - [x] 7. Substance intake: press-and-hold sets a time, entries are re-timeable,
       the watched set went from six metrics to eleven, and it has a Vitals row.
-      Still no amount — recording quantity would make it a dosing record. The
-      after-window is *stated* rather than shaded on the per-vital charts;
-      shading it there needs the substance log plumbed into `MultiSourceChart`.
+      The after-window is now shaded behind the per-vital charts, merged where
+      spans overlap. Still no amount — recording quantity would make it a dosing
+      record. One clause of the original ask is only partly met: the log is a
+      timestamped source *charts* can consume, and nothing else reads it — see
+      the delta list below.
 - [x] 10. QA sweep done: all four. Every insight reads through `VitalReader`
       (which had its own source-selection bug), Cardiovascular Risk is
       continuous, Body Composition scores, and Substance Impact is a registered
       `InsightModel`.
+
+### The delta from the ten-item feedback — re-read against the code
+
+The ten-item list was worked through over several sessions and then re-read
+line by line against what actually shipped. Most of it is genuinely closed. Six
+clauses are not, and they were not visible from the summary lines above because
+each sits *inside* an item that is otherwise done. Each was verified by grep, not
+recalled.
+
+#### The suggestion lifecycle — the largest gap
+
+The engine generates suggestions and ranks them. Everything the feedback asked
+for *around* that was never built, and this is the whole of it:
+
+- [ ] **Suggestions are not dismissible.** There is no dismissal anywhere in the
+      app — verified: no dismissal state, no store, no gesture.
+- [ ] **Nothing appears on Today.** `DashboardView` has no reference to
+      suggestions at all; they exist only in `InsightsListView`. The asked-for
+      behaviour is that Today shows one and it reappears only when a *new*
+      suggestion is generated — which needs a record of what has already been
+      shown, not just what is currently true.
+- [ ] **The Insights row is not the persistent reminder that was asked for.** It
+      should be pinned to the top, compact and collapsed by default, expandable
+      for detail, and it should retain dismissed suggestions as well as active
+      ones. Today it is an ordinary card in flow order, always expanded, and
+      shows only what the engine currently emits.
+- [ ] **There is no notion of a suggestion being finished.** "If all associated
+      tasks are completed, hide it from both Today and Insights" needs each
+      suggestion to declare what completion *means* — and for the three bases
+      that is three different things. A grounding gap closes when the fact is
+      entered; a departure closes when the signal returns to baseline; a
+      contrast from the user's own history never closes at all, because it is an
+      observation rather than a task. That last one is the design question, and
+      it needs answering before any of this is built.
+
+The shape this suggests: `Suggestion` grows a stable identity that survives
+regeneration (it has `id` already, and the ids are content-derived, which is most
+of the way there), plus a persisted set of dismissals and a per-basis rule for
+what counts as resolved. The store is the easy half.
+
+#### The one place the build disagrees with the brief
+
+- [ ] **"Replace dotted-line gap markers with smoothed predicted values."** The
+      app bridges gaps with a **straight** dashed connector instead, on both
+      charts, and the reasoning is written into `SeriesBridging`: a Catmull-Rom
+      curve overshoots outside the measured range and invents a local extremum in
+      the one stretch where nothing is known. The endpoints are already bucket
+      aggregates — median for weight, mean for the rest — so some smoothing has
+      happened; it is just not visible as curvature.
+
+      This is recorded as an open decision rather than a closed item because it
+      is a deliberate deviation from an explicit instruction, and the call is the
+      user's. If a curve is wanted anyway, the honest version is a fitted
+      prediction with its residual spread drawn around it — the standard
+      `ScoreHistoryChart` and `VO2Trajectory` already hold themselves to — rather
+      than an interpolation that looks like measurement.
+
+#### Four smaller ones
+
+- [ ] **A blood-pressure drift counter.** The cadence rule shipped (five readings
+      to ground, two per thirty days to maintain) but the counter itself does
+      not exist: nothing anywhere says how far the estimate has moved from the
+      last cuff reading. That number is what tells a user *why* they are being
+      asked to cuff again, and it is a small addition to
+      `BloodPressureEstimator` beside the calibration phase.
+- [ ] **Sleep Quality is still reading a fraction of what Oura sends.**
+      `OuraResponseParser.SleepRecord` decodes seven fields. The stage breakdown
+      — deep, REM, light, awake — plus sleep latency and efficiency are in every
+      payload and are ignored, and they are the inputs a sleep score is normally
+      built from. `.sleepOnset` now exists and is not wired into Sleep Quality
+      either, though the regularity it measures is a known component of sleep
+      quality. Ingestion is the work; the scoring change is small once the
+      metrics exist.
+- [ ] **The substance log is a data source for charts and nothing else.**
+      `SubstanceWindow` lets a chart shade the after-window, but no insight, no
+      pattern finder and no suggestion reads the log. The asked-for framing was a
+      timestamped source "available to other parts of the app" — the obvious next
+      consumer is the deep-dive correlation, which already asks whether one
+      series leads another.
+- [ ] **Camera + LiDAR guided body scan.** Flagged in the original feedback as a
+      roadmap note rather than a build, and never recorded here until now. It
+      belongs beside the other unstructured-data captures: a guided capture
+      producing body measurements would feed Body Composition, which today can
+      only report what a smart scale tells it.
 
 ### Test and file hygiene
 - [x] Shared test clock — narrow version, as scoped. The obvious "one `Clock` for

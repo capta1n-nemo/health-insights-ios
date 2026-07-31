@@ -403,7 +403,43 @@ closed from a sandbox. What remains falls into three groups.
   stamped. Right at home, wrong on the second night of a trip. Both HealthKit and
   Oura behave the same way, so the sources at least agree with each other.
 
-### 3. Genuinely open work, cheapest first
+### 3. The ten-item feedback list, re-read against the code
+
+The list was worked through over several sessions and marked closed. Re-reading
+it line by line against what shipped found **six clauses still open**, each
+sitting *inside* an item that is otherwise done — which is why none was visible
+from the summary lines. All six are verified by grep, not recalled, and they are
+written up in `docs/progress.md` ▸ "The delta from the ten-item feedback".
+
+Ranked by size:
+
+1. **The suggestion lifecycle** (item 2) — the engine ships and nothing around it
+   does. Not dismissible, absent from Today entirely, not the pinned collapsible
+   row that was asked for, and with no notion of a suggestion being *finished*.
+   That last one carries the design question: completion means three different
+   things for the three bases, and a contrast drawn from the user's own history
+   never completes at all, because it is an observation and not a task. Answer
+   that before building any of it.
+2. **Smoothed predicted values across gaps** (item 4) — the app draws a straight
+   dashed connector, deliberately, and the reasoning is in `SeriesBridging`. This
+   is the one place the build knowingly disagrees with an explicit instruction,
+   so it is logged as the user's decision rather than as a closed item.
+3. **A blood-pressure drift counter** (item 8) — the cadence rule shipped, the
+   counter never did. No quantity anywhere says how far the estimate has moved
+   from the last cuff.
+4. **Sleep Quality's remaining Oura inputs** (item 6) — the parser decodes seven
+   fields of a sleep record and ignores the stage breakdown, latency and
+   efficiency entirely. `.sleepOnset` exists now and is not wired in either.
+5. **The substance log as a general data source** (item 7) — charts can consume
+   it; no insight, pattern finder or suggestion does.
+6. **Camera + LiDAR guided body scan** (item 3) — flagged in the original
+   feedback as a roadmap note, and never recorded until now.
+
+**Lesson worth keeping: a multi-clause item marked `[x]` hides its unfinished
+clauses.** Every one of these six sat inside an item whose headline was true.
+When a feedback line has an "and also" in it, record the clauses separately.
+
+### 4. Genuinely open work, cheapest first
 
 - **A chart for Sleep Regularity's own shape.** The card reports a spread and the
   detail screen draws the score history like everything else. What it wants is a
