@@ -78,8 +78,24 @@ struct MetricOverlayChart: View {
         let to: Point
         let opacity: Double
         /// True where nothing was measured between the two ends — drawn dashed,
-        /// and never given a dot at either end.
+        /// curved, and never given a dot at either end.
         var isInferred: Bool = false
+
+        /// Every point on the drawn path.
+        ///
+        /// A measured span is its two ends and a straight line between them: the
+        /// readings are real and joining them asserts nothing. An inferred one
+        /// is the monotone curve from `GapBridge.smoothed`, which is the same
+        /// path the metric-detail chart draws — the two charts rendering one
+        /// silence two different ways is the defect this whole file keeps
+        /// paying for.
+        var path: [(date: Date, value: Double)] {
+            guard isInferred else {
+                return [(from.date, from.value), (to.date, to.value)]
+            }
+            return GapBridge(start: from.date, end: to.date,
+                             startValue: from.value, endValue: to.value).smoothed()
+        }
     }
 
     /// Baseline is nearly invisible; |z| ≥ 3 is fully opaque.
@@ -313,16 +329,18 @@ struct MetricOverlayChart: View {
         // takes the reference stroke and a measured span keeps its own.
         let stroke = span.isInferred
             ? Theme.projectedStroke : Theme.metricStroke(span.from.metric)
-        LineMark(x: .value("Day", span.from.date), y: .value("Value", span.from.value),
-                 series: .value("Span", span.id))
-            .foregroundStyle(colour)
-            .lineStyle(stroke)
-            .interpolationMethod(.linear)
-        LineMark(x: .value("Day", span.to.date), y: .value("Value", span.to.value),
-                 series: .value("Span", span.id))
-            .foregroundStyle(colour)
-            .lineStyle(stroke)
-            .interpolationMethod(.linear)
+        // One `ForEach` over the path rather than two hand-written marks, so a
+        // measured span (two points) and an inferred one (a curve) are the same
+        // construction. `.linear` throughout: the curvature is in the points,
+        // not in the interpolation — an interpolation method could overshoot,
+        // which is the whole thing `smoothed()` exists to rule out.
+        ForEach(Array(span.path.enumerated()), id: \.offset) { _, point in
+            LineMark(x: .value("Day", point.date), y: .value("Value", point.value),
+                     series: .value("Span", span.id))
+                .foregroundStyle(colour)
+                .lineStyle(stroke)
+                .interpolationMethod(.linear)
+        }
         // Dots only on days worth noticing, so the eye lands on the departures.
         ForEach(notableEnds(of: span)) { point in
             PointMark(x: .value("Day", point.date), y: .value("Value", point.value))
