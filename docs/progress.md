@@ -205,7 +205,7 @@ The Vitals Check fix, applied everywhere it was also true.
 - [x] **The tests run in the sandbox.** Two Darwin-only Foundation APIs had
       crept into a package that was meant to be platform-free, and CI runs on
       macOS so nothing caught them. Both are now behind `#if canImport(Darwin)`
-      and 330/330 pass on Linux. `scripts/bootstrap-swift.sh` installs a
+      and the full suite passes on Linux. `scripts/bootstrap-swift.sh` installs a
       toolchain; `scripts/verify.sh --tests` runs it *and installs it itself* if
       absent, so the gate self-heals rather than depending on a doc being read.
       Supersedes the old rule that sandboxes have no Swift.
@@ -222,7 +222,7 @@ The Vitals Check fix, applied everywhere it was also true.
       `add-metric-type`, `add-insight`, `add-chart`. Writing `add-insight`
       surfaced that the documented `InsightID` checklist named three switches
       when there are five.
-- [x] **A generated symbol index** (`docs/symbol-index.md`, 198 types) so "where
+- [x] **A generated symbol index** (`docs/symbol-index.md`) so "where
       is X" is a grep, not a hunt through 700 lines of architecture prose.
       `verify.sh` fails when it is stale.
 
@@ -267,7 +267,7 @@ The Vitals Check fix, applied everywhere it was also true.
       bounded by the metric's own join distance and by a quarter of the window.
       Straight, not smoothed: a curve invents a local extremum exactly where
       nothing is known.
-- [x] **Roadmap 4c — reference bands** on the eight metrics that have a published
+- [x] **Roadmap 4c — reference bands** on every metric that has a published
       normal range, each with its own caption and provenance. Not from
       `VitalSignsCheck.Spec` — those are alarm bounds, and a band drawn between
       them shades the whole plot.
@@ -400,37 +400,37 @@ Status audited against the code, not recalled — see `activeContext.md` ▸
 
 - [x] 5. Every contributing source listed in the drill-down; the Sleep Quality
       "five components, four metrics" gap explained rather than hidden.
-- [~] 6. Sleep Quality — respiratory rate from the night rather than the last ten
-      minutes, and consistency no longer stuck at 0/100. The third clause,
-      "expand inputs using additional available Oura/Apple Health data", is only
-      partly met: it gained overnight blood oxygen and skin temperature, but the
-      Oura parser still decodes seven fields of a sleep record and ignores the
-      stage breakdown entirely. See the delta list below.
-- [~] 8. Blood pressure scores from the AHA bands, and calibration honours
-      "five once, then two per thirty days". **The drift counter itself was never
-      built** — there is no figure anywhere saying how far the estimate has moved
-      from the last cuff reading. Verified: no such quantity exists in
-      `BloodPressureEstimator`.
+- [x] 6. Sleep Quality — respiratory rate from the night rather than the last ten
+      minutes, consistency no longer stuck at 0/100, and the inputs expanded
+      twice: first overnight blood oxygen and skin temperature, then the stage
+      breakdown (efficiency, deep, REM) that all three providers were sending and
+      all three parsers were discarding. See "Sleep Quality reads the stage
+      breakdown now" below.
+- [x] 8. Blood pressure scores from the AHA bands, calibration honours "five
+      once, then two per thirty days", and the drift counter exists — held-out
+      error against the fit's own claimed uncertainty, floored at ±5 mmHg. See
+      "A blood-pressure drift counter" below.
 - [x] 9. Heart & Fitness Age scores from a logistic, and both ages are charted
       over time.
 - [x] 4a. Colour bands on the blood-pressure chart.
 - [x] 4b. Gaps bridged with a dashed connector on the metric-detail chart,
       bounded by the metric's own join distance and by a quarter of the visible
-      window, on the metric-detail chart *and* the insight overlay.
-      **Deliberately straight rather than smoothed, which is not what was
-      asked for** — see "The one place the build disagrees with the brief" below.
-- [x] 4c. Reference bands on the eight metrics with a published normal range,
+      window, on the metric-detail chart *and* the insight overlay. Crossed with
+      a monotone cubic Hermite curve (`GapBridge.smoothed`) — smoothed as asked,
+      and provably free of the invented extremum that ruled out a naive cubic.
+      Still dashed. See "the brief was right" below.
+- [x] 4c. Reference bands on every metric with a published normal range,
       each carrying its own caption and provenance. Heart rate deliberately gets
       none: its bounds are for the *day's* value and that chart plots raw samples.
 - [x] 1. Today summary gated on a fingerprint of the results, plus a 30-second
       floor on manual refresh and a last-updated line so a floored pull reads as
       "up to date" rather than broken.
-- [~] 2. "Improve Your Health" — the *engine* is done: a section on the Insights
-      tab, from four bases (signals converging, your own history, a fact the app
-      is missing, a signal off baseline), ranked by how well-founded each is.
-      **The lifecycle half was never built** — nothing is dismissible, nothing
-      appears on Today, and there is no notion of a suggestion being finished.
-      See "The suggestion lifecycle" below.
+- [x] 2. "Improve Your Health" — the engine (four bases, ranked by how
+      well-founded each is) *and* the lifecycle: dismissible on both surfaces,
+      one card on Today, a pinned collapsible reminder on Insights that keeps
+      what you dismissed, thirty-day expiry, and resolution inferred from the
+      engine no longer emitting the suggestion. See "The suggestion lifecycle —
+      done" below.
 - [x] 3. Grounding renewal — a fourth state (`expiringSoon`) and a countdown in
       Settings, warning proportionally to each fact's own lifetime. A cadence
       type on `GroundingRequirement` was *not* needed: blood pressure's
@@ -495,7 +495,7 @@ recalled.
       same claim as "this is impossible", and the gap between them was a shipped
       deviation from an explicit instruction.
 
-#### Four smaller ones
+#### The rest
 
 - [x] **A blood-pressure drift counter.** Measured by holding each cuff reading
       out and fitting on the ones before it — scoring a fit against readings it

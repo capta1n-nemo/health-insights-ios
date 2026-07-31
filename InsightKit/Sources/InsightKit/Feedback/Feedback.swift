@@ -137,7 +137,12 @@ public extension InsightID {
         case .bloodPressure: return "bp-estimator-v2"
         case .readiness: return "readiness-v1"
         case .substanceImpact: return "substance-v1"
-        case .sleepQuality: return "sleep-v1"
+        // v2: the stage breakdown joined the score and every other term was
+        // rebalanced to make room. A recorded score is only comparable with
+        // another score from the same model, so a weight change is a version
+        // change — nothing in the build enforces this, which is why it is
+        // written down in the `add-insight` skill too.
+        case .sleepQuality: return "sleep-v2"
         case .cardioFitness: return "cardiofitness-v1"
         case .cardioTrajectory: return "vo2trajectory-v1"
         case .bodyComposition: return "bodycomp-v1"

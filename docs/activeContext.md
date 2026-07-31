@@ -109,10 +109,14 @@ three fresh complaints. The findings from that half:
 - **`EnergyModel.exertionHours` still weights every heart-rate sample equally.**
   Deliberate and commented — a watch's own sampling gaps are not idle time, and
   using real inter-sample intervals needs a decision about what a gap means.
-- **`AppModel.swift` (786 lines) and `InsightDetailView.swift` (653) are the two
-  largest files and are deliberately unsplit.** Swift's `private` is file-scoped,
-  so an extension-based split widens every member the moved code touches, and
-  both are dense with private state. The other four splits are done.
+- **`AppModel.swift` and `InsightDetailView.swift` are the two largest app-target
+  files and are deliberately unsplit.** Swift's `private` is file-scoped, so an
+  extension-based split widens every member the moved code touches, and both are
+  dense with private state. Three files *were* split (`OAuthIntegration`,
+  `AdditionalInsights`, `HeartAge`); `BloodPressureEstimator.swift` and
+  `VitalSignsInsight.swift` still hold model and insight together and are the
+  remaining candidates — and being InsightKit, they carry no file-private
+  coupling to the view layer, so the objection above does not apply to them.
 - **New provider integrations** (Hume direct, Ultrahuman, Garmin, Fitbit) need
   the user's own developer credentials per provider and cannot be tested from
   here at all. Same for the VisionKit scanner and ECG import — device-only
@@ -126,8 +130,8 @@ three fresh complaints. The findings from that half:
   the LiDAR one was explicitly a roadmap note rather than a build. Both are
   scoped in `docs/progress.md`.
 - **Two efficiency-roadmap items remain**: making `symbol-index.md` a reflex
-  rather than a fallback, and a session-start checklist skill. See
-  `docs/efficiency-log.md`.
+  rather than a fallback, and a session-start checklist skill. The close-out gate
+  (`scripts/handover-check.sh`) is done. See `docs/efficiency-log.md`.
 
 ## Two regressions I shipped, and what they cost
 
@@ -292,7 +296,7 @@ waiting ~90 s for CI.
 `InsightKit` was always meant to be platform-free, but two Darwin-only
 Foundation APIs had crept in (`Measurement.formatted` and `CFBooleanGetTypeID`)
 and CI runs on macOS, so nothing caught them. Both are behind
-`#if canImport(Darwin)`. **330/330 tests pass on Swift 6.0.3 / Ubuntu 24.04.**
+`#if canImport(Darwin)`. **The full suite passes on Swift 6.0.3 / Ubuntu 24.04** — `swift test` prints the count, so it is not repeated here to rot.
 
 ```bash
 ./scripts/verify.sh --tests     # installs the toolchain if absent, then runs
@@ -318,9 +322,12 @@ feed exhaustive switches. **This bit CI again this session** — `.vitalSigns` w
 added to the engine and cadence but not to the four switches, so the build broke.
 The complete list, verified by grepping for the enum's last case:
 
-- `MetricType`: `displayName`, `unit` (both in `MetricType.swift`),
+- `MetricType` — **eight** switches: `displayName`, `unit` (both in
+  `MetricType.swift`),
   **`family`**, **`chartStyleIndex`**, `presentation`, `maxValidInterval` (all
-  four in `MetricPresentation.swift`), `requiresPositiveValue`
+  four in `MetricPresentation.swift`), **`referenceRange`** (also
+  `MetricPresentation.swift` — usually `nil`, and the case must say *why*;
+  `.sleepOnset` is the worked example), `requiresPositiveValue`
   (`Signals/MetricSanitizer.swift`). `bucketStatistic`, `inSentence` and
   `MetricValueFormatter` are safe — the first has a `default:`, the second is
   derived from `displayName`.
@@ -331,9 +338,11 @@ The complete list, verified by grepping for the enum's last case:
 - `InsightID`: **five switches, not three** — this list was itself stale and is
   now verified. `cadence` (`Insight.swift`), `modelVersion` (`Feedback.swift`),
   `prettyInsight` (`TelemetryOutboxView`), `iconName` (`DashboardView`),
-  `insightTint` (`Theme.swift`). Only `modelVersion` and `prettyInsight` are
-  exhaustive; the other three have a `default:` and so fail *silently* — wrong
-  tab, wrong icon, shared hue. Plus registration in `InsightEngine`, which
+  `colourSlot` (`Presentation/InsightPalette.swift` — *not* `insightTint` in
+  `Theme.swift`, which now resolves through it). **Four of the five are
+  exhaustive and break the build**: `modelVersion`, `prettyInsight`, `iconName`,
+  `colourSlot`. Only `cadence` carries a `default:`, and it fails *silently* by
+  putting the card on the wrong tab. Plus registration in `InsightEngine`, which
   breaks nothing and simply makes the card never appear.
   **Use the `add-insight` skill rather than this summary.**
   **`primaryMetric` in `InsightDetailView` is gone** — the detail screen now

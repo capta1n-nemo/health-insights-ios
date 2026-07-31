@@ -36,7 +36,10 @@ cheaper, and that we can *tell* whether it did rather than assuming.
 
    ```bash
    git log --oneline <session-base>..HEAD          # commits
-   git ls-remote origin 'refs/ci/failed/*'         # red CI — the headline waste
+   # Red CI, scoped to THIS session — the bare glob returns every failure the
+   # repo has ever recorded, which is not what the row means.
+   git log --format=%H <session-base>..HEAD | while read s; do \
+       git ls-remote origin "refs/ci/failed/$s"; done | wc -l
    cd InsightKit && swift test 2>&1 | tail -3      # test count
    ```
 
@@ -64,12 +67,18 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     notes block underneath naming the red CI, the rework and the re-derivations.
     Mark unmeasurable history as *not measured* — never back-fill a guess.
 
-11. **Re-read what you just wrote, against the code.** Not "update the docs" —
-    *check* them. Open `docs/activeContext.md` and verify every claim that
-    something is unbuilt, missing or not-yet-wired is still true after this
-    session's work. This is the step that failed on 2026-07-31: five completed
-    things were still described as open, because updating a file and auditing a
-    file are different acts and only the first was done.
+11. **Re-read what you just wrote, against the code — both polarities.** Not
+    "update the docs", *check* them. Two passes, and the second is the one that
+    gets skipped:
+    - every claim that something is **unbuilt, missing or not-yet-wired** — this
+      session's own work is what invalidates those;
+    - every checklist item this session marked **`[x]` or `[~]`, clause by
+      clause**. A multi-clause item marked done hides its unfinished clauses:
+      that is how six of them survived a "closed" list once already.
+
+    This is the step that failed on 2026-07-31 — five completed things were
+    still described as open, because updating a file and auditing a file are
+    different acts and only the first was done.
 
 12. Commit with `docs: update active context, progress and efficiency log`.
 

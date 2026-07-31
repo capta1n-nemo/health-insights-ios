@@ -66,6 +66,8 @@ that is not yet automated is the next thing to automate.
 | Lose the working directory in a shell call | 2 | ✅ ruled in `CLAUDE.md` (2026-07-31) |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | 2 | ⚠️ partly — `symbol-index.md` exists and was not consulted first |
+| A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
+| A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
@@ -84,6 +86,11 @@ Ordered by (frequency × cost), cheapest fix first.
       protocol used to merely assert. Both canaries fire: a log row whose red-CI
       count disagrees with `refs/ci/failed`, and a session that changed Swift
       without touching the docs.
+- [x] **Stop carrying counts in prose.** "330 tests" was stale in six files at
+      once, "198 types" in two, "seven switches" in three. Updating a count
+      guarantees it rots again; the fix taken was to delete it and point at the
+      thing that generates it. Keep counts only where they are recomputed —
+      `swift test`, `gen-symbol-index.sh`, this log.
 - [ ] **Make `symbol-index.md` the reflex, not the fallback.** The router already
       says "check here before grepping". It was still skipped. Consider having
       `verify.sh` print a one-line reminder, or fold the index into the skills

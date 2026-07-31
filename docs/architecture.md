@@ -614,10 +614,22 @@ consent screen, so the user must revoke the app in their Oura account first.
 Oura's developer console has moved to `developer.ouraring.com/applications`;
 the OAuth authorize/token endpoints did not move with it.
 
-Known gap, surfaced in the log rather than silently swallowed: Oura paginates
-with `next_token` and the client reads only the first page, so
-`OuraProvider.describeResponse` logs a warning naming the collection whenever
-more pages exist.
+Pagination is followed. `OuraProvider.fetchPages` walks `next_token` to a ceiling
+of `maxPages` (20), stops if a cursor repeats — a server handing back the same
+page would otherwise loop until the ceiling — and **fails the whole collection if
+any page fails** rather than returning a truncated series, because half a history
+is indistinguishable downstream from a genuinely short one and the app would draw
+a gap it invented. The log says how many pages a collection took whenever it took
+more than one.
+
+This was a logged warning for a long time on the reasoning that it had never
+fired. A warning that has not fired is not evidence that it cannot, and the
+failure mode is silent history loss on exactly the long back-fill a first sync
+performs.
+
+The `heartrate` scope is deliberately **not** requested — see `OuraProvider` for
+the three steps to reinstate it, and why ~50k five-minute samples Apple Health
+already mirrors is not worth an unused permission.
 
 ## Ingestion pipeline (provider payload → vitals)
 
@@ -676,6 +688,7 @@ unused despite tens of thousands of samples.
 | skinTemperatureDeviation | Readiness, Sleep Quality, Vitals Check |
 | sleepDurationHours | Readiness, Sleep Quality, Sleep Debt, Energy |
 | sleepOnset | Sleep Regularity — signed hours from midnight, branch cut at midday |
+| sleepEfficiency, sleepDeepMinutes, sleepRemMinutes | Sleep Quality — deep and REM scored as a *share of the night*, never a minute target |
 | vo2Max | Cardio Fitness, Cardio Trajectory, Heart Age |
 | vascularAge | Heart Age (as a second opinion, never merged into ours) |
 | bodyMass, bodyFatPercentage, height | Body Composition |

@@ -1,6 +1,6 @@
 ---
 name: verify-before-push
-description: Run before every push. Installs a Swift toolchain if the sandbox has none, runs the 330-test InsightKit suite locally, and lints the traps that have actually broken this repo's CI. Use whenever Swift files have changed and you are about to commit.
+description: Run before every push. Installs a Swift toolchain if the sandbox has none, runs the full InsightKit suite locally, and lints the traps that have actually broken this repo's CI. Use whenever Swift files have changed and you are about to commit.
 ---
 
 # Verify before pushing

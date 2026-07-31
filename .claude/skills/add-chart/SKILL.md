@@ -60,16 +60,33 @@ So identity is **hue alone**, which bounds how many lines a chart may draw:
   never "did any day ever depart". The naive version drew a flat line with one
   three-week-old blip while the legend beside it said "steady".
 
-## 4. Gaps break; they are never bridged silently
+## 4. Gaps break, unless the bridge earns it
 
 `maxValidInterval` per metric sets the longest gap a line may cross. Joining two
-readings across a longer gap asserts a trend nobody measured. Every `LineMark`
-is `.interpolationMethod(.linear)` — a curve invents values.
+readings across a longer gap asserts a trend nobody measured. Every **measured**
+`LineMark` is `.interpolationMethod(.linear)`: a curve between two readings
+invents values nobody recorded.
+
+**A short gap may be crossed with an inferred bridge**, and that bridge is the
+one curved thing in the app. `SeriesBridging.isBridgeable` decides — bounded by a
+multiple of the metric's own join distance *and* by a quarter of the visible
+window. `GapBridge.smoothed()` supplies the path: a monotone cubic Hermite, which
+provably has no interior extremum and never leaves the interval its two measured
+ends define. The marks stay `.linear` **through those points** — an interpolation
+method could overshoot, and not overshooting is the entire reason the curve is
+built this way. Bridges are dashed (`Theme.projectedStroke`) and dimmed
+(`SeriesBridging.bridgeProminence`, which takes the *quieter* end).
+
+⚠️ **Change bridge rendering in one chart and you must change it in the other.**
+`MultiSourceChart` and `MetricOverlayChart` both draw them, and shipping one
+curved and one straight — the same silence rendered two ways — is a defect this
+repo has now caused twice.
 
 ⚠️ If you bucket before splitting, **floor the gap rule at the bucket width**.
 Comparing bucket starts against a sample-scale interval shatters the line into
-single points at zoomed-out ranges. `NormalizedSeries.segments()` guards this
-with a two-day floor; `MultiSourceChart` does not, and has the bug.
+single points at zoomed-out ranges. Use `[AggregatedPoint].segments(for:bucket:)`
+(`SeriesSegmentation.swift`), never a hand-rolled comparison — the four copies of
+that loop under two different rules *were* the defect.
 
 ## 5. Anything that decides whether two lines can look alike goes in InsightKit
 

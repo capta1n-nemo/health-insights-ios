@@ -17,7 +17,7 @@ land it on `main` yourself rather than leaving a PR open.
 ## The sequence
 
 ```bash
-./scripts/verify.sh --tests        # 330 tests + lint, locally
+./scripts/verify.sh --tests        # full suite + lint, locally. THE GATE.
 git add -A && git commit
 git push -u origin main
 ./scripts/ci-status.sh --wait      # 0 passed / 1 failed / 2 no verdict
@@ -63,6 +63,11 @@ accordingly.
 
 ## Handover
 
-`/handover` (or "wrap up") runs the end-of-session protocol in `CLAUDE.md`:
-update `docs/activeContext.md` and `docs/progress.md`, commit with
-`docs: update active context and progress state`.
+`/handover` (or "wrap up") runs **`.claude/commands/handover.md`** — that file is
+the authority and this is deliberately not a summary of it, because a summary
+here was already stale: it described two doc updates and a commit, and the
+protocol now has three parts including a mandatory efficiency review and a
+close-out gate (`./scripts/handover-check.sh`) that must exit zero before you
+tell the user the session is safe to close.
+
+Do not work from a restatement of the protocol. Open the file.

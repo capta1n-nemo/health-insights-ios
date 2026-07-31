@@ -44,7 +44,7 @@ Not compiler-enforced; do it anyway.
 
 ### `referenceRange` is usually `nil`, and that is the honest answer
 
-Only eight of thirty metrics have a published normal range. Write
+Most metrics have no published normal range, and `nil` is the honest answer for them. Write
 `case .newThing: return nil  // because …` with the reason — a silent `nil` is
 the failure mode this repo keeps paying for. And do not reach for
 `VitalSignsCheck.Spec`'s `hardLow`/`hardHigh`: those are *alarm* bounds, not

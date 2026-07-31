@@ -169,10 +169,16 @@ public struct SleepQualityInsight: InsightModel {
         // neutral 75s above are placeholders for absent data, not measurements,
         // and charting them would draw a line out of nothing.
         //
-        // Five components, four metrics: consistency is the night-to-night
+        // Seven components, six metrics: consistency is the night-to-night
         // spread *of the sleep series itself*, not a separate measurement, so it
-        // shares sleep's line rather than inventing a fifth. Its weight is folded
-        // in and the detail names it, so the 20% isn't unaccounted for.
+        // shares sleep's line rather than inventing one of its own. Its weight is
+        // folded into sleep's and the detail names it, so the 15% isn't
+        // unaccounted for.
+        //
+        // Every weight here must equal the coefficient applied above. They are
+        // two statements of one number — the score uses the coefficient, the
+        // detail chart uses this — and they drifted apart once already when the
+        // terms were rebalanced to make room for the stage breakdown.
         var contributors = [MetricContribution(
             metric: .sleepDurationHours, higherIsBetter: true, weight: 0.53,
             detail: String(format: "%.1f h · consistency %d/100",
@@ -191,7 +197,7 @@ public struct SleepQualityInsight: InsightModel {
         }
         if let latest = spo2Reading?.value {
             contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
-                                      weight: 0.15, detail: String(format: "%.0f%%", latest)))
+                                      weight: 0.09, detail: String(format: "%.0f%%", latest)))
         }
         if let latest = respReading?.value {
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,

@@ -110,26 +110,16 @@ if [ -n "$metric_names" ]; then
     check_switch_covers InsightKit/Sources/InsightKit/Signals/MetricSanitizer.swift requiresPositiveValue
 fi
 
-# An InsightID's icon switch carries a `default:`, so a new card compiles fine
-# and silently wears somebody else's glyph. The compiler catches the other four
-# switches; this is the one that needs a lint. (`cadence` also defaults, but its
-# default *is* the rule — everything not daily is a trend — so it isn't checked.)
+# `InsightID`'s case list, for the generic pass below.
+#
+# This used to be a bespoke check on `iconName` alone, written when that switch
+# carried a `default:` and so failed silently with somebody else's glyph. It no
+# longer has one — four of the five InsightID switches are exhaustive now — and
+# a hand-picked check on one of them is exactly the shape that let a
+# `Suggestion.Basis` switch break CI. The generic pass covers all of them.
 insight_names=$(awk '/^public enum InsightID/,/^}/' \
     InsightKit/Sources/InsightKit/Insights/Insight.swift 2>/dev/null \
     | grep -oE '^\s+case [a-z][A-Za-z0-9]*' | awk '{print $2}' | sort -u)
-
-if [ -n "$insight_names" ]; then
-    icon_body=$(awk '/(var|func) iconName/,/^    }$/' \
-        HealthInsights/Features/Dashboard/DashboardView.swift 2>/dev/null)
-    icon_missing=""
-    for name in $insight_names; do
-        printf '%s' "$icon_body" | grep -qE "[.]$name\b" || icon_missing="$icon_missing $name"
-    done
-    if [ -n "$icon_missing" ]; then
-        note "iconName (DashboardView.swift) does not mention:$icon_missing"
-        fail=1
-    fi
-fi
 
 # --- Any exhaustive switch, anywhere, over an InsightKit enum ---------------
 #
@@ -209,6 +199,8 @@ check_every_switch_over() {
 
 # shellcheck disable=SC2046
 check_every_switch_over MetricType $metric_names
+# shellcheck disable=SC2046
+check_every_switch_over InsightID $insight_names
 # shellcheck disable=SC2046
 check_every_switch_over "Suggestion.Basis" \
     $(enum_cases InsightKit/Sources/InsightKit/Insights/Suggestions.swift Basis)

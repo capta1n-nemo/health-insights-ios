@@ -17,7 +17,8 @@
       "Bash(git push*)",
       "Read",
       "Edit",
-      "Write"
+      "Write",
+      "Bash(./scripts/handover-check.sh*)"
     ],
     "deny": [
       "Read(*.env*)"

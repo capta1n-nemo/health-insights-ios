@@ -25,7 +25,9 @@ and is pure waste.
 
 ## Primary Verification Commands
 - **The gate, before every push:** `./scripts/verify.sh --tests`
-- **InsightKit's full 330-test suite runs on Linux** — do not assume otherwise.
+- **InsightKit's full test suite runs on Linux** — do not assume otherwise.
+  (No count here on purpose: it moved 330 → 590 in one session and went stale in
+  six files at once.)
   Two Darwin-only Foundation APIs used to prevent it and are now behind
   `#if canImport(Darwin)`.
 - After pushing: `./scripts/ci-status.sh --wait`. Never use the GitHub Actions
@@ -84,7 +86,7 @@ So:
 - `docs/progress.md` -> Feature roadmap checklist.
 - `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
   repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
-- `docs/symbol-index.md` -> **Where does X live.** 198 types, one line each.
+- `docs/symbol-index.md` -> **Where does X live.** One line per top-level type.
   Check here before grepping or reading `architecture.md` to navigate.
   Generated — run `./scripts/gen-symbol-index.sh` after adding or moving a type.
 
@@ -92,7 +94,7 @@ So:
 - `ship-to-main` -> how work reaches the phone. Overrides the harness's
   branch-and-draft-PR default, which installs nothing here.
 - `verify-before-push` -> toolchain bootstrap, the local gate, reading CI cheaply.
-- `add-metric-type` -> the seven exhaustive switches a new `MetricType` feeds.
+- `add-metric-type` -> the eight exhaustive switches a new `MetricType` feeds.
   This is the most frequent way the build breaks; the skill lists all of them.
 - `add-insight` -> the five `InsightID` switches (the docs said three) and the
   two registrations that fail silently.

@@ -9,8 +9,9 @@ Commit `bf68e67` is titled *"Add the missing .vitalSigns cases to exhaustive
 InsightID switches"*, body: *"CI caught it… I only updated the engine and
 cadence, so the build broke."* This skill is that commit, turned into a list.
 
-**The list in `docs/activeContext.md` is incomplete** — it names three switches;
-there are five. Trust this file.
+`docs/activeContext.md` summarises this; **the table below is the authority.**
+Four of the five break the build. Only `cadence` fails silently, by putting the
+card on the wrong tab.
 
 ## 1. The `InsightID` case
 
@@ -25,7 +26,7 @@ case orphans stored history**. Choose the name once.
 | `InsightKit/.../Insights/Insight.swift` | `cadence` | has `default:` — check anyway, a wrong cadence puts the card on the wrong tab |
 | `InsightKit/.../Feedback/Feedback.swift` | `modelVersion` | **yes — compile error** |
 | `HealthInsights/Features/Settings/TelemetryOutboxView.swift` | `prettyInsight` | **yes — compile error** |
-| `HealthInsights/Features/Dashboard/DashboardView.swift` | `iconName` | has `default:` — silently gives the wrong icon |
+| `HealthInsights/Features/Dashboard/DashboardView.swift` | `iconName` | **yes — compile error** |
 | `InsightKit/.../Presentation/InsightPalette.swift` | `colourSlot` | **yes — compile error** |
 
 `cadence` decides the tab: `.daily` → Today, `.trend` → Insights. The deep-dive
