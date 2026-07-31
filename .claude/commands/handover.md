@@ -64,11 +64,31 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     notes block underneath naming the red CI, the rework and the re-derivations.
     Mark unmeasurable history as *not measured* — never back-fill a guess.
 
-11. Commit with `docs: update active context, progress and efficiency log`.
+11. **Re-read what you just wrote, against the code.** Not "update the docs" —
+    *check* them. Open `docs/activeContext.md` and verify every claim that
+    something is unbuilt, missing or not-yet-wired is still true after this
+    session's work. This is the step that failed on 2026-07-31: five completed
+    things were still described as open, because updating a file and auditing a
+    file are different acts and only the first was done.
+
+12. Commit with `docs: update active context, progress and efficiency log`.
+
+13. **Run the close-out gate and paste its output.**
+
+    ```bash
+    ./scripts/handover-check.sh <previous-handover-sha>
+    ```
+
+    It verifies — rather than asserts — that the tree is clean, HEAD is pushed,
+    CI is green on *this* commit, the lint passes, all three docs were actually
+    touched this session, and the efficiency log's red-CI count matches
+    `refs/ci/failed`. **If it exits non-zero, the session is not done. Do not
+    tell the user otherwise.** It also prints the open-roadmap count, which is
+    the number to read back to them.
 
 ## Part 3 — tell the user, out loud
 
-12. **End the reply with the efficiency verdict.** This is the non-negotiable
+14. **End the reply with the efficiency verdict.** This is the non-negotiable
     part. It must contain:
     - **More or less efficient than the last session**, stated plainly.
     - **The log table**, so the trend is visible rather than asserted.
@@ -78,5 +98,7 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     Be willing to report a regression. A log that only ever improves is one being
     written to flatter, and it stops being worth keeping the moment that happens.
 
-13. Confirm that memory files are synchronized and a new chat can be started
-    safely.
+15. Confirm a new chat can be started safely — **on the strength of the gate's
+    output, never on your own recollection.** "Everything is recorded" was said
+    once from memory and was wrong; the check exists so that sentence has
+    something behind it.

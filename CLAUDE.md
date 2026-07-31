@@ -115,6 +115,17 @@ When the user says "handover", "wrap up", or runs `/handover`, follow
    is never skipped**, including on a session that went badly. A log that only
    improves is being written to flatter.
 
+**Before saying a session is safe to close, run the gate:**
+
+```bash
+./scripts/handover-check.sh <previous-handover-sha>
+```
+
+It checks — rather than assumes — clean tree, pushed HEAD, green CI on *this*
+commit, passing lint, all three docs touched, and an efficiency-log row whose
+red-CI count matches `refs/ci/failed`. Non-zero exit means not done. This exists
+because "everything is recorded" was once asserted from memory and was wrong.
+
 **Never report a token count.** It cannot be observed from inside a session, so
 any figure would be invented — and one invented baseline makes every later
 comparison meaningless. Every number in the log is recomputable from `git` and

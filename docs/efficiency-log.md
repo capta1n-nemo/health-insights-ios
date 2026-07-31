@@ -66,6 +66,7 @@ that is not yet automated is the next thing to automate.
 | Lose the working directory in a shell call | 2 | ✅ ruled in `CLAUDE.md` (2026-07-31) |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | 2 | ⚠️ partly — `symbol-index.md` exists and was not consulted first |
+| Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
@@ -79,6 +80,10 @@ Ordered by (frequency × cost), cheapest fix first.
 - [x] **State the absolute-path rule where it will be read.** Done — `CLAUDE.md`
       now opens with it. Several shell calls were lost to a working directory
       that had moved, each costing a full round trip.
+- [x] **A close-out gate.** `scripts/handover-check.sh` verifies what the
+      protocol used to merely assert. Both canaries fire: a log row whose red-CI
+      count disagrees with `refs/ci/failed`, and a session that changed Swift
+      without touching the docs.
 - [ ] **Make `symbol-index.md` the reflex, not the fallback.** The router already
       says "check here before grepping". It was still skipped. Consider having
       `verify.sh` print a one-line reminder, or fold the index into the skills
