@@ -116,9 +116,10 @@ struct BodyCompositionTrendChart: View {
     /// The weigh-in nearest the finger, ignoring anything more than a fortnight
     /// away — past that there is no reading under the touch to report.
     private func point(at date: Date) -> BodyCompositionSplit.Dated? {
-        points.min {
+        guard let nearest = points.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-        }.flatMap { abs($0.date.timeIntervalSince(date)) <= 14 * 86_400 ? $0 : nil }
+        }), abs(nearest.date.timeIntervalSince(date)) <= 14 * 86_400 else { return nil }
+        return nearest
     }
 
     var body: some View {
@@ -158,7 +159,7 @@ struct BodyCompositionTrendChart: View {
         Chart {
             bands
             waterMarks
-            ScrubIndicator(date: selected)
+            ScrubIndicator.at(selected)
         }
         .chartXSelection(value: selectionBinding)
         .chartForegroundStyleScale(domain: labels, range: labels.map(colour))

@@ -49,9 +49,10 @@ struct SleepOnsetStripChart: View {
     /// The night nearest the scrubbed instant, ignoring anything further than
     /// half a day away — past that the finger is between nights, not on one.
     private func night(at date: Date) -> CircadianConsistencyModel.Night? {
-        output.nights.min {
+        guard let nearest = output.nights.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-        }.flatMap { abs($0.date.timeIntervalSince(date)) <= 12 * 3600 ? $0 : nil }
+        }), abs(nearest.date.timeIntervalSince(date)) <= 12 * 3600 else { return nil }
+        return nearest
     }
 
     /// The two block centres actually in play. One entry when no weekday/weekend
@@ -114,7 +115,7 @@ struct SleepOnsetStripChart: View {
     private var chart: some View {
         Chart {
             marks
-            ScrubIndicator(date: selected)
+            ScrubIndicator.at(selected)
         }
         .chartXSelection(value: selectionBinding)
         .chartYAxis {

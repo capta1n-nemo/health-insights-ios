@@ -14,11 +14,22 @@ import Charts
 /// can resolve to `Chart3DContent` on this SDK and silently lose `.lineStyle`,
 /// so the `ForEach`-over-one-element form below is deliberate and is the shape
 /// the rest of the app has verified.
-struct ScrubIndicator: ChartContent {
-    /// The scrubbed instant, or `nil` when nothing is selected.
-    let date: Date?
+/// A namespace with one builder, **not** a type conforming to `ChartContent`.
+///
+/// The conforming-struct version is the obvious build and it broke the app
+/// target's module emission — the failure surfaces as `EmitSwiftModule`, with no
+/// line number, and nothing local can catch it because SwiftUI does not exist on
+/// Linux. Every chart in this app instead composes marks through
+/// `@ChartContentBuilder` members, so this matches that and stops being novel.
+enum ScrubIndicator {
 
-    var body: some ChartContent {
+    /// The vertical line at `date`, or nothing when nothing is selected.
+    ///
+    /// `ForEach` over one element rather than a bare `RuleMark`: a bare chain
+    /// can resolve to `Chart3DContent` on this SDK and silently drop
+    /// `.lineStyle`. This is the construction the rest of the app has verified.
+    @ChartContentBuilder
+    static func at(_ date: Date?) -> some ChartContent {
         ForEach(date.map { [$0] } ?? [], id: \.self) { instant in
             RuleMark(x: .value("Selected", instant))
                 .foregroundStyle(Color.secondary.opacity(0.35))

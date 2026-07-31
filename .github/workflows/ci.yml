@@ -52,12 +52,15 @@ jobs:
   app-build:
     name: Compile app target
     runs-on: macos-15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Show toolchain
         run: xcodebuild -version
       - name: Build HealthInsights (no signing)
         run: |
+          set -o pipefail
           xcodebuild build \
             -project HealthInsights.xcodeproj \
             -scheme HealthInsights \
@@ -65,7 +68,41 @@ jobs:
             -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" 2>&1 | tee /tmp/xcodebuild.log
+
+      # The compiler's own error lines, published as a git ref.
+      #
+      # This job is the only thing that compiles SwiftUI, HealthKit and
+      # SwiftData — the local suite cannot, because InsightKit is platform-free
+      # and runs on Linux. So when it fails, its log is the *only* description
+      # of what is wrong, and reading it meant the Actions API: one run listing
+      # is ~450 KB, and a tail large enough to reach the error is tens of
+      # thousands of tokens of build-step noise. On 2026-07-31 three fetches
+      # totalling ~40 K tokens returned the summary and never the error.
+      #
+      # `refs/ci/{passed,failed}` already proved the pattern for the verdict;
+      # this does the same for the reason. Written with git plumbing so the ref
+      # holds a real file with no branch and no working tree.
+      #
+      # Read it with: scripts/ci-errors.sh [sha]
+      - name: Record build errors to refs/ci/errors/<sha>
+        if: failure()
+        run: |
+          set -euo pipefail
+          # `error:` alone misses the module-emission failures, which name the
+          # declaration rather than a line; the summary block names the target.
+          grep -E '(error:|warning: .*never used|\*\* BUILD FAILED)' \
+            /tmp/xcodebuild.log | head -60 > /tmp/errors.txt || true
+          if [ ! -s /tmp/errors.txt ]; then
+            tail -40 /tmp/xcodebuild.log > /tmp/errors.txt
+          fi
+          git config user.email "ci@localhost"
+          git config user.name "CI"
+          blob=$(git hash-object -w /tmp/errors.txt)
+          tree=$(printf '100644 blob %s\terrors.txt\n' "$blob" | git mktree)
+          commit=$(git commit-tree "$tree" -m "build errors for $GITHUB_SHA")
+          # Under refs/ci/, so it cannot trigger a workflow and cannot loop.
+          git push -f origin "$commit:refs/ci/errors/$GITHUB_SHA"
 
   # Publishes the verdict as a git ref, so an agent can ask "did CI pass for
   # this SHA" with `git ls-remote` — a few hundred bytes — instead of the

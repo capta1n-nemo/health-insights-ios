@@ -323,7 +323,7 @@ the place to look.
   - `MetricYScale` :142
   - `ScrollableMetricChart` :13
 - `DesignSystem/ScrubIndicator.swift`
-  - `ScrubIndicator` :17
+  - `ScrubIndicator` :24
 - `DesignSystem/SleepOnsetStripChart.swift`
   - `SleepOnsetStripChart` :38
 - `DesignSystem/SourceBreakdownCard.swift`
