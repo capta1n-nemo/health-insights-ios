@@ -46,6 +46,39 @@ public enum CircadianConsistencyModel {
     public static let zeroScoreSpreadHours = 2.0
 
     public struct Output: Sendable, Equatable {
+
+        /// One night, with the centre it was actually judged against.
+        ///
+        /// Carried out of the model rather than recomputed by whatever draws it.
+        /// The weekday/weekend split below is not a presentation detail — it is
+        /// the thing that separates a recurring shift from scatter, and a chart
+        /// that re-derived it would be a second implementation free to disagree
+        /// with the score. Same reasoning as `InsightResult.contributors`: the
+        /// series a picture draws are emitted by the code that did the scoring.
+        public struct Night: Sendable, Equatable, Identifiable {
+            /// The night's key — the morning it ends on, as `SleepOnset` stamps it.
+            public let date: Date
+            /// Signed hours from midnight, the `.sleepOnset` encoding.
+            public let onset: Double
+            /// The centre this night was measured against: its own block's, or
+            /// the overall mean when no weekday/weekend shift was measurable.
+            public let centre: Double
+            public let isWeekend: Bool
+
+            /// Signed distance from that centre. The residual the spread is
+            /// built from, so a chart drawing these is drawing the score.
+            public var departure: Double { onset - centre }
+
+            public var id: Date { date }
+
+            public init(date: Date, onset: Double, centre: Double, isWeekend: Bool) {
+                self.date = date
+                self.onset = onset
+                self.centre = centre
+                self.isWeekend = isWeekend
+            }
+        }
+
         /// Standard deviation of sleep onset, in hours, with any recurring
         /// weekday/weekend shift removed.
         public let spreadHours: Double
@@ -58,6 +91,8 @@ public enum CircadianConsistencyModel {
         /// The single most out-of-step night in the window, if there is one
         /// worth naming.
         public let mostIrregular: (date: Date, onset: Double)?
+        /// Every night counted, oldest first, each with its own centre.
+        public let nights: [Night]
 
         public var band: String {
             switch spreadHours {
@@ -74,6 +109,7 @@ public enum CircadianConsistencyModel {
                 && a.socialJetlagHours == b.socialJetlagHours
                 && a.mostIrregular?.date == b.mostIrregular?.date
                 && a.mostIrregular?.onset == b.mostIrregular?.onset
+                && a.nights == b.nights
         }
     }
 
@@ -123,7 +159,15 @@ public enum CircadianConsistencyModel {
                       // Only worth naming when it is a real outlier rather than
                       // simply the largest of a tight set.
                       mostIrregular: worstDeparture >= 1 && spread > 0
-                          ? worst.map { ($0.date, $0.value) } : nil)
+                          ? worst.map { ($0.date, $0.value) } : nil,
+                      // Built from the same `centre(for:)` the residuals above
+                      // used, so a chart of these nights and the score computed
+                      // from them cannot disagree about where the middle is.
+                      nights: nights.map {
+                          Output.Night(date: $0.date, onset: $0.value,
+                                       centre: centre(for: $0.date),
+                                       isWeekend: calendar.isDateInWeekend($0.date))
+                      })
     }
 
     /// 0–100, higher is better. Continuous, because a regularity score has no

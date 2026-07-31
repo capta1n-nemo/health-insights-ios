@@ -401,8 +401,15 @@ closed from a sandbox. What remains falls into three groups.
 
 ### 1. Only the user can do these
 
-- **The on-device walkthrough.** Nothing from the last three sessions has been
+- **The on-device walkthrough.** Nothing from the last four sessions has been
   seen on a phone. Newest first:
+  - **Insights ▸ Sleep Regularity ▸ "Your fortnight"** — a new chart above the
+    score history. Points are the nights, the dashed line is the usual bedtime,
+    the shaded band is the spread. Check the y axis reads **clock times** and not
+    bare numbers (a "−1.5" there is the signed-hours encoding leaking); that
+    weekend nights are squares and weekdays circles; that the night the card
+    names as "furthest out" is the enlarged point; and that a second dashed line
+    appears only when there is a real weekend shift.
   - **Energy ▸ Today** — an area chart of the day's curve with a dashed line at
     the morning charge, and "N spent of M" in the header. Check it renders before
     the score history, and that scrubbing reads the hour.
@@ -524,13 +531,26 @@ a feedback line has an "and also" in it, record the clauses separately.
 
 ### 5. Genuinely open work, cheapest first
 
-- **A chart for Sleep Regularity's own shape.** The card reports a spread and the
-  detail screen draws the score history like everything else. What it wants is a
-  strip of the fortnight's onsets against their own centre — the picture of
-  "regular" — and `.sleepOnset` charts as an ordinary metric today.
-- **Sleep onset in the promotion rules**, so a provider that starts reporting a
-  bedtime under a different field name reaches `.sleepOnset` without a parser
-  change. Today three parsers each hand-build it.
+The two cheapest items here — Sleep Regularity's own chart, and sleep onset
+through the promotion rules — **are done**; see `docs/progress.md` ▸ "The
+roadmap-review session". Two findings from them are worth carrying:
+
+- **A guard whose comment states a premise is a place the premise can be wrong.**
+  `IngestionPipeline` promoted on `field.value.doubleValue`, commented "promotion
+  is numeric by definition". That was true of every metric until `.sleepOnset`,
+  which derives from a timestamp — and the failure mode was not an error but a
+  rule that matched and promoted nothing. The one-line version of the roadmap
+  item (add `bedtime_start` to the alias table) would have shipped looking
+  correct. **When adding a row to a data table, check that the machinery reading
+  it can represent the new row's type.**
+- **Check whether the field survives ingest before writing a rule for it.**
+  `GenericJSONIngestor` excludes `startDateKeys` from the field sweep, and
+  `bedtime_start` is one of Oura's. A promotion rule aimed at it would match
+  nothing forever, silently. Recorded in `PromotionRules.swift` beside the
+  aliases.
+
+Still open:
+
 - **Foundation Models structured extraction for arbitrary lab analytes**, and the
   VisionKit live scanner. Both are on the roadmap and both are device surfaces
   with no test path from here.

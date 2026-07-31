@@ -48,6 +48,12 @@ struct InsightDetailView: View {
                     if insightID == .energy {
                         energyCurveCard
                     }
+                    // Same argument as Energy's placement: the fortnight of
+                    // bedtimes *is* the finding, and the month of scores derived
+                    // from it is the supporting context.
+                    if insightID == .circadianConsistency {
+                        sleepRegularityCard
+                    }
                     scoreHistoryCard
                     if insightID == .substanceImpact {
                         substanceLoadCard
@@ -331,6 +337,32 @@ struct InsightDetailView: View {
                     }
                     EnergyCurveChart(curve: energy.curve,
                                      morningCharge: energy.morningCharge)
+                }
+            }
+        }
+    }
+
+    /// The fortnight of bedtimes, against the middle they are measured from.
+    ///
+    /// The card reports a spread and the score history plots that spread over
+    /// months; neither draws the thing itself. A regular sleeper is a tight
+    /// column and an irregular one is scatter, and that is the picture the whole
+    /// insight is about.
+    @ViewBuilder private var sleepRegularityCard: some View {
+        if let regularity = model.sleepRegularity(),
+           regularity.nights.count >= CircadianConsistencyModel.minimumNights {
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Your fortnight").font(.headline)
+                        Spacer()
+                        if let jetlag = regularity.socialJetlagHours, abs(jetlag) >= 0.5 {
+                            Text(String(format: "weekends %.1f h %@",
+                                        abs(jetlag), jetlag > 0 ? "later" : "earlier"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    SleepOnsetStripChart(output: regularity)
                 }
             }
         }

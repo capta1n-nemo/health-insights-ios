@@ -43,7 +43,7 @@ the place to look.
   - `WithingsMeasureIngestor` :119
 - `Ingestion/PromotionRules.swift`
   - `PromotionRule` :9
-  - `PromotionRuleSet` :51
+  - `PromotionRuleSet` :116
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
 - `Insights/BloodPressureEstimator.swift`
@@ -61,7 +61,7 @@ the place to look.
 - `Insights/CardiovascularRiskModel.swift`
   - `CardiovascularRiskModel` :16
 - `Insights/CircadianConsistency.swift`
-  - `CircadianConsistencyInsight` :138
+  - `CircadianConsistencyInsight` :182
   - `CircadianConsistencyModel` :29
 - `Insights/Energy.swift`
   - `EnergyInsight` :301
@@ -310,6 +310,8 @@ the place to look.
 - `DesignSystem/ScrollableMetricChart.swift`
   - `MetricYScale` :137
   - `ScrollableMetricChart` :13
+- `DesignSystem/SleepOnsetStripChart.swift`
+  - `SleepOnsetStripChart` :38
 - `DesignSystem/SourceBreakdownCard.swift`
   - `SourceBreakdown` :13
 - `DesignSystem/SubstanceLoadChart.swift`

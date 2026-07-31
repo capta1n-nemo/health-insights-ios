@@ -16,6 +16,29 @@ public struct PromotionRule: Sendable, Hashable, Codable {
         case suffix(String)
     }
 
+    /// How to read the raw field into a canonical number.
+    ///
+    /// This exists because promotion used to be *numeric by definition*:
+    /// `IngestionPipeline` promoted only fields with a `doubleValue`, so a rule
+    /// pointed at a text field matched and then promoted nothing, silently. That
+    /// is fine for every vital whose provider sends a number and wrong for the
+    /// one canonical metric derived from a **timestamp** — a bedtime arrives as
+    /// an ISO-8601 string, and `RawValue.text.doubleValue` is `nil`.
+    public enum Interpretation: Sendable, Hashable, Codable {
+        /// `value * scale + offset` on a numeric field. What every rule did
+        /// before this type existed, and the default.
+        case numeric
+        /// An ISO-8601 instant read as `MetricType.sleepOnset` — signed hours
+        /// from midnight, via `SleepOnset.hoursFromMidnight`.
+        ///
+        /// Also **re-dates the sample** to the night it belongs to. A promoted
+        /// sample is otherwise stamped at the document's own date, and
+        /// `SleepOnset` stamps at the night key (the morning the night ends on),
+        /// so without this a promoted 23:30 and a parser-built 23:30 for one
+        /// night would land on two different days and be read as two nights.
+        case sleepOnsetTimestamp
+    }
+
     public let match: Match
     public let metric: MetricType
     /// Applied as `value * scale + offset`, for providers reporting a different
@@ -25,13 +48,16 @@ public struct PromotionRule: Sendable, Hashable, Codable {
     /// Restrict to one connector, when the same leaf name means different
     /// things across providers.
     public let sourceID: String?
+    public let interpretation: Interpretation
 
-    public init(match: Match, metric: MetricType, scale: Double = 1, offset: Double = 0, sourceID: String? = nil) {
+    public init(match: Match, metric: MetricType, scale: Double = 1, offset: Double = 0,
+                sourceID: String? = nil, interpretation: Interpretation = .numeric) {
         self.match = match
         self.metric = metric
         self.scale = scale
         self.offset = offset
         self.sourceID = sourceID
+        self.interpretation = interpretation
     }
 
     func matches(identifier: String, leaf: String, sourceID: String) -> Bool {
@@ -44,6 +70,45 @@ public struct PromotionRule: Sendable, Hashable, Codable {
     }
 
     public func convert(_ value: Double) -> Double { value * scale + offset }
+
+    /// What this rule promotes a raw field to, if anything.
+    ///
+    /// Returns the canonical value and, for interpretations that know better
+    /// than the document which instant the reading belongs to, the date to stamp
+    /// it at. `nil` means "this field is not promotable under this rule" — a text
+    /// value under a numeric rule, or a timestamp that isn't a plausible bedtime.
+    /// Declining is deliberate rather than a fallback: a bedtime outside
+    /// 18:00–06:00 is evidence the segment is a nap, and the parsers already
+    /// refuse it for the same reason.
+    func promotion(of raw: RawValue,
+                   calendar: Calendar = .current) -> (value: Double, date: Date?)? {
+        switch interpretation {
+        case .numeric:
+            guard let number = raw.doubleValue else { return nil }
+            return (convert(number), nil)
+        case .sleepOnsetTimestamp:
+            guard case .text(let string) = raw,
+                  Self.carriesTimeOfDay(string),
+                  let instant = PayloadDate.parse(string),
+                  let hours = SleepOnset.hoursFromMidnight(instant, calendar: calendar)
+            else { return nil }
+            // Scale and offset stay out of it: this value is an hour of the
+            // clock, and there is no unit for a provider to disagree about.
+            return (hours, SleepOnset.night(of: instant, calendar: calendar))
+        }
+    }
+
+    /// Whether a date string says anything about the time of day.
+    ///
+    /// `PayloadDate` accepts a bare `2026-07-31` and returns midnight UTC, which
+    /// is the right answer for a daily record and the wrong one for a bedtime:
+    /// midnight is a perfectly ordinary time to fall asleep, so a date-only field
+    /// would promote a plausible-looking 00:00 every night and there would be
+    /// nothing in the data to show it was invented. A bedtime must be declined
+    /// unless the provider actually sent an hour.
+    private static func carriesTimeOfDay(_ string: String) -> Bool {
+        string.contains("T") || string.contains(":")
+    }
 }
 
 /// The rule table, plus the alias vocabulary used to *propose* mappings for
@@ -136,6 +201,37 @@ public struct PromotionRuleSet: Sendable {
             "hydration": .bodyWaterPercentage,
             "height": .height,
             "day_strain": .dayStrain,
-            "strain": .dayStrain
+            "strain": .dayStrain,
+            // Bedtimes. Aliases and no shipped rule, deliberately, for two
+            // reasons — the second of which will bite anyone who ignores it.
+            //
+            // First: Oura's and Whoop's own parsers already build `.sleepOnset`
+            // from the fields they know, so a rule would promote a second sample
+            // for a night that already has one.
+            //
+            // Second, and the one worth checking before writing any rule here:
+            // `bedtime_start` is in `EnvelopeSpec.oura.startDateKeys` (and
+            // `start` in Whoop's), and `GenericJSONIngestor` **excludes the date
+            // keys from the field sweep** — they are consumed as the document's
+            // timestamp instead. So for those two providers the field never
+            // reaches promotion at all, and a rule aimed at it would match
+            // nothing, silently, forever. A rule is only useful for a provider
+            // whose spec does not already spend that field on the date.
+            //
+            // What these aliases buy meanwhile is the *proposal* — a connector
+            // nobody has written a parser for gets its bedtime catalogued and
+            // surfaced, and promoting it is then one row in `rules` with
+            // `interpretation: .sleepOnsetTimestamp` rather than a parser
+            // change. Promotion stays data, never inference.
+            //
+            // A bare `start` is deliberately **not** here. Whoop's sleep records
+            // carry one — and so does every workout, cycle and activity record
+            // any provider has ever sent, so the alias would propose a bedtime
+            // for all of them. An alias exists to be read by a human deciding
+            // whether to write a rule; one that fires on everything tells them
+            // nothing and invites a wrong rule.
+            "bedtime_start": .sleepOnset,
+            "sleep_start": .sleepOnset,
+            "sleep_onset": .sleepOnset
         ])
 }

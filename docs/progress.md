@@ -339,6 +339,55 @@ The Vitals Check fix, applied everywhere it was also true.
       switch with no `default:` to name every case, so the new pass needs no
       per-switch knowledge. Proved with two canaries.
 
+### The roadmap-review session — the two cheapest open items
+
+- [x] **Sleep Regularity draws its own shape.** The card scores the *spread* of
+      bedtimes about their own centre and the detail screen drew the score
+      history like every other card — which answers "has my regularity been
+      improving", not "what does my regularity look like". `SleepOnsetStripChart`
+      plots the fortnight's onsets against the centre each was judged against:
+      a regular sleeper is a tight column, an irregular one is scatter.
+
+      The nights come **out of the model** (`CircadianConsistencyModel.Output.nights`,
+      each carrying its own block centre) rather than being re-derived in the
+      view. The weekday/weekend split is what separates a recurring lie-in from
+      randomness, and a chart that recomputed it would be a second
+      implementation free to disagree with the score above it — the same reason
+      `InsightResult.contributors` exists. A test asserts the RMS of the drawn
+      departures *is* `spreadHours`, so the picture and the number are one
+      quantity rather than two that happen to agree today.
+
+      Encodings: dash stays "inferred" (the centre lines and the spread band are
+      fitted, the points are measured), hue stays identity, and weekday-versus-
+      weekend rides on **symbol shape**, which nothing else here uses. The y axis
+      renders clock times — an axis reading "−1.5" would leak the signed-hours
+      encoding at the one place a reader is looking. A plain `Chart`, not
+      `ScrollableMetricChart`, for `EnergyCurveChart`'s reason: a fixed fourteen
+      nights is never wider than the screen.
+- [x] **Sleep onset reaches `.sleepOnset` through the promotion rules** — and the
+      one-line version of this item would have failed silently. `IngestionPipeline`
+      promoted only fields with a `doubleValue`, commented *"promotion is numeric
+      by definition"*; a bedtime is an ISO-8601 **string**, so a rule pointed at
+      one matched and then promoted nothing, with no error raised anywhere.
+
+      `PromotionRule.Interpretation` (`.numeric` / `.sleepOnsetTimestamp`) is the
+      fix, defaulted so every existing row is untouched. The timestamp case reuses
+      `SleepOnset.hoursFromMidnight` rather than reimplementing the ±6 h nap
+      filter, and **re-dates the sample** to `SleepOnset.night(of:)` — a promoted
+      sample is otherwise stamped at the document's own date, and one night's
+      bedtime arriving on two different days depending on which route it took in
+      would read as two nights. Two further declines, each with a test: a
+      date-only string (`PayloadDate` reads it as midnight, and midnight is a
+      real bedtime, so the invented value would be invisible), and an afternoon.
+
+      Shipped as **aliases only, no rule**, for a reason worth checking before
+      anyone adds one: `bedtime_start` is in `EnvelopeSpec.oura.startDateKeys`
+      (and `start` in Whoop's), and `GenericJSONIngestor` excludes date keys from
+      the field sweep — so for those two providers the field never reaches
+      promotion at all and a rule aimed at it would match nothing, forever. A
+      bare `start` alias was deliberately left out: every workout, cycle and
+      activity record carries one.
+
 ## In progress / not yet device-verified
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.

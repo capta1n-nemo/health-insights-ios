@@ -157,6 +157,102 @@ final class IngestionPipelineTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result.promoted.first).value, 1.83, accuracy: 1e-9)
     }
 
+    // MARK: Promotion from a timestamp
+
+    /// A connector whose spec does *not* spend `bedtime_start` on the record
+    /// date, which is the only shape a sleep-onset rule can ever fire on —
+    /// `EnvelopeSpec.oura` lists it in `startDateKeys`, and the ingestor excludes
+    /// date keys from the field sweep.
+    private var bedtimeSpec: EnvelopeSpec {
+        EnvelopeSpec(recordsKeyPath: ["data"], startDateKeys: ["day"], ignoredKeys: ["id"])
+    }
+
+    private func bedtimePipeline(_ interpretation: PromotionRule.Interpretation) -> IngestionPipeline {
+        IngestionPipeline(
+            ingestors: [GenericJSONIngestor(sourceID: MetricSource.oura.id, spec: bedtimeSpec)],
+            rules: PromotionRuleSet(
+                rules: [PromotionRule(match: .leaf("bedtime_start"), metric: .sleepOnset,
+                                      interpretation: interpretation)],
+                aliases: [:]),
+            // Pinned rather than inherited: whether 23:30 is last night or
+            // tonight is a question about the reader's zone, not the data's.
+            calendar: TestClock.utc)
+    }
+
+    private func ingestBedtime(_ value: String,
+                               interpretation: PromotionRule.Interpretation = .sleepOnsetTimestamp)
+        -> IngestionResult {
+        var catalogue = FieldCatalogue()
+        return bedtimePipeline(interpretation).ingest(
+            [payload(#"{"data":[{"day":"2026-01-10","bedtime_start":"\#(value)"}]}"#,
+                     endpoint: "sleep")],
+            into: &catalogue)
+    }
+
+    /// The whole point of `Interpretation`. A bedtime is text, and promotion
+    /// used to be numeric by definition — so this rule matched and promoted
+    /// nothing at all, with no error raised anywhere.
+    func testATextTimestampPromotesToSleepOnset() throws {
+        let promoted = try XCTUnwrap(ingestBedtime("2026-01-10T23:30:00+00:00").promoted.first)
+        XCTAssertEqual(promoted.type, .sleepOnset)
+        // Signed hours from midnight with the cut at midday: 23:30 is −0.5.
+        XCTAssertEqual(promoted.value, -0.5, accuracy: 1e-9)
+    }
+
+    /// The trap, pinned. Exactly the same field and rule, read as a number:
+    /// nothing promotes, and nothing complains. This is what the old pipeline
+    /// did to *every* text field a rule pointed at.
+    func testTheSameFieldReadAsANumberPromotesNothing() {
+        XCTAssertTrue(ingestBedtime("2026-01-10T23:30:00+00:00", interpretation: .numeric)
+            .promoted.isEmpty)
+    }
+
+    /// The detail most likely to be got wrong. A promoted sample is normally
+    /// stamped at the document's own date; `SleepOnset` dates a night by the
+    /// morning it ends on. Left alone, one night's bedtime would arrive on two
+    /// different days depending on which route it took in, and `VitalReader`
+    /// would read it as two nights rather than de-duplicating it as one.
+    func testAPromotedOnsetLandsOnTheSameNightAsAParserBuiltOne() throws {
+        let instant = try XCTUnwrap(PayloadDate.parse("2026-01-10T23:30:00+00:00"))
+        let promoted = try XCTUnwrap(ingestBedtime("2026-01-10T23:30:00+00:00").promoted.first)
+        let parserBuilt = try XCTUnwrap(SleepOnset.samples(fromSegmentStarts: [instant],
+                                                           source: .oura,
+                                                           calendar: TestClock.utc).first)
+        XCTAssertEqual(promoted.start, parserBuilt.start)
+        XCTAssertEqual(promoted.value, parserBuilt.value, accuracy: 1e-9)
+        // And specifically *not* the record's own day, which is the bug.
+        XCTAssertNotEqual(promoted.start, try XCTUnwrap(PayloadDate.parse("2026-01-10")))
+    }
+
+    /// The nap filter belongs to `SleepOnset` and is reused rather than
+    /// reimplemented, so promotion declines exactly where the parsers decline.
+    func testAnAfternoonTimestampIsNotPromoted() {
+        XCTAssertTrue(ingestBedtime("2026-01-10T15:00:00+00:00").promoted.isEmpty)
+    }
+
+    /// `PayloadDate` reads a bare `2026-01-10` as midnight, and midnight is a
+    /// perfectly ordinary bedtime — so a date-only field would promote a
+    /// plausible 00:00 every night with nothing in the data to reveal it was
+    /// invented. Declined instead.
+    func testADateWithNoTimeOfDayIsNotPromotedAsMidnight() {
+        XCTAssertTrue(ingestBedtime("2026-01-10").promoted.isEmpty)
+    }
+
+    /// A connector with no rule gets its bedtime catalogued and *proposed*,
+    /// never promoted — the same guarantee every other lookalike field has.
+    func testAnUnruledBedtimeIsProposedNotPromoted() throws {
+        var catalogue = FieldCatalogue()
+        let pipeline = IngestionPipeline(
+            ingestors: [GenericJSONIngestor(sourceID: MetricSource.oura.id, spec: bedtimeSpec)],
+            calendar: TestClock.utc)
+        let result = pipeline.ingest(
+            [payload(#"{"data":[{"day":"2026-01-10","sleep_start":"2026-01-10T23:30:00+00:00"}]}"#,
+                     endpoint: "sleep")],
+            into: &catalogue)
+        XCTAssertTrue(result.promoted.isEmpty)
+        XCTAssertEqual(try XCTUnwrap(result.proposals.first).proposedMetric, .sleepOnset)
+    }
+
     // MARK: Withings
 
     func testWithingsMeasuresKeepEveryTypeAndTheirMetadata() {

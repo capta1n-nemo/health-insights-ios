@@ -201,6 +201,61 @@ final class CircadianConsistencyTests: XCTestCase {
         XCTAssertEqual(result.id, .circadianConsistency)
     }
 
+    // MARK: - The series the chart draws
+
+    /// The card names a night count and the chart plots nights. If those two
+    /// could differ, one of them would be lying and the reader has no way to
+    /// tell which.
+    func testTheNightsDrawnAreTheNightsCounted() throws {
+        let output = try XCTUnwrap(evaluate(Array(repeating: 0, count: 12)))
+        XCTAssertEqual(output.nights.count, output.nightsCounted)
+    }
+
+    /// The strongest guarantee available here: the residuals a chart would draw
+    /// as distance-from-centre are *the same numbers* the spread is computed
+    /// from. This is what makes the picture and the score one quantity rather
+    /// than two implementations that agree today.
+    func testDeparturesAreTheResidualsTheSpreadIsBuiltFrom() throws {
+        let output = try XCTUnwrap(evaluate([0, 1.5, -1.5, 0.8, -1.2, 1.4, -0.9,
+                                             1.1, -1.4, 0.6, -1.1, 1.3]))
+        let rms = (output.nights.map { $0.departure * $0.departure }
+            .reduce(0, +) / Double(output.nights.count)).squareRoot()
+        XCTAssertEqual(rms, output.spreadHours, accuracy: 1e-9)
+    }
+
+    /// Each night is judged against its own block, which is the whole reason a
+    /// consistent lie-in reads as regular. A chart that re-derived the split
+    /// could get this wrong on its own; carrying it out of the model means it
+    /// cannot.
+    func testAWeekendNightCarriesTheWeekendCentre() throws {
+        var offsets: [Double] = []
+        for index in 0..<14 {
+            let start = TestClock.day(14 - index)
+                .addingTimeInterval(-12 * 3600).addingTimeInterval(23 * 3600)
+            let night = SleepOnset.night(of: start, calendar: circCalendar)
+            offsets.append(circCalendar.isDateInWeekend(night) ? 3 : 0)
+        }
+        let output = try XCTUnwrap(evaluate(offsets))
+
+        let weekendCentres = Set(output.nights.filter(\.isWeekend).map(\.centre))
+        let weekdayCentres = Set(output.nights.filter { !$0.isWeekend }.map(\.centre))
+        XCTAssertEqual(weekendCentres.count, 1)
+        XCTAssertEqual(weekdayCentres.count, 1)
+        // Later at the weekend, by about the three hours the fixture builds in.
+        let shift = try XCTUnwrap(weekendCentres.first) - (try XCTUnwrap(weekdayCentres.first))
+        XCTAssertEqual(shift, 3, accuracy: 0.35)
+    }
+
+    /// With no measurable shift there is one centre, not two — otherwise a
+    /// sleeper with two weekend nights in the window would be drawn against a
+    /// weekend line fitted to those two nights alone.
+    func testWithNoShiftEveryNightSharesOneCentre() throws {
+        let output = try XCTUnwrap(evaluate(Array(repeating: 0, count: 12)))
+        XCTAssertEqual(Set(output.nights.map(\.centre)).count, 1)
+        XCTAssertEqual(try XCTUnwrap(output.nights.first).centre, output.typicalOnset,
+                       accuracy: 1e-9)
+    }
+
     /// It is a fortnight's shape, not a claim about today, so it belongs on the
     /// Insights tab.
     func testItIsATrendCard() {

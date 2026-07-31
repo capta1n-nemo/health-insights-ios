@@ -53,6 +53,7 @@ final class AppModel {
         overlayCache.removeAll()
         suggestionCache = nil
         energyCache = nil
+        circadianCache = nil
         scoreChangeCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -116,6 +117,20 @@ final class AppModel {
         if let energyCache { return energyCache }
         let built = EnergyModel.evaluate(samples: samples)
         energyCache = built
+        return built
+    }
+
+    /// The fortnight of bedtimes the Sleep Regularity detail screen charts.
+    ///
+    /// Cached for the same reason as the two above: a detail view re-evaluates
+    /// its body on every redraw, and this walks the whole sample set to pick out
+    /// one metric. Invalidated with `samples`, which is what it reads.
+    @ObservationIgnored private var circadianCache: CircadianConsistencyModel.Output?
+
+    func sleepRegularity() -> CircadianConsistencyModel.Output? {
+        if let circadianCache { return circadianCache }
+        let built = CircadianConsistencyModel.evaluate(samples: samples)
+        circadianCache = built
         return built
     }
 

@@ -40,10 +40,17 @@ public struct IngestionResult: Sendable {
 public struct IngestionPipeline: Sendable {
     private let ingestors: [String: any PayloadIngestor]
     public let rules: PromotionRuleSet
+    /// Only a rule whose interpretation resolves a *time of day* consults this —
+    /// `.sleepOnset` is the one such metric. Injectable so a test can pin a zone
+    /// rather than inherit the runner's, which decides whether 23:30 is last
+    /// night or tonight.
+    private let calendar: Calendar
 
-    public init(ingestors: [any PayloadIngestor], rules: PromotionRuleSet = .default) {
+    public init(ingestors: [any PayloadIngestor], rules: PromotionRuleSet = .default,
+                calendar: Calendar = .current) {
         self.ingestors = Dictionary(ingestors.map { ($0.sourceID, $0) }, uniquingKeysWith: { _, new in new })
         self.rules = rules
+        self.calendar = calendar
     }
 
     /// Ingest a batch of payloads, updating the catalogue in place.
@@ -113,12 +120,23 @@ public struct IngestionPipeline: Sendable {
                                           end: document.end,
                                           source: payload.source))
 
-        // Promotion is numeric by definition — the canonical layer is numbers.
-        if let rule, let number = field.value.doubleValue {
+        // The canonical layer is numbers, but the *field* need not be one: the
+        // rule says how to read it. That indirection exists for `.sleepOnset`,
+        // which is derived from an ISO-8601 timestamp — under the old
+        // `doubleValue` guard a rule pointed at a text field matched and then
+        // promoted nothing, with no error anywhere.
+        if let rule, let promotion = rule.promotion(of: field.value, calendar: calendar) {
+            // A rule may know better than the document which instant the reading
+            // belongs to. A bedtime does: `SleepOnset` dates a night by the
+            // morning it ends on, so 23:30 on Monday and the record Oura files
+            // under Tuesday are one night, and stamping it at `document.start`
+            // would make them two.
+            let start = promotion.date ?? document.start
+            let end = promotion.date ?? document.end
             result.promoted.append(HealthMetricSample(type: rule.metric,
-                                                      value: rule.convert(number),
-                                                      start: document.start,
-                                                      end: document.end,
+                                                      value: promotion.value,
+                                                      start: start,
+                                                      end: end,
                                                       source: payload.source))
         }
     }
