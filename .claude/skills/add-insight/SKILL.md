@@ -73,7 +73,21 @@ something `samples` and `profile` can't supply, rather than growing a third
   that forwards here, so only override it if the insight reads Apple's discrete
   event flags.
 - **`requirements`** — grounding facts the user must supply. Empty is fine for
-  an insight built purely from sensed data.
+  an insight built purely from sensed data. **It now drives two things**: the
+  old grounding prompt *and* the card's "View & add" section, via
+  `contributions` below.
+- **`contributions`** — what the card lets the user view and add
+  (`ContributionRoute`). **Has a default**, so a new insight compiles without
+  touching it and gets the right answer: the default returns
+  `.groundingFacts(requirements.map(\.kind))`, or nothing when `requirements` is
+  empty. Deliberately derived rather than switched over `InsightID` — a sixth
+  exhaustive switch on that enum is the last thing this repo needs.
+  **Override only when the input is a dated log rather than a profile fact.**
+  Two models do: `BloodPressureInsight` (`.bloodPressureReadings`) and
+  `SubstanceImpactInsight` (`.substanceLog`, despite declaring no requirements
+  at all). If you add a third, it needs a matching branch in
+  `ViewAndAddSection` — the enum has no `default:`, so that part will not
+  compile until you do, which is the intended failure.
 
 ## 5. Emit a score and contributors, or say why not
 

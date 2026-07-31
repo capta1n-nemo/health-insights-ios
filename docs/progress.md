@@ -388,7 +388,53 @@ The Vitals Check fix, applied everywhere it was also true.
       bare `start` alias was deliberately left out: every workout, cycle and
       activity record carries one.
 
+### Card consistency, Phase 1 — one "View & add" everywhere
+- [x] **`ContributionRoute`** — what each card lets the user view and add.
+      Derived from each model's own `requirements`, **not** a sixth exhaustive
+      switch over `InsightID`. A protocol requirement with a default in an
+      extension, so a new insight compiles untouched and gets the right answer,
+      while the two log-backed models (blood pressure, substances) override.
+- [x] **`ViewAndAddSection`** — one section, one anatomy: a status figure, what
+      you have already given, what is still missing, one way to add. Replaces
+      "Add these for a better estimate", which could only ever show what was
+      *missing* — so a fully-grounded card lost the section and with it any way
+      to correct a mistyped value.
+- [x] **Blood pressure's chart moved onto its own card**, as a shared
+      `BloodPressureChart` drawn by both the insight and the metric screen. The
+      metric screen keeps the calibration detail and the full dated history.
+- [x] **The timeframe picker hoisted** out of "Score over time", which it
+      outlived by three sections.
+- [x] **"What comes first" / "What changed" ungated** from cadence.
+- [x] **One placement rule** for the bespoke slot, above "Score over time".
+- [x] **`InsightResult.isWorthShowing`** — one listing rule for both tabs.
+
+### Card consistency, Phase 2 — the remaining unique sections
+**Not to be started until Phase 1 has been seen on the phone.** The audit and
+the ranking are in `docs/card-sections.md` ▸ "Still open".
+
+- [ ] **One weighted-contribution card** for Readiness and Heart Health, drawn
+      from `InsightResult.contributors` — which already carries a renormalised
+      `weight`, so **no new type and no model changes are needed**. Sleep Quality
+      wants the same card but keeps its seven sub-scores as locals
+      (`SleepQualityInsight.swift:130`), so it needs them lifted first.
+- [ ] Where You Stand — a percentile standings chart. Sleep Debt — the running
+      debt curve. Body Composition — the composition split, **plus the "view &
+      add" scan entry** the user asked for (a fourth `ContributionRoute`).
+      Vitals Check / Health Watch — one z-score strip serving both.
+- [ ] Cardiovascular Risk and Cardio Trajectory both compute a projection
+      nothing draws.
+- [ ] **Cardio Fitness and Resting HR Trend get nothing, deliberately** — they
+      are single-metric and the contributors overlay already *is* their chart.
+- [ ] The two chrome rules — caveat footnotes and header trailing stats —
+      applied once, across the new sections and the old ones together.
+
 ## In progress / not yet device-verified
+- [ ] **Phase 1 of the card-consistency work** (`42efe4c`, installed). The
+      things to look at: the BP card carries its own chart and adds a reading
+      without leaving the screen; a grounded card shows what is set as well as
+      what is missing; Substance Impact can log from its own card; a card with a
+      thin history still has a timeframe picker; a daily card (Readiness,
+      Energy) can now show "What comes first" / "What changed".
 - [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
       manually confirmed on the phone) — see `activeContext.md`.
 - [ ] Heart & fitness age and Fitness trajectory on the phone: both are new cards

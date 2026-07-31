@@ -30,25 +30,42 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The card-section audit session (latest).** The user asked which sections each
-card in the app renders, and where they disagree. The answer is now
-`docs/card-sections.md` — a seventeen-insight × seventeen-section matrix, the
-five metric-detail layouts, and eight named inconsistencies each with the
-`file:line` that proves it. **No code changed; this was an audit by request.**
+**The card-consistency session (latest), in two halves.** First an audit of
+which sections each card renders — now `docs/card-sections.md`, the audit of
+record. Then **Phase 1 of the fixes**, which shipped and is installed
+(`42efe4c`). **Phase 2 is scoped and deliberately not built** — see
+`docs/progress.md`; it is not to start until the user has seen Phase 1 on the
+phone.
 
-The two findings worth carrying without opening it:
+What landed, and the parts worth carrying:
 
-- **Half the insight detail screen is already consistent.** Eight of the
-  seventeen sections render identically for all seventeen insights. The
-  variation is concentrated in six `id`-gated columns (touching 5 insights) and
-  two cadence-gated ones (off for 7).
-- **The sharpest gap is not the missing charts, it is the timeframe picker.**
-  It lives inside "Score over time" (`InsightDetailView.swift:299`) but drives
-  the contributors overlay, the patterns card and the lag card. An insight with
-  under two replayable days loses the control for three sections that still use
-  it. Invisible until a history is thin, which is why it had not been reported.
-
-The gaps are options, not a backlog — the user has them to choose from.
+- **There is now one "View & add" section**, on every card that takes user
+  input — nine of seventeen. It replaces "Add these for a better estimate", the
+  blood-pressure link, and the substance log's toolbar-button-on-another-tab.
+  Blood pressure's chart is on the card that talks about it.
+- **`contributions` is derived from `requirements`, not switched over
+  `InsightID`.** A sixth exhaustive switch on that enum would have been the most
+  expensive possible way to build this — it is already this repo's most frequent
+  CI break. Only the two log-backed models override.
+- **A protocol member with a default must still be a protocol *requirement*.**
+  Callers hold `any InsightModel`. Declared only in an extension, `contributions`
+  would dispatch statically, every model would silently get the default, and
+  both overrides would be dead code **that still passed their own tests**,
+  because those hold the concrete type. `testOverridesSurviveExistentialDispatch`
+  is the one that would have caught it.
+- **`Color` has `primary`, `secondary` and `white` — but no `tertiary`.** That
+  cost one red CI. Twelve existing `x ? Theme.foo : .secondary` ternaries
+  compile because the shorthand resolves to a `Color` static; `.tertiary` only
+  exists as a `HierarchicalShapeStyle`, so the two arms had nothing to unify to.
+  **Nothing local catches this class of error** — SwiftUI does not exist on
+  Linux, so the app target is compiled by CI alone.
+- **Ten of the seventeen sections are now uniform across all seventeen
+  insights**, up from eight. The remaining variation is the "View & add" column
+  (nine cards) and the bespoke slot (five), which is what Phase 2 is about.
+- **Generate a wide table rather than hand-writing it.** The 17×17 matrix in
+  `docs/card-sections.md` was hand-written and its column tally was wrong by
+  one; the artifact's version is generated from the same row data and caught it.
+  A grid that big has no reviewable failure mode by eye.
 
 **The roadmap-continuation session (previous).** "Continue with roadmap" — the
 open list was read back, and the only substantial item buildable from a sandbox
