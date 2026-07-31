@@ -55,7 +55,13 @@ and is pure waste.
   until `main` moves**. Commit on `main`, or fast-forward `main` onto the work
   branch and push that. If a session starts you on a `claude/*` branch, land it
   on `main` yourself instead of leaving a PR open.
-- Once pushed to `main`, notify the user that deployment to their iPhone is triggered, then complete the turn immediately.
+- Once pushed to `main`, run **`./scripts/deploy-status.sh --wait`** and report
+  what it says. **A push is not an install, and `ci-status.sh` cannot tell you
+  it was one** — `ci.yml` runs on GitHub's runners and proves the code compiles;
+  `deploy.yml` runs on the user's own Mac and is the only thing that reaches the
+  phone. On 2026-07-31 three deploys in a row failed on an unreachable iPhone
+  while CI was green for all three, and each was announced as "deployment
+  triggered". Say *installed* only when the deploy ref says so.
 
 ## The docs ARE the audit. Do not re-derive them.
 

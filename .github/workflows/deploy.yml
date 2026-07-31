@@ -28,6 +28,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
+    # Needed by the final step, which pushes the verdict to refs/deploy/.
+    permissions:
+      contents: write
     env:
       DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
       IPHONE_DEVICE_ID: ${{ secrets.IPHONE_DEVICE_ID }}
@@ -193,3 +196,21 @@ jobs:
 
           echo "Installing $APP_PATH onto the pinned device ($MODEL)"
           xcrun devicectl device install app --device "$DEVICE" "$APP_PATH"
+
+      # "Is it actually on the phone?" — readable for a few hundred bytes.
+      #
+      # This is the whole point of the job and until now nothing recorded it.
+      # `ci.yml` writes refs/ci/<result>/<sha>, so `ci-status.sh` could answer
+      # "does it compile" cheaply — and that got mistaken for "it is installed",
+      # three times in one session, while every one of those deploys was failing
+      # on an unreachable phone. Compiling on a GitHub runner says nothing about
+      # a self-hosted Mac reaching an iPhone.
+      #
+      # A ref under refs/deploy/ cannot trigger a workflow, so this cannot loop.
+      - name: Record the deploy result
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ "${{ job.status }}" = "success" ]; then result=passed; else result=failed; fi
+          echo "Deploy $result for $GITHUB_SHA"
+          git push -f origin "HEAD:refs/deploy/$result/$GITHUB_SHA"

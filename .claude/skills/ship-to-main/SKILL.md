@@ -20,10 +20,21 @@ land it on `main` yourself rather than leaving a PR open.
 ./scripts/verify.sh --tests        # full suite + lint, locally. THE GATE.
 git add -A && git commit
 git push origin HEAD:main          # NOT `git push -u origin main`
-./scripts/ci-status.sh --wait      # 0 passed / 1 failed / 2 no verdict
+./scripts/ci-status.sh --wait      # does it compile?  0 passed / 1 failed / 2 none
+./scripts/deploy-status.sh --wait  # is it on the phone? 0 installed / 1 failed / 2 none
 ```
 
-Then tell the user deployment to their iPhone is triggered, and **end the turn**.
+**Both, and in that order.** They answer different questions and the second is
+the one the user cares about. `ci.yml` runs on GitHub's runners; `deploy.yml`
+runs on the user's own Mac and is the only thing that installs anything. Three
+deploys in a row once failed on an unreachable iPhone while CI was green for all
+three, and each was reported as "deployment triggered" — because nothing was
+checking. A push is not an install.
+
+Then report what `deploy-status.sh` actually said, and **end the turn**. If it
+failed, the build is almost certainly fine and the phone is the problem: unlock
+it, same Wi-Fi as the Mac, no VPN. Re-running the workflow installs the same
+commit — no new push needed.
 Don't keep working past the push unless they asked for more.
 
 ### Why `HEAD:main`, and not the two obvious alternatives
