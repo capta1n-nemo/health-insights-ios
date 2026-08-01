@@ -211,6 +211,77 @@ invalidates.
 `CircadianConsistencyModel`, `VitalSignsCheck`, `HealthWatchModel`,
 `PeerStandingModel`. Only the wrappers and their `InsightID`s went.
 
+### Feature audit — what each section actually carries
+
+_Read out of the code 2026-08-01, because "we made improvements and they only got
+into some cards" is a claim nobody could check against the matrix above: it says
+*which* sections render, never what each one does._
+
+Key — `●` yes · `○` no · `—` not applicable.
+
+| # | Section | On | Arrives | Empty state | Figure | Caveat | Chart |
+|---|---|---|---|---|---|---|---|
+| 2 | Score over time | all 9 | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
+| 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
+| 4 | How this is weighted | all 9 | **closed** | ● 2 reasons | `n` weighted | `unscored` | — |
+| 5a | Your readings | BP | open | ○ | category | `.none` | `BloodPressureChart` |
+| 5b | Heart/Fitness age over time | CVR, Fit | open | ○ | years/year | `replayedHistory` | `AgeHistoryChart` |
+| 5c | If today's numbers hold | CVR | open | ○ | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
+| 5d | Where this is heading | Fit | open | ○ | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
+| 5e | Today | Energy | open | ○ | spent of charge | `modelledCurve` | `EnergyCurveChart` |
+| 5f | Your fortnight | Sleep | open | ○ | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| 5g | Cardiovascular load | Subst | open | ○ | trend/week | `decayingLoad` | `SubstanceLoadChart` |
+| 5h | How you compare | HH | open | ○ | centile | `approximateNorms` | `PeerStandingStrip` |
+| 5i | How far from your normal | Readi | open | ○ | `n` checked | computed | `VitalDepartureStrip` |
+| 5j | What you're made of | BodyC | open | ○ | total kg | `.none` | stacked bar |
+| 5k | How that has changed | BodyC | open | ○ | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
+| 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
+| 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
+| 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
+| 9 | What changed | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `periodContrast` | — |
+| 10 | Full history | all 9 | open | ○ | `n` signals | `.none` | — |
+| 11 | View & add | 6 | open, **not closable** | ○ | — | own | — |
+| 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
+
+**The pattern in the `Empty state` column is the finding.** Every *generic*
+section grew one; **not one bespoke section has**. All eleven still vanish, which
+is the behaviour the generic sections were changed away from — and the reason
+they were changed applies here too. "Your fortnight" absent could mean no sleep
+data, or fewer than `CircadianConsistencyModel.minimumNights` nights; "How you
+compare" absent could mean no date of birth on file, or no comparable metric.
+Nobody can tell from the outside. See gap 12.
+
+### Feature audit — what each chart supports
+
+| Chart | Wraps `Scrollable­MetricChart` | Pan / zoom | Scrub line | Honours the card's timeframe |
+|---|---|---|---|---|
+| `ScoreHistoryChart` | ● | ● | ● shared | ● `window(spanning:)` |
+| `MetricOverlayChart` | ● | ● | ● shared | ● |
+| `BloodPressureChart` | ● | ● | ● shared | ● takes `timeframe` |
+| `MultiSourceChart` (metric detail) | ● | ● | ● shared | ● |
+| `ScoreComparisonChart` (Insights list) | ● | ● | ● shared | — no picker on that screen |
+| `AgeHistoryChart` | ● | ● | ● shared | **○ fixed 365 days** |
+| `SubstanceLoadChart` | ● | ● | ● shared | **○ fixed 90 days** |
+| `BodyCompositionTrendChart` | ○ | **○** | ● own | ● points pre-filtered |
+| `SleepOnsetStripChart` | ○ | **○** | ● own | **○ fixed fortnight** |
+| `EnergyCurveChart` | ○ | ○ | ● own, **duplicated** | — within a single day |
+| `FitnessProjectionChart` | ○ | ○ | **○ none** | — twelve months ahead |
+| `PeerStandingStrip` | ○ | — | — | — position, not time |
+| `VitalDepartureStrip` | ○ | — | — | — position, not time |
+
+**Seven of eleven charts pan** — the four that don't are the four that never
+wrapped the shared component. Two of those (`EnergyCurveChart`,
+`FitnessProjectionChart`) are correctly exempt: one plots hours within today, the
+other plots twelve months into the future, and neither has history to scroll
+back through.
+
+**Two charts pan but ignore the picker above them.** `AgeHistoryChart` and
+`SubstanceLoadChart` both declare `var window: TimeInterval = <default>` and
+neither call site passes one, so setting the card to "Week" leaves the heart-age
+chart on a year and the substance chart on ninety days. This is the specific
+shape of "the graphs conform to the date range, but only some of them", and it
+is **a one-line fix at each call site** — the parameter already exists.
+
 ### Signals the merge newly wired in
 
 `dayStrain` reached **no insight at all**; `heartRateRecovery` and
@@ -341,6 +412,35 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    written for something else. `ChartedContributions` carries the distinction
    now; `ContributorsTests` pins that Substance Impact is the only insight that
    reaches it.
+
+
+12. **No bespoke section has an empty state.** All eleven vanish when their data
+   doesn't clear a floor — exactly the behaviour the nine generic sections were
+   moved away from on 2026-08-01, for a reason that applies here unchanged: an
+   absence cannot be read. "Your fortnight" missing means no sleep data *or*
+   fewer than `CircadianConsistencyModel.minimumNights` nights; "How you compare"
+   missing means no date of birth *or* nothing comparable recorded. Each needs
+   its own `SectionPlaceholder` reason, derived from its own floor.
+
+13. **Two charts pan but ignore their card's timeframe.** `AgeHistoryChart`
+   (fixed 365 days, on Fitness and Heart Attack & Stroke Risk) and
+   `SubstanceLoadChart` (fixed 90 days, on Substance Impact) both take a
+   `window:` parameter that no call site passes. One line each.
+
+14. **Two time-series charts cannot be panned.** `BodyCompositionTrendChart` and
+   `SleepOnsetStripChart` draw their own `Chart` rather than wrapping
+   `ScrollableMetricChart`, so the only way to see further back is the timeframe
+   picker — and `SleepOnsetStripChart` does not read that either, so on that one
+   there is no way at all. `EnergyCurveChart` and `FitnessProjectionChart` are
+   correctly exempt: one is a single day, the other is a forecast.
+
+15. **`EnergyCurveChart.selectionMark` is a byte-for-byte copy of
+   `ScrubIndicator.at`** — same colour, same stroke, same deliberate
+   `ForEach`-over-one construction that avoids the `Chart3DContent` overload
+   hazard. It predates the shared type (whose own doc comment says "only the
+   energy curve had one") and was never migrated. Identical today; the shared
+   type exists precisely because the same four lines in several files becomes
+   several slightly different behaviours.
 
 ---
 
