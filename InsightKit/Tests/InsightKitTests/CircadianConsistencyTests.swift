@@ -142,6 +142,60 @@ final class CircadianConsistencyTests: XCTestCase {
                                            calendar: circCalendar)
     }
 
+    // MARK: - Fitting a window at a time
+
+    /// The bedtime strip pans, and panning re-fits. What makes that honest is
+    /// that every number in an `Output` describes the nights it was handed and
+    /// nothing else — so scrolling to an older stretch draws that stretch's own
+    /// centre, not the recent fortnight's imposed on it.
+    ///
+    /// The regression this guards: a chart drawing old nights against a new
+    /// centre reports departures the model never computed, which is the whole
+    /// reason `Night.centre` is carried out of the model rather than re-derived.
+    func testAFitDescribesOnlyTheNightsItWasGiven() throws {
+        // Ten tight nights around 23:00, then ten tight nights two hours later.
+        let early = Array(repeating: 0.0, count: 10)
+        let late = Array(repeating: 2.0, count: 10)
+        let all = CircadianConsistencyModel.nights(
+            from: samples(early + late), days: 400, now: circNow, calendar: circCalendar)
+        XCTAssertEqual(all.count, 20)
+
+        let whole = try XCTUnwrap(
+            CircadianConsistencyModel.evaluate(nights: all, calendar: circCalendar))
+        let oldestHalf = try XCTUnwrap(
+            CircadianConsistencyModel.evaluate(nights: Array(all.prefix(10)),
+                                               calendar: circCalendar))
+        let newestHalf = try XCTUnwrap(
+            CircadianConsistencyModel.evaluate(nights: Array(all.suffix(10)),
+                                               calendar: circCalendar))
+
+        // Each half is tight about its own centre; the pair together is not.
+        XCTAssertLessThan(oldestHalf.spreadHours, 0.1)
+        XCTAssertLessThan(newestHalf.spreadHours, 0.1)
+        XCTAssertGreaterThan(whole.spreadHours, 0.5)
+
+        // And the centres are two hours apart, which is the point: a window's
+        // middle is measured in that window.
+        XCTAssertEqual(abs(newestHalf.typicalOnset - oldestHalf.typicalOnset), 2,
+                       accuracy: 0.2)
+        for night in oldestHalf.nights {
+            XCTAssertEqual(night.centre, oldestHalf.typicalOnset, accuracy: 0.2)
+        }
+    }
+
+    /// Reading the nights and fitting them are separate so a drag re-fits
+    /// without re-reading the sample set. The two entry points must agree.
+    func testTheSplitEntryPointMatchesTheWholeOne() throws {
+        let offsets: [Double] = [0, 0.4, -0.3, 0.2, -0.5, 0.1, 0.3]
+        let direct = try XCTUnwrap(evaluate(offsets))
+        let viaNights = try XCTUnwrap(CircadianConsistencyModel.evaluate(
+            nights: CircadianConsistencyModel.nights(from: samples(offsets),
+                                                     now: circNow,
+                                                     calendar: circCalendar),
+            calendar: circCalendar))
+        XCTAssertEqual(direct, viaNights)
+    }
+
     func testTooFewNightsSaysNothing() {
         XCTAssertNil(evaluate([0, 0, 0]))
     }

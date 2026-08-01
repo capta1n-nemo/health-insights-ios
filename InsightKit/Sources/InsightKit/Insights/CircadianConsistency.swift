@@ -113,11 +113,39 @@ public enum CircadianConsistencyModel {
         }
     }
 
+    /// The raw nights, before anything is fitted to them.
+    ///
+    /// Split out from `evaluate` so a chart can re-fit over whatever stretch is
+    /// on screen without re-reading the sample set each time the reader drags a
+    /// finger. Reading the nights is the expensive half — a filter and a daily
+    /// bucket over the whole history — and fitting a centre to a handful of
+    /// them is arithmetic.
+    public static func nights(from samples: [HealthMetricSample],
+                              days: Int = windowNights,
+                              now: Date = Date(),
+                              calendar: Calendar = .current) -> [VitalReader.DailyValue] {
+        VitalReader.dailySeries(.sleepOnset, from: samples, days: days, now: now,
+                                calendar: calendar)
+    }
+
     public static func evaluate(samples: [HealthMetricSample], now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
-        let nights = VitalReader.dailySeries(.sleepOnset, from: samples,
-                                             days: windowNights, now: now,
-                                             calendar: calendar)
+        evaluate(nights: nights(from: samples, now: now, calendar: calendar),
+                 calendar: calendar)
+    }
+
+    /// Fit a centre, a spread and a weekend shift to exactly these nights.
+    ///
+    /// **Every number in the result describes the nights it was given** — the
+    /// centre, the band, the jetlag and the spread are all measured over them
+    /// and over nothing else. That is what lets the bedtime strip pan: scroll to
+    /// last spring and the middle it draws is last spring's middle, not this
+    /// fortnight's imposed on it. A chart that reused a fit from a different
+    /// window would be drawing nights against a centre they were never judged
+    /// against, which is the one thing the `Night.centre` field exists to
+    /// prevent.
+    public static func evaluate(nights: [VitalReader.DailyValue],
+                                calendar: Calendar = .current) -> Output? {
         guard nights.count >= minimumNights,
               let typical = Baseline.mean(nights.map(\.value)) else { return nil }
 

@@ -503,7 +503,13 @@ struct InsightDetailView: View {
                 },
                 caveat: .fittedCentre(nights: regularity.nights.count)
             ) {
-                SleepOnsetStripChart(output: regularity)
+                SleepOnsetStripChart(
+                    output: regularity,
+                    // A year of bedtimes, not the scored fortnight: the strip
+                    // re-fits its centre and band over whatever comes into
+                    // view, so it needs something to scroll to.
+                    allNights: model.sleepOnsetNights(),
+                    window: window(spanning: nightsSpan(model.sleepOnsetNights())))
             }
         }
     }
@@ -540,6 +546,12 @@ struct InsightDetailView: View {
     /// machinery than the six lines it saves.
     private func ageSpan(_ points: [AgePoint]) -> ClosedRange<Date>? {
         guard let first = points.first?.date, let last = points.last?.date,
+              first <= last else { return nil }
+        return first...last
+    }
+
+    private func nightsSpan(_ nights: [VitalReader.DailyValue]) -> ClosedRange<Date>? {
+        guard let first = nights.first?.date, let last = nights.last?.date,
               first <= last else { return nil }
         return first...last
     }

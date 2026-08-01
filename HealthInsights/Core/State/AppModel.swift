@@ -59,6 +59,7 @@ final class AppModel {
         suggestionCache = nil
         energyCache = nil
         circadianCache = nil
+        sleepNightsCache = nil
         scoreChangeCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -131,6 +132,22 @@ final class AppModel {
     /// its body on every redraw, and this walks the whole sample set to pick out
     /// one metric. Invalidated with `samples`, which is what it reads.
     @ObservationIgnored private var circadianCache: CircadianConsistencyModel.Output?
+
+    /// Every bedtime read, over a long window, for the strip that re-fits per
+    /// visible range. Cached alongside the fortnight's fit because it is the
+    /// expensive half — a filter and a daily bucket over the whole sample set —
+    /// and the chart asks for it on every scroll.
+    func sleepOnsetNights(days: Int = 365) -> [VitalReader.DailyValue] {
+        if let sleepNightsCache, sleepNightsCache.days == days {
+            return sleepNightsCache.nights
+        }
+        let built = CircadianConsistencyModel.nights(from: samples, days: days)
+        sleepNightsCache = (days, built)
+        return built
+    }
+
+    @ObservationIgnored
+    private var sleepNightsCache: (days: Int, nights: [VitalReader.DailyValue])?
 
     func sleepRegularity() -> CircadianConsistencyModel.Output? {
         if let circadianCache { return circadianCache }

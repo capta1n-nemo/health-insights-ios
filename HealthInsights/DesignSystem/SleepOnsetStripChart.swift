@@ -36,10 +36,39 @@ import InsightKit
 ///   any other metric — and an axis reading "−1.5" would leak it at the one
 ///   place a reader is looking.
 struct SleepOnsetStripChart: View {
+    /// The card's own fit, over the nights it scored. The fallback whenever a
+    /// visible window cannot be fitted, and what the strip shows before it has
+    /// been scrolled.
     let output: CircadianConsistencyModel.Output
+    /// Every night read, not just the scored fortnight — the strip re-fits over
+    /// whatever stretch is on screen, so it needs something to scroll to.
+    let allNights: [VitalReader.DailyValue]
+    /// How much time fills the width, from the card's timeframe picker.
+    let window: TimeInterval
     var selection: Binding<Date?>?
 
     @State private var localSelection: Date?
+    @State private var visibleRange: ClosedRange<Date>?
+
+    /// **Re-fitted over whatever is on screen**, falling back to the card's own
+    /// fit before the chart has reported a range and wherever a window holds
+    /// too few nights to fit anything.
+    ///
+    /// The centre, the band and the weekend shift are all measured over the
+    /// nights they are drawn against — scroll to last spring and the middle
+    /// drawn is last spring's middle. Drawing older nights against this
+    /// fortnight's centre would show a departure the model never computed,
+    /// which is the exact thing `Night.centre` exists to prevent.
+    ///
+    /// Cheap enough for a drag: the nights are read once by the card, and this
+    /// is a mean, a split and a standard deviation over a few dozen of them.
+    /// `CircadianConsistencyModel.nights(from:)` is the expensive half and is
+    /// not on this path.
+    private var fitted: CircadianConsistencyModel.Output {
+        guard let visibleRange else { return output }
+        let inWindow = allNights.filter { visibleRange.contains($0.date) }
+        return CircadianConsistencyModel.evaluate(nights: inWindow) ?? output
+    }
 
     private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
     private var selected: Date? { selectionBinding.wrappedValue }
@@ -49,7 +78,7 @@ struct SleepOnsetStripChart: View {
     /// The night nearest the scrubbed instant, ignoring anything further than
     /// half a day away — past that the finger is between nights, not on one.
     private func night(at date: Date) -> CircadianConsistencyModel.Output.Night? {
-        guard let nearest = output.nights.min(by: {
+        guard let nearest = fitted.nights.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
         }), abs(nearest.date.timeIntervalSince(date)) <= 12 * 3600 else { return nil }
         return nearest
@@ -59,11 +88,15 @@ struct SleepOnsetStripChart: View {
     /// shift was measurable, which is also when both centres are the same number
     /// — drawing it twice would double the line's opacity for no reason.
     private var centres: [Double] {
-        Array(Set(output.nights.map(\.centre))).sorted()
+        Array(Set(fitted.nights.map(\.centre))).sorted()
     }
 
+    /// The **whole** history, not the fitted window — this is the scroll domain,
+    /// and deriving it from `fitted` would shrink to whatever is on screen and
+    /// leave nothing to scroll to. That circularity is the bug this comment is
+    /// here to stop somebody reintroducing.
     private var span: ClosedRange<Date>? {
-        guard let first = output.nights.first?.date, let last = output.nights.last?.date,
+        guard let first = allNights.first?.date, let last = allNights.last?.date,
               first < last else { return nil }
         // Half a day of margin either side, so the first and last points aren't
         // drawn hard against the plot edge.
@@ -102,22 +135,25 @@ struct SleepOnsetStripChart: View {
         }
     }
 
-    /// A plain `Chart` rather than `ScrollableMetricChart`, which is the wrapper
-    /// every history chart in this app uses.
+    /// Wraps `ScrollableMetricChart`, like every other history chart here.
     ///
-    /// That wrapper exists to pan and zoom a range longer than the screen. This
-    /// window is a fixed fourteen nights by construction
-    /// (`CircadianConsistencyModel.windowNights`) — it is never wider than the
-    /// screen, so there is nothing to scroll to, and a pannable axis would only
-    /// let the reader drag the fortnight off the edge and find empty space on
-    /// either side of it. Same exception, and the same reason, as
-    /// `EnergyCurveChart`.
+    /// It used to be a plain `Chart` with a fixed fourteen-night domain, and the
+    /// argument for that was sound while it was true: the window was never wider
+    /// than the screen, so there was nothing to scroll to. What made it pannable
+    /// was not the chart — it was splitting `CircadianConsistencyModel` so the
+    /// fit could be recomputed over whatever comes into view. See `fitted`.
     private var chart: some View {
-        Chart {
+        ScrollableMetricChart(
+            dataSpan: span,
+            window: window,
+            selection: selectionBinding,
+            height: 170,
+            emptyMessage: "No bedtimes recorded in this window",
+            isEmpty: { range in !allNights.contains { range.contains($0.date) } },
+            onVisibleRangeChange: { visibleRange = $0 }
+        ) { _ in
             marks
-            ScrubIndicator.at(selected)
         }
-        .chartXSelection(value: selectionBinding)
         .chartYAxis {
             AxisMarks(values: .automatic(desiredCount: 5)) { value in
                 AxisGridLine()
@@ -131,15 +167,6 @@ struct SleepOnsetStripChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: .stride(by: .day, count: 3)) { _ in
-                AxisGridLine()
-                AxisValueLabel(format: .dateTime.weekday(.narrow))
-                    .font(.caption2)
-            }
-        }
-        .chartXScale(domain: span ?? Date()...Date())
-        .frame(height: 170)
     }
 
     /// Explicit `some ChartContent` on every builder here, as this app requires:
@@ -166,8 +193,8 @@ struct SleepOnsetStripChart: View {
                 id: \.centre) { band in
             RectangleMark(xStart: .value("From", band.range.lowerBound),
                           xEnd: .value("To", band.range.upperBound),
-                          yStart: .value("Low", band.centre - output.spreadHours),
-                          yEnd: .value("High", band.centre + output.spreadHours))
+                          yStart: .value("Low", band.centre - fitted.spreadHours),
+                          yEnd: .value("High", band.centre + fitted.spreadHours))
                 .foregroundStyle(tint.opacity(0.10))
         }
     }
@@ -187,7 +214,7 @@ struct SleepOnsetStripChart: View {
     /// that anybody observed.
     @ChartContentBuilder
     private var nightMarks: some ChartContent {
-        ForEach(output.nights) { night in
+        ForEach(fitted.nights) { night in
             PointMark(x: .value("Night", night.date),
                       y: .value("Asleep", night.onset))
                 // Shape, not hue and not dash: both of those already mean
@@ -202,7 +229,7 @@ struct SleepOnsetStripChart: View {
     /// same night, emphasised. Two surfaces naming different nights would be a
     /// defect the reader can see.
     private func isFurthestOut(_ night: CircadianConsistencyModel.Output.Night) -> Bool {
-        output.mostIrregular?.date == night.date
+        fitted.mostIrregular?.date == night.date
     }
 
     private var caption: some View {
@@ -213,7 +240,7 @@ struct SleepOnsetStripChart: View {
 
     private var captionText: String {
         let base = "Each point is the night's sleep time. The dashed line is your usual one and the band is how far either side of it you typically fall — the narrower that band, the more regular."
-        guard output.socialJetlagHours != nil, centres.count > 1 else { return base }
+        guard fitted.socialJetlagHours != nil, centres.count > 1 else { return base }
         return base + " Weekends (squares) are measured against their own line, so a consistent lie-in reads as regular rather than as drift."
     }
 }

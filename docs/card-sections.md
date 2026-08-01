@@ -263,7 +263,7 @@ Nobody can tell from the outside. See gap 12.
 | `AgeHistoryChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
 | `SubstanceLoadChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
 | `BodyCompositionTrendChart` | ● **2026-08-01** | ● | ● shared | ● |
-| `SleepOnsetStripChart` | ○ | **○** | ● own | **○ fixed fortnight** |
+| `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
 | `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
 | `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
@@ -422,25 +422,33 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    missing means no date of birth *or* nothing comparable recorded. Each needs
    its own `SectionPlaceholder` reason, derived from its own floor.
 
-13. **Two charts pan but ignore their card's timeframe.** `AgeHistoryChart`
+13. ~~**Two charts pan but ignore their card's timeframe.**~~ **Closed 2026-08-01.** `AgeHistoryChart`
    (fixed 365 days, on Fitness and Heart Attack & Stroke Risk) and
    `SubstanceLoadChart` (fixed 90 days, on Substance Impact) both take a
    `window:` parameter that no call site passes. One line each.
 
-14. **Two time-series charts cannot be panned.** `BodyCompositionTrendChart` and
+14. ~~**Two time-series charts cannot be panned.**~~ **Closed 2026-08-01.**
+   `BodyCompositionTrendChart` now wraps the shared component. The bedtime strip
+   needed `CircadianConsistencyModel` split first — reading the nights is the
+   expensive half, fitting a centre to them is arithmetic — so the strip re-fits
+   over whatever comes into view and every number it draws describes the nights
+   it is drawn against. Original text: `BodyCompositionTrendChart` and
    `SleepOnsetStripChart` draw their own `Chart` rather than wrapping
    `ScrollableMetricChart`, so the only way to see further back is the timeframe
    picker — and `SleepOnsetStripChart` does not read that either, so on that one
    there is no way at all. `EnergyCurveChart` and `FitnessProjectionChart` are
    correctly exempt: one is a single day, the other is a forecast.
 
-15. **`EnergyCurveChart.selectionMark` is a byte-for-byte copy of
+15. ~~**`EnergyCurveChart.selectionMark` is a byte-for-byte copy of
    `ScrubIndicator.at`** — same colour, same stroke, same deliberate
    `ForEach`-over-one construction that avoids the `Chart3DContent` overload
    hazard. It predates the shared type (whose own doc comment says "only the
    energy curve had one") and was never migrated. Identical today; the shared
    type exists precisely because the same four lines in several files becomes
-   several slightly different behaviours.
+   several slightly different behaviours.~~ **Closed 2026-08-01**, along with
+   the last chart that had no scrub at all: `FitnessProjectionChart` plots
+   months-ahead rather than dates, so `ScrubIndicator` gained a `Double`
+   overload and the read-out interpolates along the line the marks draw.
 
 ---
 
