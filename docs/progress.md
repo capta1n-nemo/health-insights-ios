@@ -905,6 +905,50 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] Hume Band direct API (today flows in via Apple Health only).
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 
+### The master add button (user request, 2026-08-02)
+- [ ] **One "+" on all three main tabs — Today, Vitals, Insights — as the
+      single way to put data into the app.** Today it is a toolbar button on
+      the Today tab only (`DashboardView.swift:49`), hardwired to
+      `SubstanceLogView`. The user's direction: it becomes a master add
+      button offering **manual entry and camera-based input (AI + LiDAR)**
+      for many kinds of data — test results, body-composition scans, food
+      for nutrition reporting, and whatever comes after.
+
+      Scoping notes for whoever picks it up:
+      - **The menu, not the capture, is the first build.** A tapped "+"
+        presents the routes: log a substance, enter a reading (BP cuff,
+        grounding facts), scan a document, scan your body, log food. Each
+        route already has or needs its own surface; the button is the one
+        front door. `ContributionRoute` is the existing per-card version of
+        this idea — the master button is the app-wide union of those routes,
+        so derive the menu from the models rather than hand-listing it (a
+        sixth hand-written switch over inputs is how lists drift).
+      - **Placement**: three tabs means one shared component, not three
+        copies. Today's toolbar slot works everywhere; whether it stays a
+        toolbar item or becomes a floating button is a device-only judgement
+        call — decide it on the phone, not in the sandbox.
+      - **Existing pieces it unifies**: blood-test photo import (shipped:
+        on-device OCR → confirmed grounding values), the VisionKit live
+        scanner (open, below), Foundation Models lab-analyte extraction
+        (open, below), the LiDAR body scan (roadmap note below — ARKit,
+        Pro-only, un-exercisable from a sandbox), and Body Composition's
+        deferred "view & add" scan entry (gap 10 in `docs/card-sections.md`),
+        which becomes a route in this menu rather than its own build.
+      - **Food/nutrition is the genuinely new territory**: no `MetricType`
+        exists for any dietary quantity, diet is the one absent LE8
+        component (see `activeContext.md` ▸ the Life's Essential 8 note),
+        and camera-based food recognition plus quantity estimation is an
+        accuracy claim that needs the same honesty framework as the BP
+        estimator — provenance, confidence, and its own metric rather than
+        merging into anything. Nutrition metrics feed no card yet; per
+        "a metric with no reader is invisible", the first food build should
+        include at least one reader (Energy's intake side is the natural
+        candidate).
+      - **Camera + AI capture is device-only** end to end (VisionKit, ARKit,
+        FoundationModels) — CI compiles it, only the phone can exercise it.
+        Build the menu and manual routes first from the sandbox; land the
+        capture routes in device-verifiable slices.
+
 ### Unstructured data
 - [ ] Live document scanner (VisionKit) instead of library-only picking.
 - [ ] Foundation Models structured extraction for arbitrary lab analytes.
