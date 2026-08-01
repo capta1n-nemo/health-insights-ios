@@ -26,9 +26,14 @@ import InsightKit
 ///
 /// It was a hairline over the muscle band, which read as an axis annotation
 /// rather than as part of the muscle. It is now the lower share of the muscle
-/// band in its own cooled-red tone: still inside muscle, visibly distinct,
-/// summing to exactly the same total because `BodyCompositionSplit.bands` cuts
-/// the host block in two rather than adding one.
+/// band, summing to exactly the same total because `BodyCompositionSplit.bands`
+/// cuts the host block in two rather than adding one.
+///
+/// Its colour is blue laid over the muscle red — computed, not composited, since
+/// in a stacked area the two shares are adjacent rather than overlapping and a
+/// genuinely translucent blue would blend with the grey background instead. See
+/// `Theme.compositionMuscleWater`. In the key it is plain blue: a key says what
+/// a substance *is*, and the red under it is a fact about where it sits.
 struct BodyCompositionTrendChart: View {
 
     let points: [BodyCompositionSplit.Dated]
@@ -72,20 +77,56 @@ struct BodyCompositionTrendChart: View {
     private static let order: [BodyCompositionSplit.Band.Kind] =
         [.fat, .muscleWater, .muscle, .otherLean, .lean, .bone]
 
+    /// The label each band kind goes by, for every kind appearing anywhere in
+    /// the window.
+    private var labelByKind: [BodyCompositionSplit.Band.Kind: String] {
+        var out: [BodyCompositionSplit.Band.Kind: String] = [:]
+        for point in points {
+            for band in point.split.bands where out[band.kind] == nil {
+                out[band.kind] = band.label
+            }
+        }
+        return out
+    }
+
+    /// Band kinds present anywhere in the window, in stacking order.
+    private var presentKinds: [BodyCompositionSplit.Band.Kind] {
+        let known = labelByKind
+        return Self.order.filter { known[$0] != nil }
+    }
+
+    /// One row per band **per point, including the bands that point doesn't
+    /// have**, at zero.
+    ///
+    /// The zeros are load-bearing and were the second half of "missing data
+    /// breaks the graph". Water only exists from the day the Body Smart arrived,
+    /// so before that the water series had no points at all — and a stacked area
+    /// whose series is absent over a stretch still reserves a stacked offset for
+    /// it, interpolated from its first real value, while its polygon starts only
+    /// where its data does. The two disagree, and the disagreement is drawn: a
+    /// white wedge opening between fat and muscle, widening across two years to
+    /// exactly the size of the first water reading.
+    ///
+    /// Giving every series a value at every x makes the offset and the polygon
+    /// agree by construction. A zero-height band draws nothing, so this costs an
+    /// invisible mark per absent band and removes a whole class of artefact.
     private var rows: [Row] {
-        points.flatMap { point in
-            point.split.bands.map {
-                Row(date: point.date, kind: $0.kind,
-                    label: $0.label, kilograms: $0.kilograms)
+        let known = labelByKind
+        let kinds = presentKinds
+        return points.flatMap { point -> [Row] in
+            let have = Dictionary(point.split.bands.map { ($0.kind, $0.kilograms) },
+                                  uniquingKeysWith: { a, _ in a })
+            return kinds.map { kind in
+                Row(date: point.date, kind: kind, label: known[kind] ?? "",
+                    kilograms: have[kind] ?? 0)
             }
         }
     }
 
     /// Labels present, in stacking order — not every split has every band.
     private var labels: [String] {
-        var seen: [BodyCompositionSplit.Band.Kind: String] = [:]
-        for row in rows where seen[row.kind] == nil { seen[row.kind] = row.label }
-        return Self.order.compactMap { seen[$0] }
+        let known = labelByKind
+        return presentKinds.compactMap { known[$0] }
     }
 
     private func colour(_ label: String) -> Color {
@@ -170,7 +211,7 @@ struct BodyCompositionTrendChart: View {
                     ForEach(change.bands) { band in
                         if abs(band.delta) >= 0.05 {
                             HStack(spacing: 3) {
-                                Circle().fill(Theme.compositionColour(band.kind))
+                                Circle().fill(Theme.compositionLegendColour(band.kind))
                                     .frame(width: 5, height: 5)
                                 Text(band.label).foregroundStyle(.secondary)
                                 Text(signed(band.delta))
@@ -209,7 +250,7 @@ struct BodyCompositionTrendChart: View {
                     .font(.caption2.weight(.semibold)).monospacedDigit()
                 ForEach(hit.split.bands) { band in
                     HStack(spacing: 3) {
-                        Circle().fill(Theme.compositionColour(band.kind))
+                        Circle().fill(Theme.compositionLegendColour(band.kind))
                             .frame(width: 5, height: 5)
                         Text(String(format: "%.1f", band.kilograms)).monospacedDigit()
                     }

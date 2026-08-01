@@ -577,7 +577,7 @@ struct InsightDetailView: View {
                         VStack(spacing: 3) {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(Theme.compositionColour(kind(of: part)))
+                                    .fill(Theme.compositionLegendColour(kind(of: part)))
                                     .frame(width: 8, height: 8)
                                 Text(part.label).font(.subheadline)
                                 Spacer()
@@ -596,7 +596,7 @@ struct InsightDetailView: View {
                                     Image(systemName: "arrow.turn.down.right")
                                         .font(.system(size: 8))
                                         .foregroundStyle(.secondary)
-                                    Circle().fill(Theme.compositionMuscleWater)
+                                    Circle().fill(Theme.compositionWater)
                                         .frame(width: 6, height: 6)
                                     Text("of which water").font(.caption)
                                         .foregroundStyle(.secondary)
@@ -618,7 +618,7 @@ struct InsightDetailView: View {
                             .font(.caption2).foregroundStyle(Theme.warn)
                             .fixedSize(horizontal: false, vertical: true)
                     } else if split.water != nil {
-                        Text("Water is shaded inside the tissue holding it rather than given its own block — it's already counted there, and showing it twice would make you heavier than you are.")
+                        Text("The blue is water, shaded inside the tissue holding it rather than given its own block — it's already counted there, and showing it twice would make you heavier than you are. On the bar it takes the red underneath it, which is why it reads cooler there than in the key.")
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

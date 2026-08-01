@@ -110,10 +110,42 @@ enum Theme {
     static let compositionFat = adaptive(light: 0xE0952F, dark: 0xE8A64B)
     /// Muscle that is not water — deep red.
     static let compositionMuscle = adaptive(light: 0xB23A3A, dark: 0xC44E4E)
-    /// The water *within* muscle. Same family, cooled toward blue, so it reads as
-    /// part of the muscle band rather than beside it — which is the truth, and
-    /// why it can never be its own block.
-    static let compositionMuscleWater = adaptive(light: 0x8E5470, dark: 0xA36A87)
+
+    /// Water, as itself. Used wherever water is named rather than drawn *inside*
+    /// something: the legend dot and the change row. Plain blue, because that is
+    /// what a reader looking for water expects to find in a key.
+    static let compositionWater = adaptive(light: 0x2F86D8, dark: 0x4F9FE8)
+
+    /// The water *within* muscle — `compositionWater` laid over
+    /// `compositionMuscle` at `waterOverMuscle` opacity, worked out here rather
+    /// than drawn with real transparency.
+    ///
+    /// It has to be computed. In a stacked area the water share and the dry
+    /// share are *adjacent* slices, not overlapping ones, so an actually
+    /// translucent blue would composite against the chart's grey background and
+    /// come out pale — the one thing it must not look like. Blending against the
+    /// muscle red here produces what painting it over muscle would have.
+    ///
+    /// The first attempt hard-coded the result at 30% blue and landed on a flat
+    /// mauve that read as a third substance. At 72% it reads blue, visibly
+    /// warmed by the red underneath — water in muscle, which is what it is.
+    static let waterOverMuscle: Double = 0.72
+    static let compositionMuscleWater = adaptive(
+        light: blend(base: 0xB23A3A, over: 0x2F86D8, alpha: waterOverMuscle),
+        dark: blend(base: 0xC44E4E, over: 0x4F9FE8, alpha: waterOverMuscle))
+
+    /// `over` composited onto `base` at `alpha`, in sRGB.
+    ///
+    /// A function rather than two more hex literals so the relationship survives
+    /// a change to either colour: re-tune the muscle red and the water in it
+    /// follows, instead of quietly drifting into a hue nobody chose.
+    private static func blend(base: UInt32, over: UInt32, alpha: Double) -> UInt32 {
+        func mix(_ shift: UInt32) -> UInt32 {
+            let b = Double((base >> shift) & 0xff), o = Double((over >> shift) & 0xff)
+            return UInt32((b * (1 - alpha) + o * alpha).rounded())
+        }
+        return (mix(16) << 16) | (mix(8) << 8) | mix(0)
+    }
     /// Bone — pale ivory, deepened just enough to hold an edge on a light card.
     static let compositionBone = adaptive(light: 0xD9C9A3, dark: 0xBFAE86)
     /// Lean mass before the scale began separating muscle from bone.
@@ -126,6 +158,7 @@ enum Theme {
     /// dark mode.
     static let cardScrim = adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
 
+    /// The colour a band is *drawn* in, inside a bar or a chart.
     static func compositionColour(_ kind: BodyCompositionSplit.Band.Kind) -> Color {
         switch kind {
         case .fat: return compositionFat
@@ -135,6 +168,16 @@ enum Theme {
         case .otherLean: return compositionOtherLean
         case .lean: return compositionLean
         }
+    }
+
+    /// The colour a band is *named* in — a legend dot, a change row.
+    ///
+    /// Identical to the drawn colour for everything except water, which is drawn
+    /// as it appears inside muscle but named as itself. A key answers "which
+    /// substance is this", and the answer for water is blue; the muscle red under
+    /// it is a fact about where it sits, not about what it is.
+    static func compositionLegendColour(_ kind: BodyCompositionSplit.Band.Kind) -> Color {
+        kind == .muscleWater ? compositionWater : compositionColour(kind)
     }
 
     static func color(for confidence: InsightConfidence) -> Color {
