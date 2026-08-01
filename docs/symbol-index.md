@@ -38,7 +38,7 @@ the place to look.
   - `GenericJSONIngestor` :73
   - `IngestPayload` :9
   - `IngestedDocument` :22
-  - `PayloadDate` :169
+  - `PayloadDate` :202
   - `PayloadIngestor` :38
   - `WithingsMeasureIngestor` :119
 - `Ingestion/PromotionRules.swift`
@@ -46,6 +46,8 @@ the place to look.
   - `PromotionRuleSet` :116
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
+- `Insights/ActivityDoseModel.swift`
+  - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
   - `BloodPressureInsight` :579
@@ -203,7 +205,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :442
+  - `MetricPalette` :453
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88

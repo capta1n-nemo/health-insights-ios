@@ -27,8 +27,8 @@ public struct FitnessInsight: InsightModel {
     /// holds, so they belong on this card's chart even before anything scores
     /// them.
     public var candidateMetrics: [MetricType] {
-        [.vo2Max, .heartRateRecovery, .restingHeartRate, .walkingHeartRateAverage,
-         .dayStrain, .stepCount, .activeEnergyBurned]
+        [.vo2Max, .exerciseMinutes, .heartRateRecovery, .restingHeartRate,
+         .walkingHeartRateAverage, .dayStrain, .stepCount, .activeEnergyBurned]
     }
 
     public var requirements: [GroundingRequirement] {
@@ -40,15 +40,26 @@ public struct FitnessInsight: InsightModel {
         ]
     }
 
-    /// How much of the score each half carries.
+    /// How much of the primary pool each term carries.
     ///
     /// Level leads because "how fit am I" is first a question about where you
     /// are; the trajectory is weighted because holding a flat VO₂max into your
     /// fifties is a real achievement that a level-only score would call
-    /// mediocre. Renormalised when only one half is available, the same way
+    /// mediocre. Renormalised when a term is missing, the same way
     /// `ReadinessScore` and `HeartHealthScore` handle a missing component.
-    static let levelWeight = 0.7
-    static let trajectoryWeight = 0.3
+    ///
+    /// The dose term is the rebalance `docs/data-opportunities.md` item #1
+    /// proposed, for the reason it states: this card scored nothing the reader
+    /// actually *does* — VO₂max level and trajectory both move over months,
+    /// exercise minutes move this week. It joins the primary pool rather than
+    /// the supporting signals because, alone among the activity metrics, it
+    /// has a published scale (`ActivityDoseModel`, WHO 2020). With no dose
+    /// data the other two renormalise to 0.6875 / 0.3125 — within a point or
+    /// two of the old 0.7 / 0.3, deliberately, so a reader without a watch
+    /// sees the number they saw yesterday.
+    static let levelWeight = 0.55
+    static let trajectoryWeight = 0.25
+    static let doseWeight = 0.20
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
@@ -93,13 +104,33 @@ public struct FitnessInsight: InsightModel {
                         + (trajectoryScore ?? 0) * (trajectoryScore == nil ? 0 : Self.trajectoryWeight))
             / totalWeight
 
-        // The supporting signals now carry a share of the number rather than
-        // being charted beside it at weight 0. See `SupportingSignal` for the
+        // The week's activity dose, against the WHO band. One combined VO₂max
+        // term rather than level and trajectory separately, because
+        // `MetricContribution` is the single statement of a metric's share and
+        // two `.vo2Max` rows would break that.
+        let dose = ActivityDoseModel.evaluate(samples: samples, now: now)
+        var primary: [ScoreBlend.Term] = [
+            .init(metric: .vo2Max, higherIsBetter: true, score: vo2Score,
+                  weight: totalWeight, detail: String(format: "%.0f", vo2))
+        ]
+        if let dose {
+            primary.append(.init(
+                metric: .exerciseMinutes, higherIsBetter: true, score: dose.score,
+                weight: Self.doseWeight,
+                detail: String(format: "%.0f min this week", dose.weeklyMinutes)))
+        }
+
+        // The supporting signals carry a share of the number rather than being
+        // charted beside it at weight 0. See `SupportingSignal` for the
         // argument that reversed: none of these has a published 0–100 curve,
-        // and the answer to weaker evidence is a smaller weight, not a zero one.
+        // and the answer to weaker evidence is a smaller weight, not a zero
+        // one. Exercise minutes appears in both lists on purpose — when the
+        // dose can be judged, `ScoreBlend` keeps the published-scale primary
+        // term and drops the supporting duplicate; when it cannot (too few
+        // recorded days), the signal still reaches the chart as a supporting
+        // one rather than vanishing.
         let blend = ScoreBlend.blend(
-            primary: [.init(metric: .vo2Max, higherIsBetter: true, score: vo2Score,
-                            weight: 1, detail: String(format: "%.0f", vo2))],
+            primary: primary,
             supporting: Self.supportingTerms(samples: samples, now: now))
         let score = blend?.score ?? vo2Score
 
@@ -110,6 +141,11 @@ public struct FitnessInsight: InsightModel {
                               vo2, Self.level(levelScore).lowercased()),
                        score: levelScore)
         ]
+
+        // The one line on this card about what the reader did *this week*.
+        if let dose {
+            drivers.append(.component(ActivityDoseModel.phrase(dose), score: dose.score))
+        }
 
         drivers.append(InsightDriver(
             text: String(format: "Fitness age %@%@",
@@ -145,7 +181,12 @@ public struct FitnessInsight: InsightModel {
         // The signals this card newly reads. Reported as lines because they are
         // real and the user should see them; not folded into the score because
         // no validated 0–100 curve exists for them here — see `contributors`.
-        drivers.append(contentsOf: Self.contextDrivers(samples: samples, now: now))
+        // Exercise minutes already has its weekly line above whenever the dose
+        // was judged, and a second daily figure under it would read as a
+        // different quantity in the same words.
+        drivers.append(contentsOf: Self.contextDrivers(
+            samples: samples, now: now,
+            excluding: dose == nil ? [] : [.exerciseMinutes]))
 
         return InsightResult(
             id: id, title: title,
@@ -198,12 +239,17 @@ public struct FitnessInsight: InsightModel {
         (.walkingHeartRateAverage, false),
         (.dayStrain, nil),
         (.stepCount, true),
-        (.activeEnergyBurned, true)
+        (.activeEnergyBurned, true),
+        // Usually promoted to the primary pool by `ActivityDoseModel`;
+        // this row is the fallback for a week with too few recorded days.
+        (.exerciseMinutes, true)
     ]
 
-    static func contextDrivers(samples: [HealthMetricSample], now: Date) -> [InsightDriver] {
+    static func contextDrivers(samples: [HealthMetricSample], now: Date,
+                               excluding: Set<MetricType> = []) -> [InsightDriver] {
         contextMetrics.compactMap { metric, _ in
-            guard let reading = VitalReader.reading(metric, from: samples, now: now) else { return nil }
+            guard !excluding.contains(metric),
+                  let reading = VitalReader.reading(metric, from: samples, now: now) else { return nil }
             return .routine("\(metric.displayName): \(MetricValueFormatter.string(reading.value, metric)) \(metric.unit)")
         }
     }

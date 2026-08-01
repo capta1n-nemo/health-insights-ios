@@ -695,6 +695,7 @@ unused despite tens of thousands of samples.
 | leanBodyMass, muscleMass, boneMass, bodyWaterPercentage | Body Composition |
 | bloodPressureSystolic/Diastolic | Blood Pressure, Heart Age, Cardiovascular Risk |
 | stepCount, activeEnergyBurned | Cardio Trajectory, Energy |
+| exerciseMinutes | Fitness (weekly WHO dose via `ActivityDoseModel`) |
 | dayStrain | *(no reader — Whoop not connected)* |
 
 ## Keychain storage

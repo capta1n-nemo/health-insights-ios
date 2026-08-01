@@ -42,6 +42,13 @@ final class HealthKitService {
             (.height, .height, .meter()),
             (.stepCount, .stepCount, .count()),
             (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie()),
+            // Promoted out of the raw pile because it earned a score: Apple's
+            // exercise minute accrues at brisk-walk intensity and above, which
+            // is the WHO guideline's own moderate-intensity definition, so the
+            // Fitness card can weigh the week's dose against a published band
+            // (`ActivityDoseModel`). Removed from `otherQuantityIdentifiers`
+            // below — a metric must not arrive through both routes.
+            (.appleExerciseTime, .exerciseMinutes, .minute()),
             // Promoted out of the raw "other data" pile: these are measurements
             // with real units and real baselines, and Vitals Check now reads
             // them.
@@ -84,7 +91,7 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
         "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
         "HKQuantityTypeIdentifierDistanceDownhillSnowSports", "HKQuantityTypeIdentifierBasalEnergyBurned",
-        "HKQuantityTypeIdentifierFlightsClimbed", "HKQuantityTypeIdentifierAppleExerciseTime",
+        "HKQuantityTypeIdentifierFlightsClimbed",
         "HKQuantityTypeIdentifierAppleStandTime", "HKQuantityTypeIdentifierAppleMoveTime",
         "HKQuantityTypeIdentifierPushCount", "HKQuantityTypeIdentifierSwimmingStrokeCount",
         "HKQuantityTypeIdentifierWalkingSpeed", "HKQuantityTypeIdentifierWalkingStepLength",

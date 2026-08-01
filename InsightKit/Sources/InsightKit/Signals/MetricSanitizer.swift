@@ -25,6 +25,8 @@ public extension MetricType {
              .walkingSteadiness:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
+             // A day with no exercise is a real day.
+             .exerciseMinutes,
              // Zero is midnight exactly, and negative is any evening bedtime —
              // for this metric a positivity rule would throw away every reading
              // before 00:00, which is most of them.
@@ -116,6 +118,8 @@ public extension MetricType {
         case .sleepDeepMinutes, .sleepRemMinutes: return 0...(24 * 60)
         case .skinTemperatureDeviation: return -15...15
         case .stepCount, .activeEnergyBurned: return nil
+        // A single sample is an accrual interval, and a day holds 1,440 minutes.
+        case .exerciseMinutes: return 0...1440
         }
     }
 }

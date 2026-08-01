@@ -35,6 +35,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     // Activity & sleep
     case stepCount                 // count
     case activeEnergyBurned        // kcal
+    /// Minutes of at-least-moderate activity (Apple's "exercise minute" accrues
+    /// at brisk-walk intensity and above, which is the WHO guideline's own
+    /// moderate-intensity definition — that match is why this one, alone of the
+    /// activity metrics, can be scored against a published dose).
+    case exerciseMinutes           // min
     case sleepDurationHours        // hours
     /// **Hours from local midnight, signed, with the branch cut at midday.**
     /// −1.5 is 22:30, +0.5 is 00:30, 0 is midnight exactly.
@@ -96,6 +101,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .height: return "Height"
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
+        case .exerciseMinutes: return "Exercise Minutes"
         case .sleepDurationHours: return "Sleep Duration"
         case .sleepOnset: return "Sleep Onset"
         case .sleepEfficiency: return "Sleep Efficiency"
@@ -129,6 +135,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .height: return "m"
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
+        case .exerciseMinutes: return "min"
         case .sleepDurationHours: return "h"
         // Empty: the formatter renders this as a clock time, and "23:12 h" is
         // not a thing.

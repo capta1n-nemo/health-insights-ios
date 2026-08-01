@@ -290,9 +290,12 @@ the good one. Weaker evidence earns a **smaller** weight, not a zero one.
 
 `SupportingSignal.collectiveShare` is 20%, in one place, and it is the whole of
 the judgement: enough that a signal visibly moves the number, small enough that
-the card's primary measurement still decides what the card says. On Fitness,
-VO₂max keeps 80% against six supporting signals at about 3% each, and no
-combination of them turns "Excellent" into "Needs work".
+the card's primary measurement still decides what the card says. On Fitness the
+primary pool keeps 80% against six supporting signals at about 3% each, and no
+combination of them turns "Excellent" into "Needs work". *(Since 2026-08-01
+that pool is VO₂max at 0.80 and the week's exercise dose at 0.20 — the dose is
+primary, not supporting, because `ActivityDoseModel` scores it against WHO
+2020's published band rather than against the reader's own baseline.)*
 
 `ScoreBlend.blend` is the shared arithmetic — renormalise each group, multiply,
 sum — because adding a second group of terms to five cards separately is five
@@ -376,7 +379,7 @@ statement; the shares are what "How this is weighted" draws._
 | Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR; heart rate when the day is too thin to count exertion |
 | Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem | — the pool already covers every signal |
 | Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
-| Fitness | `weightedAverage` | VO₂max, both halves off one series | strain, HR recovery, walking HR, resting HR, steps, active energy |
+| Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's exercise dose (0.20, `ActivityDoseModel`, WHO 2020) | strain, HR recovery, walking HR, resting HR, steps, active energy — plus exercise minutes only in a week with too few recorded days to judge a dose |
 | Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |
 | Blood Pressure | route-dependent — see below | | |
 | Body Composition | `weightedAverage` | body fat, or body mass through BMI | lean, muscle, bone, water |

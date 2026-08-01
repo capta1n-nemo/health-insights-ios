@@ -72,7 +72,8 @@ public extension MetricType {
         case .walkingSteadiness, .walkingAsymmetry: return .mobility
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height: return .body
-        case .stepCount, .activeEnergyBurned, .vo2Max, .dayStrain: return .activity
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes, .vo2Max,
+             .dayStrain: return .activity
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes: return .sleep
         }
@@ -143,6 +144,10 @@ public extension MetricType {
         case .sleepEfficiency: return 32
         case .sleepDeepMinutes: return 33
         case .sleepRemMinutes: return 34
+        // Appended, like the two blocks above: the contiguity test pins this
+        // list to 0..<count, and this metric's usual chart is Fitness's
+        // overlay, where hues resolve per chart anyway.
+        case .exerciseMinutes: return 35
         }
     }
 
@@ -221,7 +226,7 @@ public extension MetricType {
             // range 5.4–8.9 h" is.
             return .fluctuatingRange
 
-        case .stepCount, .activeEnergyBurned:
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes:
             return .cumulativeTotal
 
         case .bloodPressureSystolic, .bloodPressureDiastolic:
@@ -258,7 +263,7 @@ public extension MetricType {
              .sleepDeepMinutes, .sleepRemMinutes,
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
-             .dayStrain, .stepCount, .activeEnergyBurned,
+             .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
@@ -402,6 +407,12 @@ public extension MetricType {
              .bodyWaterPercentage, .height, .stepCount, .activeEnergyBurned,
              .dayStrain:
             return nil
+        // A published band exists — WHO's 150–300 min — but it is *weekly*, and
+        // this chart plots daily totals. Dividing by seven would draw a daily
+        // target the guideline deliberately does not state: the whole dose can
+        // legitimately land on two weekend days. `ActivityDoseModel` scores the
+        // weekly figure, which is the form the evidence is in.
+        case .exerciseMinutes: return nil
         }
     }
 
@@ -414,7 +425,7 @@ public extension MetricType {
              .boneMass, .bodyWaterPercentage:
             return .median
         // Partial samples through the day only mean anything added up.
-        case .stepCount, .activeEnergyBurned:
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes:
             return .sum
         default:
             return .mean
