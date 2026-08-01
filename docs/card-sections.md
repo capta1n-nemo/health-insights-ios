@@ -237,7 +237,10 @@ proportions*, and the two are not the same claim:
 - **Body Composition** and **Fitness** each rest on **one** measurement scored
   against a published range — body fat (or BMI in fallback) and VO₂max. One
   signal has 100% of the number, so "no signal has a percentage share of it"
-  described a card that does not exist. `ScoreWeighting.singleMeasure`.
+  described a card that does not exist. *(They were `ScoreWeighting.singleMeasure`
+  for the length of one commit. Both are `weightedAverage` now — the second half
+  of the same day gave their supporting signals real shares, so the primary
+  measurement no longer has all of it. See the section below.)*
 - **Substance Impact** is a worst-offender-dominant pool, and a pool of that
   shape divides **exactly**: the combiner `worst + 0.35·√(Σ rest²)` is
   homogeneous of degree one, so by Euler's theorem each penalty's own

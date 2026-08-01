@@ -111,7 +111,8 @@ that is not yet automated is the next thing to automate.
 | Miss an exhaustive switch over *another* enum | 2 | ✅ automated — generic switch lint (2026-07-30) |
 | Read CI status without burning 100K tokens | every | ✅ automated — `ci-status.sh` reads `refs/ci/*` |
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
-| **Lose the working directory in a shell call** | **4** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice and in session 16 **five times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
+| **Lose the working directory in a shell call** | **5** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice, session 16 **five times** and session 17
+**three times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
 | **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
@@ -143,6 +144,9 @@ that is not yet automated is the next thing to automate.
 | **A Swift Charts encoding that only the device can falsify** | **3** | ⬜ open — the `Chart3DContent` overload, the gradient resolving against the mark's bbox rather than the plot area, and `ImagePaint` tiling inside an `AreaMark`. CI proves it compiles and says nothing about what it draws; the app target has no test target and SwiftUI does not exist on Linux |
 | **Fit a bound to the one artefact you happened to observe** | 1 | ⬜ open — no mechanical check. The rule: a bound rejects the *impossible*, never the *alarming*. 119 bpm is a real resting heart rate in AF |
 | **Order-dependence inside a parse loop** | 1 | ⬜ open — the nap guard fixed duration and left sleep onset poisoned because it sat below the bedtime collection. A test per *consumer* of the loop is what caught it |
+| **A card declaring an input and never reading it** | **1 (4 instances)** | ✅ automated — `testEveryDeclaredInputWithDataIsActuallyRead` (2026-08-01, session 17). Invisible rather than wrong, which is why it survived a session that audited every section: `ChartedContributions.resolve` substitutes the declared list *only* when a card reports nothing, so on a card reporting anything at all the input charts nowhere and links nowhere. The invariant's one allowed exception is genuine alternatives, expressed as `MetricType.interchangeableGroups` — two rows of data rather than a per-model exception list |
+| **A principle forbidding X used to justify not-Y** | **2** | ⬜ open — *"an invented weight is worse than none"* argued against **inventing** a weight and was used to justify not **attributing** one (session 17); *"that technique has a fatal flaw"* argued against Catmull-Rom and was read as an argument against curvature (session 9). No mechanical check. The rule: **when a principle is doing load-bearing work, check that the thing it forbids is the thing you are declining to do** |
+| **A weight, threshold or share written in the card rather than beside the model** | **2** | ✅ partly — Energy's 0.6/0.25/0.15 appeared nowhere in `EnergyModel` and became `Output.terms` (session 17); Sleep still restates nine coefficients twice in one function and is logged as gap 18. The mechanical half exists — `testContributorWeightsMatchTheWeightsTheScoreApplies` — and does not cover a weight that was never *derived* from anything |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
@@ -160,11 +164,15 @@ each time; it is here so the next session does not have to remember.
 ### ⬜ A `PreToolUse` hook for the shell's working directory — the top open item
 
 **Why this one.** It is the ledger's highest-count row that has a *mechanical*
-answer and does not have it yet: **four** sessions, five instances in session 16
-alone, and the rule is already written in `CLAUDE.md` in the plainest words
-available. Session 15 broke it twice while having read the file that forbids it;
-session 16 broke it five times having read the same file *and* the ledger row
-about it.
+answer and does not have it yet: **five** sessions, five instances in session 16
+and three in session 17, and the rule is already written in `CLAUDE.md` in the
+plainest words available. Session 15 broke it twice while having read the file
+that forbids it; session 16 broke it five times having read the same file *and*
+the ledger row about it; session 17 broke it three times having read both **and
+written the ledger row that says tier 1 does not hold for this**.
+
+**That last one is the argument, finished.** There is no version of "state the
+rule more clearly" left to try. Five sessions is enough evidence.
 
 **Session 16 narrowed the fix.** The mechanism is that the Bash tool's working
 directory persists between calls, so a single `cd InsightKit && swift test`
@@ -344,6 +352,77 @@ with guesses.
 | 15 | 2026-08-01 | 3 | **0** | 0 | 2 (named below) | 724 → 772 | **`SectionCaveat` + `InsightSection` with a *required* `caveat` argument** — a section that infers without saying so is now a compile error; `VitalDeparture` gives the vitals scan's z thresholds one implementation, called by both the score and the strip; `PeerStandingModel.Band`; `PeriodContrast.windowDays`; `deploy-status.sh` names the three "no verdict" cases instead of asserting one; `PeerStandingBandTests`, `VitalDepartureTests`, `SectionCaveatTests`, `ContributionSummaryTests` (+48) | **Better on every absolute column** — red CI 4 → 0, rework 8 → 0, waste 14 → 2 — and the first session since 12 to be green on the first push *and* installed. 2 waste / 3 pushes = 0.67 reads above the 0.56 baseline, but the denominator is three. **The honest sting is in the notes: both remaining items are repeats, one for the sixth time** |
 
 | 16 | 2026-08-01 | 12 | **0** | 0 | 1 (named below) | 772 → 833 | **`scripts/card-map.sh`** — derives the card's section order from `InsightDetailView.body`, `--check` wired into `handover-check.sh`, and handover step 5 spells out what a new card versus a new section changes; `SectionPlaceholder` (+24 tests) gives every section a floor-derived empty state; `ChartedContributions` separates a deliberate zero from an absence; `CircadianConsistencyModel` split so a fit can be recomputed per window; `HeartResponseModel` (+8); `LegendCaption` (+13); `PeriodContrast.comparableCount` shares `dailyMeans` with `changes` | **Better on every measured column, and the cheapest long session recorded.** 1 waste / 12 pushes = 0.08 against a 0.56 baseline; twelve installs, zero red CI, zero rework. **The sting is the unmeasured column** — five dead round trips to the shell's working directory, a tier-1 rule now failing in its fourth consecutive session |
+
+| 17 | 2026-08-01 | 4 | **0** | 1 | 0 | 833 → 868 | **`ScoreWeighting` + `ScoreFactor`** — a card states how its number is formed rather than having it inferred from whether its weights are zero; **`ScoreBlend` + `SupportingSignal`** — one place for the two-step arithmetic every card was doing by hand, one constant for the judgement; **`RiskAttribution`** — attribution by *re-running* the published equation rather than decomposing it, so no coefficient is copied; `MetricType.interchangeableGroups`; `ContributorsFixture` shared by two suites; **three invariants that each found real instances while being written** — `testEveryDeclaredInputWithDataIsActuallyRead`, `testEveryScoringCardStatesHowItsNumberIsFormed`, `testAnUnweightedRowAlwaysSaysWhy`; `add-insight` carries all three | **Level with session 16 on the measured columns, slightly worse on rework.** 1 waste / 4 pushes = 0.25 against session 16's 0.08 and a 0.56 baseline; four pushes, four installs, zero red CI. **The one rework is a user-directed reversal, not a defect** — and the unmeasured column is worse than it looks: three more dead round trips to the shell's working directory, a tier-1 rule now failing for the **fifth** consecutive session |
+
+### Session 17 notes
+
+**Red CI (0), four pushes, four installs.** Every push green first time and
+reported `installed`.
+
+**Rework (1), and it is worth being precise about what kind.** `3f74f06`
+replaced the weight-0 handling that `bff6390` had shipped four hours earlier —
+**a reversal the user directed after reading the result on the phone**, not a
+defect fix. It still counts: five cards' contributor logic was built twice.
+
+The interesting question is whether asking first would have avoided it. It was
+asked — an `AskUserQuestion` offered exactly this option ("give them scores
+too") and it was declined, and then chosen once the shipped version was visible.
+**So the question was answered better by the artefact than by the question**,
+which is a real finding about this repo's loop rather than an excuse: the user
+reviews every build on the phone within minutes, and for a *what should this
+section contain* decision that is a cheaper oracle than a multiple-choice
+prompt. It is not a general licence — the same reasoning would be wrong for
+anything expensive to undo.
+
+**Re-derivations (0).** The audited docs were read once at the start and
+trusted; `where.sh` answered eight lookups including two member-level ones
+(`resolvedContributions`, `sharesMeasurementBasis`) with no filename guess.
+
+**The honest failure, again: three dead round trips to the working directory.**
+`source scripts/swift-env.sh` once, `./scripts/verify.sh` once, and a Python
+heredoc opening a relative path once — each after a `cd InsightKit` in an
+earlier call. Not a re-derivation and not rework, so it appears in no column.
+
+**This is the fifth consecutive session.** Sessions 14 (1), 15 (2), 16 (5), 17
+(3). The rule has been in `CLAUDE.md` in the plainest available wording since
+session 9, annotated "pure waste", and the ledger row about it has been read by
+every session that then broke it. The log's own thesis is unambiguous — *a
+ceremony that depends on being invoked will be skipped*, and *a rule the model
+can skip is tier 1, and tier 1 does not hold*. **The mechanical fix has sat in
+the roadmap unbuilt for three sessions for one reason: it edits
+`.claude/settings.json`, which is the user's harness config.** Asked again at
+the end of this session's handover.
+
+**Why the compounding column is the strongest part.** Three of the four new
+types are ordinary plumbing; the three new *invariants* are the session's real
+output, and each found something while being written rather than after:
+
+1. `testEveryDeclaredInputWithDataIsActuallyRead` caught Energy still not
+   charting heart rate after the fix that was supposed to fix it.
+2. `testAnUnweightedRowAlwaysSaysWhy` caught three bare zeroes on the risk card
+   — a non-smoker, no diabetes, and a systolic already better than optimal, all
+   rendering as `0%` with no explanation.
+3. `testEveryScoringCardStatesHowItsNumberIsFormed` is what makes
+   `ScoreWeighting`'s silent `.unstated` default safe to have.
+
+**`RiskAttribution` is the decision most worth carrying.** Attributing a
+published equation's output could have been done by decomposing its linear
+predictor — every coefficient is in `CardiovascularRiskModel`, twenty lines
+away. That would have been **a second copy of every SCORE2 and ASCVD
+coefficient**, which is the `PressureBandTests` defect one level up. Re-running
+`HeartAgeModel.riskPercent` with one factor held at optimal gives the same
+attribution and knows no coefficient at all. Generalises: **when you need to
+attribute a model's output, look for a re-run you can do rather than a
+decomposition you have to write.**
+
+**A doc contradicting itself, caught by step 12 rather than by a reader.**
+`card-sections.md` and `activeContext.md` both described Fitness and Body
+Composition as `ScoreWeighting.singleMeasure` in one paragraph and
+`weightedAverage` in a table further down — true for the length of one commit,
+stale by the end of the same day. Third time this file has disagreed with itself
+inside one session. The polarity that goes stale is always the same one: a claim
+about what a card *is*, invalidated by later work in the same session.
 
 ### Session 16 notes
 

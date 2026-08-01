@@ -102,6 +102,33 @@ something `samples` and `profile` can't supply, rather than growing a third
 - **`contributors`** — emit a `MetricContribution` as each component is built.
   The detail chart is driven by these, so a component added to the score becomes
   a line with no second edit.
+- **`weighting` — a third registration that fails silently.** It defaults to
+  `.unstated`, which is deliberate (a new insight should be silent rather than
+  claim a basis nobody chose for it) and means a card can ship with a score and
+  no account of how its inputs divide it. `ScoreAttributionTests
+  .testEveryScoringCardStatesHowItsNumberIsFormed` fails if you forget, which is
+  the only reason this is not a fourth silent registration. Pick from
+  `ScoreWeighting`: `weightedAverage`, `singleMeasure`, `equation`, `fit`,
+  `measurement`, `unstated`.
+- **Everything the card charts must carry a weight.** Set by the user on
+  2026-08-01, reversing the old "weight 0 is more honest than an invented
+  weight" rule — which is still correct about *inventing* one, and was being
+  used to justify not *attributing* one. If a signal has no published 0–100
+  curve, `ScoreBlend.supporting(_:higherIsBetter:)` judges it against the
+  reader's own baseline and `ScoreBlend.blend` gives the supporting group
+  `SupportingSignal.collectiveShare` (20%) between them. **If a signal genuinely
+  cannot carry a share, say why in its `detail` string** — there are three such
+  rows in the whole app and each names its reason;
+  `testAnUnweightedRowAlwaysSaysWhy` fails on a bare zero.
+- **Declare only what you read.** `candidateMetrics` is not a wish list.
+  `testEveryDeclaredInputWithDataIsActuallyRead` fails when a declared metric
+  with data never reaches `contributors`, because
+  `ChartedContributions.resolve` substitutes the declared list *only* when a
+  card reports nothing — so on a card reporting anything at all, a
+  declared-but-unread input charts nowhere and links nowhere. Four cards were
+  doing this on 2026-08-01. The one allowed exception is genuine alternatives
+  (rMSSD or SDNN, a deviation or an absolute), which live in
+  `MetricType.interchangeableGroups`.
 - **Classify driver lines.** `InsightDriver.component(_:score:)` sets
   `isNotable` from the sub-score, which is what lets the card lead with
   departures and fold the routine ones away. Leaving `isNotable` nil means "this
@@ -121,4 +148,7 @@ wrong differently: raw `series.last` is one minute of one afternoon, and
 ./scripts/verify.sh --tests
 ```
 
-`ContributorsTests` asserts contributors are a subset of `candidateMetrics`.
+`ContributorsTests` asserts contributors are a subset of `candidateMetrics`, and
+**since 2026-08-01 the converse too** — every declared metric with data must be
+read. `ScoreAttributionTests` asserts that a card with a score states its
+`weighting`, that its shares sum to 1, and that any row with no share says why.

@@ -432,6 +432,9 @@ The Vitals Check fix, applied everywhere it was also true.
       by the vitals scanner) on Fitness; the absolute temperatures on Sleep. All
       at weight 0 — real signals, no validated 0–100 curve, and an invented
       weight inside a trusted score is worse than none.
+      **Superseded 2026-08-01** (`3f74f06`): all three carry a share now, judged
+      against the reader's own baseline. The argument above is still right about
+      *inventing* a weight and was being used to justify not *attributing* one.
 - [x] **Settings ▸ Export my data** — the development feedback loop. An
       inventory small enough to paste, plus a full JSON export, covering the
       unmodelled fields nobody working on the app has ever seen.
@@ -455,9 +458,13 @@ decide that in advance.
       renormalised `weight`, so **no new type and no model changes are needed**.
       **Done, and the prediction held exactly**: `weightedContributionCard`, no
       new type, no model touched. It draws only `weight > 0` contributors —
-      Readiness appends the vitals it merely *scans* at weight 0, and a
+      ~~Readiness appends the vitals it merely *scans* at weight 0, and a
       zero-width bar would imply they were weighed and found irrelevant when
-      they were never in the average. They are a footnote instead.
+      they were never in the average. They are a footnote instead.~~
+      **Superseded 2026-08-01** (`3f74f06`): the scanned vitals share 20% of the
+      number, scored by the scan's own `normality` — which was already trusted
+      to decide what the card *says* while contributing nothing to the number
+      underneath it.
 - [x] **Body Composition** — the composition split. **Done**: "What you're made
       of", a stacked bar of fat / muscle / bone over body mass, backed by
       `BodyCompositionSplit` in InsightKit with 12 tests. Body water is a

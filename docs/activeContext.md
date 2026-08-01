@@ -86,9 +86,11 @@ Body Composition, and the sentence behind it conflated two different claims:
 (false on three of them).
 
 - **Body Composition and Fitness rest on one measurement** scored against a
-  published range — body fat (BMI in fallback) and VO₂max. One signal has 100%
+  published range — body fat (BMI in fallback) and VO₂max. One signal had 100%
   of the number, so "no signal has a percentage share of it" described a card
-  that does not exist.
+  that does not exist. *(Superseded within the day by the reversal above: their
+  supporting signals carry 20% between them now, so the primary measurement has
+  80% rather than all of it.)*
 - **Substance Impact's pool divides exactly.** `worst + 0.35·√(Σ rest²)` is
   homogeneous of degree one, so by Euler's theorem each penalty's own
   contribution `pᵢ·∂f/∂pᵢ` sums to the whole — no normalisation, no
@@ -164,12 +166,10 @@ grounding fact could be dialled under a newer sample's freshness.
   in one function, with a comment saying they drifted apart once already. Open,
   and recorded as gap 18 in `docs/card-sections.md`.
 - **A count cannot answer "which".** The unscored signals were a caveat reading
-  "5 signals tracked, not scored". Fitness has five and Readiness eleven, and
-  the reader's actual question is which of them moved the number. They are named
-  now, in their own group, with the two reasons they land there kept distinct:
-  no validated curve (`dayStrain`), versus being what the score is measured
-  *against* rather than something moving it (height, the resting-rate line, the
-  cuff readings behind the estimate).
+  "5 signals tracked, not scored", and the reader's actual question is which of
+  them moved the number. Naming them is what exposed how many there were —
+  fifteen across the nine cards — which is what prompted the reversal above.
+  Three survive, each with its reason on its own row.
 
 **The card-consistency session (previous).** Twelve pushes, all installed, no red
 CI. Driven end to end by the user reading the shipped cards on their phone and
