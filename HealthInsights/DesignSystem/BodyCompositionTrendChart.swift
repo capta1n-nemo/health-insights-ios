@@ -42,6 +42,14 @@ struct BodyCompositionTrendChart: View {
     /// The day the lean band subdivides, when the window spans both resolutions.
     let finerSplitBegins: Date?
     var selection: Binding<Date?>?
+    /// How much time fills the width — the card's timeframe picker. Defaulted
+    /// only so previews stay one-liners; every real call site passes one.
+    var window: TimeInterval = 365 * 24 * 3600
+
+    /// What is on screen after panning. Drives the y-axis peak, the change row
+    /// and the read-out, so all three describe the stretch being looked at
+    /// rather than the stretch that was loaded.
+    @State private var visibleRange: ClosedRange<Date>?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -150,13 +158,38 @@ struct BodyCompositionTrendChart: View {
     /// The baseline stays at zero and is not negotiable — these are stacked
     /// shares of a mass, so a cropped bottom would make the bands lie about
     /// their own size.
-    private var peak: Double {
-        max(points.map(\.split.total).max() ?? 1, 1)
+    private var span: ClosedRange<Date>? {
+        guard let first = points.first?.date, let last = points.last?.date,
+              first <= last else { return nil }
+        return first...last
     }
 
+    /// The points inside `range`, or all of them before the chart has reported
+    /// one. Falls back to the whole series when a range holds nothing, so an
+    /// empty stretch does not collapse the axis to 0...1.
+    private func points(in range: ClosedRange<Date>?) -> [BodyCompositionSplit.Dated] {
+        guard let range else { return points }
+        let inside = points.filter { range.contains($0.date) }
+        return inside.isEmpty ? points : inside
+    }
+
+    private var visiblePoints: [BodyCompositionSplit.Dated] { points(in: visibleRange) }
+
+    /// The axis tops out at the heaviest reading **on screen**, which is what
+    /// the caveat claims and what panning has to keep true.
+    private func peak(in range: ClosedRange<Date>?) -> Double {
+        max(points(in: range).map(\.split.total).max() ?? 1, 1)
+    }
+
+    private var peak: Double { peak(in: visibleRange) }
+
     /// First weigh-in of the window against the last.
+    /// Over what is on screen, not over everything loaded. Scrolling to last
+    /// spring and reading a change computed across the whole two years is the
+    /// disagreement between a picture and the numbers under it that this chart
+    /// exists to avoid.
     private var change: BodyCompositionSplit.Change? {
-        BodyCompositionSplit.change(over: points)
+        BodyCompositionSplit.change(over: visiblePoints)
     }
 
     /// Consecutive runs of estimated weigh-ins, extended to their measured
@@ -289,17 +322,37 @@ struct BodyCompositionTrendChart: View {
         }
     }
 
+    /// Wraps `ScrollableMetricChart` like every other time series here.
+    ///
+    /// It grew its own `Chart` because it started as a fixed picture of a
+    /// timeframe-filtered slice, and that made it one of two charts in the app
+    /// you could not pan — on a year of weigh-ins the only way to see further
+    /// back was the picker. The scroll domain, the zoom, the scrub line and the
+    /// per-window y-scale all come from the shared component now; the marks,
+    /// the hatch and the axis labels are still this file's.
+    ///
+    /// `chartForegroundStyleScale` and `chartYAxis` are applied outside it:
+    /// both write to the chart environment and reach the `Chart` inside.
+    /// `chartYScale` is *not* — that one belongs to the wrapper, which rescales
+    /// per visible window through `yDomain`.
     private var chart: some View {
-        Chart {
+        ScrollableMetricChart(
+            dataSpan: span,
+            window: window,
+            selection: selectionBinding,
+            height: 190,
+            emptyMessage: "No weigh-ins in this window",
+            isEmpty: { range in !points.contains { range.contains($0.date) } },
+            // Always from zero: this is a stacked share of body mass, and a
+            // stack that starts anywhere else misreads every band's thickness.
+            yDomain: { range in 0...self.peak(in: range) },
+            onVisibleRangeChange: { visibleRange = $0 }
+        ) { _ in
             bands
             waterFilm
             estimatedScrim
-            ScrubIndicator.at(selected)
         }
-        .chartXSelection(value: selectionBinding)
         .chartForegroundStyleScale(domain: labels, range: labels.map(colour))
-        .chartLegend(.hidden)   // the card draws its own, with the water sub-dot
-        .chartYScale(domain: 0...peak)
         .chartYAxis {
             AxisMarks(values: [0, (peak / 2).rounded(), peak]) { value in
                 AxisGridLine()
@@ -312,7 +365,6 @@ struct BodyCompositionTrendChart: View {
                 }
             }
         }
-        .frame(height: 190)
     }
 
     // Explicit `some ChartContent` on every builder: without it a mark chain on

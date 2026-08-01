@@ -154,13 +154,14 @@ struct EnergyCurveChart: View {
         }
     }
 
+    /// The shared one. This chart had the app's first scrub line and kept its
+    /// own copy — identical colour, stroke and `ForEach`-over-one construction —
+    /// after `ScrubIndicator` was extracted from it for the other seven charts.
+    /// Identical is exactly how a duplicate stays invisible until the day one
+    /// copy is changed.
     @ChartContentBuilder
     private var selectionMark: some ChartContent {
-        ForEach(selected.map { [$0] } ?? [], id: \.self) { date in
-            RuleMark(x: .value("Time", date))
-                .foregroundStyle(Color.secondary.opacity(0.35))
-                .lineStyle(Theme.referenceStroke)
-        }
+        ScrubIndicator.at(selected)
     }
 
     private var caption: some View {

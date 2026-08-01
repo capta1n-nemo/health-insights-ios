@@ -26,6 +26,11 @@ import InsightKit
 struct FitnessProjectionChart: View {
     let trajectory: VO2Trajectory.Output
 
+    /// Months ahead, not a date: this chart's x-axis is the only numeric one in
+    /// the app. It was also the only chart with no scrub at all — you could see
+    /// the line rise and not read a value off it anywhere but the two ends.
+    @State private var selectedMonths: Double?
+
     private struct Point: Identifiable {
         let id: Int
         let monthsFromNow: Double
@@ -61,9 +66,16 @@ struct FitnessProjectionChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Above the chart, never as a mark annotation: a `RuleMark` chain
+            // can resolve to `Chart3DContent` on this SDK and that has no
+            // `annotation`. The blank line reserves the height so nothing jumps
+            // on first touch.
+            readout
             Chart {
                 marks
+                ScrubIndicator.at(selectedMonths)
             }
+            .chartXSelection(value: $selectedMonths)
             .chartYScale(domain: range)
             // Doubles, not integer literals: the marks plot `Double` months and
             // a `ClosedRange<Int>` domain will not type-check against them.
@@ -81,6 +93,34 @@ struct FitnessProjectionChart: View {
             .frame(height: 130)
 
             key
+        }
+    }
+
+    /// What the projection says at the month under the finger, with the band as
+    /// a ± rather than as two numbers. Interpolated along the same straight
+    /// line the marks draw — the model has no opinion about the months between
+    /// its two endpoints, and this states the line's value there rather than
+    /// inventing a reading.
+    @ViewBuilder private var readout: some View {
+        if let months = selectedMonths, (0...12).contains(months) {
+            let fraction = months / 12
+            let value = trajectory.smoothed
+                + (trajectory.projectedIn12Months - trajectory.smoothed) * fraction
+            let spread = trajectory.residualSD * fraction
+            HStack(spacing: 8) {
+                Text(months < 0.5 ? "now" : String(format: "%.0f months", months))
+                    .foregroundStyle(.secondary)
+                Text(String(format: "%.1f", value))
+                    .font(.caption2.weight(.semibold)).monospacedDigit()
+                if spread >= 0.05 {
+                    Text(String(format: "± %.1f", spread))
+                        .foregroundStyle(.secondary).monospacedDigit()
+                }
+                Spacer()
+            }
+            .font(.caption2)
+        } else {
+            Text(" ").font(.caption2)
         }
     }
 

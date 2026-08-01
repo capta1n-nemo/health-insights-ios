@@ -36,4 +36,21 @@ enum ScrubIndicator {
                 .lineStyle(Theme.referenceStroke)
         }
     }
+
+    /// The same line on a chart whose x-axis is a number rather than a date.
+    ///
+    /// `FitnessProjectionChart` plots months-ahead, so it had no scrub at all —
+    /// the one chart in the app you could not read a value off. An overload
+    /// rather than a generic over `Plottable`: two concrete axes is not a
+    /// pattern yet, and the generic version would have to name its own
+    /// `ForEach` element type, which is the shape that has resolved to
+    /// `Chart3DContent` here before.
+    @ChartContentBuilder
+    static func at(_ x: Double?) -> some ChartContent {
+        ForEach(x.map { [$0] } ?? [], id: \.self) { value in
+            RuleMark(x: .value("Selected", value))
+                .foregroundStyle(Color.secondary.opacity(0.35))
+                .lineStyle(Theme.referenceStroke)
+        }
+    }
 }

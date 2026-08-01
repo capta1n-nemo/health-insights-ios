@@ -260,12 +260,12 @@ Nobody can tell from the outside. See gap 12.
 | `BloodPressureChart` | ● | ● | ● shared | ● takes `timeframe` |
 | `MultiSourceChart` (metric detail) | ● | ● | ● shared | ● |
 | `ScoreComparisonChart` (Insights list) | ● | ● | ● shared | — no picker on that screen |
-| `AgeHistoryChart` | ● | ● | ● shared | **○ fixed 365 days** |
-| `SubstanceLoadChart` | ● | ● | ● shared | **○ fixed 90 days** |
-| `BodyCompositionTrendChart` | ○ | **○** | ● own | ● points pre-filtered |
+| `AgeHistoryChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
+| `SubstanceLoadChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
+| `BodyCompositionTrendChart` | ● **2026-08-01** | ● | ● shared | ● |
 | `SleepOnsetStripChart` | ○ | **○** | ● own | **○ fixed fortnight** |
-| `EnergyCurveChart` | ○ | ○ | ● own, **duplicated** | — within a single day |
-| `FitnessProjectionChart` | ○ | ○ | **○ none** | — twelve months ahead |
+| `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
+| `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |
 

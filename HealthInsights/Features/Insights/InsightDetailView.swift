@@ -233,7 +233,12 @@ struct InsightDetailView: View {
                 trailing: points.yearsPerYear.map { String(format: "%.1f a year", $0) },
                 caveat: .replayedHistory
             ) {
-                AgeHistoryChart(points: points)
+                // The window comes from the card's own picker, like every
+                // other chart here. It used to fall back to the chart's
+                // 365-day default because no call site passed one, so this
+                // was the one section that ignored the control above it.
+                AgeHistoryChart(points: points,
+                                window: window(spanning: ageSpan(points)))
                 if let pace = points.yearsPerYear {
                     Text(Self.pacePhrase(pace))
                         .font(.caption).foregroundStyle(.secondary)
@@ -521,9 +526,34 @@ struct InsightDetailView: View {
                 },
                 caveat: .decayingLoad
             ) {
-                SubstanceLoadChart(points: series)
+                // Same fix as the age chart: the 90-day default was winning
+                // over the picker.
+                SubstanceLoadChart(points: series,
+                                   window: window(spanning: loadSpan(series)))
             }
         }
+    }
+
+    /// The span each chart's own data covers, so `.all` doesn't squash a short
+    /// history into a sliver. Three of these rather than one generic helper:
+    /// the point types are unrelated and a protocol for `.date` would be more
+    /// machinery than the six lines it saves.
+    private func ageSpan(_ points: [AgePoint]) -> ClosedRange<Date>? {
+        guard let first = points.first?.date, let last = points.last?.date,
+              first <= last else { return nil }
+        return first...last
+    }
+
+    private func compositionSpan(_ points: [BodyCompositionSplit.Dated]) -> ClosedRange<Date>? {
+        guard let first = points.first?.date, let last = points.last?.date,
+              first <= last else { return nil }
+        return first...last
+    }
+
+    private func loadSpan(_ points: [SubstanceLoadPoint]) -> ClosedRange<Date>? {
+        guard let first = points.first?.date, let last = points.last?.date,
+              first <= last else { return nil }
+        return first...last
     }
 
     private func scoreSpan(_ history: [ScorePoint]) -> ClosedRange<Date>? {
@@ -808,18 +838,21 @@ struct InsightDetailView: View {
         }
     }
 
-    /// The same bands, over the window the screen's own timeframe picker is set
-    /// to — deliberately that control rather than a second one, so the card has
-    /// one idea of "how far back" across all its sections.
+    /// The same bands over time, zoomed by the screen's own timeframe picker —
+    /// deliberately that control rather than a second one, so the card has one
+    /// idea of "how far back" across all its sections.
+    ///
+    /// **The picker is the zoom, not a filter.** It used to slice the series and
+    /// hand the chart only what survived, which is why this was one of two
+    /// charts in the app you could not pan: there was nothing off-screen to
+    /// scroll to. The chart now takes the whole series and shows a window of it,
+    /// exactly like "Score over time" and the overlay.
     @ViewBuilder private var bodyCompositionTrend: some View {
         let series = BodyCompositionSplit.series(samples: model.samples)
-        let start = timeframe.startDate()
-        let visible = series.points.filter { start == nil || $0.date >= start! }
+        let visible = series.points
         // Two weigh-ins is the floor for a trend: one is the bar above again.
         if visible.count >= 2 {
-            let begins = series.finerSplitBegins.flatMap { date in
-                visible.contains { $0.date >= date } ? date : nil
-            }
+            let begins = series.finerSplitBegins
             Divider()
             NestedInsightSection(
                 title: "How that has changed",
@@ -838,7 +871,8 @@ struct InsightDetailView: View {
                         ?? .none
                 ])
             ) {
-                BodyCompositionTrendChart(points: visible, finerSplitBegins: begins)
+                BodyCompositionTrendChart(points: visible, finerSplitBegins: begins,
+                                          window: window(spanning: compositionSpan(visible)))
             }
         }
     }

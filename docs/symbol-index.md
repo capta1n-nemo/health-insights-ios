@@ -316,7 +316,7 @@ the place to look.
   - `EnergyCurveChart` :31
 - `DesignSystem/FitnessProjectionChart.swift`
   - `FitnessProjectionChart` :26
-  - `RiskProjectionBar` :125
+  - `RiskProjectionBar` :165
 - `DesignSystem/Haptics.swift`
   - `CopyButton` :37
   - `Haptics` :10
