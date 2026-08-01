@@ -124,6 +124,46 @@ final class PeriodContrastTests: XCTestCase {
         XCTAssertTrue(changes.isEmpty)
     }
 
+    /// The card now says *why* it found nothing, and the two reasons — no
+    /// history to compare, versus enough history and nothing moved — are
+    /// opposite messages. `comparableCount` is what tells them apart, so it has
+    /// to agree with `changes` about which metrics cleared the day floor.
+    ///
+    /// They share `dailyMeans` for exactly this reason; this is the check that
+    /// the sharing is real rather than two implementations that agree today.
+    func testComparableCountAgreesWithTheChangesItExplains() {
+        let noisyNoShift = (0..<28).map { 60 + Double(($0 * 7) % 11) - 5 }
+            + (0..<28).map { 60.3 + Double(($0 * 7) % 11) - 5 }
+        let contributions = [contribution(.restingHeartRate, higherIsBetter: false)]
+
+        // Enough days on both sides, nothing moved: nothing to report, but the
+        // comparison did happen — "your normal hasn't moved", not "wait".
+        XCTAssertTrue(PeriodContrast.changes(for: contributions,
+                                             samples: daily(.restingHeartRate, noisyNoShift),
+                                             now: deepNow, calendar: deepCalendar).isEmpty)
+        XCTAssertEqual(PeriodContrast.comparableCount(for: contributions,
+                                                      samples: daily(.restingHeartRate, noisyNoShift),
+                                                      now: deepNow, calendar: deepCalendar), 1)
+
+        // Four days: no comparison was possible at all — "wait", not "steady".
+        XCTAssertEqual(PeriodContrast.comparableCount(
+            for: contributions,
+            samples: daily(.restingHeartRate, [60, 61, 59, 55]),
+            now: deepNow, calendar: deepCalendar), 0)
+
+        // And anything the contrast *did* report was necessarily comparable.
+        let shifted = (0..<28).map { 60 + Double($0 % 3) - 1 }
+            + (0..<28).map { 54 + Double($0 % 3) - 1 }
+        let samples = daily(.restingHeartRate, shifted)
+        let reported = PeriodContrast.changes(for: contributions, samples: samples,
+                                              now: deepNow, calendar: deepCalendar).count
+        XCTAssertLessThanOrEqual(reported,
+                                 PeriodContrast.comparableCount(for: contributions,
+                                                                samples: samples,
+                                                                now: deepNow,
+                                                                calendar: deepCalendar))
+    }
+
     /// Where neither direction is better, no verdict is offered.
     func testANeutralMetricGetsNoImprovementVerdict() {
         let values = (0..<28).map { 0.0 + Double($0 % 3) * 0.05 }

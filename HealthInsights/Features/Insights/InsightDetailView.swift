@@ -84,7 +84,7 @@ struct InsightDetailView: View {
     /// no series at all — is exactly where widening the window is the remedy:
     /// `overlaySeries` filters by it, so a card drawing nothing over a month can
     /// draw plenty over a year. Hiding the control there left
-    /// `FindingsPlaceholder` telling the reader to widen a timeframe that wasn't
+    /// `SectionPlaceholder` telling the reader to widen a timeframe that wasn't
     /// on screen.
     private var timeframePicker: some View {
         Picker("Timeframe", selection: $timeframe) {
@@ -98,9 +98,7 @@ struct InsightDetailView: View {
             VStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
                     headerCard(result)
-                    if !result.drivers.isEmpty {
-                        driversCard(result)
-                    }
+                    driversCard(result)
                     // One rule for every bespoke section: above "Score over
                     // time". The card's own subject is the finding; the months
                     // of scores derived from it are the supporting context.
@@ -342,13 +340,22 @@ struct InsightDetailView: View {
         let upfront = lines.filter { $0.isNotable != false }
         let routine = lines.filter { $0.isNotable == false }
 
+        let placeholder = lines.isEmpty
+            ? SectionPlaceholder.drivers(hasScore: result.score != nil)
+            : nil
+
         // `.none`: every line here is the model narrating its own inputs. The
         // lines that *are* inferences say so in their own words, which is where
         // that judgement belongs.
-        return InsightSection(title: "What's driving this",
-                              trailing: routine.isEmpty ? nil : "\(lines.count) signals",
-                              caveat: .none) {
-            if upfront.isEmpty {
+        return InsightSection(
+            title: "What's driving this",
+            trailing: routine.isEmpty ? nil : "\(lines.count) signals",
+            caveat: .none,
+            expansion: expansion(for: placeholder)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else if upfront.isEmpty {
                 Label("Nothing is away from your usual pattern.",
                       systemImage: "checkmark.circle")
                     .font(.subheadline).foregroundStyle(Theme.good)
@@ -400,14 +407,34 @@ struct InsightDetailView: View {
 
     /// How this insight's own number has moved. Part reconstructed from the raw
     /// samples, part read back from what the app recorded on the day — see
-    /// `ScoreHistory`. Absent for any insight whose replay can't clear the
-    /// two-signal floor.
-    @ViewBuilder private var scoreHistoryCard: some View {
+    /// `ScoreHistory`.
+    ///
+    /// **Renders on every card.** A line needs two days on which at least two of
+    /// the card's signals recorded, and on a realistic dataset four of the nine
+    /// cards clear that on no day at all — so this section was absent more often
+    /// than present, and its absence read as the chart having been taken away
+    /// rather than as the data not being there. It now says which.
+    private var scoreHistoryCard: some View {
         let history = model.scoreHistory(for: insightID)
-        if history.count >= 2 {
-            InsightSection(title: "Score over time",
-                           trailing: trendPhrase(history),
-                           caveat: .scoreFloor) {
+        var placeholder: SectionPlaceholder?
+        if history.count < 2 {
+            placeholder = SectionPlaceholder.scoreHistory(
+                points: history.count,
+                isComputing: model.scoreHistoryIsPending(for: insightID))
+        }
+
+        return InsightSection(
+            title: "Score over time",
+            trailing: placeholder == nil ? trendPhrase(history) : nil,
+            // The floor caveat explains which days were left out of a line.
+            // With no line, it would be a footnote about nothing — and the
+            // placeholder states the same floor as the reason instead.
+            caveat: placeholder == nil ? SectionCaveat.scoreFloor : SectionCaveat.none,
+            expansion: expansion(for: placeholder)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 // The picker that used to live here is now above every
                 // section that reads `timeframe`, this one included.
                 ScoreHistoryChart(points: history,
@@ -802,22 +829,31 @@ struct InsightDetailView: View {
         }
     }
 
-    @ViewBuilder private func contributorsCard(_ result: InsightResult) -> some View {
+    private func contributorsCard(_ result: InsightResult) -> some View {
         let contributions = resolvedContributions(result)
         let series = model.overlaySeries(for: insightID,
                                          contributions: contributions.contributions,
                                          timeframe: timeframe)
-        if !series.isEmpty {
-            let missing = contributions.metrics.filter { metric in
-                !series.contains { $0.metric == metric }
-            }
-            // `.none`: these are measured series. Where a gap is bridged the
-            // chart draws it dashed and dimmed, which states the inference at
-            // the place it happens rather than in a footnote about the whole
-            // section.
-            InsightSection(title: "What goes into this",
-                           trailing: "\(series.count) of \(contributions.metrics.count)",
-                           caveat: .none) {
+        let missing = contributions.metrics.filter { metric in
+            !series.contains { $0.metric == metric }
+        }
+        let placeholder = series.isEmpty
+            ? SectionPlaceholder.overlay(inputCount: contributions.metrics.count)
+            : nil
+
+        // `.none`: these are measured series. Where a gap is bridged the
+        // chart draws it dashed and dimmed, which states the inference at
+        // the place it happens rather than in a footnote about the whole
+        // section.
+        return InsightSection(
+            title: "What goes into this",
+            trailing: "\(series.count) of \(contributions.metrics.count)",
+            caveat: .none,
+            expansion: expansion(for: placeholder)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 Text(scale == .zScore
                      ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average. The list below is ordered by how far each signal has moved — tap any of them to add or remove it."
                      : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
@@ -907,16 +943,17 @@ struct InsightDetailView: View {
     /// to vanish then, and a vanishing section is an absence the reader cannot
     /// read: "no data", "not enough days" and "we looked and everything is
     /// steady" are three different answers and only the last is reassuring.
-    /// `FindingsPlaceholder` works out which one applies and says it.
+    /// `SectionPlaceholder` works out which one applies and says it.
     private func patternsCard(_ result: InsightResult) -> some View {
         let series = model.overlaySeries(for: insightID,
                                          contributions: resolvedContributions(result).contributions,
                                          timeframe: timeframe)
         let history = model.scoreHistory(for: insightID)
         let patterns = PatternFinder.patterns(in: series, against: history)
-        let placeholder = patterns.isEmpty
-            ? FindingsPlaceholder.patterns(series: series, score: history)
-            : nil
+        var placeholder: SectionPlaceholder?
+        if patterns.isEmpty {
+            placeholder = SectionPlaceholder.patterns(series: series, score: history)
+        }
 
         return InsightSection(
             title: "Patterns worth a look", icon: "lightbulb",
@@ -931,7 +968,7 @@ struct InsightDetailView: View {
                                   ?? patterns[0].sentence)
         ) {
             if let placeholder {
-                emptyFinding(placeholder)
+                emptySection(placeholder)
             } else {
                 ForEach(patterns) { pattern in
                     HStack(alignment: .top, spacing: 8) {
@@ -948,12 +985,23 @@ struct InsightDetailView: View {
         }
     }
 
-    /// What a findings section draws when it found nothing.
+    /// Closed behind its reason where a section is empty, open where it isn't.
+    ///
+    /// A function rather than `placeholder.map { .collapsed(…) } ?? .always` at
+    /// four call sites: that form leans on leading-dot inference flowing back
+    /// through `map` and `??`, and the app target is compiled only by CI, so a
+    /// type-inference gamble costs a push-and-wait to settle.
+    private func expansion(for placeholder: SectionPlaceholder?) -> SectionExpansion {
+        guard let placeholder else { return .always }
+        return .collapsed(preview: placeholder.headline)
+    }
+
+    /// What a section draws when it has nothing to show.
     ///
     /// Deliberately not `Theme.warn` and not a "no data" glyph: on most cards on
     /// most days this is the *good* answer, and drawing it as a fault would
     /// teach the reader to read an empty patterns card as a problem.
-    private func emptyFinding(_ placeholder: FindingsPlaceholder) -> some View {
+    private func emptySection(_ placeholder: SectionPlaceholder) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "checkmark.circle")
                 .font(.caption)
@@ -993,9 +1041,10 @@ struct InsightDetailView: View {
                                          timeframe: timeframe)
         let history = model.scoreHistory(for: insightID)
         let leads = LagFinder.relationships(between: series, and: history)
-        let placeholder = leads.isEmpty
-            ? FindingsPlaceholder.leads(series: series, score: history)
-            : nil
+        var placeholder: SectionPlaceholder?
+        if leads.isEmpty {
+            placeholder = SectionPlaceholder.leads(series: series, score: history)
+        }
 
         // This section had no footnote at all, and it makes the most
         // inferential claim on the screen: a correlation at a lag, fitted
@@ -1011,7 +1060,7 @@ struct InsightDetailView: View {
             expansion: .collapsed(preview: placeholder?.headline ?? leads[0].sentence)
         ) {
             if let placeholder {
-                emptyFinding(placeholder)
+                emptySection(placeholder)
             } else {
                 // Resolved across this list. Without slots a metric falls
                 // back to its *preferred* hue, and RMSSD and SDNN prefer the
@@ -1033,13 +1082,29 @@ struct InsightDetailView: View {
     /// Has your normal itself moved? A z-score can't answer that — its baseline
     /// drifts along with the change, which is exactly how a slow decline stays
     /// invisible day to day.
-    @ViewBuilder private func periodContrastCard(_ result: InsightResult) -> some View {
-        let changes = PeriodContrast.changes(for: resolvedContributions(result).contributions,
-                                             samples: model.samples)
-        if !changes.isEmpty {
-            InsightSection(title: "What changed",
-                           trailing: "\(changes.count) signals",
-                           caveat: .periodContrast(days: PeriodContrast.windowDays)) {
+    private func periodContrastCard(_ result: InsightResult) -> some View {
+        let contributions = resolvedContributions(result).contributions
+        let changes = PeriodContrast.changes(for: contributions, samples: model.samples)
+        // Two reasons for an empty section — not enough history, or enough and
+        // nothing moved — and only the second is reassuring. Asking how many
+        // signals *could* be compared is what separates them.
+        let placeholder = changes.isEmpty
+            ? SectionPlaceholder.periodContrast(
+                comparable: PeriodContrast.comparableCount(for: contributions,
+                                                           samples: model.samples))
+            : nil
+
+        return InsightSection(
+            title: "What changed",
+            trailing: changes.isEmpty ? "No shift" : "\(changes.count) signals",
+            caveat: changes.isEmpty
+                ? SectionCaveat.none
+                : .periodContrast(days: PeriodContrast.windowDays),
+            expansion: expansion(for: placeholder)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 Text("Your last four weeks against the four before them.")
                     .font(.caption).foregroundStyle(.secondary)
                 let slots = MetricPalette.slots(for: changes.map(\.metric))

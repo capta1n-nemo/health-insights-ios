@@ -26,15 +26,15 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 | # | Key | Section | Gate |
 |---|---|---|---|
 | 1 | `Hdr` | header — dial or headline, confidence badge, explanation | always |
-| 2 | `Drv` | "What's driving this" | `!drivers.isEmpty` |
+| 2 | `Drv` | "What's driving this" | **always** |
 | 3 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
 | — | *picker* | the timeframe control — a screen-level control, not a card | **always** |
-| 4 | `ScrHx` | "Score over time" | history ≥2 |
+| 4 | `ScrHx` | "Score over time" | **always** |
 | 5 | `Patt` | "Patterns worth a look" — **collapsed by default** | **always** |
 | 6 | `1st` | "What comes first" — lag, **collapsed by default** | **always** |
-| 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | series non-empty |
-| 8 | `Chg` | "What changed" — period contrast | changes non-empty |
-| 9 | `Hist` | "Full history" — one link per input | contributors non-empty |
+| 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
+| 8 | `Chg` | "What changed" — period contrast | **always** |
+| 9 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
 | 10 | `V&A` | "View & add" — what you've given, what's missing, how to add | the model's `contributions` is non-empty |
 | 11 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
 | 12 | `Disc` | disclaimer | always |
@@ -64,54 +64,70 @@ moves, each with its own reason:
 
 | Insight | Tab | `Hdr` | `Drv` | bespoke (+ nested) | `ScrHx` | `Patt` | `1st` | `Goes` | `Chg` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ◐ | ◐ "How this is weighted" **+ "How far from your normal"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
-| Sleep | Today | ● | ◐ | ◐ "Your fortnight" | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
-| Energy | Today | ● | ◐ | ◐ "Today" curve | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
-| Substance Impact | Today | ● | ◐ | ◐ "Cardiovascular load" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
-| Heart Health | Insights | ● | ◐ | ◐ "How this is weighted" **+ "How you compare"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
-| Fitness | Insights | ● | ◐ | ◐ "Fitness age over time" **+ "Where this is heading"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ◐ | ◐ "Heart age over time" **+ "If today's numbers hold"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
-| Blood Pressure | Insights | ● | ◐ | ◐ "Your readings" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
-| Body Composition | Insights | ● | ◐ | ◐ "What you're made of" + "How that has changed" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Readiness | Today | ● | ● | ◐ "How this is weighted" **+ "How far from your normal"** | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ◐ "Your fortnight" | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Energy | Today | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Substance Impact | Today | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Health | Insights | ● | ● | ◐ "How this is weighted" **+ "How you compare"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Fitness | Insights | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Blood Pressure | Insights | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Body Composition | Insights | ● | ● | ◐ "What you're made of" + "How that has changed" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
 **The bespoke slot is still one slot.** Five cards now draw two things in it,
 separated by a `Divider()` and wrapped in `NestedInsightSection` — the pattern
 Body Composition established. A second *top-level* section would have needed a
 second placement rule, and the one placement rule is the thing Phase 1 bought.
 
-**Eleven of the twelve sections are uniform across all nine cards**, up from ten
-now that `Patt` and `1st` render unconditionally. The one that is not:
+**Every card renders the same sections, in the same order, always.** Three
+deliberate exceptions remain, each about the *card* rather than about the data:
 
 - **`V&A` reaches six.** The three without it — Readiness, Sleep, Energy — ask
-  the user for nothing and are built entirely from sensed data. That is correct,
-  not a gap.
+  the user for nothing and are built entirely from sensed data. "Add a reading"
+  on a card that takes none is a control that can never do anything.
+- **The bespoke slot is per-card by construction** — it is the card's own
+  picture of its own subject, so there is nothing generic to draw in its place.
+  It reaches all nine, and five cards draw *two* things in it, nested under one
+  `Divider()`.
+- **`Fbk` needs a number to rate.** "Was this accurate?" on a card showing no
+  value is a control with no subject, and feedback recorded against nothing
+  pollutes the telemetry the models are tuned on.
 
-  The bespoke slot reaches all nine, and five cards draw *two* things in it,
-  nested under one `Divider()`. That line said "reaches six" until 2026-08-01,
-  while item 7 under "Still open" in this same file already said all nine had
-  one. **A file disagreeing with itself, written in one session and half-updated
-  in it** — which is what handover step 11's second polarity exists to catch,
-  and is the polarity that keeps getting skipped: a claim that something is
-  *missing* is exactly what the work invalidates.
+### Why the rest are `●` with nothing to show
 
-### Why two sections are `●` with nothing to show
+They were all `◐` until 2026-08-01, and the floors are high: two scored days for
+`ScrHx`, fourteen paired days for `Patt` and `1st`, seven days in each of two
+windows for `Chg`. Measured rather than assumed — a replay over a realistic
+five-signal dataset gives **four of the nine cards zero score-history points** —
+so "Score over time" was absent more often than present, and its absence read as
+the chart having been taken away.
 
-`Patt` and `1st` used to be `◐`, and their floors are high — fourteen paired
-days and an effect size — so on most cards, most of the time, they simply
-weren't there.
+**A section that vanishes is an absence the reader cannot read.** "Score over
+time" missing means the 90-day replay hasn't finished, *or* no day has had two
+of this card's signals recording at once, *or* exactly one has. Only somebody
+holding the source could tell those apart — and the first fixes itself in a
+second while the third is one day away.
 
-**A section that vanishes is an absence the reader cannot read.** It means one
-of three quite different things, and only the last of them is reassuring:
+`SectionPlaceholder` (InsightKit, tested) works out which applies, from the same
+floors the section's own producer gates on — `ScoreHistory.minimumContributors`,
+`PatternFinder.defaultMinimumPairs`, `PeriodContrast.minimumDaysPerPeriod` — and
+quotes the actual shortfall, so "not enough data yet" can never appear under a
+card holding two years of it. An empty section arrives **collapsed** with the
+reason as its preview; `Patt` and `1st` arrive collapsed either way, previewing
+their strongest finding. See `SectionExpansion`.
 
-1. nothing is recording for this card,
-2. there is data but not enough overlapping days to look for a relationship,
-3. there are plenty of days and nothing stood out.
+**The `isComputing` arm is the one that earns its keep.** `AppModel.scoreHistory`
+returns `[]` on first ask and replays off the main actor, so a card opened cold
+is genuinely empty for a second or two. "No scored days yet" there would be a
+false statement that corrects itself only after the reader has read it;
+`AppModel.scoreHistoryIsPending(for:)` is what stops it being said.
 
-`FindingsPlaceholder` (InsightKit, tested) works out which one applies from the
-same floors the finder gates on, and quotes the actual shortfall — so "not
-enough days yet" can never appear under a card holding two years of data. Both
-sections arrive **collapsed**, with the strongest finding, or the reason there
-isn't one, as the preview line. See `SectionExpansion`.
+That the bespoke line above once said "reaches six" while item 7 under "Still
+open" in this same file said all nine had one is worth keeping in view: **a file
+disagreeing with itself, written in one session and half-updated in it** — the
+polarity handover step 11 exists to catch, and the one that keeps getting
+skipped, because a claim that something is *missing* is exactly what the work
+invalidates.
 
 ### Per-insight facts behind the matrix
 

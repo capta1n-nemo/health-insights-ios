@@ -51,21 +51,7 @@ public enum PeriodContrast {
 
         return metrics.compactMap { contribution -> PeriodChange? in
             let metric = contribution.metric
-            // Daily representatives, de-duplicated across sources, so a device
-            // that samples more often doesn't weight the mean.
-            let breakdown = MultiSource.breakdown(metric, from: samples)
-            var daily: [Date: Double] = [:]
-            for series in breakdown.sources {
-                for point in series.bucketed(by: .day, for: metric, calendar: calendar) {
-                    // One value per day across all sources: mean them, matching
-                    // how the rest of the app treats disagreeing devices.
-                    if let existing = daily[point.date] {
-                        daily[point.date] = (existing + point.value) / 2
-                    } else {
-                        daily[point.date] = point.value
-                    }
-                }
-            }
+            let daily = dailyMeans(metric, samples: samples, calendar: calendar)
 
             let recent = daily.filter { $0.key >= recentStart && $0.key <= now }.map(\.value)
             let prior = daily.filter { $0.key >= priorStart && $0.key < recentStart }.map(\.value)
@@ -88,5 +74,53 @@ public enum PeriodContrast {
                 isImprovement: contribution.higherIsBetter.map { $0 == (delta > 0) })
         }
         .sorted { abs($0.standardisedDelta) > abs($1.standardisedDelta) }
+    }
+
+    /// One value per day, de-duplicated across sources, so a device that samples
+    /// more often doesn't weight the mean.
+    ///
+    /// Extracted so `coverage` counts exactly the days `changes` counts. The
+    /// alternative — a second implementation that agrees today — is the shape
+    /// `PressureBandTests` exists to catch.
+    static func dailyMeans(_ metric: MetricType,
+                           samples: [HealthMetricSample],
+                           calendar: Calendar) -> [Date: Double] {
+        let breakdown = MultiSource.breakdown(metric, from: samples)
+        var daily: [Date: Double] = [:]
+        for series in breakdown.sources {
+            for point in series.bucketed(by: .day, for: metric, calendar: calendar) {
+                // One value per day across all sources: mean them, matching how
+                // the rest of the app treats disagreeing devices.
+                if let existing = daily[point.date] {
+                    daily[point.date] = (existing + point.value) / 2
+                } else {
+                    daily[point.date] = point.value
+                }
+            }
+        }
+        return daily
+    }
+
+    /// How many of these metrics have enough days in **both** windows to be
+    /// compared at all.
+    ///
+    /// This separates the two reasons the section can come back empty — not
+    /// enough history, versus enough history and nothing moved — which is the
+    /// difference between "wait" and "you're steady", and the card now has to
+    /// say which.
+    public static func comparableCount(for metrics: [MetricContribution],
+                                       samples: [HealthMetricSample],
+                                       days: Int = PeriodContrast.windowDays,
+                                       now: Date = Date(),
+                                       calendar: Calendar = .current) -> Int {
+        let window = Double(days) * 86_400
+        let recentStart = now.addingTimeInterval(-window)
+        let priorStart = now.addingTimeInterval(-2 * window)
+        return metrics.filter { contribution in
+            let daily = dailyMeans(contribution.metric, samples: samples, calendar: calendar)
+            let recent = daily.keys.filter { $0 >= recentStart && $0 <= now }.count
+            let prior = daily.keys.filter { $0 >= priorStart && $0 < recentStart }.count
+            return recent >= minimumDaysPerPeriod && prior >= minimumDaysPerPeriod
+        }.count
     }
 }

@@ -913,6 +913,21 @@ final class AppModel {
         return []
     }
 
+    /// Whether the 90-day replay for this card is still running.
+    ///
+    /// `scoreHistory(for:)` returns `[]` on first ask and fills in behind the
+    /// view, so an empty history is two different states. "Score over time" now
+    /// renders on every card and has to say which one it is in — announcing "no
+    /// scored days yet" during the second the replay takes is a false statement
+    /// that corrects itself after the reader has read it.
+    ///
+    /// A card the engine doesn't know is never pending: nothing will ever run
+    /// for it, and reporting it as computing would hang that section forever.
+    func scoreHistoryIsPending(for id: InsightID) -> Bool {
+        guard engine.models.contains(where: { $0.id == id }) else { return false }
+        return scoreHistories[id] == nil
+    }
+
     /// Start queued replays up to the concurrency limit.
     private func drainScoreHistoryQueue(days: Int) {
         while scoreHistoryTasks.count < Self.maxConcurrentReplays,

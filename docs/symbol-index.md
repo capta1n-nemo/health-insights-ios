@@ -179,8 +179,6 @@ the place to look.
   - `ContributionRoute` :14
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
-- `Presentation/FindingsPlaceholder.swift`
-  - `FindingsPlaceholder` :36
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
@@ -214,6 +212,8 @@ the place to look.
   - `OverlaySelection` :10
 - `Presentation/SectionCaveat.swift`
   - `SectionCaveat` :22
+- `Presentation/SectionPlaceholder.swift`
+  - `SectionPlaceholder` :41
 - `Presentation/SeriesSegmentation.swift`
   - `GapBridge` :90
   - `SeriesBridging` :123

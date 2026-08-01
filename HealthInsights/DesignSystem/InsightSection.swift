@@ -11,7 +11,7 @@ import InsightKit
 /// point. A section that disappears when it finds nothing teaches the reader
 /// that its absence means nothing in particular, when in fact it means one of
 /// *no data*, *not enough days*, or *nothing stood out*, and only the last of
-/// those is reassuring. See `FindingsPlaceholder`.
+/// those is reassuring. See `SectionPlaceholder`.
 ///
 /// But two more always-on sections in the middle of an already long card are
 /// two more things to scroll past on the days they have nothing to say, so they
