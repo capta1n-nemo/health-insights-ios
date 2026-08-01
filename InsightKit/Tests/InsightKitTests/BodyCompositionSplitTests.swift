@@ -123,20 +123,77 @@ final class BodyCompositionSplitTests: XCTestCase {
         XCTAssertEqual(series.points.count, 1)
     }
 
-    /// The shape of this user's real history: fat and lean back to 2020, then
-    /// muscle and bone from the day the Body Smart arrived. Each day gets the
-    /// finest split its own readings support, so the lean band subdivides
-    /// visibly rather than the old data being fabricated or the new flattened.
-    func testTheSplitSubdividesOnTheDayTheScaleStartedReportingMore() throws {
+    /// The defect behind "missing data breaks the graph". The scale logs a
+    /// weight far more often than a full composition, so band membership used to
+    /// change from point to point — and a stacked area whose series vanishes at
+    /// one x collapses that band to zero and back, drawing a row of notches.
+    ///
+    /// Every point now carries the same bands. The day that measured only fat
+    /// and lean borrows the muscle/bone ratio from the day that measured one,
+    /// and says so.
+    func testADayWithoutTheDivisionBorrowsItRatherThanDroppingBands() throws {
         let series = BodyCompositionSplit.series(samples: [
             sample(.bodyMass, 120, daysAgo: 30), sample(.bodyFatPercentage, 35, daysAgo: 30),
             sample(.bodyMass, 115, daysAgo: 10), sample(.bodyFatPercentage, 33, daysAgo: 10),
             sample(.leanBodyMass, 77, daysAgo: 10), sample(.muscleMass, 73, daysAgo: 10),
             sample(.boneMass, 4, daysAgo: 10),
         ], calendar: TestClock.utc)
-        XCTAssertEqual(series.points[0].split.parts.map(\.label), ["Fat", "Lean"])
-        XCTAssertEqual(series.points[1].split.parts.map(\.label), ["Fat", "Muscle", "Bone"])
+        XCTAssertEqual(series.points.map { $0.split.parts.map(\.label) },
+                       [["Fat", "Muscle", "Bone"], ["Fat", "Muscle", "Bone"]],
+                       "both points must carry the same bands, in the same order")
+        XCTAssertTrue(series.points[0].isEstimated, "the borrowed day is flagged")
+        XCTAssertFalse(series.points[1].isEstimated, "the measured day is not")
         XCTAssertEqual(series.finerSplitBegins, series.points[1].date)
+    }
+
+    /// Only the *ratio* is borrowed. Total, fat and lean are measured on the
+    /// estimated day and must survive untouched — the bar is real, only its
+    /// internal division is inferred.
+    func testOnlyTheRatioIsBorrowedNotTheQuantities() throws {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 100, daysAgo: 30), sample(.bodyFatPercentage, 30, daysAgo: 30),
+            sample(.bodyMass, 115, daysAgo: 10), sample(.bodyFatPercentage, 33, daysAgo: 10),
+            sample(.leanBodyMass, 80, daysAgo: 10), sample(.muscleMass, 76, daysAgo: 10),
+            sample(.boneMass, 4, daysAgo: 10),
+        ], calendar: TestClock.utc)
+        let estimated = series.points[0]
+        XCTAssertEqual(estimated.split.total, 100, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(estimated.split.parts.first).kilograms, 30, accuracy: 0.001,
+                       "measured fat is untouched")
+        // Lean is 70 kg, divided 76:4 like the donor → 66.5 muscle, 3.5 bone.
+        XCTAssertEqual(estimated.split.parts.reduce(0) { $0 + $1.kilograms },
+                       100, accuracy: 0.01, "and the bands still sum to the weight")
+        XCTAssertEqual(try XCTUnwrap(estimated.split.parts.first { $0.label == "Muscle" }).kilograms,
+                       66.5, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(estimated.split.parts.first { $0.label == "Bone" }).kilograms,
+                       3.5, accuracy: 0.01)
+    }
+
+    /// With nothing in the whole history dividing lean, there is no ratio to
+    /// borrow — so nothing is estimated and nothing is invented.
+    func testNoDonorMeansNothingIsEstimated() {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 120, daysAgo: 30), sample(.bodyFatPercentage, 35, daysAgo: 30),
+            sample(.bodyMass, 115, daysAgo: 10), sample(.bodyFatPercentage, 33, daysAgo: 10),
+        ], calendar: TestClock.utc)
+        XCTAssertFalse(series.points.contains { $0.isEstimated })
+        XCTAssertEqual(series.points[0].split.parts.map(\.label), ["Fat", "Lean"])
+        XCTAssertNil(series.finerSplitBegins)
+    }
+
+    /// The water inset has to follow the lean block when it subdivides,
+    /// otherwise it would point at a block that no longer exists and vanish.
+    func testWaterFollowsTheLeanBlockWhenItIsSubdivided() throws {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 100, daysAgo: 30), sample(.bodyFatPercentage, 30, daysAgo: 30),
+            sample(.bodyWaterPercentage, 50, daysAgo: 30),
+            sample(.bodyMass, 100, daysAgo: 10), sample(.bodyFatPercentage, 30, daysAgo: 10),
+            sample(.leanBodyMass, 70, daysAgo: 10), sample(.muscleMass, 66, daysAgo: 10),
+            sample(.boneMass, 4, daysAgo: 10),
+        ], calendar: TestClock.utc)
+        let water = try XCTUnwrap(series.points[0].split.water)
+        XCTAssertEqual(water.host, .muscleMass)
+        XCTAssertEqual(water.kilograms, 50, accuracy: 0.001)
     }
 
     /// A window that is entirely fine-grained has no transition to explain, and

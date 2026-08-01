@@ -6,29 +6,29 @@ import InsightKit
 ///
 /// ## Why a stacked area and not the extruded bar
 ///
-/// The obvious build is the "what you're made of" bar repeated down the screen,
-/// one row per weigh-in, time running vertically. That is the right *substance*
-/// — same quantities, same colours, one axis added — and two changes make it
-/// read better. Time runs left-to-right, which is the convention every other
-/// chart in this app follows and which fits a year of weigh-ins where stacked
-/// rows fit about twenty. And the bands are continuous rather than discrete, so
-/// a band narrowing over months is one visible taper instead of a difference the
-/// reader has to measure between rows.
+/// The brief was the "what you're made of" bar repeated down the screen, one row
+/// per weigh-in, time running vertically. That is the right *substance* — same
+/// quantities, same colours, one axis added — and two changes make it read
+/// better. Time runs left-to-right, this app's convention, and it fits a year of
+/// weigh-ins where stacked rows fit about twenty. And the bands are continuous,
+/// so a band narrowing over months is one visible taper rather than a difference
+/// measured between rows.
 ///
 /// ## Kilograms, not percentages
 ///
 /// A 100%-normalised stack answers "what proportion of me is fat" and hides the
 /// total. This user's weight has moved from a median of 124 kg to 110.7, and the
 /// interesting question — did the loss come off fat, or did muscle go with it —
-/// is exactly the one normalising destroys. In kilograms the top edge of the
-/// stack *is* body weight, so both readings are in one picture.
+/// is the one normalising destroys. In kilograms the top edge of the stack *is*
+/// body weight, so both readings are in one picture.
 ///
-/// ## The bands do not all start together, and that is real
+/// ## Water is a band, not a line
 ///
-/// Body fat reaches back to 2020; muscle, bone and water begin when the Body
-/// Smart scale arrived. `BodyCompositionSplit.series` gives each day the finest
-/// split its own readings support, so the lean band visibly subdivides rather
-/// than the older history being fabricated to match the newer.
+/// It was a hairline over the muscle band, which read as an axis annotation
+/// rather than as part of the muscle. It is now the lower share of the muscle
+/// band in its own cooled-red tone: still inside muscle, visibly distinct,
+/// summing to exactly the same total because `BodyCompositionSplit.bands` cuts
+/// the host block in two rather than adding one.
 struct BodyCompositionTrendChart: View {
 
     let points: [BodyCompositionSplit.Dated]
@@ -45,72 +45,63 @@ struct BodyCompositionTrendChart: View {
     private struct Row: Identifiable {
         let id = UUID()
         let date: Date
+        let kind: BodyCompositionSplit.Band.Kind
         let label: String
-        let metric: MetricType
         let kilograms: Double
     }
 
-    /// Where the water line reaches on one day. A named type, not a tuple:
-    /// `ForEach(_, id: \.date)` over a tuple is a compile error.
-    private struct WaterPoint: Identifiable {
-        let date: Date
-        let kilograms: Double
-        var id: Date { date }
+    /// A stretch of chart whose muscle/bone division was borrowed rather than
+    /// measured, so it can be drawn as the inference it is.
+    private struct EstimatedSpan: Identifiable {
+        let start: Date
+        let end: Date
+        var id: Date { start }
     }
 
     /// Bottom of the stack first. Fat leads deliberately: it sits on the flat
-    /// zero baseline, which is the only band whose thickness can be read without
+    /// zero baseline, the only band whose thickness can be read without
     /// discounting the wobble of everything under it — and it is the band the
-    /// question is usually about.
-    private static let order = ["Fat", "Muscle", "Bone", "Other lean", "Lean"]
+    /// question is usually about. Water sits directly above it, inside muscle.
+    private static let order: [BodyCompositionSplit.Band.Kind] =
+        [.fat, .muscleWater, .muscle, .otherLean, .lean, .bone]
 
     private var rows: [Row] {
         points.flatMap { point in
-            point.split.parts.map {
-                Row(date: point.date, label: $0.label,
-                    metric: $0.metric, kilograms: $0.kilograms)
+            point.split.bands.map {
+                Row(date: point.date, kind: $0.kind,
+                    label: $0.label, kilograms: $0.kilograms)
             }
         }
     }
 
     /// Labels present, in stacking order — not every split has every band.
     private var labels: [String] {
-        let present = Set(rows.map(\.label))
-        return Self.order.filter(present.contains)
-    }
-
-    /// Hues resolved once over every metric that can appear, water included, so
-    /// no two bands can share one and the colours match the "now" bar.
-    private var slots: [MetricType: Int] {
-        MetricPalette.slots(for: [.bodyFatPercentage, .muscleMass, .boneMass,
-                                  .leanBodyMass, .bodyWaterPercentage])
+        var seen: [BodyCompositionSplit.Band.Kind: String] = [:]
+        for row in rows where seen[row.kind] == nil { seen[row.kind] = row.label }
+        return Self.order.compactMap { seen[$0] }
     }
 
     private func colour(_ label: String) -> Color {
-        let metric = rows.first { $0.label == label }?.metric ?? .leanBodyMass
-        return Theme.metricColor(metric, slots: slots)
+        Theme.compositionColour(rows.first { $0.label == label }?.kind ?? .lean)
     }
 
-    /// Where body water reaches inside the band hosting it, as a cumulative
-    /// height from the baseline: everything below the host, plus the water.
-    ///
-    /// Drawn as a solid hairline, never dashed — a dash means *inferred* in this
-    /// app, and this is a measurement. It is a line rather than a fifth band
-    /// because water is held *within* lean tissue; a band of its own would count
-    /// the same kilograms twice.
-    private var waterLine: [WaterPoint] {
-        points.compactMap { point in
-            guard let water = point.split.water else { return nil }
-            var below: Double = 0
-            for part in point.split.parts {
-                if part.metric == water.host { break }
-                below += part.kilograms
+    /// Consecutive runs of estimated weigh-ins, extended to their measured
+    /// neighbours so the shading covers the span the inference actually spans
+    /// rather than stopping at the last estimated point.
+    private var estimatedSpans: [EstimatedSpan] {
+        var spans: [EstimatedSpan] = []
+        var runStart: Int?
+        for (index, point) in points.enumerated() {
+            if point.isEstimated, runStart == nil { runStart = index }
+            if !point.isEstimated, let start = runStart {
+                spans.append(EstimatedSpan(date: points, from: start, to: index))
+                runStart = nil
             }
-            // The clamped figure, so the line can never escape its host band.
-            let host = point.split.parts.first { $0.metric == water.host }?.kilograms ?? 0
-            return WaterPoint(date: point.date,
-                              kilograms: below + Swift.min(water.kilograms, host))
         }
+        if let start = runStart {
+            spans.append(EstimatedSpan(date: points, from: start, to: points.count - 1))
+        }
+        return spans
     }
 
     /// The weigh-in nearest the finger, ignoring anything more than a fortnight
@@ -139,13 +130,17 @@ struct BodyCompositionTrendChart: View {
                     .foregroundStyle(.secondary)
                 Text(String(format: "%.1f kg", hit.split.total))
                     .font(.caption2.weight(.semibold)).monospacedDigit()
-                ForEach(hit.split.parts, id: \.metric) { part in
+                ForEach(hit.split.bands) { band in
                     HStack(spacing: 3) {
-                        Circle().fill(Theme.metricColor(part.metric, slots: slots))
+                        Circle().fill(Theme.compositionColour(band.kind))
                             .frame(width: 5, height: 5)
-                        Text(String(format: "%.1f", part.kilograms)).monospacedDigit()
+                        Text(String(format: "%.1f", band.kilograms)).monospacedDigit()
                     }
                     .foregroundStyle(.secondary)
+                }
+                if hit.isEstimated {
+                    Image(systemName: "questionmark.circle")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
                 Spacer()
             }
@@ -158,7 +153,7 @@ struct BodyCompositionTrendChart: View {
     private var chart: some View {
         Chart {
             bands
-            waterMarks
+            estimatedScrim
             ScrubIndicator.at(selected)
         }
         .chartXSelection(value: selectionBinding)
@@ -177,10 +172,9 @@ struct BodyCompositionTrendChart: View {
         .frame(height: 190)
     }
 
-    // Explicit `some ChartContent` on both: without it a mark chain on the
-    // current SDK can silently resolve to `Chart3DContent` and drop its
-    // modifiers. This has cost this repo two CI failures — it is a known trap,
-    // not a precaution.
+    // Explicit `some ChartContent` on every builder: without it a mark chain on
+    // the current SDK can silently resolve to `Chart3DContent` and drop its
+    // modifiers. This has cost this repo two CI failures — a known trap.
     @ChartContentBuilder private var bands: some ChartContent {
         ForEach(rows) { row in
             AreaMark(x: .value("Date", row.date),
@@ -190,13 +184,28 @@ struct BodyCompositionTrendChart: View {
         }
     }
 
-    @ChartContentBuilder private var waterMarks: some ChartContent {
-        ForEach(waterLine) { entry in
-            LineMark(x: .value("Date", entry.date),
-                     y: .value("Water", entry.kilograms),
-                     series: .value("Series", "water"))
-                .foregroundStyle(Theme.metricColor(.bodyWaterPercentage, slots: slots))
-                .lineStyle(StrokeStyle(lineWidth: 1.5))
+    /// Where the muscle/bone division was borrowed from a neighbouring weigh-in,
+    /// washed out so it reads as less certain than the measured stretches.
+    ///
+    /// A scrim over the bands rather than a second set of bands drawn at lower
+    /// opacity: a stacked area cannot vary opacity along its own length, and the
+    /// alternative — `AreaMark(x:yStart:yEnd:)` — is the filled-band construction
+    /// this repo still carries as an unverified SDK hazard. `RectangleMark` with
+    /// an x-range is what `SleepOnsetStripChart` already uses safely.
+    @ChartContentBuilder private var estimatedScrim: some ChartContent {
+        ForEach(estimatedSpans) { span in
+            RectangleMark(xStart: .value("From", span.start),
+                          xEnd: .value("To", span.end))
+                .foregroundStyle(Theme.cardScrim.opacity(0.55))
         }
+    }
+}
+
+private extension BodyCompositionTrendChart.EstimatedSpan {
+    /// A run of estimated points, widened to the measured weigh-ins either side
+    /// so the shading covers the whole stretch the inference is carrying.
+    init(date points: [BodyCompositionSplit.Dated], from: Int, to: Int) {
+        self.start = points[Swift.max(0, from - 1)].date
+        self.end = points[Swift.min(points.count - 1, to)].date
     }
 }

@@ -331,8 +331,8 @@ the place to look.
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :175
-  - `ConfidenceBadge` :191
+  - `Card` :248
+  - `ConfidenceBadge` :264
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :269

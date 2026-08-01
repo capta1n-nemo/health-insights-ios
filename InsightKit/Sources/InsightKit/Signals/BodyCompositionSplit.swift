@@ -55,6 +55,62 @@ public struct BodyCompositionSplit: Sendable, Equatable {
     /// view can say so rather than drawing a bar that silently doesn't fill.
     public let isPartial: Bool
 
+    /// What a picture of this split actually draws, bottom of the stack first.
+    ///
+    /// Not the same list as `parts`, and the difference is water. `parts` is the
+    /// partition of body mass — water cannot appear in it without counting the
+    /// same kilograms twice. But a *drawing* wants water visible, so the block
+    /// hosting it is cut in two: the watery share and the rest. The sum is
+    /// unchanged, which is the property that lets the same list drive both the
+    /// single bar and the stacked area without either inventing mass.
+    ///
+    /// Shared rather than derived twice: the bar and the trend chart drawing
+    /// different bands for the same body is precisely the kind of disagreement
+    /// this repo keeps extracting types to prevent.
+    public struct Band: Sendable, Equatable, Identifiable {
+        /// What the band *is*, so a palette can colour it by substance rather
+        /// than by an arbitrary hue slot.
+        public enum Kind: String, Sendable, Equatable, CaseIterable {
+            case fat, muscleWater, muscle, bone, otherLean, lean
+        }
+        public let kind: Kind
+        public let label: String
+        public let kilograms: Double
+        /// Share of total mass, 0…1.
+        public let fraction: Double
+        public var id: String { kind.rawValue }
+    }
+
+    public var bands: [Band] {
+        var out: [Band] = []
+        for part in parts {
+            let kind: Band.Kind
+            switch part.metric {
+            case .bodyFatPercentage: kind = .fat
+            case .muscleMass: kind = .muscle
+            case .boneMass: kind = .bone
+            case .leanBodyMass: kind = part.label == "Lean" ? .lean : .otherLean
+            default: kind = .otherLean
+            }
+            // The block holding the water is cut into its watery share and the
+            // rest, in that order, so water sits against the fat below it.
+            if let water, water.host == part.metric, water.kilograms > 0 {
+                let wet = Swift.min(water.kilograms, part.kilograms)
+                let dry = part.kilograms - wet
+                out.append(Band(kind: .muscleWater, label: "\(part.label) · water",
+                                kilograms: wet, fraction: wet / total))
+                if dry > 0.05 {
+                    out.append(Band(kind: kind, label: part.label,
+                                    kilograms: dry, fraction: dry / total))
+                }
+            } else {
+                out.append(Band(kind: kind, label: part.label,
+                                kilograms: part.kilograms, fraction: part.fraction))
+            }
+        }
+        return out
+    }
+
     /// Build the split, or `nil` when the scale hasn't reported enough for one
     /// to be honest.
     ///
@@ -176,6 +232,10 @@ public struct BodyCompositionSplit: Sendable, Equatable {
     public struct Dated: Sendable, Equatable, Identifiable {
         public let date: Date
         public let split: BodyCompositionSplit
+        /// The lean subdivision on this day was inferred from a neighbouring
+        /// weigh-in rather than measured. The bar is real; how it divides
+        /// between muscle and bone is an estimate, and must be drawn as one.
+        public let isEstimated: Bool
         public var id: Date { date }
     }
 
@@ -186,22 +246,98 @@ public struct BodyCompositionSplit: Sendable, Equatable {
         public let finerSplitBegins: Date?
     }
 
+    /// Every weigh-in in the history, on a **consistent set of bands**.
+    ///
+    /// ## The defect this exists to fix
+    ///
+    /// The first version gave every day the finest split its own readings
+    /// supported, which was honest and drew a broken chart. The scale logs a
+    /// weight far more often than a full composition, so band membership changed
+    /// from point to point — `[Fat, Muscle, Bone]` on Monday, `[Fat, Lean]` on
+    /// Wednesday — and a stacked area whose series vanishes at one x collapses
+    /// that band to zero and back. The result was a row of notches, which is what
+    /// "missing data breaks the graph" looks like.
+    ///
+    /// So a day that measured its lean mass but not the muscle/bone division now
+    /// borrows the division from the nearest day that did, and is flagged
+    /// `isEstimated` so the chart can draw it as the inference it is. The
+    /// *quantities* are never invented — total, fat and lean are all measured on
+    /// that day. Only the ratio splitting lean is borrowed, and only when some
+    /// day in the history actually measured one.
     public static func series(samples: [HealthMetricSample],
                               calendar: Calendar = .current) -> Series {
         let byDay = Dictionary(grouping: samples) { calendar.startOfDay(for: $0.start) }
-        let points = byDay.keys.sorted().compactMap { day -> Dated? in
+        let measured = byDay.keys.sorted().compactMap { day -> Dated? in
             guard let split = from(samples: byDay[day] ?? []) else { return nil }
-            return Dated(date: day, split: split)
+            return Dated(date: day, split: split, isEstimated: false)
         }
-        // Only worth reporting when the window actually contains both
-        // resolutions, otherwise the caption would explain a transition the
-        // reader cannot see.
-        let isFine = { (point: Dated) in
+        let hasMuscle = { (point: Dated) in
             point.split.parts.contains { $0.metric == .muscleMass }
         }
+        // Nothing in the whole history divides lean, so there is no ratio to
+        // borrow and nothing to estimate — every day keeps its own coarse split.
+        guard measured.contains(where: hasMuscle) else {
+            return Series(points: measured, finerSplitBegins: nil)
+        }
+
+        let points = measured.map { point -> Dated in
+            guard !hasMuscle(point) else { return point }
+            // The nearest day that did measure the division. Nearest rather than
+            // previous, so the first weigh-ins of a history are estimated from
+            // the scale that came later rather than left as notches.
+            guard let donor = measured
+                    .filter(hasMuscle)
+                    .min(by: { abs($0.date.timeIntervalSince(point.date))
+                             < abs($1.date.timeIntervalSince(point.date)) }),
+                  let estimated = point.split.subdivided(like: donor.split)
+            else { return point }
+            return Dated(date: point.date, split: estimated, isEstimated: true)
+        }
+
         return Series(points: points,
-                      finerSplitBegins: points.contains { !isFine($0) }
-                        ? points.first(where: isFine)?.date
+                      finerSplitBegins: points.contains { $0.isEstimated }
+                        ? points.first(where: { !$0.isEstimated && hasMuscle($0) })?.date
                         : nil)
+    }
+
+    /// This split's lean block divided in the same proportions as `donor`'s.
+    ///
+    /// Returns `nil` when there is no undivided lean block to divide, or when the
+    /// donor has no division to lend — in both cases the caller keeps what it
+    /// had rather than receiving something invented.
+    func subdivided(like donor: BodyCompositionSplit) -> BodyCompositionSplit? {
+        guard let lean = parts.first(where: { $0.metric == .leanBodyMass }) else { return nil }
+        let donorLean = donor.parts
+            .filter { $0.metric != .bodyFatPercentage }
+            .reduce(0) { $0 + $1.kilograms }
+        guard donorLean > 0 else { return nil }
+
+        var rebuilt = parts.filter { $0.metric != .leanBodyMass }
+        for donorPart in donor.parts where donorPart.metric != .bodyFatPercentage {
+            let share = donorPart.kilograms / donorLean
+            let kilograms = lean.kilograms * share
+            rebuilt.append(Part(metric: donorPart.metric, label: donorPart.label,
+                                kilograms: kilograms, fraction: kilograms / total))
+        }
+        // Keep the drawing order the donor established, so the bands stack the
+        // same way on every point and the chart cannot shuffle mid-series.
+        let order = donor.parts.map(\.metric)
+        rebuilt.sort { (order.firstIndex(of: $0.metric) ?? .max)
+                     < (order.firstIndex(of: $1.metric) ?? .max) }
+
+        let host = rebuilt.first { $0.metric == .muscleMass }
+            ?? rebuilt.first { $0.metric == .leanBodyMass }
+        return BodyCompositionSplit(
+            total: total,
+            parts: rebuilt,
+            waterPercentage: waterPercentage,
+            water: water.flatMap { existing in
+                host.map { host in
+                    WaterInset(kilograms: existing.kilograms, host: host.metric,
+                               fractionOfHost: Swift.min(1, existing.kilograms / host.kilograms),
+                               exceedsHost: existing.kilograms > host.kilograms)
+                }
+            },
+            isPartial: isPartial)
     }
 }

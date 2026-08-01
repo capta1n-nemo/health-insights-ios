@@ -532,17 +532,22 @@ struct InsightDetailView: View {
     /// numbers and no picture of the thing they jointly describe. The arithmetic
     /// is `BodyCompositionSplit` in InsightKit, where it is tested; this only
     /// draws it.
-    /// Hues for every band that can appear, water included, resolved once so the
-    /// bar, the legend and the trend chart cannot disagree about a colour.
-    private var compositionSlots: [MetricType: Int] {
-        MetricPalette.slots(for: [.bodyFatPercentage, .muscleMass, .boneMass,
-                                  .leanBodyMass, .bodyWaterPercentage])
+    /// Which substance a `Part` is, for the semantic palette. The legend still
+    /// lists `parts` (the true partition of body mass) while the bar stacks
+    /// `bands` (the same partition with the water share cut out of its host), so
+    /// only the legend needs this.
+    private func kind(of part: BodyCompositionSplit.Part) -> BodyCompositionSplit.Band.Kind {
+        switch part.metric {
+        case .bodyFatPercentage: return .fat
+        case .muscleMass: return .muscle
+        case .boneMass: return .bone
+        case .leanBodyMass: return part.label == "Lean" ? .lean : .otherLean
+        default: return .otherLean
+        }
     }
 
     @ViewBuilder private var bodyCompositionSplitCard: some View {
         if let split = BodyCompositionSplit.from(samples: model.samples) {
-            let slots = compositionSlots
-            let waterTint = Theme.metricColor(.bodyWaterPercentage, slots: slots)
             Card {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
@@ -552,24 +557,16 @@ struct InsightDetailView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
 
+                    // The same `bands` the trend chart stacks, so the bar and the
+                    // chart below it cannot draw the same body differently.
                     GeometryReader { geometry in
                         HStack(spacing: 1.5) {
-                            ForEach(split.parts, id: \.metric) { part in
-                                let width = max(2, (geometry.size.width - 4.5) * part.fraction)
+                            ForEach(split.bands) { band in
                                 Rectangle()
-                                    .fill(Theme.metricColor(part.metric, slots: slots))
-                                    .frame(width: width)
-                                    // Water drawn *inside* its host rather than
-                                    // beside it: a block of its own would count
-                                    // the same kilograms twice, once as muscle
-                                    // and again as water.
-                                    .overlay(alignment: .leading) {
-                                        if let water = split.water, water.host == part.metric {
-                                            Rectangle()
-                                                .fill(waterTint.opacity(0.55))
-                                                .frame(width: width * water.fractionOfHost)
-                                        }
-                                    }
+                                    .fill(Theme.compositionColour(band.kind))
+                                    .frame(width: max(2, (geometry.size.width
+                                                          - 1.5 * Double(split.bands.count - 1))
+                                                         * band.fraction))
                             }
                         }
                         .clipShape(Capsule())
@@ -580,7 +577,7 @@ struct InsightDetailView: View {
                         VStack(spacing: 3) {
                             HStack(spacing: 8) {
                                 Circle()
-                                    .fill(Theme.metricColor(part.metric, slots: slots))
+                                    .fill(Theme.compositionColour(kind(of: part)))
                                     .frame(width: 8, height: 8)
                                 Text(part.label).font(.subheadline)
                                 Spacer()
@@ -599,7 +596,7 @@ struct InsightDetailView: View {
                                     Image(systemName: "arrow.turn.down.right")
                                         .font(.system(size: 8))
                                         .foregroundStyle(.secondary)
-                                    Circle().fill(waterTint.opacity(0.55))
+                                    Circle().fill(Theme.compositionMuscleWater)
                                         .frame(width: 6, height: 6)
                                     Text("of which water").font(.caption)
                                         .foregroundStyle(.secondary)

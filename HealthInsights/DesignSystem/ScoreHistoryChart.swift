@@ -171,11 +171,18 @@ struct ScoreHistoryChart: View {
     ///
     /// Under the line rather than over it, and at low opacity: the fill is the
     /// context, the line is still the measurement.
+    /// The fill's stops are computed from the highest score on screen, because
+    /// the gradient resolves against the filled shape's own bounding box rather
+    /// than the plot area. Passing 100 instead — which is what the first version
+    /// effectively did — squeezes the whole green-amber-red ramp into whatever
+    /// height the data happens to reach, so a card scoring 15 drew a green cap
+    /// over an amber middle at fifteen points. See `Theme.scoreFill`.
     @ChartContentBuilder
     private func areaMarks(_ visible: [ScorePoint]) -> some ChartContent {
+        let peak = visible.map(\.score).max() ?? 100
         ForEach(visible) { p in
             AreaMark(x: .value("Day", p.date), y: .value("Score", p.score))
-                .foregroundStyle(Theme.scoreFill())
+                .foregroundStyle(Theme.scoreFill(peak: peak))
                 .interpolationMethod(.linear)
         }
     }

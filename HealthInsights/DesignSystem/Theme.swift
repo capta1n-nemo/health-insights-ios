@@ -51,17 +51,90 @@ enum Theme {
     /// instead, the ordering still holds — green stays high and red stays low —
     /// but the thresholds compress toward the highest score on screen, and the
     /// fix is to compute these locations against that maximum rather than 100.
-    static func scoreFill(opacity: Double = 0.30) -> LinearGradient {
-        // location 0 is the top of the plot, i.e. a score of 100.
-        func location(_ score: Double) -> Double { 1 - score / 100 }
-        return LinearGradient(
-            stops: [
-                .init(color: good.opacity(opacity), location: 0),
-                .init(color: good.opacity(opacity), location: location(scoreGoodFloor)),
-                .init(color: warn.opacity(opacity), location: location(scoreWarnFloor)),
-                .init(color: bad.opacity(opacity * 0.75), location: 1),
-            ],
-            startPoint: .top, endPoint: .bottom)
+    /// - Parameter peak: the highest score the filled shape reaches.
+    ///
+    /// **The gradient resolves against the mark's own bounding box, not the plot
+    /// area.** That was the open question when this shipped and the phone
+    /// answered it: a card scoring 15 drew the full green-amber-red ramp squeezed
+    /// into the bottom sixth of the chart, because the shape it was filling only
+    /// spanned 0–15. So the stops are computed against `peak` — the top of the
+    /// shape — rather than against 100.
+    ///
+    /// The consequence worth stating: a chart that never rises above 45 is
+    /// entirely red, which is the correct reading and the one the previous
+    /// version could not produce.
+    static func scoreFill(peak: Double, opacity: Double = 0.30) -> LinearGradient {
+        let top = Swift.max(peak, 1)          // never divide by zero
+        // location 0 is the top of the filled shape, i.e. a score of `top`.
+        func location(_ score: Double) -> Double {
+            Swift.max(0, Swift.min(1, (top - score) / top))
+        }
+        var stops: [Gradient.Stop] = []
+        if top > scoreGoodFloor {
+            stops.append(.init(color: good.opacity(opacity), location: 0))
+            stops.append(.init(color: good.opacity(opacity), location: location(scoreGoodFloor)))
+        }
+        if top > scoreWarnFloor {
+            if stops.isEmpty {
+                stops.append(.init(color: warn.opacity(opacity), location: 0))
+            }
+            stops.append(.init(color: warn.opacity(opacity), location: location(scoreWarnFloor)))
+        }
+        if stops.isEmpty {
+            // Never clears the amber floor, so there is nothing here but red.
+            stops.append(.init(color: bad.opacity(opacity), location: 0))
+        }
+        stops.append(.init(color: bad.opacity(opacity), location: 1))
+        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+    }
+
+    // MARK: - Body composition
+    //
+    // A palette of its own, and the one place in this app where hue is *not*
+    // identity. Everywhere else a colour says "which signal is this" and is
+    // assigned by `MetricType.colourSlot` for collision-safety alone — which is
+    // why the first version of this chart drew fat green, muscle red and bone
+    // blue. Those are five perfectly distinguishable hues that say nothing, and
+    // on a picture of what a body is *made of* the reader already knows what
+    // colour fat and bone are. Here the substance names the colour.
+    //
+    // Distinguishability is not lost by doing so: the bands are stacked and
+    // labelled, and the two reds are separated by both lightness and temperature.
+
+    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(rgb: dark) : UIColor(rgb: light) })
+    }
+
+    /// Adipose — warm amber.
+    static let compositionFat = adaptive(light: 0xE0952F, dark: 0xE8A64B)
+    /// Muscle that is not water — deep red.
+    static let compositionMuscle = adaptive(light: 0xB23A3A, dark: 0xC44E4E)
+    /// The water *within* muscle. Same family, cooled toward blue, so it reads as
+    /// part of the muscle band rather than beside it — which is the truth, and
+    /// why it can never be its own block.
+    static let compositionMuscleWater = adaptive(light: 0x8E5470, dark: 0xA36A87)
+    /// Bone — pale ivory, deepened just enough to hold an edge on a light card.
+    static let compositionBone = adaptive(light: 0xD9C9A3, dark: 0xBFAE86)
+    /// Lean mass before the scale began separating muscle from bone.
+    static let compositionLean = adaptive(light: 0xB5665C, dark: 0xC47C72)
+    /// Lean tissue the scale measured but did not attribute.
+    static let compositionOtherLean = adaptive(light: 0xC98F8F, dark: 0xD4A3A3)
+
+    /// The card's own background, for washing out a stretch of chart that is
+    /// inferred rather than measured. Not `.white`, which would be a stain in
+    /// dark mode.
+    static let cardScrim = adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
+
+    static func compositionColour(_ kind: BodyCompositionSplit.Band.Kind) -> Color {
+        switch kind {
+        case .fat: return compositionFat
+        case .muscleWater: return compositionMuscleWater
+        case .muscle: return compositionMuscle
+        case .bone: return compositionBone
+        case .otherLean: return compositionOtherLean
+        case .lean: return compositionLean
+        }
     }
 
     static func color(for confidence: InsightConfidence) -> Color {
