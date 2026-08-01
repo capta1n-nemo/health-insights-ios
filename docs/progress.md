@@ -465,7 +465,10 @@ answerable rather than guessable.
 - [ ] **Heart Health** could also carry the percentile standings it absorbed,
       which it currently states only as sentences.
 - [ ] **Body Composition** — the **"view & add" scan entry** the user asked for
-      (a fourth `ContributionRoute`). The composition split half is done, above.
+      (a fourth `ContributionRoute`). The composition split half is done, above,
+      and now carries a stacked-area history (`BodyCompositionTrendChart`) with a
+      per-band change row, an axis fitted to the window's peak weight, and water
+      drawn as a diagonal hatch over the muscle band.
 - [ ] **Readiness** — a z-score strip over the vitals it now scans.
 - [ ] The risk card and Fitness both compute projections nothing draws.
 - [ ] The two chrome rules — caveat footnotes and header trailing stats —
@@ -519,6 +522,38 @@ answerable rather than guessable.
       and whose own doc comment had named the duration series as doing this
       wrong. **After a refresh, expect the sleep median to rise and the 0.01 h
       and 2% floors to disappear.**
+
+- [x] **A scrub line on every chart** (`4ba0c91`, installed). Only the energy
+      curve had one. Added once inside `ScrollableMetricChart`, which seven charts
+      wrap, plus the two standalone charts — `SleepOnsetStripChart` and
+      `BodyCompositionTrendChart` — which also gained the readouts they had no way
+      to show.
+- [x] **Score history filled and graded by its band** (`ff0a612`, installed).
+      Green high, amber middle, red low. `Theme.scoreFill(peak:)` takes the peak
+      because a Swift Charts gradient resolves against the mark's bounding box,
+      not the plot area — a card scoring 15 drew the whole ramp inside fifteen
+      points. `ScoreComparisonChart` is deliberately left as lines: it overlays
+      several scores each with its own tint, and one shared fill would destroy the
+      distinction it exists to draw.
+- [x] **Rebuild data from providers** (`3f3d3a1`, installed), in Settings ▸
+      Troubleshooting. The cache-merge keeps a silent source's stale samples
+      forever; this is the only way to force a re-parse, and the only way to be
+      certain a parser fix took effect.
+- [x] **`refs/ci/errors/<sha>` + `scripts/ci-errors.sh`** (`e9188c2`). The
+      roadmap's top open item. `app-build` greps its own log and pushes the
+      failing lines as a git ref; reading why CI went red is now a few hundred
+      bytes instead of ~40 K tokens of build-step noise.
+- [ ] **On the phone, the sleep fix proved from data** — pull to refresh (or
+      Settings ▸ Troubleshooting ▸ **Rebuild data from providers**, which is
+      stronger), then export the inventory. Three things settle at once: whether
+      `sleepDurationHours`' median rises and its 0.01 h floor disappears, whether
+      `sleepEfficiency`'s 2% floor goes, and — from the **new per-source
+      breakdown** — whether `restingHeartRate`'s 119 was ever Oura's.
+- [ ] **On the phone, the Body Composition card after the hatch change**
+      (`df5140a`). `ImagePaint` inside a Swift Charts `AreaMark` compiles, but
+      whether Charts tiles it as SwiftUI does is device-only. If the chart's water
+      region renders flat or oddly scaled while the bar looks right, that is the
+      cause, and the fix is to draw the chart's hatch as a clipped overlay.
 
 ## Next
 
@@ -926,9 +961,10 @@ recalled.
       dense with private state.
 
 ### Charts
-- [ ] Filled `AreaMark` min/max bands (currently shipped as outlined
-      `LineMark` pairs — a deliberate, pre-approved fallback for a Swift Charts
-      SDK hazard; revisit only with a dedicated compile-spike).
+- [x] ~~Filled `AreaMark` min/max bands~~ — **done 2026-08-01.**
+      `AreaMark(x:yStart:yEnd:)` ships in `BodyCompositionTrendChart` as the water
+      film and draws correctly. The overload takes no `stacking:` argument, which
+      is a compile error rather than a silent one. See the `add-chart` skill.
 
 ### On-device ML
 - [ ] Core ML personal anomaly detection once enough history exists.

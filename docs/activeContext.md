@@ -30,48 +30,89 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The second-export session (latest).** The user brought a fresh inventory to
-build the `docs/data-opportunities.md` list from. It was not usable for that yet,
-and the reason is the session:
+**The charts-on-the-phone session (latest).** Fifteen pushes, all installed. It
+began as "here is a fresh inventory" and became a long iterate-on-the-phone loop
+over the Body Composition card. What it produced, and what it cost, are both
+worth reading before touching a chart here.
 
-- **The export could not settle the question it was built to settle.** The nap
-  fix was to be proved by `sleepDurationHours`' median rising from 5.62 h and
-  `restingHeartRate`'s max falling from 119. The new export reads **5.65 h** and
-  **119** — unmoved. But `restingHeartRate` has three sources and the report
-  gave one merged distribution, so 119 named nobody and the fix could be neither
-  confirmed nor refuted. `DataInventory` now emits a per-source N/first/last/
-  min/median/max for every multi-source signal. **Re-export before concluding
-  anything about the nap fix.**
-- **And a second cause of the same symptom was still live.**
+### The two data defects, and how they were found
+
+- **A night crossing midnight was counted as two.**
   `HealthKitService.fetchSleep` keyed every nightly figure on
-  `Calendar.startOfDay(for: segment.startDate)`. Apple Health writes a night as
-  a run of stage segments, so the pre-midnight ones were filed under one day and
+  `Calendar.startOfDay(for: segment.startDate)`. Apple Health writes a night as a
+  run of stage segments, so the pre-midnight ones were filed under one day and
   the rest under the next: one night became two, the smaller a sliver. That is
   the export's `sleepDurationHours` **min of 0.01 h**, and — efficiency having
-  split numerator and denominator independently — its **2% minimum**, which is
-  also the only reason the old code needed to clamp at 100. It further dated
-  Apple Health a day out from Oura, which stamps a night at the day it *ends*;
-  `bucketStatistic` averages same-day samples, so a real night from one source
-  was averaged with a different night from the other. Same "7.5 h reported as
-  4 h" shape as the nap bug, outliving it.
+  split its numerator and denominator independently — its **2% minimum** too. It
+  also dated Apple Health a day out from Oura, which stamps a night at the day it
+  *ends*, and `bucketStatistic` averages same-day samples. Same "7.5 h reported
+  as 4 h" shape as the nap bug, from a second cause that outlived it.
+  Now `SleepNights` in InsightKit, 14 tests, keyed on `SleepOnset.night(of:)`.
+  **The fix was one scroll from the bug, in a comment that named it** —
+  `SleepOnset.night(of:)` said "grouping by calendar day is what the duration
+  series already does and it is wrong", written by the session that fixed the
+  timestamp path and left the duration path alone.
+- **The export could not settle the question it was built for.** The nap fix was
+  to be proved by `restingHeartRate`'s max falling from 119, but three sources
+  feed that metric and the report gave one merged distribution, so 119 named
+  nobody. `DataInventory` now emits per-source N/first/last/min/median/max for
+  every multi-source signal. **Still unproven — ask for a fresh export.**
 
-Now `SleepNights` in InsightKit, 14 tests, keyed on `SleepOnset.night(of:)`.
+### What the phone now has that it did not
 
-Three things worth carrying:
+- **Settings ▸ Troubleshooting ▸ Rebuild data from providers.** Pull-to-refresh
+  *merges*; the cache-merge keeps the samples of any source that returned nothing,
+  so a provider that quietly fails to sync serves stale values forever and no
+  amount of pulling dislodges them. "Refresh" and "replace" were different
+  requests and only the first had a gesture. Manual entries, grounding, substance
+  logs and feedback are SwiftData and untouched.
+- **Phase 2 is done**: all nine cards have a bespoke section. Heart Health and
+  Readiness share "How this is weighted" (drawn from `contributors`' renormalised
+  weight — no new type, no model change, exactly as the roadmap predicted); Body
+  Composition got "What you're made of" plus a stacked-area history.
+- **A scrub line on every chart.** Seven charts wrap `ScrollableMetricChart`, so
+  drawing it there covered all seven at once; only the two standalone charts
+  needed their own.
+- **Score history is filled and graded by band.**
 
-- **The fix was one scroll from the bug, in a comment that named it.**
-  `SleepOnset.night(of:)` says *"Grouping by calendar day is what the duration
-  series already does and it is wrong for a timestamp"* — written by the session
-  that fixed the timestamp path and left the duration path alone, having
-  correctly diagnosed it in passing. **When a comment explains why the code
-  beside it is wrong, check whether the same reason reaches further.**
-- **A measurement artefact can survive the fix that was aimed at it**, because
-  two causes produce one symptom. The nap fix was correct, deployed and
-  installed; the number it was supposed to move did not move, and the tempting
-  reading was that the fix had failed. It hadn't.
+### Five chart lessons, in cost order — read these before touching a chart
+
+1. **A Swift Charts gradient resolves against the mark's own bounding box, not
+   the plot area.** A card scoring 15 drew the full green-amber-red ramp squeezed
+   into the bottom sixth of the chart. `Theme.scoreFill(peak:)` takes the peak for
+   this reason.
+2. **A stacked area whose series is absent over a stretch still reserves a
+   stacked offset for it**, interpolated from its first real value, while its
+   polygon starts only where its data does. The two disagree and the disagreement
+   is drawn — a white wedge widening to exactly the size of the first reading.
+   **Give every series a value at every x, zero where the band is absent.**
+3. **Band membership must not vary point to point.** Giving each day the finest
+   split its own readings supported was honest and drew a row of notches. A day
+   missing the muscle/bone division now borrows the ratio from the nearest day
+   that measured one and is flagged `isEstimated`.
+4. **A translucent overlay cannot make blue over red look blue.** Five attempts
+   at hue and opacity all landed on plum, because red mixed with blue *is* purple
+   — colour arithmetic, not a tuning problem. The measured composite was
+   rgb(126, 88, 121): red and blue near-equal, green suppressed. **A hatch never
+   mixes**: every pixel is one colour or the other. `Theme.waterHatch`.
+5. **Measure the pixel, don't pick the hue.** Four of this session's eight rework
+   commits are one visual iterated by eye. One measurement found the cause in a
+   single step. Same shape as the launch-screen tuning in session 11, which is
+   already in the ledger as *tune a visual against opinion instead of
+   measurement*.
+
+### Three things to carry from the first half of the same session
+
+- **A measurement artefact can survive the fix aimed at it, because two causes
+  produce one symptom.** The Oura nap fix was correct, deployed and installed;
+  the number it was meant to move did not move, and the tempting reading was that
+  the fix had failed. It hadn't — a second cause was still live.
 - **An instrument that cannot attribute cannot settle anything.** The export was
   built to end "we don't have X" arguments and then merged away the one
-  distinction the argument needed. Per-source stats retire the category.
+  distinction the argument needed.
+- **"Refresh" and "replace" are different requests.** Only the first had a
+  gesture, and the cache-merge means a silently-failing provider serves stale
+  values forever. Now Settings ▸ Troubleshooting ▸ Rebuild data from providers.
 
 **The data-export session (previous).** The export built last session was used for
 the first time, and it immediately found **two defects in signals the app
@@ -428,10 +469,12 @@ three fresh complaints. The findings from that half:
   the user's own developer credentials per provider and cannot be tested from
   here at all. Same for the VisionKit scanner and ECG import — device-only
   surfaces with no test path.
-- **Filled `AreaMark` min/max bands** still want a dedicated compile-spike
-  against the SDK hazard. Note that `SubstanceLoadChart` and now
-  `EnergyCurveChart` both use a *single-series* `AreaMark` safely; the hazard was
-  always about two-series filled bands.
+- ~~**Filled `AreaMark` min/max bands** want a compile spike.~~ **Resolved
+  2026-08-01**: `BodyCompositionTrendChart` ships `AreaMark(x:yStart:yEnd:)` for
+  the water film and it draws correctly. The one real catch is that the overload
+  takes **no `stacking:` argument** — an absolute band between two heights is
+  inherently unstacked — which is a compile error, not a silent one. Recorded in
+  the `add-chart` skill.
 - **Oura's ~4–6 months of history** is still unexplained. Offered, not taken up.
 - **The LiDAR body scan** is still open by request — explicitly a roadmap note
   rather than a build, and scoped in `docs/progress.md`. The app-launch loading
@@ -439,12 +482,15 @@ three fresh complaints. The findings from that half:
 - **The open efficiency-roadmap items are now these** — the two this line used to
   name (`symbol-index.md` as a reflex, a session-start checklist skill) were both
   built sessions ago as `scripts/where.sh` and `.claude/skills/session-start/`,
-  and this bullet had gone stale claiming otherwise. Currently open: a
-  build-environment parity check between CI and the user's Mac (the top item, and
-  the one that cost four deploys); never `git add -A` inside a canary; the
-  false-premise guard category, which may stay human; and — new this session — a
-  *"blocked on a decision" note should carry the measurement that proves the
-  tradeoff is real*. See `docs/efficiency-log.md`, which is the authority.
+  and this bullet had gone stale claiming otherwise. **Also now closed:** reading
+  a red CI cheaply, built 2026-08-01 as `refs/ci/errors/<sha>` +
+  `scripts/ci-errors.sh`. Currently open: a build-environment parity check
+  between CI and the user's Mac (the top item, and the one that cost four
+  deploys); *read the composited pixel before choosing another colour* (new, and
+  the most expensive item of session 14); never `git add -A` inside a canary; the
+  false-premise guard category, which may stay human; and a *"blocked on a
+  decision" note should carry the measurement that proves the tradeoff is real*.
+  See `docs/efficiency-log.md`, which is the authority.
 
 ## Two regressions I shipped, and what they cost
 
@@ -865,7 +911,8 @@ closed from a sandbox. What remains falls into three groups.
 - `EnergyModel.exertionHours` weights every heart-rate sample equally. Crude, and
   says so; real inter-sample intervals need a decision about what a gap means.
 - `AppModel.swift` and `InsightDetailView.swift` stay unsplit — see above.
-- Filled `AreaMark` min/max bands still want a compile spike.
+- ~~Filled `AreaMark` min/max bands still want a compile spike.~~ Done — see
+  above; `AreaMark(x:yStart:yEnd:)` ships in `BodyCompositionTrendChart`.
 - `.sleepOnset` resolves against `Calendar.current`, not the offset the provider
   stamped. Right at home, wrong on the second night of a trip. Both HealthKit and
   Oura behave the same way, so the sources at least agree with each other.

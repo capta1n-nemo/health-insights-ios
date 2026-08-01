@@ -105,3 +105,46 @@ and let it read as applying to both.
 
 Clinical bounds for 17 vitals already exist in `VitalSignsInsight.Spec.specs`
 (`hardLow`/`hardHigh`), currently `internal`.
+
+## 7. Three things only the device can falsify
+
+CI proves the chart *compiles*. It says nothing about what it draws, the app
+target has no test target, and SwiftUI does not exist on Linux — so the phone is
+the only gate for all three of these. Each cost a round trip on 2026-08-01.
+
+⚠️ **A gradient in `foregroundStyle` resolves against the mark's own bounding
+box, not the plot area.** `Theme.scoreFill(peak:)` takes the peak for exactly
+this reason: assuming the plot area drew a full green-amber-red ramp squeezed
+into the bottom sixth of a chart whose card scored 15. If a gradient's stops mean
+anything (bands, thresholds), compute them against the shape's own extent.
+
+⚠️ **A stacked series that is absent over a stretch still reserves a stacked
+offset for it**, interpolated from its first real value, while its polygon starts
+only where its data does. The two disagree and the disagreement is drawn as a
+wedge of background opening between the bands. **Emit a value at every x for
+every series, zero where the band is absent** — a zero-height band draws nothing
+and costs one invisible mark.
+
+⚠️ **`AreaMark(x:yStart:yEnd:)` takes no `stacking:` argument.** An absolute band
+between two heights is inherently unstacked. It is also the min/max-band shape
+this repo carried for months as an unverified hazard; it is now shipping in
+`BodyCompositionTrendChart` and does work.
+
+## 8. When a colour looks wrong, read the pixel before choosing another one
+
+**Sample the composited colour out of the screenshot first.** Two sessions have
+burned multiple rounds tuning a visual by eye — launch-screen density (three
+rounds), water-over-muscle (five) — and both collapsed to a single step the
+moment something was measured.
+
+The water case is the worked example. Four attempts changed the hue or the
+opacity of a translucent blue over a red band and all four came out purple. The
+measurement — rgb(126, 88, 121), red and blue near-equal with green suppressed —
+named the cause immediately: **a translucent blue over red *is* purple.** That is
+colour arithmetic, and no ratio escapes it. The fix had to change the mechanism,
+not the value: a diagonal hatch (`Theme.waterHatch`) never mixes, because every
+pixel is one colour or the other.
+
+The general rule: when a visual fix keeps landing in the same wrong place, check
+whether the mechanism can produce the target at all before choosing another value
+for it.

@@ -136,16 +136,36 @@ that is not yet automated is the next thing to automate.
 | **Tune a visual against opinion instead of measurement** | 1 (3 rounds) | ⬜ open — the method (measure the reference, iterate) is recorded but not tooled |
 | **Assume what data exists by reading the parsers instead of looking at the data** | **3** | ✅ automated — **Settings ▸ Export my data** (2026-08-01, session 13). Fired three times: *"no provider gives us a bedtime"* (session 10 — the field was in every payload, discarded at ingest), *"`dayStrain` is unread because Whoop isn't connected"* (the parser had been emitting it all along; what was missing was a reader), and Oura naps counted as nights. All three were claims about the **code**, stated as claims about the **data**. The export ends the guessing |
 | **A protocol member that should be a requirement but sits only in an extension** | 1 | ✅ `testOverridesSurviveExistentialDispatch`. Callers hold `any InsightModel`; extension-only dispatches statically, so every model silently gets the default and the overrides are dead code **whose own tests still pass**, because those hold the concrete type |
-| **Reach for the GitHub Actions API to read a build failure** | 1 | ⬜ **open** — `ci-status.sh` gives a verdict, not a diagnostic. See roadmap |
+| **Reach for the GitHub Actions API to read a build failure** | **2** | ✅ automated — `refs/ci/errors/<sha>` + `scripts/ci-errors.sh` (2026-08-01, session 14). It fired again first, and cost ~40 K tokens across three calls that never reached the error line; the fix was built in the same session and caught the next three red CIs in one line each |
+| **Tune a visual by eye instead of measuring the pixel** | **2** | ⬜ **open** — the launch-screen density (session 11, 3 rounds) and the water colour over muscle (session 14, 5 rounds). Both dissolved the moment something was *measured*: ink coverage there, the composited rgb here. No mechanical check exists, and the rule is one line — **read the pixel out of the screenshot before choosing the next colour** |
+| **A Swift Charts encoding that only the device can falsify** | **3** | ⬜ open — the `Chart3DContent` overload, the gradient resolving against the mark's bbox rather than the plot area, and `ImagePaint` tiling inside an `AreaMark`. CI proves it compiles and says nothing about what it draws; the app target has no test target and SwiftUI does not exist on Linux |
 | **Fit a bound to the one artefact you happened to observe** | 1 | ⬜ open — no mechanical check. The rule: a bound rejects the *impossible*, never the *alarming*. 119 bpm is a real resting heart rate in AF |
 | **Order-dependence inside a parse loop** | 1 | ⬜ open — the nap guard fixed duration and left sleep onset poisoned because it sat below the bedtime collection. A test per *consumer* of the loop is what caught it |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
 
-### `scripts/ci-logs.sh <sha>` — why it went red, without the 450 KB
+### ✅ `scripts/ci-errors.sh <sha>` — done (session 14)
 
-**The candidate this session earned.** Its single re-derivation cost a
+Built exactly as scoped below, under the name `ci-errors.sh` writing to
+`refs/ci/errors/<sha>`. `ci.yml`'s `app-build` job greps its own log for
+`error:` lines and pushes them as a real file with git plumbing; the script
+fetches and prints it.
+
+**It paid for itself inside the same session.** The re-derivation that earned it
+cost three Actions API calls and ~40 K tokens and never reached the error line —
+the bug was eventually found by re-reading the diff. The next three red CIs were
+each diagnosed from one line and a few hundred bytes:
+
+```
+SleepOnsetStripChart.swift:51:68: error: 'Night' is not a member type of enum 'CircadianConsistencyModel'
+BodyCompositionTrendChart.swift:204:45: error: 'EstimatedSpan' is inaccessible due to 'private' protection level
+BodyCompositionTrendChart.swift:336:21: error: incorrect argument labels in call (have 'x:yStart:yEnd:stacking:', ...)
+```
+
+The original scoping, kept because the argument is the reusable part:
+
+**The candidate session 13 earned.** Its single re-derivation cost a
 453,184-character response to answer "which file failed to compile". The
 prohibition in `CLAUDE.md` is about reading *status* cheaply — `ci-status.sh`
 solved that — and says nothing about reading a *diagnostic*, so there is no
@@ -179,6 +199,16 @@ Ordered by (frequency × cost), cheapest fix first.
       guarantees it rots again; the fix taken was to delete it and point at the
       thing that generates it. Keep counts only where they are recomputed —
       `swift test`, `gen-symbol-index.sh`, this log.
+- [ ] **Read the composited pixel before choosing the next colour.** Two sessions
+      have now burned multiple rounds tuning a visual by eye — launch-screen
+      density (11), water-over-muscle (14) — and both collapsed to one step the
+      moment something was measured. Session 14 spent four pushes cycling hues
+      that were all on the same axis; sampling the screenshot gave
+      rgb(126, 88, 121) and named the cause (a suppressed green channel)
+      immediately. Not fully automatable — the screenshot arrives from the user —
+      but the *first move* on any "that colour is wrong" report should be to read
+      the pixel out of the image, and that belongs in a skill beside the
+      `add-chart` rules rather than in a session narrative.
 - [ ] **Never `git add -A` inside a canary.** A canary that staged everything
       swept an untracked new script into a throwaway commit, and the
       `git reset --hard` that undid the canary deleted the script with it. The
@@ -257,7 +287,54 @@ with guesses.
 | 11 | 2026-07-31 | 12 | **1** | 5 | 1 (named below) | 602 → 634 | `refs/deploy/*` + `deploy-status.sh`; `verify.sh` serial-retry and log retention; "a push is not an install" in `CLAUDE.md` + `ship-to-main`; `LaunchNarration` + `LaunchParticleField` tests (22) | **Worse. The most expensive session recorded** — 6 waste / 12 pushes, plus 4 deploys that installed nothing |
 | 12 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 634 → 644 | `where.sh` answers for members, not just types; `EvaluationMemoTests` (10) pin a cache against its uncached path | **Better, and on every column.** 1 waste / 1 push; green CI and an installed deploy first time |
 | 13 | 2026-07-31/08-01 | 8 | **1** | 1 | 1 (named below) | 644 → 672 | **Settings ▸ Export my data** + `DataInventory`; `ContributionRoute` derived from `requirements` rather than a sixth `InsightID` switch; `MetricType.plausibleRange`; `NapContaminationTests` (12), `ContributionRouteTests` (10), `DataInventoryTests` (10); `add-insight` documents `contributions` | **Better — the best waste ratio recorded.** 3 waste / 8 pushes = 0.375, against a 0.56 baseline. The compounding column is the strongest yet: the export found two real defects in production data the first time it was used |
+| 14 | 2026-08-01 | 15 | **4** | 8 | 2 (named below) | 672 → 724 | **`refs/ci/errors/<sha>` + `ci-errors.sh`** — the roadmap's top open item; `SleepNights` (14 tests) moves night-grouping into InsightKit; `BodyCompositionSplit` (+29 tests); `DataInventory.SourceStat` per-source attribution; `ScrubIndicator` shared by every chart; rebuild-from-providers | **Worse, and the worst ratio recorded** — 14 waste / 15 pushes = 0.93 against a 0.56 baseline. Four of the eight rework commits are one visual iterated by eye; see below |
 
+### Session 14 notes
+
+**Red CI (4), all in the app target, none catchable locally.** `4ba0c91` and
+`e9188c2` (the same break: `Night` is nested in `Output`, misdiagnosed once as a
+`ChartContent` conformance problem), `ff0a612` (a `private` nested type extended
+from file scope), `ac2c62a` (`AreaMark(x:yStart:yEnd:)` takes no `stacking:`).
+Every one is a signature-level error in SwiftUI/Charts code that InsightKit's
+suite cannot reach, because SwiftUI does not exist on Linux. `verify.sh` was
+green before all four.
+
+**Rework (8).** Four are the compile fixes above. **Four are the same visual:**
+the water colour over the muscle band, revised at `b902dbe`, `ac2c62a`,
+`75e02d1` and `df5140a` after `8b013f9` introduced it. That is the headline
+waste of the session and it was self-inflicted — see below.
+
+**Re-derivations (2), named.**
+1. **Reached for the GitHub Actions API to read a build failure.**
+   `CLAUDE.md` says "Never use the GitHub Actions API for this; its smallest
+   response is over 100 K tokens", and this log's own roadmap already carried
+   `ci-logs.sh` as the top open item *with the fix specified*. Three calls, one
+   453 KB response, ~40 K tokens, and the error line never appeared — the bug was
+   found by re-reading the diff instead. The prohibition was read as covering
+   *status* only, which is exactly the gap the roadmap item described.
+2. **Lost the working directory in a shell call.** `cd InsightKit` persisted into
+   a later call and `ls InsightKit/` failed. Ruled in `CLAUDE.md` on 2026-07-31
+   ("absolute paths, always") and listed in the ledger as a two-session repeat;
+   this is the third.
+
+**Why it got worse, in one sentence.** Five attempts at one colour, because each
+one picked a new hue or opacity *by eye* instead of measuring what the composite
+actually was — and when it was finally measured, rgb(126, 88, 121) named the
+cause (red and blue near-equal, green suppressed) in a single step, after which
+the answer was structural rather than chromatic: a hatch never mixes, so it
+cannot go purple.
+
+**The generalisable half.** A translucent overlay of blue on red *is* purple —
+colour arithmetic, not a tuning problem. Four rounds were spent looking for a
+ratio that does not exist. When a visual fix keeps landing in the same wrong
+place, check whether the mechanism can produce the target at all before choosing
+another value for it.
+
+**What made this session expensive is also what it automated.** The single most
+costly item — reading a red CI — is now a git ref and a script, and it was
+exercised three times in the same session it was built. Against that: three
+Swift Charts behaviours were discovered on the device rather than in a test, and
+that category has no mechanical answer while the app target has no test target.
 ### Session 13 notes
 
 Three asks in one session: audit which sections every card renders, then make
