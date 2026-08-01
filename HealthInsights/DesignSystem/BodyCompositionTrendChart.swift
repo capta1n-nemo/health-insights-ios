@@ -327,16 +327,16 @@ struct BodyCompositionTrendChart: View {
 
     /// The water, painted **over** the muscle band rather than carved out of it.
     ///
-    /// `stacking: .unstacked` is essential: this is an absolute band between two
-    /// cumulative heights, not another share to pile on. And the fill is really
-    /// translucent, so the muscle red composites through it rather than being
-    /// replaced by a colour picked to imitate the result.
+    /// The `yStart`/`yEnd` form, which takes no `stacking:` argument because an
+    /// absolute band between two heights is inherently unstacked — it is not
+    /// another share to pile on. And the fill is really translucent, so the
+    /// muscle red composites through it rather than being replaced by a colour
+    /// picked to imitate the result.
     @ChartContentBuilder private var waterFilm: some ChartContent {
         ForEach(waterPoints) { point in
             AreaMark(x: .value("Date", point.date),
                      yStart: .value("From", point.from),
-                     yEnd: .value("To", point.to),
-                     stacking: .unstacked)
+                     yEnd: .value("To", point.to))
                 .foregroundStyle(Theme.compositionWater.opacity(Theme.waterFilmOpacity))
                 .interpolationMethod(.linear)
         }
