@@ -6,7 +6,6 @@ import InsightKit
 /// on the Insights tab.
 struct TodayView: View {
     @Environment(AppModel.self) private var model
-    @State private var groundingKind: GroundingKind?
     @State private var showSubstanceLog = false
 
     private var dailyResults: [InsightResult] {
@@ -21,11 +20,18 @@ struct TodayView: View {
                     suggestionCard
                     LastNightCard()
                     VitalsGlance()
-                    if !model.outstandingGrounding.isEmpty {
-                        GroundingPromptBanner(items: model.outstandingGrounding) { kind in
-                            groundingKind = kind
-                        }
-                    }
+                    // "Improve your insights" used to sit here — a second list
+                    // of the same grounding gaps `SuggestionEngine.unlocks`
+                    // already emits as `.unlockAnInsight`, which reach the
+                    // reader through `suggestionCard` above (the best-founded
+                    // one, dismissible) and "Improve your health" on Insights
+                    // (all of them, with what you dismissed). Two surfaces for
+                    // one set of facts, and only one of them could be dismissed,
+                    // so waving a prompt away on Today left it on Today.
+                    //
+                    // The one thing the banner said that the suggestions did
+                    // not — that a fact was *stale* rather than absent — moved
+                    // into `unlocks` rather than being dropped with it.
                     ForEach(dailyResults, id: \.id) { result in
                         NavigationLink {
                             InsightDetailView(insightID: result.id)
@@ -48,9 +54,6 @@ struct TodayView: View {
                         Label("Log", systemImage: "plus.circle")
                     }
                 }
-            }
-            .sheet(item: $groundingKind) { kind in
-                GroundingSheet(kind: kind)
             }
             .sheet(isPresented: $showSubstanceLog) {
                 SubstanceLogView()

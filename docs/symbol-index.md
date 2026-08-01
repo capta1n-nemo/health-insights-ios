@@ -359,10 +359,10 @@ the place to look.
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :269
-  - `LastNightCard` :149
+  - `InsightCard` :272
+  - `LastNightCard` :152
   - `TodayView` :7
-  - `VitalsGlance` :194
+  - `VitalsGlance` :197
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`
@@ -373,8 +373,6 @@ the place to look.
   - `GroundingDetailView` :15
 - `Features/Grounding/GroundingEntryView.swift`
   - `GroundingEntryView` :6
-- `Features/Grounding/GroundingPromptBanner.swift`
-  - `GroundingPromptBanner` :6
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddSection.swift`

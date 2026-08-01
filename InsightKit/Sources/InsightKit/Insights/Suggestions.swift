@@ -100,7 +100,7 @@ public enum SuggestionEngine {
         out += personalLevers(samples: samples, profile: profile, now: now, calendar: calendar)
         out += overnightCharge(samples: samples, now: now, calendar: calendar)
         out += substanceResponse(events: substanceEvents, samples: samples, now: now)
-        out += unlocks(results: results)
+        out += unlocks(results: results, profile: profile, now: now)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
         // as part of a pattern and once as an isolated fact, reads as two
@@ -310,7 +310,15 @@ public enum SuggestionEngine {
     /// Ranked by how many cards the fact unblocks, so one blood-pressure reading
     /// — which feeds Blood Pressure, Heart Age and Cardiovascular Risk — leads
     /// over an ethnicity field that refines one.
-    static func unlocks(results: [InsightResult]) -> [Suggestion] {
+    ///
+    /// **Missing and stale are worded differently**, and that distinction
+    /// arrived here from the Today banner this replaced: `unmetRequirements` is
+    /// "not satisfied", which is *either* never entered or entered and gone out
+    /// of date. Telling someone to "add your cholesterol" when they added it
+    /// last year reads as the app having lost it.
+    static func unlocks(results: [InsightResult],
+                        profile: UserHealthProfile,
+                        now: Date) -> [Suggestion] {
         var blockedBy: [GroundingKind: (mandatory: Bool, insights: [InsightID])] = [:]
         for result in results {
             for requirement in result.unmetRequirements {
@@ -334,16 +342,43 @@ public enum SuggestionEngine {
             let strength = (entry.mandatory ? 0.6 : 0.2)
                 + (costsAScore ? 0.3 : 0)
                 + Swift.min(0.1, Double(blocked.count) * 0.03)
+            // Unmet with a value on file means the value went out of date —
+            // the same test `requirementStatuses` uses to call it `.stale`.
+            let isStale = profile.input(kind).map { !$0.isFresh(asOf: now) } ?? false
+            let noun = kind.displayName.lowercased()
             return Suggestion(
+                // One id per kind, whichever it is. A dismissal survives the
+                // fact going missing → satisfied → stale only if the suggestion
+                // keeps being made across that, and it does not: `unlocks`
+                // emits nothing while it is satisfied, which is exactly when
+                // `pruneResolvedSuggestions` clears the dismissal.
                 id: "grounding-\(kind.rawValue)",
-                title: "Add your \(kind.displayName.lowercased())",
-                detail: costsAScore
-                    ? "\(names.capitalizedFirst) can't produce a score without it."
-                    : "\(names.capitalizedFirst) would get more accurate with it.",
+                title: isStale ? "Update your \(noun)" : "Add your \(noun)",
+                detail: detail(names: names, costsAScore: costsAScore, isStale: isStale),
                 basis: .unlockAnInsight,
                 insight: blocked.first,
                 metric: nil,
                 strength: Swift.min(1, strength))
+        }
+    }
+
+    /// Four sentences over two independent questions — is it costing a score,
+    /// and is the value absent or merely old. Written out rather than assembled
+    /// from clauses, because "One insight can't produce a score without it. Your
+    /// last one is out of date." is two sentences fighting over which is the
+    /// point.
+    static func detail(names: String, costsAScore: Bool, isStale: Bool) -> String {
+        switch (isStale, costsAScore) {
+        case (false, true):
+            return "\(names.capitalizedFirst) can't produce a score without it."
+        case (false, false):
+            return "\(names.capitalizedFirst) would get more accurate with it."
+        case (true, true):
+            return "Your last one is too old to rely on, and \(names) can't "
+                + "produce a score without a current reading."
+        case (true, false):
+            return "Your last one is out of date — \(names) would get more "
+                + "accurate with a fresh reading."
         }
     }
 

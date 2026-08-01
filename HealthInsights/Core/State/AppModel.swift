@@ -565,9 +565,11 @@ final class AppModel {
         BloodPressureEstimator.calibrationStatus(from: samples)
     }
 
-    var outstandingGrounding: [(requirement: GroundingRequirement, status: RequirementStatus)] {
-        engine.outstandingGrounding(profile: profile)
-    }
+    // `outstandingGrounding` was here, and went with the Today banner that was
+    // its only reader — the same gaps reach the screen as `.unlockAnInsight`
+    // suggestions. `InsightEngine.outstandingGrounding` itself stays: it is the
+    // union across models, it is tested, and it is what `unlocks` is derived
+    // from one step removed.
 
     // MARK: - Sync
 

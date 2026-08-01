@@ -168,10 +168,23 @@ different bodies. Unchanged by the consolidation.
 
 | Surface | Cards, in order | Which insights it lists |
 |---|---|---|
-| **Today** | summary · suggestion · Last night · Vitals glance · grounding banner · 4 daily tiles | `cadence == .daily && isWorthShowing` |
+| **Today** | summary · suggestion · Last night · Vitals glance · 4 daily tiles | `cadence == .daily && isWorthShowing` |
 | **Insights** | "Improve your health" · subtitle · score comparison · 5 trend tiles | `cadence == .trend && isWorthShowing` |
 | **Vitals** | 4 metric groups · Blood pressure · Substances · Other data | rows, not cards |
 | **Settings ▸ Export my data** | inventory (Markdown) · full export (JSON) · browse the unmodelled | the development feedback loop |
+
+**Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
+listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as
+`.unlockAnInsight` — reaching the reader twice, through the dismissible
+`suggestionCard` on Today and the full "Improve your health" list on Insights.
+Two surfaces for one set of facts, and only the suggestion could be dismissed,
+so waving a prompt away on Today left the same prompt on Today.
+
+The one thing the banner said that the suggestions did not — that a fact was
+**stale** rather than absent — moved into `unlocks` rather than going with it.
+`unmetRequirements` is "not satisfied", which covers both, and "add your
+cholesterol" to someone who added it last year reads as the app having lost it.
+`AppModel.outstandingGrounding` went too; the engine's own remains.
 
 ---
 

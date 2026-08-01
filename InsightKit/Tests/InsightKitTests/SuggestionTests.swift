@@ -66,6 +66,50 @@ final class SuggestionTests: XCTestCase {
         XCTAssertTrue(suggestion.detail.contains("can't produce a score"))
     }
 
+    /// The Today banner that used to carry these said "Update" for a fact that
+    /// had gone stale, and this list said "Add your cuff blood pressure reading"
+    /// for both. Removing the banner would have dropped the distinction, so it
+    /// moved here instead — a cuff reading is stale after a fortnight, and
+    /// telling someone to *add* one they took last month reads as the app having
+    /// lost it.
+    func testAStaleFactIsWordedAsAnUpdateRatherThanAnAddition() throws {
+        var profile = UserHealthProfile()
+        profile.set(.init(kind: .cuffSystolic, value: 128,
+                          recordedAt: sugDay(40)))          // fresh for 14 days
+        let results = [result(.cardiovascularRisk, score: nil,
+                              unmet: [requirement(.cuffSystolic, mandatory: true)])]
+
+        let suggestion = try XCTUnwrap(suggestions(results: results, profile: profile).first)
+        XCTAssertTrue(suggestion.title.hasPrefix("Update your"), suggestion.title)
+        XCTAssertTrue(suggestion.detail.contains("too old to rely on"), suggestion.detail)
+        // Same id either way: the dismissal is cleared while the fact is
+        // satisfied, which is the only route from missing to stale.
+        XCTAssertEqual(suggestion.id, "grounding-cuffSystolic")
+    }
+
+    /// The other side of it — a value still inside its window is not unmet at
+    /// all, so no suggestion is made about it in either wording.
+    func testAFreshFactProducesNoUnlockSuggestion() {
+        var profile = UserHealthProfile()
+        profile.set(.init(kind: .cuffSystolic, value: 128, recordedAt: sugDay(1)))
+        // The model decides what is unmet; with a fresh value it reports none.
+        let results = [result(.cardiovascularRisk, score: 61, unmet: [])]
+        XCTAssertTrue(suggestions(results: results, profile: profile)
+            .filter { $0.basis == .unlockAnInsight }.isEmpty)
+    }
+
+    /// A stale fact that only refines a card reads differently again — four
+    /// sentences over two independent questions, and none of them stitched.
+    func testStaleAndRefinementCombineWithoutStitchingTwoSentences() {
+        for costsAScore in [true, false] {
+            let detail = SuggestionEngine.detail(names: "one insight",
+                                                 costsAScore: costsAScore, isStale: true)
+            XCTAssertTrue(detail.lowercased().contains("out of date")
+                          || detail.lowercased().contains("too old"), detail)
+            XCTAssertEqual(detail.filter { $0 == "." }.count, 1, detail)
+        }
+    }
+
     /// One cuff reading feeds three cards; an ethnicity field refines one. The
     /// list should lead with the one that unblocks more.
     func testAFactBlockingMoreCardsRanksHigher() throws {
