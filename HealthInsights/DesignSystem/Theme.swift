@@ -117,17 +117,54 @@ enum Theme {
     /// dominant, which reads as blue over red rather than as purple.
     static let compositionWater = adaptive(light: 0x0FA3DC, dark: 0x3FBFF0)
 
-    /// How opaque the water film is where it lies over muscle.
+    /// Diagonal blue stripes, tiled, for the water over muscle.
     ///
-    /// The film sits on an intact muscle band, so the red beneath still shows
-    /// through and the top of the band stays plainly red — that is what makes it
-    /// read as water *on* muscle rather than as a substance of its own.
+    /// **Stripes because a translucent wash cannot win this.** A partly
+    /// transparent blue *mixes* with the red beneath it, and red mixed with blue
+    /// is purple — that is colour arithmetic, not a tuning problem, which is why
+    /// four attempts at opacity and hue all landed on some flavour of plum. The
+    /// measured composite was rgb(126, 88, 121): red and blue near-equal, green
+    /// suppressed. There is no opacity that moves a mix off that axis.
     ///
-    /// Raised from 0.40, where the red was strong enough through the film to
-    /// pull it to plum. With the cyan-leaning blue above, this is the point at
-    /// which the film reads unambiguously blue while the muscle underneath is
-    /// still doing visible work.
-    static let waterFilmOpacity: Double = 0.65
+    /// A hatch never mixes. Every pixel is either water blue or the muscle red
+    /// under it, both exactly themselves, and the red is plainly visible between
+    /// the stripes — which is what "you can see the underlying red" asks for and
+    /// what no blend can give.
+    ///
+    /// `@MainActor` because the tiles are `UIImage`, which is not `Sendable`;
+    /// they are built once and only ever read from view bodies.
+    @MainActor static func waterHatch(_ scheme: ColorScheme) -> ImagePaint {
+        ImagePaint(image: Image(uiImage: scheme == .dark ? darkHatch : lightHatch),
+                   scale: 1)
+    }
+
+    @MainActor private static let lightHatch = hatchTile(UIColor(rgb: 0x0FA3DC))
+    @MainActor private static let darkHatch = hatchTile(UIColor(rgb: 0x3FBFF0))
+
+    /// One seamlessly tileable square of 45° stripes.
+    ///
+    /// The stripes are the lines `x + y = s`, so the pattern is periodic in
+    /// `x + y` with period `period` — which is exactly what makes a
+    /// `period × period` tile repeat without a seam. Drawing `s` at 0, one and
+    /// two periods covers the whole tile, and the part of a stripe that runs off
+    /// one edge is drawn back on by its neighbour.
+    private static func hatchTile(_ colour: UIColor) -> UIImage {
+        let period: CGFloat = 7
+        // Perpendicular spacing between consecutive stripes is period / √2, so
+        // this is the width that fills half of it — an even blue/red split.
+        let width = 0.5 * period / 2.0.squareRoot()
+        return UIGraphicsImageRenderer(size: CGSize(width: period, height: period))
+            .image { context in
+                let cg = context.cgContext
+                cg.setStrokeColor(colour.cgColor)
+                cg.setLineWidth(width)
+                for step in stride(from: -period, through: period * 2, by: period) {
+                    cg.move(to: CGPoint(x: step + period, y: -period))
+                    cg.addLine(to: CGPoint(x: -period, y: step + period))
+                }
+                cg.strokePath()
+            }
+    }
 
     /// Kept for the `muscleWater` legend case, which now resolves to plain blue:
     /// water is never drawn as a band of its own any more.

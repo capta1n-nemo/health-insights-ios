@@ -15,6 +15,7 @@ struct InsightDetailView: View {
     /// would freeze a selection made before the series finished loading.
     /// Held here so the chart and its legend share one answer.
     @State private var chartSelection: Set<MetricType>?
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Resolved against the data being charted, so `.all` doesn't squash a short
     /// history into a sliver of a decade-wide viewport.
@@ -581,8 +582,7 @@ struct InsightDetailView: View {
                                         if let water = split.water,
                                            kind(ofMetric: water.host) == band.kind {
                                             Rectangle()
-                                                .fill(Theme.compositionWater
-                                                    .opacity(Theme.waterFilmOpacity))
+                                                .fill(Theme.waterHatch(colorScheme))
                                                 .frame(width: max(2, usable * band.fraction)
                                                               * water.fractionOfHost)
                                         }
@@ -638,7 +638,7 @@ struct InsightDetailView: View {
                             .font(.caption2).foregroundStyle(Theme.warn)
                             .fixedSize(horizontal: false, vertical: true)
                     } else if split.water != nil {
-                        Text("The blue is water, laid over the tissue holding it rather than given a block of its own — it's already counted there, and showing it twice would make you heavier than you are. It's a translucent film, so the muscle red shows through and deepens it; the strip of plain red above it is the muscle that isn't water.")
+                        Text("The blue stripes are water, laid over the tissue holding it rather than given a block of its own — it's already counted there, and showing it twice would make you heavier than you are. Striped rather than shaded so the muscle red stays visible between them; the plain red beyond the stripes is the muscle that isn't water.")
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

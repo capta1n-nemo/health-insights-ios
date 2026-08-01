@@ -43,6 +43,8 @@ struct BodyCompositionTrendChart: View {
     let finerSplitBegins: Date?
     var selection: Binding<Date?>?
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var localSelection: Date?
 
     private var selectionBinding: Binding<Date?> { selection ?? $localSelection }
@@ -329,15 +331,18 @@ struct BodyCompositionTrendChart: View {
     ///
     /// The `yStart`/`yEnd` form, which takes no `stacking:` argument because an
     /// absolute band between two heights is inherently unstacked — it is not
-    /// another share to pile on. And the fill is really translucent, so the
-    /// muscle red composites through it rather than being replaced by a colour
-    /// picked to imitate the result.
+    /// another share to pile on.
+    ///
+    /// Filled with a tiled diagonal hatch rather than a translucent colour. A
+    /// wash mixes with the muscle red and blue mixed into red is purple however
+    /// it is tuned; stripes never mix, so the blue stays blue and the red stays
+    /// red between them. See `Theme.waterHatch`.
     @ChartContentBuilder private var waterFilm: some ChartContent {
         ForEach(waterPoints) { point in
             AreaMark(x: .value("Date", point.date),
                      yStart: .value("From", point.from),
                      yEnd: .value("To", point.to))
-                .foregroundStyle(Theme.compositionWater.opacity(Theme.waterFilmOpacity))
+                .foregroundStyle(Theme.waterHatch(colorScheme))
                 .interpolationMethod(.linear)
         }
     }
