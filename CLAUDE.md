@@ -118,8 +118,12 @@ So:
   This is the most frequent way the build breaks; the skill lists all of them.
 - `add-insight` -> the five `InsightID` switches (the docs said three) and the
   two registrations that fail silently.
-- `add-chart` -> the `Chart3DContent` overload hazard, the dash-means-inferred
-  rule, per-chart hue resolution, and gap handling.
+- `add-chart` -> **load this before adding *or reviewing* a chart, and before
+  acting on any "that chart looks wrong" report.** The `Chart3DContent` overload
+  hazard, dash-means-inferred, per-chart hue resolution, gap handling, the three
+  behaviours only the device can falsify, **hatch-never-blend for one quantity
+  drawn over another**, read-the-pixel-before-changing-a-colour, and a review
+  checklist. Every line is a shipped defect.
 
 ## End of Session Protocol
 ### What counts as asking for a handover

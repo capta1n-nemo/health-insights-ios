@@ -527,6 +527,25 @@ reliably return `scope` on the OAuth callback, despite documenting that it does.
 
 ## Recent architectural choices worth knowing
 
+- **One quantity drawn over another is a hatch, never a blend.** This is the
+  standing approach — `Theme.hatch(light:dark:_:)`, worked example in
+  `BodyCompositionTrendChart`. A translucent fill *mixes*, and the mix is a third
+  colour that means nothing and is frequently nowhere near either parent: blue
+  over red is purple at every ratio, because it is colour arithmetic rather than
+  a tuning problem. A hatch keeps both colours because every pixel is one of
+  them. Two corollaries earned the hard way: **draw the host band whole and paint
+  over it** — carving the overlaid share out as its own slice removes the host's
+  colour from that stretch, so nothing reads as underneath and no hue can fix it —
+  and **the overlaid quantity contributes no mass to the stack**, so it wants an
+  `AreaMark(x:yStart:yEnd:)` between two cumulative heights, with the span
+  computed in InsightKit where it is testable.
+- **When a colour looks wrong, measure the composited pixel before choosing
+  another one.** Five rounds went into the water colour by eye; the measurement
+  (rgb 126, 88, 121 — red and blue near-equal, green suppressed) named the cause
+  in one step. Generalised: when a visual fix keeps landing in the same wrong
+  place, check whether the mechanism can produce the target at all before picking
+  another value for it.
+
 - **Choose a representation instead of propagating a special case.** `.sleepOnset`
   could have been a clock hour with circular statistics, and then `Baseline`,
   every regression and every chart would have had to know which metric they were

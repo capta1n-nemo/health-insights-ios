@@ -1,11 +1,14 @@
 ---
 name: add-chart
-description: Build a new Swift Charts view in this app without hitting the SDK hazards and encoding rules it has already been burned by. Use when adding any chart, or changing how an existing one encodes colour, dash or series selection.
+description: Build or review a Swift Charts view in this app without hitting the SDK hazards and encoding rules it has already been burned by. Use when adding a chart, reviewing one, changing how it encodes colour, dash or series selection, or acting on any "that chart looks wrong" report from the device.
 ---
 
-# Adding a chart
+# Adding or reviewing a chart
 
-Three rules here were each learnt from a shipped defect. None is style.
+**Every rule here was learnt from a shipped defect. None is style.** Sections 7–9
+are the ones a *review* should run through first: they are the failures CI cannot
+see, because the app target has no test target and SwiftUI does not exist on
+Linux, so the device is the only thing that can falsify them.
 
 ## 1. Wrap `ScrollableMetricChart`
 
@@ -130,21 +133,69 @@ between two heights is inherently unstacked. It is also the min/max-band shape
 this repo carried for months as an unverified hazard; it is now shipping in
 `BodyCompositionTrendChart` and does work.
 
-## 8. When a colour looks wrong, read the pixel before choosing another one
+## 8. One quantity drawn over another: hatch it, never blend it
 
-**Sample the composited colour out of the screenshot first.** Two sessions have
-burned multiple rounds tuning a visual by eye — launch-screen density (three
-rounds), water-over-muscle (five) — and both collapsed to a single step the
-moment something was measured.
+**This is the standing approach. Use `Theme.hatch(light:dark:_:)`.**
 
-The water case is the worked example. Four attempts changed the hue or the
-opacity of a translucent blue over a red band and all four came out purple. The
-measurement — rgb(126, 88, 121), red and blue near-equal with green suppressed —
-named the cause immediately: **a translucent blue over red *is* purple.** That is
-colour arithmetic, and no ratio escapes it. The fix had to change the mechanism,
-not the value: a diagonal hatch (`Theme.waterHatch`) never mixes, because every
-pixel is one colour or the other.
+Whenever a value has to be shown *inside* or *over* something already coloured —
+a share of a band, an estimated stretch of a measured series, two overlapping
+spans — the instinct is a translucent fill, and the instinct is wrong.
 
-The general rule: when a visual fix keeps landing in the same wrong place, check
-whether the mechanism can produce the target at all before choosing another value
-for it.
+A wash **mixes**. The reader sees a third colour that means nothing, and worse,
+the mix is often nowhere near either parent: blue over red is purple, whatever
+the ratio, because that is colour arithmetic and not a tuning problem. Five
+attempts at hue and opacity were spent on the water band in
+`BodyCompositionTrendChart` before the mechanism changed rather than the value.
+
+A hatch **never** mixes. Every pixel is one colour or the other, so both stay
+exactly themselves and the thing underneath is plainly visible between the
+stripes. The worked example is water inside the muscle band: the muscle band is
+drawn **whole, in muscle red**, and the water is a hatch painted over its lower
+portion. Note the second half of that — carving the water out as its own slice
+meant the muscle stopped being red across that stretch, so nothing read as being
+*underneath*, and no colour choice could put it back. **The problem is usually
+geometry before it is hue.**
+
+Three things fall out of the worked example that generalise:
+
+- Draw the host **whole** and paint over it; do not subdivide it.
+- The overlaid quantity contributes **no mass to a stack** — give it an
+  `AreaMark(x:yStart:yEnd:)` between two cumulative heights instead, and compute
+  that span in InsightKit where it can be tested
+  (`BodyCompositionSplit.waterSpan`).
+- In a **key**, the same quantity is drawn plain and opaque. A key answers "which
+  substance is this"; what it sits on top of is a fact about placement.
+
+## 9. When a colour looks wrong, read the pixel before choosing another one
+
+**First move on any "that colour is wrong" report: sample the composited colour
+out of the screenshot.** Not pick a new hue — measure the one on screen.
+
+Two sessions have burned multiple rounds tuning a visual by eye — launch-screen
+density (three rounds), water-over-muscle (five) — and both collapsed to a single
+step the moment something was measured. In the water case the measurement was
+rgb(126, 88, 121): red and blue near-equal with green suppressed, which *is* the
+definition of plum, and which named the cause instantly after four rounds of
+guessing had not.
+
+The general rule: **when a visual fix keeps landing in the same wrong place,
+check whether the mechanism can produce the target at all before choosing another
+value for it.** Four of those rounds were spent looking for a ratio that does not
+exist.
+
+## 10. Review checklist
+
+Run this against any chart being added or reviewed. Each line is a shipped defect.
+
+- [ ] Mark builders have an explicit `-> some ChartContent` (§2).
+- [ ] Every dash means "not measured", and nothing else does (§3).
+- [ ] Gaps are bridged only where the bridge is earned, and drawn as inferred (§4).
+- [ ] Anything deciding whether two series can look alike lives in InsightKit (§5).
+- [ ] A gradient's stops are computed against the **mark's** extent, not the plot
+      area (§7).
+- [ ] Every stacked series has a value at **every** x, zero where absent (§7).
+- [ ] Band membership does not change from point to point (§7).
+- [ ] Anything drawn over anything else is a hatch, not a wash (§8).
+- [ ] Colour complaints were answered by measuring the pixel, not by guessing (§9).
+- [ ] The axis fits the data in the **visible window**, not a round number above
+      it — and a stacked share chart still starts at zero.

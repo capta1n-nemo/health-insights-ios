@@ -134,12 +134,32 @@ enum Theme {
     /// `@MainActor` because the tiles are `UIImage`, which is not `Sendable`;
     /// they are built once and only ever read from view bodies.
     @MainActor static func waterHatch(_ scheme: ColorScheme) -> ImagePaint {
-        ImagePaint(image: Image(uiImage: scheme == .dark ? darkHatch : lightHatch),
-                   scale: 1)
+        hatch(light: 0x0FA3DC, dark: 0x3FBFF0, scheme)
     }
 
-    @MainActor private static let lightHatch = hatchTile(UIColor(rgb: 0x0FA3DC))
-    @MainActor private static let darkHatch = hatchTile(UIColor(rgb: 0x3FBFF0))
+    /// Diagonal stripes in any colour — **the standing answer for drawing one
+    /// quantity on top of another in this app.**
+    ///
+    /// Reach for this whenever a value has to be shown *inside* or *over*
+    /// something already coloured: a share of a band, an estimated stretch of a
+    /// measured series, two overlapping spans. The instinct is a translucent
+    /// fill, and the instinct is wrong — see the note on `waterHatch`. A wash
+    /// blends the two colours into a third that means nothing and is usually
+    /// muddy; a hatch keeps both, because every pixel is one or the other.
+    ///
+    /// Tiles are cached per colour, so a chart may call this per frame.
+    @MainActor static func hatch(light: UInt32, dark: UInt32,
+                                 _ scheme: ColorScheme) -> ImagePaint {
+        let rgb = scheme == .dark ? dark : light
+        if let cached = hatchTiles[rgb] {
+            return ImagePaint(image: Image(uiImage: cached), scale: 1)
+        }
+        let tile = hatchTile(UIColor(rgb: rgb))
+        hatchTiles[rgb] = tile
+        return ImagePaint(image: Image(uiImage: tile), scale: 1)
+    }
+
+    @MainActor private static var hatchTiles: [UInt32: UIImage] = [:]
 
     /// One seamlessly tileable square of 45° stripes.
     ///
