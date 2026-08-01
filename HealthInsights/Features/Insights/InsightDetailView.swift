@@ -111,7 +111,11 @@ struct InsightDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Theme.spacing) {
+            // Lazy on purpose: a card is eleven-plus sections and several run
+            // real models. Building only what is on screen is what makes the
+            // push feel immediate; the sections below the fold build as they
+            // scroll into view, each memoised so scrolling back is free.
+            LazyVStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
                     // ─────────────────────────────────────────────────────────
                     // THE ORDER IS THE USER'S, AND IT HAS A RATIONALE.
@@ -803,7 +807,9 @@ struct InsightDetailView: View {
     /// through age, which is what lets this section say the same thing at 25
     /// and at 65. See `HeartResponseModel` for the sources.
     @ViewBuilder private var heartResponseCard: some View {
-        let response = HeartResponseModel.evaluate(samples: model.samples)
+        let response = model.memoized("heartResponse") {
+            HeartResponseModel.evaluate(samples: model.samples)
+        }
         if response.isEmpty {
             let reason = SectionPlaceholder.needsInput(
                 subject: "How your heart responds",
@@ -903,9 +909,11 @@ struct InsightDetailView: View {
 
     private func peerStandingSection(_ result: InsightResult) -> some View {
         let metrics = resolvedContributions(result).metrics
-        let standing = PeerStandingModel.evaluate(metrics: metrics,
-                                                  samples: model.samples,
-                                                  profile: model.profile)
+        let standing = model.memoized("peerStanding.\(insightID.rawValue)") {
+            PeerStandingModel.evaluate(metrics: metrics,
+                                       samples: model.samples,
+                                       profile: model.profile)
+        }
         var placeholder: SectionPlaceholder?
         if standing == nil {
             // Without an age and a sex there is no norm table to pick, and that
@@ -989,9 +997,12 @@ struct InsightDetailView: View {
         // vitals; every other card is narrowed to the signals it reads. A Sleep
         // card drawing seventeen rows would answer a question nobody asked and
         // bury the two that are about sleep.
-        let panel = VitalDeparturePanel.from(
+        let scan = model.memoized("vitalScan") {
             VitalSignsCheck.evaluate(samples: model.samples,
-                                     events: model.vitalEvents),
+                                     events: model.vitalEvents)
+        }
+        let panel = VitalDeparturePanel.from(
+            scan,
             limitedTo: insightID == .readiness
                 ? nil : resolvedContributions(result).metrics)
         var placeholder: SectionPlaceholder?
@@ -1100,7 +1111,12 @@ struct InsightDetailView: View {
     }
 
     @ViewBuilder private var bodyCompositionSplitCard: some View {
-        if BodyCompositionSplit.from(samples: model.samples) == nil {
+        // Memoised, and computed once rather than once per branch — this used
+        // to run the split over the full sample set twice back to back.
+        let memoisedSplit = model.memoized("bodySplit") {
+            BodyCompositionSplit.from(samples: model.samples)
+        }
+        if memoisedSplit == nil {
             let reason = SectionPlaceholder.needsInput(
                 subject: "The split of your weight",
                 what: "a scale that reports body fat alongside your weight")
@@ -1109,7 +1125,7 @@ struct InsightDetailView: View {
                            expansion: expansion(preview: reason.headline)) {
                 emptySection(reason)
             }
-        } else if let split = BodyCompositionSplit.from(samples: model.samples) {
+        } else if let split = memoisedSplit {
             // `.none`: every figure here is a reading off the scale. The two
             // notes below are *findings about the data* — a scale contradicting
             // itself — so they stay in the content in `Theme.warn`, where they
@@ -1219,7 +1235,9 @@ struct InsightDetailView: View {
     /// scroll to. The chart now takes the whole series and shows a window of it,
     /// exactly like "Score over time" and the overlay.
     @ViewBuilder private var bodyCompositionTrend: some View {
-        let series = BodyCompositionSplit.series(samples: model.samples)
+        let series = model.memoized("bodySplitSeries") {
+            BodyCompositionSplit.series(samples: model.samples)
+        }
         let visible = series.points
         // Two weigh-ins is the floor for a trend: one is the bar above again.
         if visible.count < 2 {
@@ -1511,14 +1529,18 @@ struct InsightDetailView: View {
     /// invisible day to day.
     private func periodContrastCard(_ result: InsightResult) -> some View {
         let contributions = resolvedContributions(result).contributions
-        let changes = PeriodContrast.changes(for: contributions, samples: model.samples)
+        let changes = model.memoized("periodContrast.\(insightID.rawValue)") {
+            PeriodContrast.changes(for: contributions, samples: model.samples)
+        }
         // Two reasons for an empty section — not enough history, or enough and
         // nothing moved — and only the second is reassuring. Asking how many
         // signals *could* be compared is what separates them.
         let placeholder = changes.isEmpty
             ? SectionPlaceholder.periodContrast(
-                comparable: PeriodContrast.comparableCount(for: contributions,
-                                                           samples: model.samples))
+                comparable: model.memoized("periodComparable.\(insightID.rawValue)") {
+                    PeriodContrast.comparableCount(for: contributions,
+                                                   samples: model.samples)
+                })
             : nil
 
         return InsightSection(

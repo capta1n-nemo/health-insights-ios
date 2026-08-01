@@ -269,7 +269,8 @@ the place to look.
 - `App/HealthInsightsApp.swift`
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
-  - `RootView` :4
+  - `RootView` :5
+  - `SyncActivityPill` :70
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
@@ -428,8 +429,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :183
-  - `OtherDataListView` :196
+  - `FullExport` :217
+  - `OtherDataListView` :230
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

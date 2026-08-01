@@ -34,6 +34,12 @@ final class AppModel {
     @ObservationIgnored private var vitalsSummaryCache: [MetricType: VitalsSummary]?
     /// The refresh currently running, if any — what `refresh()` coalesces onto.
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// Results of the pure model passes detail screens run at render time,
+    /// keyed by call site. SwiftUI re-evaluates `body` on every scrub, pan and
+    /// timeframe change, and each evaluation was re-running whole models
+    /// (`VitalSignsCheck`, `HeartResponseModel`, `PeriodContrast`, …) over the
+    /// full sample set — the "opening a card hangs" report of 2026-08-02.
+    @ObservationIgnored private var renderMemo: [String: Any] = [:]
     @ObservationIgnored private var otherGroupCache: [RawMetricGroup]?
     @ObservationIgnored private var bloodPressureCache: [BloodPressureEstimator.Reading]?
 
@@ -53,6 +59,7 @@ final class AppModel {
 
     private func invalidateDerivedCaches() {
         breakdownCache.removeAll(keepingCapacity: true)
+        renderMemo.removeAll(keepingCapacity: true)
         vitalsSummaryCache = nil
         bloodPressureCache = nil
         scoreHistories.removeAll()
@@ -525,6 +532,20 @@ final class AppModel {
         return events
     }
 
+    /// Memoise a pure render-time computation against the current sample set.
+    ///
+    /// The key names the call site (plus anything the result varies by, e.g.
+    /// the insight id); the cache clears with every other derived cache when
+    /// the samples change, so a hit can never be stale data — only a saved
+    /// re-run. A failed cast falls through to recompute, so the worst case is
+    /// the old behaviour.
+    func memoized<T>(_ key: String, _ compute: () -> T) -> T {
+        if let hit = renderMemo[key] as? T { return hit }
+        let value = compute()
+        renderMemo[key] = value
+        return value
+    }
+
     /// A source-split breakdown of a metric across all connected devices, cached
     /// until the sample set changes.
     func breakdown(_ metric: MetricType) -> MultiSourceBreakdown {
@@ -901,6 +922,36 @@ final class AppModel {
         // Grounding and substance edits reach here without touching `samples`,
         // so the sample-set invalidation hook won't have fired.
         invalidateDerivedCaches()
+        prewarmBreakdowns()
+    }
+
+    /// Build every metric's source breakdown off the main thread, ahead of the
+    /// first screen that asks for one.
+    ///
+    /// `breakdown(_:)` fills its cache lazily, which meant the first open of
+    /// each card or vitals row paid a full-sample filter-dedup-sort *on the
+    /// main thread* — tens of thousands of readings for the busy metrics, and
+    /// several metrics per card. Warming the cache in the background turns
+    /// that first open into a dictionary hit. The generation counter guards
+    /// against a refresh landing mid-warm: results built from superseded
+    /// samples are discarded rather than merged.
+    private func prewarmBreakdowns() {
+        let snapshot = samples
+        let generation = scoreHistoryGeneration
+        Task.detached(priority: .utility) {
+            let metrics = Set(snapshot.map(\.type))
+            let built = MultiSource.withMemo(for: snapshot) {
+                Dictionary(uniqueKeysWithValues: metrics.map {
+                    ($0, MultiSource.breakdown($0, from: snapshot))
+                })
+            }
+            await MainActor.run {
+                guard self.scoreHistoryGeneration == generation else { return }
+                // Keep anything the UI built in the meantime — it is identical
+                // data and already referenced.
+                self.breakdownCache.merge(built) { current, _ in current }
+            }
+        }
     }
 
     /// Today's scores become tomorrow's history. `recordScore` upserts by day,

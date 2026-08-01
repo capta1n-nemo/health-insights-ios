@@ -19,53 +19,91 @@ struct DataExportView: View {
     @State private var copiedCards = false
     @State private var copiedInternals = false
     @State private var fullExport: FullExport?
+    @State private var preparingFullExport = false
     @State private var exportFailed: String?
 
-    /// The inventory, built on demand. Cheap next to the full export — it walks
-    /// the samples once and keeps only per-signal aggregates.
-    private var inventory: String {
-        DataInventory.markdown(samples: model.samples,
-                               rawGroups: model.otherDataGroups)
+    /// The three shareable documents, built once, off the main thread.
+    ///
+    /// These used to be computed properties, which meant *opening this screen*
+    /// walked the full sample set several times over — the inventory sorts
+    /// every signal's distribution, the card export scans availability per
+    /// declared input, and `signalCount` did yet another full walk — all
+    /// synchronously inside `body`, and again on every tap ("copy takes
+    /// ages"). Now the screen appears instantly, each section shows it is
+    /// preparing, and copy pastes a string that already exists.
+    struct Documents: Sendable {
+        let inventory: String
+        let cardOutputs: String
+        let modelInternals: String
+        let signalCount: Int
     }
-
-    /// What every card is showing right now — the recalibration document.
-    /// Built by `CardStateExport` in InsightKit, where it is tested; aggregates
-    /// and wording only, so it stays paste-sized on any history.
-    private var cardOutputs: String {
-        CardStateExport.markdown(
-            results: model.results,
-            candidates: Dictionary(uniqueKeysWithValues:
-                model.engine.models.map { ($0.id, $0.candidateMetrics) }),
-            histories: Dictionary(uniqueKeysWithValues:
-                model.results.map { ($0.id, model.scoreHistory(for: $0.id)) }),
-            pendingHistories: Set(model.results.map(\.id)
-                .filter { model.scoreHistoryIsPending(for: $0) }),
-            samples: model.samples,
-            profile: model.profile,
-            buildStamp: BuildInfo.summary,
-            now: Date())
-    }
-
-    /// What the cards judge against — baselines, comparison pools, derived
-    /// nights. Built by `ModelInternalsExport` in InsightKit, where it is tested.
-    private var modelInternals: String {
-        ModelInternalsExport.markdown(samples: model.samples,
-                                      events: model.substanceEvents,
-                                      buildStamp: BuildInfo.summary,
-                                      now: Date())
-    }
-
-    private var signalCount: Int {
-        DataInventory.rows(samples: model.samples,
-                           rawGroups: model.otherDataGroups).count
-    }
+    @State private var documents: Documents?
 
     private var unmodelledCount: Int { model.otherDataGroups.count }
+
+    /// Gather main-actor inputs, then build everything detached. The builders
+    /// are pure InsightKit functions over Sendable values, so the only
+    /// main-thread work left is the state assignment at the end.
+    private func prepareDocuments() async {
+        guard documents == nil else { return }
+        let samples = model.samples
+        let rawGroups = model.otherDataGroups
+        let results = model.results
+        let candidates = Dictionary(uniqueKeysWithValues:
+            model.engine.models.map { ($0.id, $0.candidateMetrics) })
+        let histories = Dictionary(uniqueKeysWithValues:
+            results.map { ($0.id, model.scoreHistory(for: $0.id)) })
+        let pending = Set(results.map(\.id).filter { model.scoreHistoryIsPending(for: $0) })
+        let profile = model.profile
+        let events = model.substanceEvents
+        let stamp = BuildInfo.summary
+
+        let built = await Task.detached(priority: .userInitiated) {
+            Documents(
+                inventory: DataInventory.markdown(samples: samples, rawGroups: rawGroups),
+                cardOutputs: CardStateExport.markdown(
+                    results: results, candidates: candidates, histories: histories,
+                    pendingHistories: pending, samples: samples, profile: profile,
+                    buildStamp: stamp, now: Date()),
+                modelInternals: ModelInternalsExport.markdown(
+                    samples: samples, events: events, buildStamp: stamp, now: Date()),
+                signalCount: DataInventory.rows(samples: samples, rawGroups: rawGroups).count)
+        }.value
+        documents = built
+    }
+
+    /// Share/copy controls for one prepared document, or a "preparing" row
+    /// that says what the wait is while the build runs.
+    @ViewBuilder private func documentControls(_ text: String?, title: String,
+                                               copiedFlag: Binding<Bool>) -> some View {
+        if let text {
+            ShareLink(item: text, preview: SharePreview(title)) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            Button {
+                UIPasteboard.general.string = text
+                copiedFlag.wrappedValue = true
+            } label: {
+                Label(copiedFlag.wrappedValue ? "Copied" : "Copy",
+                      systemImage: copiedFlag.wrappedValue ? "checkmark" : "doc.on.doc")
+            }
+        } else {
+            HStack(spacing: 10) {
+                ProgressView()
+                Text("Preparing — reading your history…")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 
     var body: some View {
         List {
             Section {
-                LabeledContent("Signals", value: "\(signalCount)")
+                if let documents {
+                    LabeledContent("Signals", value: "\(documents.signalCount)")
+                } else {
+                    LabeledContent("Signals") { ProgressView() }
+                }
                 LabeledContent("Not yet modelled", value: "\(unmodelledCount)")
                 LabeledContent("Readings", value: "\(model.samples.count + model.otherDataGroups.reduce(0) { $0 + $1.samples.count })")
             } header: {
@@ -75,17 +113,9 @@ struct DataExportView: View {
             }
 
             Section {
-                ShareLink(item: inventory,
-                          preview: SharePreview("Health Insights — data inventory")) {
-                    Label("Share inventory", systemImage: "square.and.arrow.up")
-                }
-                Button {
-                    UIPasteboard.general.string = inventory
-                    copied = true
-                } label: {
-                    Label(copied ? "Copied" : "Copy inventory",
-                          systemImage: copied ? "checkmark" : "doc.on.doc")
-                }
+                documentControls(documents?.inventory,
+                                 title: "Health Insights — data inventory",
+                                 copiedFlag: $copied)
             } header: {
                 Text("Inventory")
             } footer: {
@@ -93,17 +123,9 @@ struct DataExportView: View {
             }
 
             Section {
-                ShareLink(item: cardOutputs,
-                          preview: SharePreview("Health Insights — card outputs")) {
-                    Label("Share card outputs", systemImage: "square.and.arrow.up")
-                }
-                Button {
-                    UIPasteboard.general.string = cardOutputs
-                    copiedCards = true
-                } label: {
-                    Label(copiedCards ? "Copied" : "Copy card outputs",
-                          systemImage: copiedCards ? "checkmark" : "doc.on.doc")
-                }
+                documentControls(documents?.cardOutputs,
+                                 title: "Health Insights — card outputs",
+                                 copiedFlag: $copiedCards)
             } header: {
                 Text("Card outputs")
             } footer: {
@@ -111,17 +133,9 @@ struct DataExportView: View {
             }
 
             Section {
-                ShareLink(item: modelInternals,
-                          preview: SharePreview("Health Insights — model internals")) {
-                    Label("Share model internals", systemImage: "square.and.arrow.up")
-                }
-                Button {
-                    UIPasteboard.general.string = modelInternals
-                    copiedInternals = true
-                } label: {
-                    Label(copiedInternals ? "Copied" : "Copy model internals",
-                          systemImage: copiedInternals ? "checkmark" : "doc.on.doc")
-                }
+                documentControls(documents?.modelInternals,
+                                 title: "Health Insights — model internals",
+                                 copiedFlag: $copiedInternals)
             } header: {
                 Text("Model internals")
             } footer: {
@@ -129,10 +143,18 @@ struct DataExportView: View {
             }
 
             Section {
-                Button {
-                    buildFullExport()
-                } label: {
-                    Label("Prepare full export", systemImage: "doc.zipper")
+                if preparingFullExport {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Building the JSON — every reading, so this is the slow one…")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button {
+                        buildFullExport()
+                    } label: {
+                        Label("Prepare full export", systemImage: "doc.zipper")
+                    }
                 }
                 if let fullExport {
                     ShareLink(item: fullExport,
@@ -162,18 +184,30 @@ struct DataExportView: View {
         }
         .navigationTitle("Export my data")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await prepareDocuments() }
     }
 
     private func buildFullExport() {
         exportFailed = nil
-        do {
-            let data = try DataInventory.fullExportJSON(samples: model.samples,
-                                                        rawGroups: model.otherDataGroups)
-            fullExport = FullExport(data: data)
-        } catch {
-            // Said out loud rather than leaving a button that silently does
-            // nothing — a share sheet that never appears reads as a broken app.
-            exportFailed = "Couldn't build the export: \(error.localizedDescription)"
+        preparingFullExport = true
+        let samples = model.samples
+        let rawGroups = model.otherDataGroups
+        Task {
+            // Detached: the JSON encode runs to tens of megabytes, and it used
+            // to run synchronously on the main thread behind a button that
+            // gave no sign anything was happening.
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Result { try DataInventory.fullExportJSON(samples: samples,
+                                                          rawGroups: rawGroups) }
+            }.value
+            preparingFullExport = false
+            switch outcome {
+            case .success(let data): fullExport = FullExport(data: data)
+            case .failure(let error):
+                // Said out loud rather than leaving a button that silently does
+                // nothing — a share sheet that never appears reads as a broken app.
+                exportFailed = "Couldn't build the export: \(error.localizedDescription)"
+            }
         }
     }
 }
