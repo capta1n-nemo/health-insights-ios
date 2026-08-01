@@ -760,7 +760,7 @@ struct InsightDetailView: View {
                                  slots: [MetricType: Int]) -> some View {
         Text("Charted, not scored")
             .font(.subheadline.weight(.semibold))
-        Text("Real signals with no share of the number. Either no validated scale exists to score them on — day strain and heart-rate recovery are the standing examples — or they are what the score is measured *against* rather than something moving it. An invented weight inside a number you are asked to trust is worse than none.")
+        Text("Everything this card reads carries a share of the number above, however small — except these, and each row says why it doesn't.")
             .font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         ForEach(factors, id: \.self) { factor in

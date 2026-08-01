@@ -454,6 +454,30 @@ public enum BloodPressureEstimator {
         return top - (top - bottom) * progress
     }
 
+    /// How a reading's two numbers divide the score between them.
+    ///
+    /// Both determine it — `Category.of` takes the higher of the two bands they
+    /// imply — so neither can be reported as the whole of it, and 50/50 would
+    /// say a systolic of 175 beside a diastolic of 78 is an even split.
+    ///
+    /// Each number's share is how far it has travelled along **its own** axis,
+    /// from the bottom of normal to the crisis line: 90→180 for systolic and
+    /// 60→120 for diastolic. Separate scales because the bands do not line up —
+    /// 85 is stage 1 diastolic and perfectly normal systolic, which is the same
+    /// reason a chart cannot shade one set of bands for both lines.
+    ///
+    /// Always positive and always sums to one, so a normal reading still shows
+    /// which of its numbers is carrying more. A leave-one-out against 120/80 was
+    /// the obvious alternative and has the wrong shape here: it measures the
+    /// *deficit*, so a reader at 112/72 has no deficit to divide and both rows
+    /// would come back at zero on the best reading they have ever taken.
+    static func readingShares(systolic: Double, diastolic: Double)
+        -> (systolic: Double, diastolic: Double) {
+        let sys = Swift.max(0.01, Swift.min(1, (systolic - 90) / 90))
+        let dia = Swift.max(0.01, Swift.min(1, (diastolic - 60) / 60))
+        return (sys / (sys + dia), dia / (sys + dia))
+    }
+
     /// The ACC/AHA bands as data rather than a string, so the UI can colour a
     /// reading and show where it sits among the rest.
     public enum Category: String, Sendable, CaseIterable, Comparable {
@@ -683,11 +707,24 @@ public struct BloodPressureInsight: InsightModel {
         // Which of the three routes the dial ended up on, so the weighting
         // section describes the number actually on screen. Set as each route
         // claims the score rather than re-derived afterwards from what is nil.
-        var weighting: ScoreWeighting = hasFreshReading
-            ? .measurement("This is your own cuff reading from the last 24 hours, "
-                           + "taken at face value.")
-            : .unstated
+        var weighting: ScoreWeighting = .unstated
         var contributorWeights: [MetricType: Double] = [:]
+        // Notes for the signals that feed a different number on this card than
+        // the one on the dial — see the `contributors` block at the end.
+        var contributorNotes: [MetricType: String] = [:]
+
+        // Route one: a cuff reading from the last 24 hours. The two numbers are
+        // scored against the published ACC/AHA bands, and both determine the
+        // category, so both carry a share of it.
+        if let freshPair {
+            let shares = BloodPressureEstimator.readingShares(systolic: freshPair.systolic,
+                                                              diastolic: freshPair.diastolic)
+            contributorWeights[.bloodPressureSystolic] = shares.systolic
+            contributorWeights[.bloodPressureDiastolic] = shares.diastolic
+            weighting = .singleMeasure("the published ACC/AHA blood-pressure bands - "
+                                       + "this is your own cuff reading from the last "
+                                       + "24 hours, taken at face value")
+        }
 
         // Experimental personalised estimate (clearly separated). Only grounded
         // in the last 30 days of readings, matching the calibration rules.
@@ -739,16 +776,24 @@ public struct BloodPressureInsight: InsightModel {
                                      + (est.hrvShare == nil
                                         ? "resting heart rate recorded beside each"
                                         : "resting heart rate and HRV recorded beside each"))
-                    // The shares are of the *estimate*, which is what the dial
-                    // is reading — so they go on the two predictors, and the
-                    // cuff pair stays at zero. The readings are the fit's
-                    // calibration rather than an input to today's number, and
-                    // the section names them under exactly that heading.
-                    contributorWeights[.restingHeartRate] = est.restingHRShare
+                    // All four inputs carry a share here, and the split says
+                    // something a reader should know: the estimate is
+                    // `your own average + b1*(today's resting HR - its mean)
+                    // + b2*(today's HRV - its mean)`, so **your cuff readings
+                    // supply the level and today's autonomic readings supply the
+                    // nudge**. That is why the estimate moves so little day to
+                    // day, and why the cadence rule exists at all.
+                    let calibrationShare = 1 - SupportingSignal.collectiveShare
+                    let cuff = BloodPressureEstimator.readingShares(systolic: est.systolic,
+                                                                    diastolic: est.diastolic)
+                    contributorWeights[.bloodPressureSystolic] = cuff.systolic * calibrationShare
+                    contributorWeights[.bloodPressureDiastolic] = cuff.diastolic * calibrationShare
+                    let nudge = SupportingSignal.collectiveShare
+                    contributorWeights[.restingHeartRate] = est.restingHRShare * nudge
                     if let hrvShare = est.hrvShare {
                         let hrvMetric: MetricType = samples.latestValue(.heartRateVariabilityRMSSD) != nil
                             ? .heartRateVariabilityRMSSD : .heartRateVariabilitySDNN
-                        contributorWeights[hrvMetric] = hrvShare
+                        contributorWeights[hrvMetric] = hrvShare * nudge
                     }
                 }
             } else if status.isGrounded {
@@ -756,6 +801,32 @@ public struct BloodPressureInsight: InsightModel {
                 // resting-HR sample to fit the model yet.
                 drivers.append(.routine("Experimental estimate will appear once more of your recent readings line up with resting-heart-rate data."))
             }
+        }
+        // Say why, on the row, wherever an autonomic signal ends up with no
+        // share. Two different reasons and they must not borrow each other's
+        // words: on a cuff route the estimate is not what the dial reads, and on
+        // the estimate route a signal can still be absent from the *fit* — the
+        // model drops to resting-heart-rate-only until enough readings carry an
+        // HRV beside them, which is a thing the reader can act on.
+        // A predictor that *is* in the fit can still land on zero, when today's
+        // value sits exactly on its own calibration average — it is in the
+        // model and moving nothing. That is a third state and it needs its own
+        // sentence, or the row shows a bare zero under a section that has just
+        // promised every input carries a share.
+        let estimateDrivesDial: Bool = { if case .fit = weighting { return true }; return false }()
+        for metric in [MetricType.restingHeartRate, .heartRateVariabilityRMSSD,
+                       .heartRateVariabilitySDNN]
+        where (contributorWeights[metric] ?? 0) == 0 {
+            guard estimateDrivesDial else {
+                contributorNotes[metric] = " — feeds the experimental estimate, "
+                    + "which isn't what your dial is reading"
+                continue
+            }
+            contributorNotes[metric] = contributorWeights[metric] == nil
+                ? " — not in the fit yet; the estimate uses resting heart rate alone "
+                    + "until more of your readings have an HRV beside them"
+                : " — in the fit, but sitting on your own average today, so it "
+                    + "isn't moving the estimate either way"
         }
 
         // The floor: where blood pressure has been sitting, for whoever has cuff
@@ -766,8 +837,13 @@ public struct BloodPressureInsight: InsightModel {
                                                  diastolic: trend.diastolic)
             confidence = .moderate
             explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) readings over the last \(trend.spanDays) days — rather than any single measurement."
-            weighting = .measurement("Your dial is the average of \(trend.readingCount) cuff "
-                                     + "readings over the last \(trend.spanDays) days.")
+            let shares = BloodPressureEstimator.readingShares(systolic: trend.systolic,
+                                                              diastolic: trend.diastolic)
+            contributorWeights[.bloodPressureSystolic] = shares.systolic
+            contributorWeights[.bloodPressureDiastolic] = shares.diastolic
+            weighting = .singleMeasure("the published ACC/AHA blood-pressure bands, over an "
+                                       + "average of \(trend.readingCount) cuff readings across "
+                                       + "\(trend.spanDays) days")
         }
 
         return InsightResult(
@@ -777,20 +853,28 @@ public struct BloodPressureInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmet,
-            // A cuff reading is trusted outright and carries no share; the two
-            // autonomic signals carry one only on the route where the estimate
-            // is what the dial reads. `contributorWeights` is empty on every
-            // other route, so this list is unchanged for them.
+            // On the two cuff routes the autonomic pair carries nothing, and it
+            // is one of only two places left in the app where a charted signal
+            // has no share. The reason is specific and worth stating on the row
+            // rather than leaving as a bare zero: **they feed a different number
+            // on this card.** They are the estimator's inputs, the card is about
+            // the estimator as well as the readings, and a measured cuff reading
+            // outranks a model of one — so on those routes the estimate is not
+            // what the dial reads and its inputs are not in today's number.
             contributors: [.bloodPressureSystolic, .bloodPressureDiastolic,
                            .restingHeartRate, .heartRateVariabilityRMSSD,
                            .heartRateVariabilitySDNN]
                 .compactMap { metric in
-                    samples.latestValue(metric).map {
-                        MetricContribution(metric: metric,
-                                           higherIsBetter: metric == .heartRateVariabilityRMSSD
-                                               || metric == .heartRateVariabilitySDNN,
-                                           weight: contributorWeights[metric] ?? 0,
-                                           detail: String(format: "%.0f %@", $0, metric.unit))
+                    samples.latestValue(metric).map { value in
+                        let weight = contributorWeights[metric] ?? 0
+                        let base = String(format: "%.0f %@", value, metric.unit)
+                        let note = weight > 0 ? "" : (contributorNotes[metric] ?? "")
+                        return MetricContribution(
+                            metric: metric,
+                            higherIsBetter: metric == .heartRateVariabilityRMSSD
+                                || metric == .heartRateVariabilitySDNN,
+                            weight: weight,
+                            detail: base + note)
                     }
                 },
             weighting: score == nil ? .unstated : weighting)

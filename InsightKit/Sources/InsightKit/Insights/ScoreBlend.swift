@@ -1,0 +1,161 @@
+import Foundation
+
+/// A signal a card charts that no published 0–100 curve exists for.
+///
+/// ## The rule this reverses, and why
+///
+/// Until 2026-08-01 these arrived at **weight 0**, on a standing argument that
+/// an invented weight inside a number the user is asked to trust is worse than
+/// none. That argument stands against *inventing* one. It does not justify what
+/// it was actually producing, which was a section titled "What goes into this"
+/// listing six signals of which one went into anything.
+///
+/// The resolution is that a weight does not have to be invented, because the
+/// app already knows how to judge a signal it has no published scale for: **how
+/// far it sits from the reader's own normal, in the direction that matters.**
+/// That is what `VitalSignsCheck` has done for seventeen vitals since it was
+/// written, and what `ReadinessScore` does for every component it weights. It is
+/// weaker evidence than a published curve — a departure from your own baseline
+/// is real information but is not calibrated against an outcome — and the answer
+/// to weaker evidence is a **smaller weight**, not a zero one.
+///
+/// So a supporting signal is scored the way everything else here is scored, and
+/// the row says which basis it rests on.
+public enum SupportingSignal {
+
+    /// The share of a card's number that its supporting signals carry between
+    /// them, divided among however many there are.
+    ///
+    /// **One constant, deliberately.** It is the whole of the judgement in this
+    /// change and it is retuned in one place. 20% is enough that a signal
+    /// visibly moves the number — the point of listing it — and small enough
+    /// that a card's primary measurement still decides what the card says: on
+    /// Fitness, VO₂max keeps 80% against six supporting signals at about 3%
+    /// each, and no combination of them can turn "Excellent" into "Needs work".
+    public static let collectiveShare = 0.20
+
+    /// 0–100 for a signal judged against the reader's own baseline.
+    ///
+    /// The identical mapping `ReadinessScore` weights its components with — z of
+    /// 0 is an ordinary day at 65, and 1.5 SD in the good direction is about 95
+    /// — extended with the case Readiness has no need for. `higherIsBetter` of
+    /// `nil` means neither direction is the good one (day strain, a temperature
+    /// deviation), so the score falls away from the baseline in **both**
+    /// directions rather than rewarding one of them.
+    ///
+    /// `nil` z is not a zero score: it means the signal has no baseline to be
+    /// judged against yet, so it earns no weight rather than a bad one.
+    public static func score(z: Double?, higherIsBetter: Bool?) -> Double? {
+        guard let z else { return nil }
+        guard let higherIsBetter else {
+            // Nearest the baseline is best. Starts above the directional cases'
+            // ordinary day, because sitting *on* your normal is the whole of
+            // what this asks for.
+            return clamp(85 - abs(z) * 20)
+        }
+        return clamp(65 + (higherIsBetter ? 1 : -1) * z * 20)
+    }
+
+    static func clamp(_ x: Double) -> Double { Swift.max(0, Swift.min(100, x)) }
+}
+
+/// Folding a card's supporting signals into the number its primary measurement
+/// carries.
+///
+/// Every card that scores does the same two-step arithmetic and each was doing
+/// it by hand: renormalise the components that had data, then multiply and sum.
+/// Adding a second group of terms to five cards separately is five places for
+/// the weights to stop summing to one, which is the claim the section makes on
+/// screen.
+public enum ScoreBlend {
+
+    /// One input, its 0–100, and its weight *within its own group*. Weights are
+    /// relative — `blend` renormalises each group — so a caller states the
+    /// proportions it means and never the totals.
+    public struct Term: Sendable, Equatable {
+        public let metric: MetricType
+        public let higherIsBetter: Bool?
+        public let score: Double
+        public let weight: Double
+        public let detail: String
+        /// False where the score rests on the reader's own baseline rather than
+        /// a published scale, so the row can say so. The distinction is the
+        /// honesty claim this change turns on and it is not visible from a
+        /// weight.
+        public let isPublishedScale: Bool
+
+        public init(metric: MetricType, higherIsBetter: Bool?, score: Double,
+                    weight: Double, detail: String, isPublishedScale: Bool = true) {
+            self.metric = metric
+            self.higherIsBetter = higherIsBetter
+            self.score = score
+            self.weight = weight
+            self.detail = detail
+            self.isPublishedScale = isPublishedScale
+        }
+    }
+
+    /// The blended number and the contributions that account for it.
+    ///
+    /// `nil` when there is nothing to score at all. A card with primary terms
+    /// and no supporting ones is unchanged from what it produced before this
+    /// existed — the supporting share is only carved out of the primary group
+    /// when there is something to put in it, so a reader with no wearable sees
+    /// exactly the number they saw yesterday.
+    ///
+    /// A metric appearing in both groups keeps its **primary** term and is
+    /// dropped from the supporting one: a signal already weighed on a published
+    /// scale must not be weighed a second time against its own baseline, which
+    /// is the double-counting this codebase has had to unpick before.
+    public static func blend(primary: [Term], supporting: [Term],
+                             supportingShare: Double = SupportingSignal.collectiveShare)
+        -> (score: Double, contributions: [MetricContribution])? {
+        let primaryMetrics = Set(primary.map(\.metric))
+        var seen = primaryMetrics
+        let extra = supporting.filter { term in
+            guard !primaryMetrics.contains(term.metric), !seen.contains(term.metric)
+            else { return false }
+            seen.insert(term.metric)
+            return true
+        }
+
+        let primaryTotal = primary.reduce(0) { $0 + $1.weight }
+        let extraTotal = extra.reduce(0) { $0 + $1.weight }
+        guard primaryTotal > 0 || extraTotal > 0 else { return nil }
+
+        // Whichever group is empty hands its share to the other, so a card with
+        // only supporting signals still scores rather than dividing by zero.
+        let share = primaryTotal > 0 ? (extraTotal > 0 ? supportingShare : 0) : 1
+        let weighted: [(Term, Double)] =
+            primary.map { ($0, primaryTotal > 0 ? $0.weight / primaryTotal * (1 - share) : 0) }
+            + extra.map { ($0, extraTotal > 0 ? $0.weight / extraTotal * share : 0) }
+
+        let score = weighted.reduce(0) { $0 + $1.0.score * $1.1 }
+        let contributions = weighted.map { term, weight in
+            MetricContribution(metric: term.metric, higherIsBetter: term.higherIsBetter,
+                               weight: weight, detail: term.detail)
+        }
+        return (score, contributions)
+    }
+
+    /// A supporting term from a reading, or `nil` when there is no baseline to
+    /// judge it against yet.
+    ///
+    /// The `detail` carries the value **and** the departure, because a share of
+    /// 3% under a bare number gives the reader no way to see why it is 3% and
+    /// not 30%.
+    public static func supporting(_ reading: VitalReading, higherIsBetter: Bool?,
+                                  weight: Double = 1) -> Term? {
+        guard let score = SupportingSignal.score(z: reading.zScore,
+                                                 higherIsBetter: higherIsBetter)
+        else { return nil }
+        let departure = reading.zScore.map {
+            abs($0) < 0.5 ? " · about your normal"
+                : String(format: " · %.1f SD %@ your normal", abs($0), $0 > 0 ? "above" : "below")
+        } ?? ""
+        return Term(metric: reading.metric, higherIsBetter: higherIsBetter, score: score,
+                    weight: weight,
+                    detail: MetricValueFormatter.string(reading.value, reading.metric) + departure,
+                    isPublishedScale: false)
+    }
+}

@@ -265,13 +265,34 @@ public struct CardiovascularRiskInsight: InsightModel {
         // this" reads the same number this section draws.
         var contributors = [MetricContribution(
             metric: .bloodPressureSystolic, higherIsBetter: false,
-            weight: systolicShare, detail: "\(Int(systolic.rounded())) mmHg")]
+            weight: systolicShare,
+            // A systolic at or under the optimal 120 is carrying none of the
+            // risk, which is good news and must not render as a bare zero under
+            // a section that has just promised every input carries a share.
+            detail: "\(Int(systolic.rounded())) mmHg" + (systolicShare > 0 ? "" :
+                " — at or better than the optimal 120, so it's carrying none of your risk"))]
         // VO₂max and vascular age, charted by this card's own section and named
         // in its drivers. `HeartAgeAnalyser` already reports them at weight 0
         // and reads them off the analysis rather than the samples, so the chart
         // cannot plot a different number than the driver line quotes.
+        //
+        // **These are the one place on this card with no share, and the reason
+        // is not "no validated curve" — it is that SCORE2 and ASCVD do not read
+        // them at all.** Neither equation has a term for cardiorespiratory
+        // fitness, and a provider's own vascular age is a second opinion the app
+        // deliberately reports beside its own rather than folding in. Giving
+        // either a weight would be claiming an input the published equations do
+        // not have, which is the one thing this card cannot do. The row says so
+        // rather than showing a bare zero.
         contributors += HeartAgeAnalyser.contributors(ageAnalysis)
             .filter { $0.metric != .bloodPressureSystolic }
+            .map {
+                MetricContribution(
+                    metric: $0.metric, higherIsBetter: $0.higherIsBetter, weight: 0,
+                    detail: $0.detail + ($0.metric == .vo2Max
+                        ? " — feeds your heart age; SCORE2 and ASCVD have no term for fitness"
+                        : " — your wearable's own estimate, reported beside ours rather than folded in"))
+            }
 
         return InsightResult(
             id: id, title: title, primaryValue: consensus,

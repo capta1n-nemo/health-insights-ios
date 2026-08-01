@@ -221,21 +221,52 @@ public struct ReadinessInsight: InsightModel {
             .map { .routine(VitalSignsCheck.describe($0)) }
         extra += scan.stale.map { .routine(VitalSignsCheck.describe($0, now: now)) }
 
-        // Every vital the scan looked at reaches the chart, at weight 0 where
-        // readiness didn't already score it. Without this the merge would have
-        // quietly stopped charting two-thirds of the vitals panel: the overlay
-        // draws `contributors`, and readiness only scores six of the seventeen
-        // signals the scan covers.
-        var contributors = base.contributors
-        let alreadyScored = Set(contributors.map(\.metric))
-        for reading in scan.readings where !alreadyScored.contains(reading.metric) {
-            let spec = VitalSignsCheck.specs.first { $0.metric == reading.metric }
-            contributors.append(MetricContribution(
-                metric: reading.metric,
-                higherIsBetter: spec.flatMap { $0.concernWhenHigh ? false : ($0.concernWhenLow ? true : nil) },
-                weight: 0,
-                detail: MetricValueFormatter.string(reading.value, reading.metric)))
-        }
+        // Every vital the scan looked at now carries a share, where readiness
+        // didn't already weight it.
+        //
+        // **Nothing is invented for these, and that is the point.** The scan has
+        // computed a direction-aware `normality` for each of its seventeen
+        // signals since it was written — including the absolute clinical bounds
+        // a personal baseline cannot see — and that number is what a share is
+        // taken from. It was already trusted enough to decide what the card
+        // *says*; it was reaching the score at weight 0 while doing so, so a
+        // card could name an unusual vital in its headline and have that vital
+        // contribute nothing to the number underneath it.
+        //
+        // `SupportingSignal.collectiveShare` between them, so eleven ordinary
+        // vitals move the number a little and cannot swamp the six components
+        // readiness weights on their own terms.
+        let scored = Set(base.contributors.map(\.metric))
+        let supporting: [ScoreBlend.Term] = scan.readings
+            .filter { !scored.contains($0.metric) && $0.status != .insufficientHistory }
+            .map { reading in
+                let spec = VitalSignsCheck.specs.first { $0.metric == reading.metric }
+                return ScoreBlend.Term(
+                    metric: reading.metric,
+                    higherIsBetter: spec.flatMap {
+                        $0.concernWhenHigh ? false : ($0.concernWhenLow ? true : nil)
+                    },
+                    score: reading.normality, weight: 1,
+                    detail: MetricValueFormatter.string(reading.value, reading.metric)
+                        + " · \(reading.note)",
+                    isPublishedScale: false)
+            }
+        let blend = ScoreBlend.blend(
+            primary: base.contributors.map {
+                ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
+                                score: 0, weight: $0.weight, detail: $0.detail)
+            },
+            supporting: supporting)
+        let contributors = blend?.contributions ?? base.contributors
+        // The blended *score*, computed from the same weights, so the bars and
+        // the dial cannot disagree. Recombined here rather than taken from
+        // `blend` because `base.contributors` carries each component's share and
+        // not its 0–100, and re-deriving those would mean running
+        // `ReadinessScore` twice.
+        let scanShare = supporting.isEmpty ? 0 : SupportingSignal.collectiveShare
+        let scanScore = supporting.isEmpty ? 0
+            : supporting.reduce(0) { $0 + $1.score } / Double(supporting.count)
+        let blendedScore = base.score.map { $0 * (1 - scanShare) + scanScore * scanShare }
 
         // A device-raised flag outranks a day of ordinary numbers.
         //
@@ -246,10 +277,10 @@ public struct ReadinessInsight: InsightModel {
         if let event = scan.events.first {
             return InsightResult(
                 id: id, title: title,
-                primaryValue: base.primaryValue ?? Double(scan.readings.count),
+                primaryValue: blendedScore ?? Double(scan.readings.count),
                 headline: event.kind.displayName,
                 // Floored, not zeroed: the rest of the morning is still true.
-                score: Swift.min(base.score ?? 45, 45),
+                score: Swift.min(blendedScore ?? 45, 45),
                 confidence: base.confidence,
                 explanation: "Your \(event.sourceName) flagged \(event.kind.displayName.lowercased()) — \(event.kind.note). " + base.explanation,
                 driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
@@ -259,8 +290,9 @@ public struct ReadinessInsight: InsightModel {
         }
 
         return InsightResult(
-            id: id, title: title, primaryValue: base.primaryValue,
-            headline: base.headline, score: base.score, confidence: base.confidence,
+            id: id, title: title, primaryValue: blendedScore ?? base.primaryValue,
+            headline: blendedScore.map { ReadinessScore.band($0) } ?? base.headline,
+            score: blendedScore, confidence: base.confidence,
             explanation: base.explanation,
             driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                 + (base.driverLines + extra).filter { $0.isNotable != true },

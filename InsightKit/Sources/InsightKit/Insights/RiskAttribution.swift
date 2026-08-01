@@ -135,20 +135,25 @@ public enum RiskAttribution {
 
     /// How each lever names itself and states its value.
     ///
-    /// A lever at zero share is still returned, with a detail saying why — "no,
-    /// which is where it should be" is the answer somebody wants to see under a
-    /// section about what is driving their risk, and dropping the row would
-    /// leave them unable to tell "not carrying any" from "not looked at".
+    /// A lever at zero share is still returned, **and says why on its own row**.
+    /// "Non-smoker, so it's carrying none of your risk" is the answer somebody
+    /// wants under a section about what is driving that risk; dropping the row
+    /// would leave them unable to tell "carrying none" from "not looked at", and
+    /// a bare zero under a section promising every input carries a share reads
+    /// as a fault rather than as good news.
     private static func factor(_ lever: Lever, subject: HeartAgeModel.Subject,
                                share: Double, cholesterolAssumed: Bool) -> ScoreFactor {
         let assumed = cholesterolAssumed ? " (assumed average)" : ""
+        let carryingNone = share > 0 ? ""
+            : " — at or better than optimal, so it's carrying none of your risk"
         switch lever {
         case .systolic:
             return ScoreFactor(
                 source: .metric(.bloodPressureSystolic), name: "Blood pressure",
                 weight: share,
                 detail: String(format: "%.0f mmHg against an optimal %.0f",
-                               subject.systolicBP, HeartAgeModel.OptimalReference.systolicBP),
+                               subject.systolicBP, HeartAgeModel.OptimalReference.systolicBP)
+                    + carryingNone,
                 isModifiable: true)
         case .totalCholesterol:
             return ScoreFactor(
@@ -156,7 +161,8 @@ public enum RiskAttribution {
                 weight: share,
                 detail: String(format: "%.1f mmol/L against an optimal %.1f%@",
                                subject.totalCholesterolMmol,
-                               HeartAgeModel.OptimalReference.totalCholesterolMmol, assumed),
+                               HeartAgeModel.OptimalReference.totalCholesterolMmol, assumed)
+                    + carryingNone,
                 isModifiable: true)
         case .hdlCholesterol:
             return ScoreFactor(
@@ -164,19 +170,20 @@ public enum RiskAttribution {
                 weight: share,
                 detail: String(format: "%.1f mmol/L against an optimal %.1f%@",
                                subject.hdlCholesterolMmol,
-                               HeartAgeModel.OptimalReference.hdlCholesterolMmol, assumed),
+                               HeartAgeModel.OptimalReference.hdlCholesterolMmol, assumed)
+                    + carryingNone,
                 isModifiable: true)
         case .smoking:
             return ScoreFactor(
                 source: .grounding(.currentSmoker), name: "Smoking",
                 weight: share,
-                detail: subject.isSmoker ? "current smoker" : "non-smoker",
+                detail: (subject.isSmoker ? "current smoker" : "non-smoker") + carryingNone,
                 isModifiable: true)
         case .diabetes:
             return ScoreFactor(
                 source: .grounding(.hasDiabetes), name: "Diabetes",
                 weight: share,
-                detail: subject.hasDiabetes ? "yes" : "no",
+                detail: (subject.hasDiabetes ? "yes" : "no") + carryingNone,
                 isModifiable: true)
         }
     }

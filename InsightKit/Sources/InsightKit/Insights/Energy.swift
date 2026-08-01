@@ -439,36 +439,37 @@ public struct EnergyInsight: InsightModel {
         // cancel a good night and hand the remainder a share above 100%.
         let terms = output.terms
         let totalEffect = terms.reduce(0) { $0 + abs($1.points) }
-        var contributors = terms.map { term in
-            MetricContribution(
-                metric: term.metric, higherIsBetter: term.higherIsBetter,
-                weight: totalEffect > 0 ? abs(term.points) / totalEffect : 0,
-                detail: term.detail)
+        let primary = terms.map {
+            ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
+                            score: output.level,
+                            weight: totalEffect > 0 ? abs($0.points) / totalEffect : 0,
+                            detail: $0.detail)
         }
-        // The two signals behind the drain that carry no share of their own.
+        // Resting heart rate is the *line* exertion is counted above, and heart
+        // rate lands here whenever the day is too thin to count exertion from —
+        // `EnergyModel.exertionHours` needs four samples since midnight, so
+        // every card opened before the watch has synced a few is in this state.
         //
-        // Resting heart rate is the *line* exertion is counted above — what the
-        // drain is measured against rather than something moving it, the same
-        // standing height has on Body Composition. Without it the card draws
-        // "5.2 h above resting" with no way to see what resting was.
-        //
-        // Heart rate itself lands here whenever the day is too thin to compute
-        // exertion from — `EnergyModel.exertionHours` needs four samples since
-        // midnight, so every card opened before the watch has synced a few is in
-        // this state. It is declared, so leaving it out means it charts on no
-        // section of the card that reads it.
-        let scored = Set(contributors.map(\.metric))
-        for metric in [MetricType.restingHeartRate, .heartRate] where !scored.contains(metric) {
-            guard let reading = VitalReader.reading(metric, from: samples, now: now) else { continue }
-            contributors.append(.init(
-                metric: metric, higherIsBetter: metric == .restingHeartRate ? false : nil,
-                weight: 0,
-                detail: metric == .restingHeartRate
-                    ? String(format: "%.0f bpm — the line exertion is counted above",
-                             reading.baseline ?? reading.value)
-                    : String(format: "%.0f bpm — not enough readings today to count time above resting",
-                             reading.value)))
-        }
+        // Both carry a share against the reader's own baseline rather than
+        // sitting at weight 0. A resting rate above your normal really does mean
+        // less in the tank, which is the model's own premise, and the card was
+        // drawing "5.2 h above resting" with the line it was counted above
+        // contributing nothing to the number.
+        let alreadyScored = Set(terms.map(\.metric))
+        let supporting: [ScoreBlend.Term] = [MetricType.restingHeartRate, .heartRate]
+            .filter { !alreadyScored.contains($0) }
+            .compactMap { metric in
+                VitalReader.reading(metric, from: samples, now: now).flatMap {
+                    ScoreBlend.supporting($0, higherIsBetter: false)
+                }
+            }
+        // The blend's own score is not used: Energy's number is a reservoir
+        // level the model simulated hour by hour, not an average of its terms,
+        // and replacing it with one would throw away the trickle recharge and
+        // the clamping. Only the *weights* come from here — which is what the
+        // section claims to be showing.
+        let contributors = ScoreBlend.blend(primary: primary, supporting: supporting)?
+            .contributions ?? []
 
         return InsightResult(
             id: id, title: title, primaryValue: output.level,

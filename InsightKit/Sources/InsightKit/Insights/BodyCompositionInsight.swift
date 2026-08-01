@@ -5,9 +5,12 @@ public struct BodyCompositionInsight: InsightModel {
     public let id: InsightID = .bodyComposition
     public let title = "Body Composition"
     public init() {}
+    /// `.height` is deliberately absent — see `supportingMetrics`. It is a
+    /// static attribute with no series to chart and nothing that can change
+    /// between two readings; it enters through BMI and is named in the drivers.
     public var candidateMetrics: [MetricType] {
         [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass, .boneMass,
-         .bodyWaterPercentage, .height]
+         .bodyWaterPercentage]
     }
     /// Non-mandatory: without them the dial falls back to BMI rather than
     /// disappearing, and the card still narrates.
@@ -85,40 +88,75 @@ public struct BodyCompositionInsight: InsightModel {
             explanation += " " + composition
         }
 
-        // Every body measurement that actually reported.
+        // **One measurement carries the dial** — body fat where a scale reports
+        // it, body mass through BMI otherwise — and which one is the model's own
+        // answer rather than a guess made here.
         //
-        // **One of them carries the dial outright** — body fat where a scale
-        // reports it, body mass through BMI otherwise — and which one is the
-        // model's own answer rather than a guess made here. Everything else is
-        // charted and unscored, which is the honest description of lean, muscle,
-        // bone and water on this card: they narrate the *change* in weight and
-        // none of them enters the number.
-        let present = candidateMetrics.filter { samples.latestValue($0) != nil }
+        // The rest of what a body-composition scale measures now carries a share
+        // rather than being charted at weight 0. There is no published 0–100
+        // curve for lean, muscle or bone mass, and there is a defensible reading
+        // of each against this person's own normal: lean and muscle mass falling
+        // away from your baseline is the thing this card's whole narrative is
+        // about, and it was contributing nothing to the number that narrative
+        // sits under. See `SupportingSignal`.
         let bodyFat = samples.latestValue(.bodyFatPercentage)
         let dial = Self.score(bodyFat: bodyFat, bmi: bmi,
                               age: profile.age(asOf: now), sex: profile.sex)
+        let blend = dial.flatMap { dial in
+            ScoreBlend.blend(
+                primary: [.init(metric: dial.metric,
+                                higherIsBetter: dial.metric == .bodyFatPercentage ? false : nil,
+                                score: dial.value, weight: 1,
+                                detail: Self.formatted(dial.metric, samples: samples))],
+                supporting: Self.supportingTerms(samples: samples, now: now,
+                                                 excluding: dial.metric))
+        }
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline,
-            score: dial?.value,
+            score: blend?.score ?? dial?.value,
             confidence: Self.scoreConfidence(bodyFat: bodyFat, height: height,
                                              profile: profile, now: now),
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements(profile: profile, now: now),
-            contributors: present.map { metric in
-                let unit = metric.unit
-                return .init(metric: metric,
-                             higherIsBetter: metric == .bodyFatPercentage ? false : nil,
-                             weight: metric == dial?.metric ? 1 : 0,
-                             detail: String(format: "%.1f%@", samples.latestValue(metric) ?? 0,
-                                            unit.isEmpty ? "" : " \(unit)"))
-            },
-            weighting: dial?.metric == .bodyFatPercentage
-                ? .singleMeasure("the published healthy body-fat range for your age and sex")
-                : (dial == nil ? .unstated
-                   : .singleMeasure("the healthy BMI range of 18.5 to 24.9 — the fallback, "
-                                    + "because BMI cannot tell muscle from fat")))
+            contributors: blend?.contributions ?? [],
+            weighting: dial == nil ? .unstated : .weightedAverage)
+    }
+
+    /// Everything a scale reports beyond the one measurement carrying the dial.
+    ///
+    /// `.height` is deliberately not here and is no longer a declared input.
+    /// It is a **static attribute** — the app already gives it a plain value
+    /// card with no chart — so it is neither a series to draw under "What goes
+    /// into this" nor a thing that can move between two readings. It enters the
+    /// number through BMI and is named in the drivers, which is where a constant
+    /// belongs. This is the one signal that left the card rather than earning a
+    /// weight, and the alternative was a bar whose only honest label would be
+    /// "this cannot change".
+    static let supportingMetrics: [(MetricType, Bool?)] = [
+        (.bodyFatPercentage, false),
+        (.bodyMass, nil),
+        (.leanBodyMass, true),
+        (.muscleMass, true),
+        (.boneMass, true),
+        (.bodyWaterPercentage, nil)
+    ]
+
+    static func supportingTerms(samples: [HealthMetricSample], now: Date,
+                                excluding dial: MetricType) -> [ScoreBlend.Term] {
+        supportingMetrics.compactMap { metric, higherIsBetter in
+            guard metric != dial,
+                  let reading = VitalReader.reading(metric, from: samples, now: now)
+            else { return nil }
+            return ScoreBlend.supporting(reading, higherIsBetter: higherIsBetter)
+        }
+    }
+
+    static func formatted(_ metric: MetricType, samples: [HealthMetricSample]) -> String {
+        let unit = metric.unit
+        return String(format: "%.1f%@", samples.latestValue(metric) ?? 0,
+                      unit.isEmpty ? "" : " \(unit)")
     }
 
     /// Reads the direction of weight change against lean mass.

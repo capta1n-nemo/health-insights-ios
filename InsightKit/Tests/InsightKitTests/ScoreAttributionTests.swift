@@ -163,7 +163,11 @@ final class ScoreAttributionTests: XCTestCase {
             cholesterolAssumed: false)
         XCTAssertGreaterThan(smoker.first { $0.name == "Smoking" }?.weight ?? 0, 0.05)
         XCTAssertEqual(neither.first { $0.name == "Smoking" }?.weight, 0)
-        XCTAssertEqual(neither.first { $0.name == "Smoking" }?.detail, "non-smoker")
+        let neitherRow = neither.first { $0.name == "Smoking" }?.detail ?? ""
+        XCTAssertTrue(neitherRow.hasPrefix("non-smoker"), neitherRow)
+        // "Carrying none" and "not looked at" are opposite statements, and a
+        // bare zero says the second.
+        XCTAssertTrue(neitherRow.contains("carrying none of your risk"), neitherRow)
     }
 
     /// A factor already at the optimal value is carrying none of the risk, and
@@ -289,7 +293,13 @@ final class ScoreAttributionTests: XCTestCase {
                              start: date, source: .manual))
             out.append(.init(type: .restingHeartRate, value: 56 + Double(i) * 1.5,
                              start: date, source: .appleHealth))
-            out.append(.init(type: .heartRateVariabilityRMSSD, value: 52 - Double(i),
+            // Deliberately not collinear with resting heart rate: two predictors
+            // on a line make `bivariateFit`'s normal equations degenerate, it
+            // returns nil, and the estimate silently drops to the
+            // resting-HR-only fallback — which is a real behaviour with its own
+            // row note, and not the two-predictor path this exercises.
+            out.append(.init(type: .heartRateVariabilityRMSSD,
+                             value: 52 - Double(i) + Double((i * 7) % 5) * 2.5,
                              start: date, source: .appleHealth))
         }
         // Today's autonomic readings, which are what the estimate is *of*.
@@ -307,14 +317,37 @@ final class ScoreAttributionTests: XCTestCase {
         let result = BloodPressureInsight().evaluate(
             samples: bpSamples(lastReadingDaysAgo: 0.2), profile: UserHealthProfile(),
             now: attributionNow)
-        guard case .measurement = result.weighting else {
-            return XCTFail("expected a measurement, got \(result.weighting)")
+        guard case .singleMeasure(let against) = result.weighting else {
+            return XCTFail("expected a published-range measure, got \(result.weighting)")
         }
-        XCTAssertFalse(result.weighting.carriesShares)
-        XCTAssertTrue(result.weightedFactors.isEmpty)
+        XCTAssertTrue(against.contains("ACC/AHA"), against)
+        XCTAssertTrue(against.contains("last 24 hours"), against)
         XCTAssertEqual(try XCTUnwrap(result.score),
                        BloodPressureEstimator.score(systolic: 128, diastolic: 82),
                        accuracy: 1e-9)
+
+        // Both numbers set the category, so both carry a share of it, and the
+        // higher one along its own axis carries more.
+        let weighted = result.weightedFactors
+        XCTAssertEqual(weighted.reduce(0) { $0 + $1.weight }, 1, accuracy: 1e-9)
+        XCTAssertEqual(Set(weighted.compactMap(\.metric)),
+                       [.bloodPressureSystolic, .bloodPressureDiastolic])
+    }
+
+    /// Both numbers always carry a share, including on the best reading someone
+    /// has ever taken. A leave-one-out against 120/80 was the obvious
+    /// alternative and measures the *deficit*, so a reader at 112/72 would see
+    /// two empty rows.
+    func testAPerfectReadingStillDividesBetweenItsTwoNumbers() {
+        let shares = BloodPressureEstimator.readingShares(systolic: 112, diastolic: 72)
+        XCTAssertGreaterThan(shares.systolic, 0)
+        XCTAssertGreaterThan(shares.diastolic, 0)
+        XCTAssertEqual(shares.systolic + shares.diastolic, 1, accuracy: 1e-9)
+
+        // And a systolic far along its own axis beside an ordinary diastolic
+        // carries the larger share.
+        let lopsided = BloodPressureEstimator.readingShares(systolic: 175, diastolic: 78)
+        XCTAssertGreaterThan(lopsided.systolic, lopsided.diastolic)
     }
 
     /// Past a day the estimate takes over — it is the only one of the three
@@ -352,12 +385,39 @@ final class ScoreAttributionTests: XCTestCase {
         XCTAssertEqual(weighted.reduce(0) { $0 + $1.weight }, 1, accuracy: 1e-9)
         let metrics = Set(weighted.compactMap(\.metric))
         XCTAssertTrue(metrics.contains(.restingHeartRate), "\(metrics)")
-        XCTAssertFalse(metrics.contains(.bloodPressureSystolic),
-                       "the cuff readings are the fit's calibration, not today's input")
-        // And they are still charted, under the group that says exactly that.
-        XCTAssertTrue(result.unweightedFactors.contains {
-            $0.metric == .bloodPressureSystolic
-        })
+        // The cuff readings carry the level and today's autonomic readings carry
+        // the nudge: the estimate is the person's own average plus a departure.
+        // Both are in the number, which is why the estimate moves so little day
+        // to day and why the cadence rule exists at all.
+        XCTAssertTrue(metrics.contains(.bloodPressureSystolic), "\(metrics)")
+        let cuffShare = weighted
+            .filter { $0.metric == .bloodPressureSystolic || $0.metric == .bloodPressureDiastolic }
+            .reduce(0) { $0 + $1.weight }
+        XCTAssertEqual(cuffShare, 1 - SupportingSignal.collectiveShare, accuracy: 1e-9)
+        // The rule the user set, in the form that survives every route: an input
+        // either carries a share or says on its own row why it doesn't. A bare
+        // zero under a section promising "everything carries a share, however
+        // small" is the failure mode this replaces.
+        for row in result.unweightedFactors {
+            XCTAssertTrue(row.detail.contains(" — "),
+                          "\(row.name) has no share and no reason: \(row.detail)")
+        }
+    }
+
+    /// Every card, every unweighted row: a share or a stated reason.
+    func testAnUnweightedRowAlwaysSaysWhy() {
+        let samples = ContributorsFixture.fullCoverage(now: attributionNow)
+        for model in InsightEngine().models {
+            let result = model.evaluate(samples: samples,
+                                        profile: ContributorsFixture.profile(now: attributionNow),
+                                        now: attributionNow)
+            guard result.score != nil else { continue }
+            for row in result.unweightedFactors {
+                XCTAssertTrue(row.detail.contains(" — "),
+                              "\(model.id): \(row.name) carries no share and gives no "
+                                  + "reason — \"\(row.detail)\"")
+            }
+        }
     }
 
     /// The floor: cuff readings and nothing to estimate from. Reached only when
@@ -370,10 +430,11 @@ final class ScoreAttributionTests: XCTestCase {
             samples: readingsOnly, profile: UserHealthProfile(), now: attributionNow)
         XCTAssertNotNil(result.score)
         XCTAssertEqual(result.confidence, .moderate)
-        guard case .measurement(let what) = result.weighting else {
-            return XCTFail("expected a measurement, got \(result.weighting)")
+        guard case .singleMeasure(let against) = result.weighting else {
+            return XCTFail("expected a published-range measure, got \(result.weighting)")
         }
-        XCTAssertTrue(what.contains("average of"), what)
+        XCTAssertTrue(against.contains("average of"), against)
+        XCTAssertEqual(result.weightedFactors.reduce(0) { $0 + $1.weight }, 1, accuracy: 1e-9)
     }
 
     /// The predictor split is of the *departure* from the person's own mean, so

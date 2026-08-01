@@ -48,7 +48,7 @@ the place to look.
   - `RawValue` :14
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :555
+  - `BloodPressureInsight` :579
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CardioTrajectory.swift`
@@ -112,6 +112,9 @@ the place to look.
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
+- `Insights/ScoreBlend.swift`
+  - `ScoreBlend` :70
+  - `SupportingSignal` :24
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
   - `ScoreChangeReader` :90
@@ -247,7 +250,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :392
+  - `SubstanceWindow` :398
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/PlainText.swift`

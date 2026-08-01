@@ -207,13 +207,38 @@ public struct HeartHealthInsight: InsightModel {
                 drivers: [], unmetRequirements: unmet)
         }
 
-        let band = HeartHealthInsight.band(out.score)
+        // Heart-rate recovery, the measurement this card's own bespoke section
+        // draws. Read through `VitalReader` on the same window
+        // `HeartResponseModel` uses, so the chart cannot show a reading the
+        // section beside it has already discarded as too old.
+        //
+        // It carries a share now rather than being charted at weight 0. The
+        // published 12-beat cut-point stays where it belongs — in the bespoke
+        // section, which is about the threshold — and the *weight* here rests on
+        // the reader's own baseline, which is what `SupportingSignal` is for. A
+        // cut-point says whether a reading is concerning; it is not a 0-100
+        // curve, and turning it into one is the invention this app declines.
+        let supporting = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
+                                             freshWithin: HeartResponseModel.recoveryFreshness)
+            .flatMap { ScoreBlend.supporting($0, higherIsBetter: true) }
+        let blend = ScoreBlend.blend(
+            primary: out.components.map {
+                ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
+                                score: $0.score, weight: $0.weight, detail: $0.detail)
+            },
+            supporting: supporting.map { [$0] } ?? [])
+        let score = blend?.score ?? out.score
+
+        let band = HeartHealthInsight.band(score)
         // Confidence scales with how many components were available.
         let confidence: InsightConfidence = out.components.count >= 3 ? .high
             : out.components.count == 2 ? .moderate : .low
         let lines = out.components
             .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
-        var explanation = "Composite heart-health score of \(Int(out.score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
+        var explanation = "Composite heart-health score of \(Int(score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
+        if supporting != nil {
+            explanation += " Your heart-rate recovery is read in beside them, against your own normal rather than a published scale, so it carries a smaller share."
+        }
 
         // Where You Stand, absorbed. It was a card of its own reading the same
         // three metrics this one already scores — but the *framing* is not a
@@ -237,25 +262,14 @@ public struct HeartHealthInsight: InsightModel {
             explanation += " Across \(standing.standings.count) measure\(standing.standings.count == 1 ? "" : "s") you sit around the \(Int(standing.overall.rounded()))th centile for people your age and sex — an approximation to published figures, not a lookup into a real distribution — and a centile describes where you sit, not whether anything is wrong."
         }
 
-        // The one measurement this card's own section draws, charted at weight 0
-        // beside the four it scores. Read through `VitalReader` on the same
-        // window `HeartResponseModel` uses, so the chart cannot show a reading
-        // the section beside it has already discarded as too old.
-        var contributors = out.contributions
-        if let recovery = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
-                                              freshWithin: HeartResponseModel.recoveryFreshness) {
-            contributors.append(.init(
-                metric: .heartRateRecovery, higherIsBetter: true, weight: 0,
-                detail: String(format: "−%.0f bpm in the first minute", recovery.value)))
-        }
-
         let all = lines + standingLines
         return InsightResult(
-            id: id, title: title, primaryValue: out.score,
-            headline: band, score: out.score, confidence: confidence,
+            id: id, title: title, primaryValue: score,
+            headline: band, score: score, confidence: confidence,
             explanation: explanation,
             driverLines: all.filter { $0.isNotable == true } + all.filter { $0.isNotable != true },
-            unmetRequirements: unmet, contributors: contributors,
+            unmetRequirements: unmet,
+            contributors: blend?.contributions ?? out.contributions,
             weighting: .weightedAverage)
     }
 

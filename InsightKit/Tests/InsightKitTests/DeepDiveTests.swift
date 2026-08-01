@@ -256,12 +256,25 @@ final class TrendInsightContributorsTests: XCTestCase {
                        "only SDNN was present, so SDNN is what should be charted")
     }
 
+    /// Each still reports its own metric, and it is still the one that decides
+    /// what the card says.
+    ///
+    /// **Repointed 2026-08-01.** This asserted `weight == 1` on VO₂max, which
+    /// held while Fitness's supporting signals were charted at weight 0. They
+    /// carry `SupportingSignal.collectiveShare` between them now, so VO₂max has
+    /// 80% rather than 100%. The claim worth keeping is the one the constant
+    /// exists to guarantee — the primary measurement still dominates — and it is
+    /// asserted against the constant rather than against 0.8, so retuning the
+    /// share does not silently invalidate the test that justifies it.
     func testCardioFitnessAndRestingHeartRateTrendBothReportTheirMetric() {
-        // Each still reports its own metric; both now also carry context
-        // metrics at weight 0, so this is containment rather than equality.
-        XCTAssertTrue(FitnessInsight()
+        let fitness = FitnessInsight()
             .evaluate(samples: samples(), profile: profile(), now: deepNow)
-            .contributors.contains { $0.metric == .vo2Max && $0.weight == 1 })
+        let vo2 = fitness.contributors.first { $0.metric == .vo2Max }
+        XCTAssertNotNil(vo2)
+        XCTAssertEqual(vo2?.weight ?? 0, 1 - SupportingSignal.collectiveShare,
+                       accuracy: 1e-9)
+        XCTAssertEqual(fitness.contributors.byInfluence.first?.metric, .vo2Max,
+                       "the primary measurement must still be the heaviest row")
         XCTAssertTrue(HeartHealthInsight()
             .evaluate(samples: samples(), profile: profile(), now: deepNow)
             .contributors.contains { $0.metric == .restingHeartRate })

@@ -89,9 +89,19 @@ public struct FitnessInsight: InsightModel {
         let fitnessAge = FitnessAgeModel.evaluate(vo2: vo2, sex: sex, chronologicalAge: age)
 
         let totalWeight = Self.levelWeight + (trajectoryScore == nil ? 0 : Self.trajectoryWeight)
-        let score = (levelScore * Self.levelWeight
-                     + (trajectoryScore ?? 0) * (trajectoryScore == nil ? 0 : Self.trajectoryWeight))
+        let vo2Score = (levelScore * Self.levelWeight
+                        + (trajectoryScore ?? 0) * (trajectoryScore == nil ? 0 : Self.trajectoryWeight))
             / totalWeight
+
+        // The supporting signals now carry a share of the number rather than
+        // being charted beside it at weight 0. See `SupportingSignal` for the
+        // argument that reversed: none of these has a published 0–100 curve,
+        // and the answer to weaker evidence is a smaller weight, not a zero one.
+        let blend = ScoreBlend.blend(
+            primary: [.init(metric: .vo2Max, higherIsBetter: true, score: vo2Score,
+                            weight: 1, detail: String(format: "%.0f", vo2))],
+            supporting: Self.supportingTerms(samples: samples, now: now))
+        let score = blend?.score ?? vo2Score
 
         // MARK: Drivers
 
@@ -149,39 +159,32 @@ public struct FitnessInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmet,
-            contributors: Self.contributors(samples: samples, now: now, vo2: vo2),
-            // Not `weightedAverage`, even though the score is 0.7 level + 0.3
-            // trajectory: both halves are read off the same VO₂max series, so
-            // one measurement carries the whole number and there is nothing for
-            // a missing component to be renormalised over.
-            weighting: .singleMeasure("the VO₂max norms for your age and sex, "
-                                      + "and the direction your own readings have moved"))
+            contributors: blend?.contributions
+                ?? [.init(metric: .vo2Max, higherIsBetter: true, weight: 1,
+                          detail: String(format: "%.0f", vo2))],
+            weighting: .weightedAverage)
     }
 
     // MARK: - Contributions
 
-    /// VO₂max carries the weight; the rest are reported at weight 0.
+    /// The supporting signals, judged against the reader's own baseline.
     ///
-    /// **Deliberate, and the alternative was worse.** Heart-rate recovery, day
-    /// strain and walking heart rate are genuinely useful fitness signals, and
-    /// this card is the first thing in the app to read them — but there is no
-    /// validated 0–100 curve for any of them here. Giving them a made-up weight
-    /// would put an invented number inside a score the user is asked to trust.
-    /// Weight 0 is the same honesty `VitalSignsCheck` and `HealthWatchModel`
-    /// already apply: the signal is on the chart, in the legend, and in
-    /// `contributors` for anything later to learn from, without pretending it
-    /// was scored.
-    static func contributors(samples: [HealthMetricSample], now: Date,
-                             vo2: Double) -> [MetricContribution] {
-        var out = [MetricContribution(metric: .vo2Max, higherIsBetter: true, weight: 1,
-                                      detail: String(format: "%.0f", vo2))]
-        for (metric, higherIsBetter) in contextMetrics {
-            guard let reading = VitalReader.reading(metric, from: samples, now: now) else { continue }
-            out.append(MetricContribution(
-                metric: metric, higherIsBetter: higherIsBetter, weight: 0,
-                detail: MetricValueFormatter.string(reading.value, metric)))
+    /// **This reverses a decision recorded at length, and the reversal is the
+    /// user's.** These were reported at weight 0 on the argument that no
+    /// validated 0–100 curve exists for any of them and an invented weight
+    /// inside a trusted score is worse than none. That argument is against
+    /// *inventing* one; it did not justify a section headed "What goes into
+    /// this" listing seven signals of which one went into anything.
+    ///
+    /// Nothing is invented here. `SupportingSignal.score` is the mapping
+    /// `ReadinessScore` already weights every one of its components with —
+    /// direction-aware departure from this person's own normal — and it earns
+    /// the smaller weight that weaker evidence deserves rather than none at all.
+    static func supportingTerms(samples: [HealthMetricSample], now: Date) -> [ScoreBlend.Term] {
+        contextMetrics.compactMap { metric, higherIsBetter in
+            VitalReader.reading(metric, from: samples, now: now)
+                .flatMap { ScoreBlend.supporting($0, higherIsBetter: higherIsBetter) }
         }
-        return out
     }
 
     /// The supporting signals, and which direction is the good one.

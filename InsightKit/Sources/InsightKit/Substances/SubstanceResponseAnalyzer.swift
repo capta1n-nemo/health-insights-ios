@@ -347,12 +347,18 @@ public enum SubstanceResponseAnalyzer {
         // `score` appends it in.
         let shares = Self.penaltyShares(load: analysis.recentLoad, effects: analysis.effects)
         let contributors = analysis.effects.enumerated().map { index, effect in
-            MetricContribution(
+            let share = shares.indices.contains(index) ? shares[index] : 0
+            return MetricContribution(
                 metric: effect.metric,
                 higherIsBetter: Self.higherIsBetter(effect.metric),
-                weight: shares.indices.contains(index) ? shares[index] : 0,
+                weight: share,
                 detail: String(format: "%@%.1f after use",
-                               effect.deltaAbsolute >= 0 ? "+" : "−", abs(effect.deltaAbsolute)))
+                               effect.deltaAbsolute >= 0 ? "+" : "−", abs(effect.deltaAbsolute))
+                    // A signal that moved the *welcome* way has a severity of
+                    // zero and so takes nothing off. That is good news and has
+                    // to read as good news rather than as a bare zero under a
+                    // section promising every input carries a share.
+                    + (share > 0 ? "" : " — moved the way you'd want it to, so it took nothing off"))
         }
         // The fortnight's load is a penalty in its own right and is not a metric
         // — it is a decaying figure over the log — so it reaches the weighting
