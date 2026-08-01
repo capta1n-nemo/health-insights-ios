@@ -10,7 +10,11 @@ import InsightKit
 /// score" and "we couldn't measure it".
 struct MetricOverlayLegend: View {
     let series: [NormalizedSeries]
-    let contributions: [MetricContribution]
+    /// What the card charts, *and whether the model reported it* — the second
+    /// half matters here and nowhere else, because a stand-in's zero weight is
+    /// indistinguishable from a deliberate one and this is the view that puts
+    /// that number into words.
+    let contributions: ChartedContributions
     /// Declared inputs with nothing to plot — shown dimmed rather than omitted.
     let missing: [MetricType]
     /// Which series are on the chart. Shared with it, so the key and the plot
@@ -39,7 +43,27 @@ struct MetricOverlayLegend: View {
     }
 
     private func contribution(for metric: MetricType) -> MetricContribution? {
-        contributions.first { $0.metric == metric }
+        contributions.contributions.first { $0.metric == metric }
+    }
+
+    /// The line under a metric's name: direction, whether that direction is the
+    /// good one, and its share of the score — all three, every row. Which of the
+    /// three is *knowable* is the one thing that varies, and that is a property
+    /// of the model rather than of the row.
+    private func caption(_ one: NormalizedSeries) -> LegendCaption {
+        guard contributions.areReported else {
+            return .unreported(trendPerWeek: one.trendPerWeek)
+        }
+        return .series(trendPerWeek: one.trendPerWeek,
+                       higherIsBetter: one.higherIsBetter,
+                       weight: contribution(for: one.metric)?.weight ?? 0)
+    }
+
+    private func caption(missing metric: MetricType) -> LegendCaption {
+        guard contributions.areReported else { return .unreportedAndUnrecorded }
+        let contribution = contribution(for: metric)
+        return .noReadings(higherIsBetter: contribution?.higherIsBetter,
+                           weight: contribution?.weight ?? 0)
     }
 
     private func toggle(_ metric: MetricType) {
@@ -139,6 +163,10 @@ struct MetricOverlayLegend: View {
     /// it to be the key to.
     private func row(_ one: NormalizedSeries, slot: Int?, isOn: Bool) -> some View {
         let contribution = contribution(for: one.metric)
+        // All three facts, every row. See `LegendCaption` — this used to print
+        // whichever one an `if` reached first, so which of the three was missing
+        // varied from row to row with nothing on screen to say so.
+        let caption = caption(one)
         return Button {
             toggle(one.metric)
         } label: {
@@ -147,12 +175,9 @@ struct MetricOverlayLegend: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(one.metric.displayName)
                         .font(.subheadline)
-                    if let weight = contribution?.weight, weight > 0 {
-                        Text("\(Int((weight * 100).rounded()))% of this score")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    } else if let trend = trendPhrase(one) {
-                        Text(trend).font(.caption2).foregroundStyle(.secondary)
-                    }
+                    Text(caption.text)
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 // The model's own formatting when it reported one, otherwise the
@@ -190,8 +215,13 @@ struct MetricOverlayLegend: View {
         .frame(width: 18, height: 10)
     }
 
+    /// A declared input with nothing plotted. It still has a preferred direction
+    /// and still has a share of the score, and the row used to state neither —
+    /// so the one row on the card where the reader most needs to know what they
+    /// are missing out on said only "No data".
     private func missingRow(_ metric: MetricType) -> some View {
-        HStack(spacing: 8) {
+        let caption = caption(missing: metric)
+        return HStack(spacing: 8) {
             Path { path in
                 path.move(to: CGPoint(x: 0, y: 5))
                 path.addLine(to: CGPoint(x: 18, y: 5))
@@ -201,24 +231,15 @@ struct MetricOverlayLegend: View {
             // has nothing inferred either.
             .stroke(Color.secondary.opacity(0.25), style: StrokeStyle(lineWidth: 2))
             .frame(width: 18, height: 10)
-            Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
+                Text(caption.text)
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
             Text("No data").font(.caption).foregroundStyle(.tertiary)
         }
-    }
-
-    /// Direction over the window, in plain words, and whether that direction is
-    /// the good one for this particular signal — rising HRV and rising resting
-    /// heart rate mean opposite things, and a bare arrow would imply otherwise.
-    /// Silent about good-or-bad where neither direction is (temperature
-    /// deviation is best near zero).
-    private func trendPhrase(_ one: NormalizedSeries) -> String? {
-        guard let slope = one.trendPerWeek, abs(slope) >= PatternFinder.minimumSlope else {
-            return "steady"
-        }
-        let rising = slope > 0
-        let direction = rising ? "trending up" : "trending down"
-        guard let higherIsBetter = one.higherIsBetter else { return direction }
-        return direction + (rising == higherIsBetter ? " (good)" : " (worth watching)")
+        .accessibilityElement(children: .combine)
     }
 }

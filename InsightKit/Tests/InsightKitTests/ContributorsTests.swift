@@ -66,6 +66,35 @@ final class ContributorsTests: XCTestCase {
         }
     }
 
+    /// Which insights report what they weighed, and which one legitimately does
+    /// not.
+    ///
+    /// This matters to the legend. `ChartedContributions.resolve` substitutes an
+    /// insight's *declared* inputs when it reports nothing, and those stand-ins
+    /// carry `weight: 0` and `higherIsBetter: nil` — values that are also real
+    /// findings elsewhere (`dayStrain` is deliberately unscored; a temperature
+    /// deviation deliberately has no good direction). Read as findings, a
+    /// stand-in row announces itself as "tracked, not scored · neither direction
+    /// is better", two claims no model made. `areReported` is what prevents
+    /// that, and this is what stops a new insight silently joining the
+    /// exception and losing its weights on the card.
+    ///
+    /// Nothing else in the suite pins it: every other check here quantifies over
+    /// `result.contributors`, and an empty list satisfies all of them vacuously.
+    func testOnlySubstanceImpactReportsNoContributorsUnderFullMetricCoverage() {
+        let samples = fullCoverage()
+        let silent = InsightEngine().models.filter {
+            $0.evaluate(samples: samples, profile: profile, now: contributorNow)
+                .contributors.isEmpty
+        }.map(\.id)
+
+        // Substance Impact reports one contributor per *measured effect of a
+        // logged event*, and this fixture logs none — so it has genuinely
+        // nothing to report rather than having forgotten to report it.
+        XCTAssertEqual(Set(silent), [.substanceImpact],
+                       "insights reporting no contributors: \(silent)")
+    }
+
     /// The anti-drift check: a component added to a score without being tagged
     /// with its metric, or tagged with a metric the insight never declared,
     /// fails here.

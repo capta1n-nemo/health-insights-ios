@@ -1,7 +1,8 @@
 # Card sections — what each screen actually renders
 
 _Audit of record. Re-derived 2026-07-31 after the consolidation from seventeen
-insight cards to nine. Every cell was read out of the code._
+insight cards to nine, and again 2026-08-01 after the section order changed.
+Every cell was read out of the code._
 
 Written because the app had three families of card-based screen and no record of
 which sections each shows. The first pass found eight inconsistencies; five were
@@ -26,55 +27,91 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 |---|---|---|---|
 | 1 | `Hdr` | header — dial or headline, confidence badge, explanation | always |
 | 2 | `Drv` | "What's driving this" | `!drivers.isEmpty` |
-| 3 | `V&A` | "View & add" — what you've given, what's missing, how to add | the model's `contributions` is non-empty |
-| 4 | *bespoke* | the card's own picture of its own subject | one `switch`, six cards |
-| — | *picker* | the timeframe control — a screen-level control, not a card | any timeframe-driven section renders |
-| 5 | `ScrHx` | "Score over time" | history ≥2 |
-| 6 | `Goes` | "What goes into this" — overlay, scale picker, legend | series non-empty |
-| 7 | `Patt` | "Patterns worth a look" | patterns non-empty |
-| 8 | `1st` | "What comes first" — lag | leads non-empty |
-| 9 | `Chg` | "What changed" — period contrast | changes non-empty |
-| 10 | `Hist` | "Full history" — one link per input | contributors non-empty |
+| 3 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
+| — | *picker* | the timeframe control — a screen-level control, not a card | **always** |
+| 4 | `ScrHx` | "Score over time" | history ≥2 |
+| 5 | `Patt` | "Patterns worth a look" — **collapsed by default** | **always** |
+| 6 | `1st` | "What comes first" — lag, **collapsed by default** | **always** |
+| 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | series non-empty |
+| 8 | `Chg` | "What changed" — period contrast | changes non-empty |
+| 9 | `Hist` | "Full history" — one link per input | contributors non-empty |
+| 10 | `V&A` | "View & add" — what you've given, what's missing, how to add | the model's `contributions` is non-empty |
 | 11 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
 | 12 | `Disc` | disclaimer | always |
+
+**Reordered 2026-08-01, on the user's reading of the shipped screens.** Three
+moves, each with its own reason:
+
+- **The two findings sections came up**, from below "What goes into this" to
+  directly under the score they are findings about. They used to sit behind a
+  chart, a scale picker and a thirteen-row legend — so the one part of the
+  screen that had already read the data *for* the reader was the part hardest to
+  reach.
+- **"View & add" went down**, from third to second-from-last, beside "Was this
+  accurate?" — the other thing the screen asks *of* the reader rather than tells
+  them. It is not a daily concern, and it was sitting ahead of every finding on
+  a screen nobody opens in order to type.
+- **The timeframe picker lost its gate.** `usesTimeframe` hid it where nothing
+  read the window; both findings sections now always render and both read it. It
+  also hid it in the one case where widening the window is the *remedy* — a card
+  with no series — which left `FindingsPlaceholder` pointing at a control that
+  wasn't on screen.
 
 ### The matrix
 
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
-| Insight | Tab | `Hdr` | `Drv` | `V&A` | bespoke (+ nested) | `ScrHx` | `Goes` | `Patt` | `1st` | `Chg` | `Hist` | `Fbk` | `Disc` |
+| Insight | Tab | `Hdr` | `Drv` | bespoke (+ nested) | `ScrHx` | `Patt` | `1st` | `Goes` | `Chg` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ◐ | ○ | ◐ "How this is weighted" **+ "How far from your normal"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Sleep | Today | ● | ◐ | ○ | ◐ "Your fortnight" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Energy | Today | ● | ◐ | ○ | ◐ "Today" curve | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Substance Impact | Today | ● | ◐ | ● | ◐ "Cardiovascular load" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Heart Health | Insights | ● | ◐ | ● | ◐ "How this is weighted" **+ "How you compare"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Fitness | Insights | ● | ◐ | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ◐ | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Blood Pressure | Insights | ● | ◐ | ● | ◐ "Your readings" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Body Composition | Insights | ● | ◐ | ● | ◐ "What you're made of" + "How that has changed" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Readiness | Today | ● | ◐ | ◐ "How this is weighted" **+ "How far from your normal"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
+| Sleep | Today | ● | ◐ | ◐ "Your fortnight" | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
+| Energy | Today | ● | ◐ | ◐ "Today" curve | ◐ | ● | ● | ◐ | ◐ | ◐ | ○ | ◐ | ● |
+| Substance Impact | Today | ● | ◐ | ◐ "Cardiovascular load" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Heart Health | Insights | ● | ◐ | ◐ "How this is weighted" **+ "How you compare"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Fitness | Insights | ● | ◐ | ◐ "Fitness age over time" **+ "Where this is heading"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ◐ | ◐ "Heart age over time" **+ "If today's numbers hold"** | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Blood Pressure | Insights | ● | ◐ | ◐ "Your readings" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
+| Body Composition | Insights | ● | ◐ | ◐ "What you're made of" + "How that has changed" | ◐ | ● | ● | ◐ | ◐ | ◐ | ● | ◐ | ● |
 
 **The bespoke slot is still one slot.** Five cards now draw two things in it,
 separated by a `Divider()` and wrapped in `NestedInsightSection` — the pattern
 Body Composition established. A second *top-level* section would have needed a
 second placement rule, and the one placement rule is the thing Phase 1 bought.
 
-**Ten of the twelve sections are uniform across all nine cards.** The two that
-are not:
+**Eleven of the twelve sections are uniform across all nine cards**, up from ten
+now that `Patt` and `1st` render unconditionally. The one that is not:
 
 - **`V&A` reaches six.** The three without it — Readiness, Sleep, Energy — ask
   the user for nothing and are built entirely from sensed data. That is correct,
   not a gap.
-- **The bespoke slot reaches all nine**, and five cards draw *two* things in it,
-  nested under one `Divider()`.
 
-  This line said "reaches six" until 2026-08-01, while item 7 under "Still open"
-  in this same file already said all nine had one. **A file disagreeing with
-  itself, written in one session and half-updated in it** — which is what
-  handover step 11's second polarity exists to catch, and is the polarity that
-  keeps getting skipped: a claim that something is *missing* is exactly what the
-  work invalidates.
+  The bespoke slot reaches all nine, and five cards draw *two* things in it,
+  nested under one `Divider()`. That line said "reaches six" until 2026-08-01,
+  while item 7 under "Still open" in this same file already said all nine had
+  one. **A file disagreeing with itself, written in one session and half-updated
+  in it** — which is what handover step 11's second polarity exists to catch,
+  and is the polarity that keeps getting skipped: a claim that something is
+  *missing* is exactly what the work invalidates.
+
+### Why two sections are `●` with nothing to show
+
+`Patt` and `1st` used to be `◐`, and their floors are high — fourteen paired
+days and an effect size — so on most cards, most of the time, they simply
+weren't there.
+
+**A section that vanishes is an absence the reader cannot read.** It means one
+of three quite different things, and only the last of them is reassuring:
+
+1. nothing is recording for this card,
+2. there is data but not enough overlapping days to look for a relationship,
+3. there are plenty of days and nothing stood out.
+
+`FindingsPlaceholder` (InsightKit, tested) works out which one applies from the
+same floors the finder gates on, and quotes the actual shortfall — so "not
+enough days yet" can never appear under a card holding two years of data. Both
+sections arrive **collapsed**, with the strongest finding, or the reason there
+isn't one, as the preview line. See `SectionExpansion`.
 
 ### Per-insight facts behind the matrix
 
@@ -191,6 +228,27 @@ different bodies. Unchanged by the consolidation.
    switch in `ViewAndAddSection.section(for:)`, an override on
    `BodyCompositionInsight` returning *two* routes, and the skip list in
    `ContributionRouteTests.testGroundingFactsAreDerivedFromTheModelsOwnRequirements`.
+
+11. ~~**The legend under "What goes into this" stated one fact out of three.**~~
+   **Closed 2026-08-01.** Each row printed whichever of *direction*, *is that
+   direction good* and *weighting* an `if` reached first: the weight where there
+   was one, the trend otherwise, and the good-or-bad verdict only where the
+   model had declared a direction. So which of the three was missing varied row
+   to row, with nothing on screen to say which. All three now render on every
+   row, of every legend, on every card — `LegendCaption`, in InsightKit.
+
+   The interesting part is what fell out of it. `weight: 0` and
+   `higherIsBetter: nil` are real *findings* in some rows — `dayStrain` is
+   deliberately unscored, a temperature deviation deliberately has no good
+   direction — and pure *absences* in others, because
+   `InsightDetailView.resolvedContributions` substitutes an insight's declared
+   inputs when it reports none, and the stand-ins carry exactly those values.
+   Rendered naively, every row of such a card announces itself as "tracked, not
+   scored · neither direction is better", two claims no model made. **Substance
+   Impact before its first logged event is the live case**, found by a test
+   written for something else. `ChartedContributions` carries the distinction
+   now; `ContributorsTests` pins that Substance Impact is the only insight that
+   reaches it.
 
 ---
 

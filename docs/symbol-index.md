@@ -173,10 +173,14 @@ the place to look.
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
+- `Presentation/ChartedContributions.swift`
+  - `ChartedContributions` :26
 - `Presentation/ContributionRoute.swift`
   - `ContributionRoute` :14
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
+- `Presentation/FindingsPlaceholder.swift`
+  - `FindingsPlaceholder` :36
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
@@ -185,6 +189,8 @@ the place to look.
 - `Presentation/LaunchParticleField.swift`
   - `LaunchParticleField` :15
   - `SplitMix64` :129
+- `Presentation/LegendCaption.swift`
+  - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
   - `MetricPalette` :413
@@ -315,8 +321,9 @@ the place to look.
   - `CopyButton` :37
   - `Haptics` :10
 - `DesignSystem/InsightSection.swift`
-  - `InsightSection` :34
-  - `NestedInsightSection` :92
+  - `InsightSection` :57
+  - `NestedInsightSection` :170
+  - `SectionExpansion` :19
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`

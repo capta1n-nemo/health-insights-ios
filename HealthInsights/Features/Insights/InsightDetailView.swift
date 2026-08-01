@@ -69,36 +69,28 @@ struct InsightDetailView: View {
         }
     }
 
-    /// Whether any section below reads `timeframe`.
+    /// The window every timeframe-driven section below reads.
     ///
-    /// The picker used to live inside "Score over time" while also driving the
-    /// overlay, the patterns card and the lag card — so an insight with under
-    /// two replayable days lost the control for three sections that still used
-    /// it, and there was no way to change the window at all.
-    private var usesTimeframe: Bool {
-        guard let result else { return false }
-        // Body Composition's trend reads the window too, and it can render on a
-        // history with too few replayable days to produce a score chart — so
-        // without this the card would draw a timeframe-driven section with no
-        // way to change the timeframe, which is the exact bug the comment above
-        // describes.
-        if insightID == .bodyComposition,
-           BodyCompositionSplit.series(samples: model.samples).points.count >= 2 {
-            return true
+    /// It used to live inside "Score over time" while also driving the overlay,
+    /// the patterns card and the lag card — so an insight with under two
+    /// replayable days lost the control for three sections that still used it,
+    /// and there was no way to change the window at all. Moving it out fixed
+    /// that; a `usesTimeframe` gate then kept it off cards where nothing read it.
+    ///
+    /// **That gate is gone, and its own reasoning is what retired it.** Both
+    /// findings sections now render on every card whatever they found, and both
+    /// read this window, so there is always a section below that this control
+    /// moves. More to the point, the one case the gate hid it in — a card with
+    /// no series at all — is exactly where widening the window is the remedy:
+    /// `overlaySeries` filters by it, so a card drawing nothing over a month can
+    /// draw plenty over a year. Hiding the control there left
+    /// `FindingsPlaceholder` telling the reader to widen a timeframe that wasn't
+    /// on screen.
+    private var timeframePicker: some View {
+        Picker("Timeframe", selection: $timeframe) {
+            ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
         }
-        return model.scoreHistory(for: insightID).count >= 2
-            || !model.overlaySeries(for: insightID,
-                                    contributions: resolvedContributions(result),
-                                    timeframe: timeframe).isEmpty
-    }
-
-    @ViewBuilder private var timeframePicker: some View {
-        if usesTimeframe {
-            Picker("Timeframe", selection: $timeframe) {
-                ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
-            }
-            .pickerStyle(.segmented)
-        }
+        .pickerStyle(.segmented)
     }
 
     var body: some View {
@@ -109,15 +101,6 @@ struct InsightDetailView: View {
                     if !result.drivers.isEmpty {
                         driversCard(result)
                     }
-                    // What this card takes from the user, in the one shape every
-                    // card uses. Gated *here* rather than inside the view: a
-                    // struct View with an empty body is still a VStack child and
-                    // would take spacing either side of it, so the nine cards
-                    // that ask for nothing would carry a double gap.
-                    if !contributionRoutes.isEmpty {
-                        ViewAndAddSection(routes: contributionRoutes,
-                                          unmetRequirements: result.unmetRequirements)
-                    }
                     // One rule for every bespoke section: above "Score over
                     // time". The card's own subject is the finding; the months
                     // of scores derived from it are the supporting context.
@@ -125,18 +108,38 @@ struct InsightDetailView: View {
                     bespokeSection
                     timeframePicker
                     scoreHistoryCard
-                    contributorsCard(result)
+                    // The two findings sections sit directly under the score
+                    // they are findings about, and above the inputs the score
+                    // is built from. They used to sit *below* "What goes into
+                    // this", so the reader met a chart, a scale picker and a
+                    // thirteen-row legend before reaching the one part of the
+                    // screen that had actually looked at the data for them.
+                    //
+                    // Both now render on every card, whatever they found. See
+                    // `SectionExpansion` for why a section that vanishes is
+                    // worse than one that says why it is empty. Neither is
+                    // gated on cadence: the gate argued from the *tab's*
+                    // question, but this screen is reached from either tab and
+                    // is identical from both.
                     patternsCard(result)
-                    // No longer gated on cadence. The gate argued from the
-                    // *tab's* question, but this screen is reached from either
-                    // tab and is identical from both — and the daily insights
-                    // are the ones with the densest series for a lag to work on.
-                    // The sample-count and effect-size floors inside `LagFinder`
-                    // and `PeriodContrast` already decide when there is nothing
-                    // to say, which is how every other section here works.
                     laggedCard(result)
+                    contributorsCard(result)
                     periodContrastCard(result)
                     contributorLinksCard(result)
+                    // What this card takes from the user, in the one shape every
+                    // card uses. Gated *here* rather than inside the view: a
+                    // struct View with an empty body is still a VStack child and
+                    // would take spacing either side of it, so the three cards
+                    // that ask for nothing would carry a double gap.
+                    //
+                    // Second from the bottom, beside the other thing the screen
+                    // asks *of* the reader rather than tells them. It used to be
+                    // third from the top, which put a data-entry prompt ahead of
+                    // every finding on a screen nobody opens to type.
+                    if !contributionRoutes.isEmpty {
+                        ViewAndAddSection(routes: contributionRoutes,
+                                          unmetRequirements: result.unmetRequirements)
+                    }
                     feedbackCard(result)
                     disclaimerCard
                 } else {
@@ -801,7 +804,8 @@ struct InsightDetailView: View {
 
     @ViewBuilder private func contributorsCard(_ result: InsightResult) -> some View {
         let contributions = resolvedContributions(result)
-        let series = model.overlaySeries(for: insightID, contributions: contributions,
+        let series = model.overlaySeries(for: insightID,
+                                         contributions: contributions.contributions,
                                          timeframe: timeframe)
         if !series.isEmpty {
             let missing = contributions.metrics.filter { metric in
@@ -819,6 +823,19 @@ struct InsightDetailView: View {
                      : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // The key to the legend line. Three facts on every row is only
+                // an improvement if the reader knows what the third one means —
+                // “tracked, not scored” in particular reads as a fault without
+                // this, when it is a deliberate refusal to invent a weight. Not
+                // said where the model reported no weights at all, because then
+                // no row says it.
+                //
+                // Typographic quotes rather than markdown emphasis: the two
+                // arms would have to agree on which `Text` overload the ternary
+                // resolves to, and a stray asterisk on the card is not worth
+                // finding out on the phone.
+                legendKey(weightsReported: contributions.areReported)
 
                 Picker("Scale", selection: $scale) {
                     ForEach(SeriesScale.allCases) { Text($0.shortLabel).tag($0) }
@@ -848,14 +865,28 @@ struct InsightDetailView: View {
         }
     }
 
+    /// What the three parts of each legend line mean.
+    @ViewBuilder
+    private func legendKey(weightsReported: Bool) -> some View {
+        let text = weightsReported
+            ? "Every signal below says which way it is going, whether that is the direction you want for it, and how much of the score it carries. “Tracked, not scored” means the app charts it but has no validated scale to score it on, so it doesn’t move the number."
+            : "Every signal below says which way it is going. This card doesn’t report a weighting or a preferred direction for its inputs, so neither is claimed here."
+        Text(text)
+            .font(.caption2).foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     /// Contributions to chart: what the model reported, or its declared inputs
-    /// where it doesn't report yet. Without the fallback, an insight that hasn't
-    /// been migrated would show an empty card rather than a chart.
-    private func resolvedContributions(_ result: InsightResult) -> [MetricContribution] {
-        if !result.contributors.isEmpty { return result.contributors }
-        return candidateMetrics(for: insightID).map {
-            MetricContribution(metric: $0, higherIsBetter: nil, weight: 0, detail: "")
-        }
+    /// where it reports nothing. Without the fallback, an insight that hasn't
+    /// been migrated — or Substance Impact before its first logged event —
+    /// would show an empty card rather than a chart.
+    ///
+    /// `ChartedContributions` carries *which of the two* it is, because the
+    /// stand-ins' zeroes look exactly like a deliberate weight of zero and the
+    /// legend now says that out loud. See its own documentation.
+    private func resolvedContributions(_ result: InsightResult) -> ChartedContributions {
+        .resolve(reported: result.contributors,
+                 declaredInputs: candidateMetrics(for: insightID))
     }
 
     private func candidateMetrics(for id: InsightID) -> [MetricType] {
@@ -870,18 +901,38 @@ struct InsightDetailView: View {
 
     /// What reading the series against each other turns up: two signals heading
     /// opposite ways, two that move together, or the one that tracks the score.
-    /// Silent when nothing clears the sample-count and effect-size floors —
-    /// which is most of the time, and correctly so.
-    @ViewBuilder private func patternsCard(_ result: InsightResult) -> some View {
+    ///
+    /// **Renders on every card, always**, including when nothing clears the
+    /// sample-count and effect-size floors — which is most of the time. It used
+    /// to vanish then, and a vanishing section is an absence the reader cannot
+    /// read: "no data", "not enough days" and "we looked and everything is
+    /// steady" are three different answers and only the last is reassuring.
+    /// `FindingsPlaceholder` works out which one applies and says it.
+    private func patternsCard(_ result: InsightResult) -> some View {
         let series = model.overlaySeries(for: insightID,
-                                         contributions: resolvedContributions(result),
+                                         contributions: resolvedContributions(result).contributions,
                                          timeframe: timeframe)
-        let patterns = PatternFinder.patterns(in: series,
-                                              against: model.scoreHistory(for: insightID))
-        if !patterns.isEmpty {
-            InsightSection(title: "Patterns worth a look", icon: "lightbulb",
-                           trailing: "\(patterns.count) found",
-                           caveat: .associationsNotCauses) {
+        let history = model.scoreHistory(for: insightID)
+        let patterns = PatternFinder.patterns(in: series, against: history)
+        let placeholder = patterns.isEmpty
+            ? FindingsPlaceholder.patterns(series: series, score: history)
+            : nil
+
+        return InsightSection(
+            title: "Patterns worth a look", icon: "lightbulb",
+            // The same quantity either way — how many patterns — worded rather
+            // than printed as "0 found", which reads like a broken counter.
+            trailing: patterns.isEmpty ? "None yet" : "\(patterns.count) found",
+            // The caveat qualifies findings. With none to qualify there is
+            // nothing here that was inferred, and `.associationsNotCauses`
+            // under an empty section would be warning about claims nobody made.
+            caveat: patterns.isEmpty ? SectionCaveat.none : .associationsNotCauses,
+            expansion: .collapsed(preview: placeholder?.headline
+                                  ?? patterns[0].sentence)
+        ) {
+            if let placeholder {
+                emptyFinding(placeholder)
+            } else {
                 ForEach(patterns) { pattern in
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: icon(for: pattern.kind))
@@ -894,6 +945,24 @@ struct InsightDetailView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// What a findings section draws when it found nothing.
+    ///
+    /// Deliberately not `Theme.warn` and not a "no data" glyph: on most cards on
+    /// most days this is the *good* answer, and drawing it as a fault would
+    /// teach the reader to read an empty patterns card as a problem.
+    private func emptyFinding(_ placeholder: FindingsPlaceholder) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(placeholder.detail)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -914,22 +983,36 @@ struct InsightDetailView: View {
     /// Shifting a signal against the score asks whether last night's sleep
     /// predicts tomorrow's number — and a lag only appears here when it
     /// genuinely beats same-day, because otherwise it's the same finding blurred.
-    @ViewBuilder private func laggedCard(_ result: InsightResult) -> some View {
+    /// Renders on every card whatever it found, for the reason under
+    /// `patternsCard` above — and here the empty answer is the more useful one,
+    /// because "nothing runs ahead of your score" is a finding about your data
+    /// that no reader could ever have inferred from a missing section.
+    private func laggedCard(_ result: InsightResult) -> some View {
         let series = model.overlaySeries(for: insightID,
-                                         contributions: resolvedContributions(result),
+                                         contributions: resolvedContributions(result).contributions,
                                          timeframe: timeframe)
-        let leads = LagFinder.relationships(between: series,
-                                            and: model.scoreHistory(for: insightID))
-        if !leads.isEmpty {
-            // This section had no footnote at all, and it makes the most
-            // inferential claim on the screen: a correlation at a lag, fitted
-            // through however many days the two series happen to overlap on.
-            // The narrowest overlap is the honest number to quote.
-            InsightSection(
-                title: "What comes first", icon: "clock.arrow.circlepath",
-                trailing: "\(leads.count) leading",
-                caveat: .fittedThrough(points: leads.map(\.sampleCount).min() ?? 0)
-            ) {
+        let history = model.scoreHistory(for: insightID)
+        let leads = LagFinder.relationships(between: series, and: history)
+        let placeholder = leads.isEmpty
+            ? FindingsPlaceholder.leads(series: series, score: history)
+            : nil
+
+        // This section had no footnote at all, and it makes the most
+        // inferential claim on the screen: a correlation at a lag, fitted
+        // through however many days the two series happen to overlap on.
+        // The narrowest overlap is the honest number to quote — and where there
+        // is no lag, nothing was fitted and there is nothing to caveat.
+        return InsightSection(
+            title: "What comes first", icon: "clock.arrow.circlepath",
+            trailing: leads.isEmpty ? "None yet" : "\(leads.count) leading",
+            caveat: leads.isEmpty
+                ? SectionCaveat.none
+                : .fittedThrough(points: leads.map(\.sampleCount).min() ?? 0),
+            expansion: .collapsed(preview: placeholder?.headline ?? leads[0].sentence)
+        ) {
+            if let placeholder {
+                emptyFinding(placeholder)
+            } else {
                 // Resolved across this list. Without slots a metric falls
                 // back to its *preferred* hue, and RMSSD and SDNN prefer the
                 // same one — two identical dots in one list, which is the
@@ -951,7 +1034,7 @@ struct InsightDetailView: View {
     /// drifts along with the change, which is exactly how a slow decline stays
     /// invisible day to day.
     @ViewBuilder private func periodContrastCard(_ result: InsightResult) -> some View {
-        let changes = PeriodContrast.changes(for: resolvedContributions(result),
+        let changes = PeriodContrast.changes(for: resolvedContributions(result).contributions,
                                              samples: model.samples)
         if !changes.isEmpty {
             InsightSection(title: "What changed",
