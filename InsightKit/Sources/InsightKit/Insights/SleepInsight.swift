@@ -96,9 +96,32 @@ public struct SleepInsight: InsightModel {
 
         // Skin temperature away from baseline disturbs sleep and marks the
         // night an illness or a heavy drink starts.
-        let tempReading = VitalReader.reading(.skinTemperatureDeviation, from: samples, now: now)
+        //
+        // **Read from whichever unit the device reports.** Oura and Whoop send a
+        // nightly *deviation*; others send only the absolute, and a departure
+        // from this person's own baseline is the same evidence either way. Both
+        // absolutes have been declared inputs of this card since the merge and
+        // neither was read, so on a device reporting only an absolute the
+        // temperature term silently took its neutral 75 — and the two metrics
+        // charted on no card at all, because the overlay draws contributors.
+        let tempSignal: (metric: MetricType, departure: Double, detail: String)? = {
+            if let deviation = VitalReader.reading(.skinTemperatureDeviation,
+                                                   from: samples, now: now) {
+                return (.skinTemperatureDeviation, deviation.value,
+                        String(format: "%+.1f °C vs your baseline", deviation.value))
+            }
+            for metric in [MetricType.skinTemperature, .bodyTemperature] {
+                guard let reading = VitalReader.reading(metric, from: samples, now: now),
+                      let baseline = reading.baseline else { continue }
+                let departure = reading.value - baseline
+                return (metric, departure,
+                        String(format: "%.1f °C, %+.1f from your normal",
+                               reading.value, departure))
+            }
+            return nil
+        }()
         let tempScore: Double = {
-            guard let dev = tempReading?.value else { return 75 }
+            guard let dev = tempSignal?.departure else { return 75 }
             return max(20, 95 - min(70, abs(dev) * 55))
         }()
 
@@ -227,8 +250,8 @@ public struct SleepInsight: InsightModel {
                                              latest < 94 ? " — lower than a settled night usually looks" : ""),
                                       score: oxygenScore))
         }
-        if let dev = tempReading?.value {
-            drivers.append(.component(String(format: "Skin temperature: %+.1f °C vs your baseline", dev),
+        if let tempSignal {
+            drivers.append(.component("\(tempSignal.metric.displayName): \(tempSignal.detail)",
                                       score: tempScore))
         }
 
@@ -281,9 +304,9 @@ public struct SleepInsight: InsightModel {
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
                                       weight: 0.05, detail: String(format: "%.0f br/min", latest)))
         }
-        if let dev = tempReading?.value {
-            contributors.append(.init(metric: .skinTemperatureDeviation, higherIsBetter: nil,
-                                      weight: 0.03, detail: String(format: "%+.1f °C", dev)))
+        if let tempSignal {
+            contributors.append(.init(metric: tempSignal.metric, higherIsBetter: nil,
+                                      weight: 0.03, detail: tempSignal.detail))
         }
 
         // A stale night can't buy high confidence however long the history is.
@@ -294,7 +317,8 @@ public struct SleepInsight: InsightModel {
             confidence: confidence,
             explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how much of your time in bed was actually asleep, how much of the night was deep or REM, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through it. Deep and REM are scored as a *share* of the night rather than in minutes, so a short sleeper isn't charged twice for one short night.",
             driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
-            unmetRequirements: [], contributors: contributors)
+            unmetRequirements: [], contributors: contributors,
+            weighting: .weightedAverage)
     }
 
     static func durationScore(_ h: Double) -> Double {

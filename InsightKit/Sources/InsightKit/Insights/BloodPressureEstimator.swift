@@ -251,6 +251,49 @@ public enum BloodPressureEstimator {
         public let systolicUncertainty: Double
         public let diastolicUncertainty: Double
         public let calibrationCount: Int
+        /// How the fit's predictors divided the systolic estimate's departure
+        /// from this person's own mean.
+        ///
+        /// Carried on the estimate rather than recomputed by the card, because
+        /// working it out again means choosing between the bivariate and
+        /// univariate fits a second time — and a second selection is free to
+        /// pick differently from the one that produced the number on screen.
+        /// Shares of the departure, not of the number: the mean itself is not
+        /// attributable to either predictor.
+        public let restingHRShare: Double
+        /// `nil` when HRV was not in the fit at all, which is a different
+        /// statement from a share of zero.
+        public let hrvShare: Double?
+
+        public init(systolic: Double, diastolic: Double,
+                    systolicUncertainty: Double, diastolicUncertainty: Double,
+                    calibrationCount: Int,
+                    restingHRShare: Double = 1, hrvShare: Double? = nil) {
+            self.systolic = systolic
+            self.diastolic = diastolic
+            self.systolicUncertainty = systolicUncertainty
+            self.diastolicUncertainty = diastolicUncertainty
+            self.calibrationCount = calibrationCount
+            self.restingHRShare = restingHRShare
+            self.hrvShare = hrvShare
+        }
+    }
+
+    /// How much of a two-predictor estimate each predictor is responsible for.
+    ///
+    /// Both predictors' effects are measured as their departure from the
+    /// calibration set's own mean — `b·(x − x̄)` — because that is what moves
+    /// the estimate off the person's average. Split evenly when neither has
+    /// departed at all: the estimate is then exactly the mean, and handing one
+    /// predictor the whole of nothing would draw a full bar under a signal doing
+    /// nothing.
+    static func predictorShares(b1: Double, x1: Double, mean1: Double,
+                                b2: Double, x2: Double, mean2: Double)
+        -> (restingHR: Double, hrv: Double) {
+        let e1 = abs(b1 * (x1 - mean1))
+        let e2 = abs(b2 * (x2 - mean2))
+        guard e1 + e2 > 0 else { return (0.5, 0.5) }
+        return (e1 / (e1 + e2), e2 / (e1 + e2))
     }
 
     /// Ordinary least squares y = a + b·x, returning slope, intercept and the
@@ -298,11 +341,17 @@ public enum BloodPressureEstimator {
         if let currentHRV, hrvs.count == calibration.count, calibration.count >= 6,
            let sFit = bivariateFit(x1: hr, x2: hrvs, y: sys),
            let dFit = bivariateFit(x1: hr, x2: hrvs, y: dia) {
+            let shares = predictorShares(
+                b1: sFit.b1, x1: currentRestingHR,
+                mean1: hr.reduce(0, +) / Double(hr.count),
+                b2: sFit.b2, x2: currentHRV,
+                mean2: hrvs.reduce(0, +) / Double(hrvs.count))
             return Estimate(
                 systolic: sFit.a + sFit.b1 * currentRestingHR + sFit.b2 * currentHRV,
                 diastolic: dFit.a + dFit.b1 * currentRestingHR + dFit.b2 * currentHRV,
                 systolicUncertainty: sFit.residualSD, diastolicUncertainty: dFit.residualSD,
-                calibrationCount: calibration.count)
+                calibrationCount: calibration.count,
+                restingHRShare: shares.restingHR, hrvShare: shares.hrv)
         }
 
         let sFit = linearFit(x: hr, y: sys)
@@ -561,16 +610,32 @@ public struct BloodPressureInsight: InsightModel {
         var explanation = "Log a blood-pressure reading from a real cuff. That measured value is what the app trusts and trends over time."
         var confidence: InsightConfidence = .low
 
-        // What the dial reads from.
+        // What the dial reads from — three routes, in this order.
         //
-        // A reading from the last 24 hours is today's answer and wins. Failing
-        // that, the *recent pattern* — because blood pressure is a level, not an
-        // event, and the previous rule (24 hours or nothing) left anyone who
-        // cuffs weekly staring at an empty bubble six days in seven. A single
-        // aged reading is deliberately not enough: one reading is a moment.
+        // **A reading from the last 24 hours is today's answer and wins.** It is
+        // a measurement of the quantity the card is about, and nothing modelled
+        // beats one.
+        //
+        // **Past a day, the experimental estimate takes over**, because it is
+        // the only one of the three that is a statement about *now*: it reads
+        // today's resting heart rate and HRV through a regression fitted to this
+        // person's own cuff readings. It ranked below the recent average until
+        // 2026-08-01 and that was the wrong way round — an average of readings
+        // taken over the past month answers "where has this been sitting", which
+        // is a different question from the one a dial labelled with today's date
+        // is asking, and it cannot move when the person does.
+        //
+        // **The recent average is the floor**, for whoever has cuff readings but
+        // no wearable to estimate from — and because the estimate is gated on
+        // being grounded, which is exactly when it should not be trusted. A
+        // single aged reading is deliberately not enough for it: one reading is
+        // a moment.
         let trend = BloodPressureEstimator.recentTrend(from: samples, now: now)
         let latestPair = BloodPressureEstimator.pairedReadings(from: samples).first
-        let hasFreshReading = latestPair.map { now.timeIntervalSince($0.date) <= 24 * 3600 } ?? false
+        let freshPair = latestPair.flatMap {
+            now.timeIntervalSince($0.date) <= 24 * 3600 ? $0 : nil
+        }
+        let hasFreshReading = freshPair != nil
 
         var score: Double?
         if let s = sys, let d = dia {
@@ -582,21 +647,17 @@ public struct BloodPressureInsight: InsightModel {
                 text: "Latest cuff reading: \(Int(s.rounded()))/\(Int(d.rounded())) mmHg (\(cat))",
                 isNotable: cat != "Normal"))
             explanation = "Your latest measured blood pressure is \(Int(s.rounded()))/\(Int(d.rounded())) mmHg — \(cat)."
-
-            if hasFreshReading {
-                score = BloodPressureEstimator.score(systolic: s, diastolic: d)
-            }
+        }
+        // Scored from the *fresh pair's own numbers*, not from `sys`/`dia`.
+        // Those prefer `profile.cuffSystolic`, which is a grounding fact with no
+        // date attached to it here — so a stale profile value was being dialled
+        // under a freshness test that a newer sample had passed.
+        if let freshPair {
+            score = BloodPressureEstimator.score(systolic: freshPair.systolic,
+                                                 diastolic: freshPair.diastolic)
         }
 
         if let trend {
-            if score == nil {
-                // The card is now about where blood pressure has been sitting,
-                // and says so rather than implying the number is from today.
-                score = BloodPressureEstimator.score(systolic: trend.systolic,
-                                                     diastolic: trend.diastolic)
-                confidence = .moderate
-                explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) readings over the last \(trend.spanDays) days — rather than any single measurement."
-            }
             if !hasFreshReading {
                 drivers.append(InsightDriver(
                     text: String(format: "Recent average: %.0f/%.0f mmHg across %d readings in %d days (%@)",
@@ -618,6 +679,15 @@ public struct BloodPressureInsight: InsightModel {
 
         // Calibration expectation, grounded in readings already on the device.
         drivers.append(InsightDriver(text: status.guidance, isNotable: !status.isGrounded))
+
+        // Which of the three routes the dial ended up on, so the weighting
+        // section describes the number actually on screen. Set as each route
+        // claims the score rather than re-derived afterwards from what is nil.
+        var weighting: ScoreWeighting = hasFreshReading
+            ? .measurement("This is your own cuff reading from the last 24 hours, "
+                           + "taken at face value.")
+            : .unstated
+        var contributorWeights: [MetricType: Double] = [:]
 
         // Experimental personalised estimate (clearly separated). Only grounded
         // in the last 30 days of readings, matching the calibration rules.
@@ -654,15 +724,50 @@ public struct BloodPressureInsight: InsightModel {
                     confidence = .experimental
                     explanation = "Experimental estimate only — not a measurement. Log a cuff reading for a value you can trust."
                 }
+                // The estimate takes the dial the moment the last cuff reading
+                // is over a day old — ahead of the recent average below, which
+                // is a statement about the past month rather than about now.
                 if score == nil {
                     score = BloodPressureEstimator.score(systolic: est.systolic,
                                                          diastolic: est.diastolic)
+                    confidence = .experimental
+                    explanation += String(format: " Your last cuff reading is over a day old, so the dial reads the experimental estimate from today's resting heart rate%@ — ~%.0f/%.0f mmHg, ±%.0f, fitted to %d of your own readings. It is a model, not a measurement: cuff again to replace it.",
+                                          est.hrvShare == nil ? "" : " and HRV",
+                                          est.systolic, est.diastolic,
+                                          est.systolicUncertainty, est.calibrationCount)
+                    weighting = .fit("a regression through \(est.calibrationCount) of your own cuff readings and the "
+                                     + (est.hrvShare == nil
+                                        ? "resting heart rate recorded beside each"
+                                        : "resting heart rate and HRV recorded beside each"))
+                    // The shares are of the *estimate*, which is what the dial
+                    // is reading — so they go on the two predictors, and the
+                    // cuff pair stays at zero. The readings are the fit's
+                    // calibration rather than an input to today's number, and
+                    // the section names them under exactly that heading.
+                    contributorWeights[.restingHeartRate] = est.restingHRShare
+                    if let hrvShare = est.hrvShare {
+                        let hrvMetric: MetricType = samples.latestValue(.heartRateVariabilityRMSSD) != nil
+                            ? .heartRateVariabilityRMSSD : .heartRateVariabilitySDNN
+                        contributorWeights[hrvMetric] = hrvShare
+                    }
                 }
             } else if status.isGrounded {
                 // Enough recent readings exist, but too few line up with a nearby
                 // resting-HR sample to fit the model yet.
                 drivers.append(.routine("Experimental estimate will appear once more of your recent readings line up with resting-heart-rate data."))
             }
+        }
+
+        // The floor: where blood pressure has been sitting, for whoever has cuff
+        // readings and nothing to estimate from. Below the estimate rather than
+        // above it since 2026-08-01 — see the routing note above.
+        if score == nil, let trend {
+            score = BloodPressureEstimator.score(systolic: trend.systolic,
+                                                 diastolic: trend.diastolic)
+            confidence = .moderate
+            explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) readings over the last \(trend.spanDays) days — rather than any single measurement."
+            weighting = .measurement("Your dial is the average of \(trend.readingCount) cuff "
+                                     + "readings over the last \(trend.spanDays) days.")
         }
 
         return InsightResult(
@@ -672,20 +777,23 @@ public struct BloodPressureInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmet,
+            // A cuff reading is trusted outright and carries no share; the two
+            // autonomic signals carry one only on the route where the estimate
+            // is what the dial reads. `contributorWeights` is empty on every
+            // other route, so this list is unchanged for them.
             contributors: [.bloodPressureSystolic, .bloodPressureDiastolic,
                            .restingHeartRate, .heartRateVariabilityRMSSD,
                            .heartRateVariabilitySDNN]
                 .compactMap { metric in
                     samples.latestValue(metric).map {
-                        // Weight 0: a cuff reading is trusted outright, and the
-                        // experimental estimate is not a weighted blend.
                         MetricContribution(metric: metric,
                                            higherIsBetter: metric == .heartRateVariabilityRMSSD
                                                || metric == .heartRateVariabilitySDNN,
-                                           weight: 0,
+                                           weight: contributorWeights[metric] ?? 0,
                                            detail: String(format: "%.0f %@", $0, metric.unit))
                     }
-                })
+                },
+            weighting: score == nil ? .unstated : weighting)
     }
 }
 

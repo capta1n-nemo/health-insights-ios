@@ -255,7 +255,7 @@ public struct ReadinessInsight: InsightModel {
                 driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                     + (base.driverLines + extra).filter { $0.isNotable != true },
                 unmetRequirements: base.unmetRequirements,
-                contributors: contributors)
+                contributors: contributors, weighting: base.weighting)
         }
 
         return InsightResult(
@@ -264,7 +264,8 @@ public struct ReadinessInsight: InsightModel {
             explanation: base.explanation,
             driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                 + (base.driverLines + extra).filter { $0.isNotable != true },
-            unmetRequirements: base.unmetRequirements, contributors: contributors)
+            unmetRequirements: base.unmetRequirements, contributors: contributors,
+            weighting: base.weighting)
     }
 
     /// The readiness score proper. Split out so the merged `evaluate` above
@@ -291,6 +292,7 @@ public struct ReadinessInsight: InsightModel {
             headline: out.band, score: out.score, confidence: confidence,
             explanation: "Your recovery today is \(Int(out.score.rounded()))/100 (\(out.band)), from how your HRV, resting heart rate, sleep and temperature compare with your own recent baseline.",
             driverLines: lines.filter { $0.isNotable == true } + lines.filter { $0.isNotable != true },
-            unmetRequirements: [], contributors: out.contributions)
+            unmetRequirements: [], contributors: out.contributions,
+            weighting: .weightedAverage)
     }
 }

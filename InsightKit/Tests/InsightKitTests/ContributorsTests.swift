@@ -15,46 +15,11 @@ private func contributorDay(_ i: Int) -> Date {
 /// thing can't happen again silently.
 final class ContributorsTests: XCTestCase {
 
-    /// A sample set covering every metric any insight reads, dense enough for
-    /// the baseline-dependent components to fire.
     private func fullCoverage(days: Int = 20) -> [HealthMetricSample] {
-        let defaults: [MetricType: Double] = [
-            .heartRate: 68, .restingHeartRate: 58, .walkingHeartRateAverage: 95,
-            .heartRateVariabilitySDNN: 52, .heartRateVariabilityRMSSD: 48,
-            .vo2Max: 46, .vascularAge: 34, .respiratoryRate: 14,
-            .oxygenSaturation: 97, .dayStrain: 12,
-            .bloodPressureSystolic: 118, .bloodPressureDiastolic: 76,
-            .bodyMass: 78, .bodyFatPercentage: 18, .leanBodyMass: 62,
-            .muscleMass: 58, .boneMass: 3.2, .bodyWaterPercentage: 58,
-            .height: 1.83, .stepCount: 9000, .activeEnergyBurned: 520,
-            .sleepDurationHours: 7.4, .bodyTemperature: 36.6,
-            .skinTemperature: 33.8, .skinTemperatureDeviation: 0.1,
-            // The vitals promoted out of the raw layer. Present here so
-            // "full coverage" stays literally true — without them Vitals Check
-            // correctly charts only what it measured, and the equality below
-            // would be asserting something the fixture never supplied.
-            .bloodGlucose: 5.2, .peripheralPerfusionIndex: 2.0,
-            .atrialFibrillationBurden: 0.5, .heartRateRecovery: 25,
-            .walkingSteadiness: 85, .walkingAsymmetry: 2
-        ]
-        var out: [HealthMetricSample] = []
-        for i in stride(from: days - 1, through: 0, by: -1) {
-            for (metric, base) in defaults {
-                // A little movement so standard deviations aren't zero.
-                let jitter = Double((i * 7) % 5) * 0.01 * base
-                out.append(.init(type: metric, value: base + jitter,
-                                 start: contributorDay(i), source: .oura))
-            }
-        }
-        return out
+        ContributorsFixture.fullCoverage(days: days, now: contributorNow)
     }
 
-    private var profile: UserHealthProfile {
-        var p = UserHealthProfile()
-        p.set(.init(kind: .dateOfBirth, value: contributorNow.addingTimeInterval(-35 * 365.25 * 86_400).timeIntervalSince1970, recordedAt: contributorNow))
-        p.set(.init(kind: .biologicalSex, value: 1, recordedAt: contributorNow))
-        return p
-    }
+    private var profile: UserHealthProfile { ContributorsFixture.profile(now: contributorNow) }
 
     /// Every insight must say what it reads. There is no default implementation
     /// of `candidateMetrics`, so this can only fail by someone declaring an
@@ -172,6 +137,45 @@ final class ContributorsTests: XCTestCase {
             for contributor in result.contributors {
                 XCTAssertTrue(declared.contains(contributor.metric),
                               "\(model.id) reported \(contributor.metric) but never declared it")
+            }
+        }
+    }
+
+    /// The converse of the check above, and the one that was missing.
+    ///
+    /// `testReportedContributorsAreAlwaysDeclaredInputs` catches a card charting
+    /// something it never declared. Nothing caught the far commoner direction: a
+    /// card **declaring** a metric and then never reporting it. The consequence
+    /// is invisible rather than wrong — `resolvedContributions` substitutes the
+    /// declared list only when a card reports *nothing*, so on a card that
+    /// reports anything at all a declared-but-unreported input charts nowhere,
+    /// links nowhere under "Full history", and appears in no legend.
+    ///
+    /// Four cards were doing it on 2026-08-01, all found by hand:
+    /// the risk card drew VO₂max and vascular age in its own bespoke chart and
+    /// declared neither; Heart Health's whole bespoke section is heart-rate
+    /// recovery and it declared neither that nor reported it; Energy's drain
+    /// half is driven by heart rate against resting, both declared and neither
+    /// reported; Sleep declared two absolute temperatures and read neither.
+    ///
+    /// Scoped to metrics the fixture actually supplies, because "declared and
+    /// not read" and "declared and not recorded" are different situations and
+    /// only the first is a defect.
+    func testEveryDeclaredInputWithDataIsActuallyRead() {
+        let samples = fullCoverage()
+        let recorded = Set(samples.map(\.type))
+        for model in InsightEngine().models {
+            let result = model.evaluate(samples: samples, profile: profile, now: contributorNow)
+            let reported = Set(result.contributors.map(\.metric))
+            // A card reporting nothing falls back to its declared list, which is
+            // the case this check has no opinion about.
+            guard !reported.isEmpty else { continue }
+            for declared in model.candidateMetrics where recorded.contains(declared) {
+                XCTAssertTrue(
+                    reported.contains(declared)
+                        || !declared.interchangeable.isDisjoint(with: reported),
+                    "\(model.id) declares \(declared), has data for it, and reports "
+                        + "it nowhere — so it charts on no section of its own card")
             }
         }
     }

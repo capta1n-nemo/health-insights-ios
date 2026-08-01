@@ -241,37 +241,71 @@ public struct SectionPlaceholder: Sendable, Equatable {
 
     // MARK: - How this is weighted
 
-    /// Why a card has no weighting to show — which is most of them, and for a
-    /// reason worth telling the reader.
+    /// Why a card has no shares to draw.
     ///
-    /// **Not every score is a weighted average.** Heart Health and Readiness
-    /// blend their components in fixed proportions and this section is the
-    /// arithmetic. Cardiovascular Risk runs published equations; Blood Pressure
-    /// runs an estimator; Substance Impact reports what each signal did after a
-    /// logged event and says so in its own source. Those report contributors at
-    /// **weight 0 deliberately** — there is no share to divide up, and inventing
-    /// one would be the exact dishonesty the zero was chosen to avoid.
+    /// **This used to be four cards and is now one.** It said *"Not a weighted
+    /// average"* wherever every contributor arrived at weight 0, which conflated
+    /// three different situations and got two of them wrong:
     ///
-    /// So "nothing is weighted here" is a fact about how the card works, not a
-    /// gap in the data, and it is the one thing a reader cannot infer from the
-    /// section being absent.
-    public static func weighting(areReported: Bool,
+    /// - Body Composition and Fitness each rest on **one** measurement scored
+    ///   against a published range. "No signal has a percentage share of it"
+    ///   describes a card that does not exist — one signal has all of it.
+    /// - Substance Impact and Heart Attack & Stroke Risk both have exactly
+    ///   computable shares (`SubstanceResponseAnalyzer.penaltyShares`,
+    ///   `RiskAttribution`). "Nobody chose these proportions" was the true
+    ///   statement and it is not the same as "there are none".
+    /// - Blood Pressure's cuff route genuinely has no share — and even there,
+    ///   *"this is a measurement, taken at face value"* says more than a
+    ///   negation does.
+    ///
+    /// So the model states its `ScoreWeighting` and this is reached only when
+    /// that basis carries no shares, or when nothing was said at all.
+    public static func weighting(basis: ScoreWeighting,
+                                 areReported: Bool,
                                  contributorCount: Int) -> SectionPlaceholder {
-        guard areReported else {
+        switch basis {
+        case .measurement(let what):
+            return SectionPlaceholder(
+                headline: "A measurement, not a blend",
+                detail: "\(what) There is no share to divide up — the number is "
+                    + "the reading itself. The "
+                    + "\(contributorCount) \(SectionCaveat.plural(contributorCount, "signal")) "
+                    + "this card reads "
+                    + "\(contributorCount == 1 ? "is" : "are") charted under "
+                    + "\"What goes into this\" below.")
+        case .unstated where !areReported:
             return SectionPlaceholder(
                 headline: "No weighting reported",
                 detail: "This card hasn't published how much each of its inputs "
                     + "counts toward its number, so there is nothing to divide "
                     + "up here. What it reads is charted under \"What goes into "
                     + "this\" below.")
+        case .unstated:
+            return SectionPlaceholder(
+                headline: "Nothing to divide up yet",
+                detail: "This card has no number at the moment, so there is no "
+                    + "share of one to attribute to its "
+                    + "\(contributorCount) \(SectionCaveat.plural(contributorCount, "input")). "
+                    + "The sections below say what it reads and what it is "
+                    + "waiting for.")
+        // A basis that carries shares and reached here anyway means every
+        // contributor came back at zero — on the worst-offender pool that is a
+        // real and reassuring state, and it must not read as a failure.
+        case .worstOffender:
+            return SectionPlaceholder(
+                headline: "Nothing took anything off",
+                detail: "This card's number comes off the top for each signal "
+                    + "that responded badly, and none of them did over this "
+                    + "window. Nothing to divide up because there is nothing to "
+                    + "divide, which is the good answer here.")
+        case .weightedAverage, .singleMeasure, .equation, .fit:
+            return SectionPlaceholder(
+                headline: "No shares to draw yet",
+                detail: "This card weights its inputs, and none of them has a "
+                    + "value to weight right now. It fills in as soon as one "
+                    + "does — see \"What goes into this\" below for what it is "
+                    + "watching for.")
         }
-        return SectionPlaceholder(
-            headline: "Not a weighted average",
-            detail: "This card's number isn't a blend of its "
-                + "\(contributorCount) \(SectionCaveat.plural(contributorCount, "input")) "
-                + "in fixed proportions, so no signal has a percentage share of "
-                + "it. Each one is reported on its own terms instead — see "
-                + "\"What's driving this\" above and \"What goes into this\" below.")
     }
 
     // MARK: - What goes into this

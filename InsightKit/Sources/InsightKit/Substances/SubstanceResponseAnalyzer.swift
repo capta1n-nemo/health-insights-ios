@@ -210,6 +210,45 @@ public enum SubstanceResponseAnalyzer {
         return Swift.max(0, Swift.min(100, 100 - (worst + 0.35 * rest.squareRoot())))
     }
 
+    /// Each penalty's share of what came off the score.
+    ///
+    /// This card said **"Not a weighted average"**, which was true and unhelpful:
+    /// it is a worst-offender-dominant pool, and a pool of that shape is exactly
+    /// attributable. The combiner is
+    ///
+    ///     deduction = worst + 0.35 · √(Σ rest²)
+    ///
+    /// which is homogeneous of degree one in the penalties, so by Euler's
+    /// theorem each one's own contribution is `pᵢ · ∂f/∂pᵢ` and the parts sum to
+    /// the whole exactly — the worst contributes itself, and every other
+    /// penalty contributes `0.35 · pᵢ² / √(Σ rest²)`. No approximation and
+    /// nothing chosen: it is the same arithmetic `score` runs, read back.
+    ///
+    /// Returned in the order given, so a caller can zip it against its own list.
+    /// The last element is always the load's share, because `score` appends it
+    /// last — the two orderings are stated in one place for that reason.
+    static func penaltyShares(load: Double, effects: [MetricEffect]) -> [Double] {
+        let penalties = effects.map(severity) + [load]
+        guard let worstValue = penalties.max(), worstValue > 0 else {
+            return Array(repeating: 0, count: penalties.count)
+        }
+        // Ties: exactly one penalty plays the "worst" role in `score`, which
+        // sorts and takes the first. Picking the first maximum here matches it,
+        // and on a tie the choice is arbitrary in both places identically.
+        let worstIndex = penalties.firstIndex(of: worstValue) ?? 0
+        let restSumSquares = penalties.enumerated()
+            .filter { $0.offset != worstIndex }
+            .reduce(0.0) { $0 + $1.element * $1.element }
+        let restRoot = restSumSquares.squareRoot()
+        let total = worstValue + 0.35 * restRoot
+        guard total > 0 else { return Array(repeating: 0, count: penalties.count) }
+        return penalties.enumerated().map { index, p in
+            index == worstIndex
+                ? worstValue / total
+                : (restRoot > 0 ? 0.35 * p * p / restRoot / total : 0)
+        }
+    }
+
     // MARK: - Insight surface
 
     /// Build a dashboard-ready `InsightResult` from an analysis.
@@ -293,15 +332,39 @@ public enum SubstanceResponseAnalyzer {
             explanation += " Your heart is showing a notable response — if your heart rate stays high, or you feel palpitations, chest pain or breathlessness, please seek medical care."
         }
 
-        // Weight 0: the load figure isn't a weighted blend of these, they're the
-        // signals the before/after comparison was measured on.
-        let contributors = analysis.effects.map { effect in
+        // Each signal's share of what came off the score.
+        //
+        // These were weight 0 with the note "the load figure isn't a weighted
+        // blend of these" — which is true of a *blend* and was read as "there is
+        // no share", so the card said "Not a weighted average". A
+        // worst-offender pool divides exactly; `penaltyShares` does it out of
+        // the same combiner `score` uses. A signal that moved in the *welcome*
+        // direction has a severity of zero and therefore a share of zero, and it
+        // stays on the card in the charted-not-scored list — which is the right
+        // reading of it: measured, and taking nothing off.
+        //
+        // `penaltyShares` returns the load's share last, matching the order
+        // `score` appends it in.
+        let shares = Self.penaltyShares(load: analysis.recentLoad, effects: analysis.effects)
+        let contributors = analysis.effects.enumerated().map { index, effect in
             MetricContribution(
                 metric: effect.metric,
                 higherIsBetter: Self.higherIsBetter(effect.metric),
-                weight: 0,
+                weight: shares.indices.contains(index) ? shares[index] : 0,
                 detail: String(format: "%@%.1f after use",
                                effect.deltaAbsolute >= 0 ? "+" : "−", abs(effect.deltaAbsolute)))
+        }
+        // The fortnight's load is a penalty in its own right and is not a metric
+        // — it is a decaying figure over the log — so it reaches the weighting
+        // section as a factor rather than a contribution. Leaving it out would
+        // put shares on screen that don't account for the number, and on a heavy
+        // fortnight with no measurable biometric response it is the *whole* of it.
+        let loadFactor = shares.last.map {
+            ScoreFactor(source: .derived, name: "Recent substance load",
+                        weight: $0,
+                        detail: "\(analysis.loadBand) — \(analysis.eventsInWindow) "
+                            + "\(analysis.eventsInWindow == 1 ? "log" : "logs") in \(loadWindowDays) days",
+                        isModifiable: true)
         }
 
         return InsightResult(
@@ -313,7 +376,9 @@ public enum SubstanceResponseAnalyzer {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: contributors)
+            contributors: contributors,
+            weighting: .worstOffender,
+            otherFactors: loadFactor.map { [$0] } ?? [])
     }
 }
 

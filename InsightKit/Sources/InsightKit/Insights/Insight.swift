@@ -152,6 +152,48 @@ public struct InsightResult: Sendable, Equatable {
     /// it builds each component. This is what the detail screen charts, so it
     /// cannot drift from the maths the way a hand-written list does.
     public let contributors: [MetricContribution]
+    /// How the number is formed, so "How this is weighted" can say what a share
+    /// *means* rather than reporting its absence. See `ScoreWeighting`.
+    public let weighting: ScoreWeighting
+    /// Inputs with a share of the number that are **not** metrics — a date of
+    /// birth, a blood test, a decaying substance load. Empty on every card whose
+    /// inputs are all sensed, which is most of them.
+    ///
+    /// Renormalised *together* with `contributors`' weights rather than beside
+    /// them: they are shares of one number, and two lists each summing to 1
+    /// would put two 100%s on one card.
+    public let otherFactors: [ScoreFactor]
+
+    /// Every input carrying a share, metric-backed or not, heaviest first.
+    ///
+    /// The single thing the weighting section draws. Building it here rather
+    /// than in the view is what stops the two lists being merged differently on
+    /// two screens — and the app target has no test target.
+    public var weightedFactors: [ScoreFactor] {
+        (contributors.weighted.map(\.factor) + otherFactors).normalised
+    }
+
+    /// Signals the card charts but deliberately does not score.
+    ///
+    /// Named rather than counted, because a count cannot answer the question a
+    /// reader actually has — *which* of these moved my number and which did the
+    /// app merely draw. Fitness reports five of them, Readiness eleven.
+    public var unscoredContributors: [MetricContribution] {
+        contributors.filter { $0.weight == 0 }
+            .sorted { $0.metric.displayName < $1.metric.displayName }
+    }
+
+    /// Everything the card named that carries no share of the number: signals it
+    /// charts without scoring, and factors already at or better than the value
+    /// they are measured against.
+    ///
+    /// The second kind is why this is not simply `unscoredContributors`. "Your
+    /// cholesterol is carrying none of your risk" and "we didn't look at your
+    /// cholesterol" are opposite statements, and a row missing says the second.
+    public var unweightedFactors: [ScoreFactor] {
+        (unscoredContributors.map(\.factor) + otherFactors.filter { $0.weight <= 0 })
+            .sorted { $0.name < $1.name }
+    }
 
     /// The same result with more lines, notable ones still first.
     ///
@@ -167,7 +209,8 @@ public struct InsightResult: Sendable, Equatable {
             score: score, confidence: confidence, explanation: explanation,
             driverLines: all.filter { $0.isNotable == true }
                 + all.filter { $0.isNotable != true },
-            unmetRequirements: unmetRequirements, contributors: contributors)
+            unmetRequirements: unmetRequirements, contributors: contributors,
+            weighting: weighting, otherFactors: otherFactors)
     }
 
     /// For insights that don't distinguish notable lines from routine ones.
@@ -181,12 +224,15 @@ public struct InsightResult: Sendable, Equatable {
         explanation: String,
         drivers: [String],
         unmetRequirements: [GroundingRequirement],
-        contributors: [MetricContribution] = []
+        contributors: [MetricContribution] = [],
+        weighting: ScoreWeighting = .unstated,
+        otherFactors: [ScoreFactor] = []
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
                   score: score, confidence: confidence, explanation: explanation,
                   driverLines: drivers.map { InsightDriver(text: $0) },
-                  unmetRequirements: unmetRequirements, contributors: contributors)
+                  unmetRequirements: unmetRequirements, contributors: contributors,
+                  weighting: weighting, otherFactors: otherFactors)
     }
 
     public init(
@@ -199,7 +245,9 @@ public struct InsightResult: Sendable, Equatable {
         explanation: String,
         driverLines: [InsightDriver],
         unmetRequirements: [GroundingRequirement],
-        contributors: [MetricContribution] = []
+        contributors: [MetricContribution] = [],
+        weighting: ScoreWeighting = .unstated,
+        otherFactors: [ScoreFactor] = []
     ) {
         self.id = id
         self.title = title
@@ -211,6 +259,8 @@ public struct InsightResult: Sendable, Equatable {
         self.driverLines = driverLines
         self.unmetRequirements = unmetRequirements
         self.contributors = contributors
+        self.weighting = weighting
+        self.otherFactors = otherFactors
     }
 }
 

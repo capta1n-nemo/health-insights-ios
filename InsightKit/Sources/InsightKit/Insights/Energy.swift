@@ -55,6 +55,10 @@ public enum EnergyModel {
         public let activeEnergy: Double?
         /// Hours spent with heart rate meaningfully above resting.
         public let exertionHours: Double?
+        /// Which HRV flavour the recovery modifier came from, so the card charts
+        /// and weights the series the model actually read rather than guessing
+        /// at rMSSD. `nil` when there was no overnight HRV at all.
+        public let hrvMetric: MetricType?
 
         /// The word for a level.
         public var band: String {
@@ -65,6 +69,62 @@ public enum EnergyModel {
             default: return "Drained"
             }
         }
+
+        /// What each input did to the reservoir, in points.
+        ///
+        /// Here rather than in the card for the reason every share in this app
+        /// is computed beside the number it explains: the coefficients are
+        /// twenty lines up, and a card working these out for itself would be a
+        /// second copy of them, free to drift the moment one is retuned.
+        ///
+        /// Signed — sleep and overnight recovery fill the reservoir, work and
+        /// time above resting drain it — and the card weights by magnitude,
+        /// because "how much of this number is heart rate" is a question about
+        /// size, not direction.
+        ///
+        /// Resting heart rate is deliberately **not** a term. It sets the line
+        /// above which a sample counts as exertion; it is what the drain is
+        /// measured against rather than something moving the level, the same
+        /// standing height has on Body Composition.
+        public var terms: [Term] {
+            var out: [Term] = []
+            if let sleepHours {
+                out.append(Term(
+                    metric: .sleepDurationHours, higherIsBetter: true,
+                    points: (100 - minimumMorningCharge)
+                        * Swift.min(1, Swift.max(0, sleepHours / fullChargeSleepHours)),
+                    detail: String(format: "%.1f h", sleepHours)))
+            }
+            if let recoveryZ, let hrvMetric {
+                out.append(Term(
+                    metric: hrvMetric, higherIsBetter: true,
+                    points: recoveryZ * recoveryPointsPerSD,
+                    detail: String(format: "%@%.1f SD overnight",
+                                   recoveryZ >= 0 ? "+" : "−", abs(recoveryZ))))
+            }
+            if let activeEnergy {
+                out.append(Term(
+                    metric: .activeEnergyBurned, higherIsBetter: nil,
+                    points: -activeEnergy / fullDrainActiveKilocalories * 100,
+                    detail: String(format: "%.0f kcal", activeEnergy)))
+            }
+            if let exertionHours {
+                out.append(Term(
+                    metric: .heartRate, higherIsBetter: nil,
+                    points: -exertionHours / fullDrainExertionHours * 100,
+                    detail: String(format: "%.1f h above resting", exertionHours)))
+            }
+            return out
+        }
+    }
+
+    /// One input's effect on the reservoir, in points.
+    public struct Term: Sendable, Equatable {
+        public let metric: MetricType
+        public let higherIsBetter: Bool?
+        /// Positive fills, negative drains.
+        public let points: Double
+        public let detail: String
     }
 
     // MARK: - Coefficients, each in units you can check
@@ -99,10 +159,13 @@ public enum EnergyModel {
                                 calendar: Calendar = .current) -> Output? {
         let sleep = VitalReader.reading(.sleepDurationHours, from: samples, now: now,
                                         freshWithin: 36 * 3600, calendar: calendar)
-        let hrv = VitalReader.reading(.heartRateVariabilityRMSSD, from: samples, now: now,
-                                      calendar: calendar)
+        let rmssd = VitalReader.reading(.heartRateVariabilityRMSSD, from: samples, now: now,
+                                        calendar: calendar)
+        let hrv = rmssd
             ?? VitalReader.reading(.heartRateVariabilitySDNN, from: samples, now: now,
                                    calendar: calendar)
+        let hrvMetric: MetricType? = hrv == nil ? nil
+            : (rmssd == nil ? .heartRateVariabilitySDNN : .heartRateVariabilityRMSSD)
         let resting = VitalReader.reading(.restingHeartRate, from: samples, now: now,
                                           calendar: calendar)
 
@@ -128,7 +191,8 @@ public enum EnergyModel {
         return Output(morningCharge: morning, level: level, curve: curve,
                       spent: Swift.max(0, morning - level),
                       sleepHours: sleep.value, recoveryZ: hrv?.zScore,
-                      activeEnergy: activeEnergy, exertionHours: exertion)
+                      activeEnergy: activeEnergy, exertionHours: exertion,
+                      hrvMetric: hrv?.zScore == nil ? nil : hrvMetric)
     }
 
     /// What sleep and overnight recovery left you starting on.
@@ -358,19 +422,52 @@ public struct EnergyInsight: InsightModel {
             explanation = "\(Int(output.level.rounded())) left. Whatever you charged overnight has mostly gone."
         }
 
-        // Only signals that actually reported become contributions.
-        var contributors: [MetricContribution] = []
-        if let hours = output.sleepHours {
-            contributors.append(.init(metric: .sleepDurationHours, higherIsBetter: true,
-                                      weight: 0.6, detail: String(format: "%.1f h", hours)))
+        // What each input did to the reservoir, weighted by how much it moved it.
+        //
+        // These weights were 0.6 / 0.25 / 0.15 — three numbers written here by
+        // hand that appear nowhere in the model, so a card claiming to show
+        // "the share each signal has of the score" was showing three constants
+        // instead. They also left the drain half's *other* term unrepresented:
+        // time above resting is a full peer of active energy in `EnergyModel`
+        // and reaches the reader as a driver line, and heart rate charted on no
+        // card in the app despite being the signal behind it.
+        //
+        // `Output.terms` is the model's own arithmetic; the share is each term's
+        // magnitude over the total. Magnitude, because "how much of this number
+        // is time above resting" is a question about size — a drain and a charge
+        // both move the level, and signing the denominator would let a hard day
+        // cancel a good night and hand the remainder a share above 100%.
+        let terms = output.terms
+        let totalEffect = terms.reduce(0) { $0 + abs($1.points) }
+        var contributors = terms.map { term in
+            MetricContribution(
+                metric: term.metric, higherIsBetter: term.higherIsBetter,
+                weight: totalEffect > 0 ? abs(term.points) / totalEffect : 0,
+                detail: term.detail)
         }
-        if let kcal = output.activeEnergy {
-            contributors.append(.init(metric: .activeEnergyBurned, higherIsBetter: nil,
-                                      weight: 0.25, detail: String(format: "%.0f kcal", kcal)))
-        }
-        if output.recoveryZ != nil {
-            contributors.append(.init(metric: .heartRateVariabilityRMSSD, higherIsBetter: true,
-                                      weight: 0.15, detail: "overnight recovery"))
+        // The two signals behind the drain that carry no share of their own.
+        //
+        // Resting heart rate is the *line* exertion is counted above — what the
+        // drain is measured against rather than something moving it, the same
+        // standing height has on Body Composition. Without it the card draws
+        // "5.2 h above resting" with no way to see what resting was.
+        //
+        // Heart rate itself lands here whenever the day is too thin to compute
+        // exertion from — `EnergyModel.exertionHours` needs four samples since
+        // midnight, so every card opened before the watch has synced a few is in
+        // this state. It is declared, so leaving it out means it charts on no
+        // section of the card that reads it.
+        let scored = Set(contributors.map(\.metric))
+        for metric in [MetricType.restingHeartRate, .heartRate] where !scored.contains(metric) {
+            guard let reading = VitalReader.reading(metric, from: samples, now: now) else { continue }
+            contributors.append(.init(
+                metric: metric, higherIsBetter: metric == .restingHeartRate ? false : nil,
+                weight: 0,
+                detail: metric == .restingHeartRate
+                    ? String(format: "%.0f bpm — the line exertion is counted above",
+                             reading.baseline ?? reading.value)
+                    : String(format: "%.0f bpm — not enough readings today to count time above resting",
+                             reading.value)))
         }
 
         return InsightResult(
@@ -382,6 +479,7 @@ public struct EnergyInsight: InsightModel {
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
-            unmetRequirements: [], contributors: contributors)
+            unmetRequirements: [], contributors: contributors,
+            weighting: .weightedAverage)
     }
 }

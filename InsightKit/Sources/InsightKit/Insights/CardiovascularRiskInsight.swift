@@ -28,8 +28,21 @@ public struct CardiovascularRiskInsight: InsightModel {
     private static let defaultHDLCholesterol = 1.3
 
     /// Risk is overwhelmingly driven by grounding facts (age, sex, cholesterol,
-    /// smoking); blood pressure is the one sensed input.
-    public var candidateMetrics: [MetricType] { [.bloodPressureSystolic] }
+    /// smoking); blood pressure is the one sensed input to the *equations*.
+    ///
+    /// VO₂max and vascular age are here because this card **draws them**. It
+    /// absorbed heart age, so `HeartAgeAnalyser` runs behind it and reads both —
+    /// vascular age reaches the card as a driver line, and "Heart age over time"
+    /// replays over exactly this list. Declaring only systolic left two signals
+    /// charted in the bespoke section, named in "What's driving this", and
+    /// absent from "What goes into this" and "Full history" — which is the
+    /// specific inconsistency this list exists to prevent.
+    ///
+    /// Neither feeds the risk figure, so both arrive at weight 0 and the
+    /// weighting section names them as charted-not-scored.
+    public var candidateMetrics: [MetricType] {
+        [.bloodPressureSystolic, .vo2Max, .vascularAge]
+    }
 
     public var requirements: [GroundingRequirement] {
         var reqs: [GroundingRequirement] = [
@@ -226,15 +239,48 @@ public struct CardiovascularRiskInsight: InsightModel {
             explanation += " Note: these equations are validated for ages 40–79, so at your age this is indicative only — please discuss with a clinician."
         }
 
+        // What each input is doing to the number.
+        //
+        // This card used to report blood pressure at weight 0 and nothing else,
+        // so "How this is weighted" said *"Not a weighted average"* — which
+        // conflated "nobody chose these proportions" (true) with "there are no
+        // proportions" (false). `RiskAttribution` holds one factor at a time at
+        // its optimal value and re-runs the same equations, which is the method
+        // the card's own "that gap is the modifiable part" line already
+        // describes. It reuses `HeartAgeModel.riskPercent`, so no coefficient is
+        // written down twice.
+        let subject = HeartAgeModel.Subject(
+            sex: sex, race: profile.raceGroup, region: profile.score2Region,
+            systolicBP: systolic, totalCholesterolMmol: totalChol,
+            hdlCholesterolMmol: hdl, isSmoker: profile.isSmoker,
+            hasDiabetes: profile.hasDiabetes, treatedForBP: profile.onBPMedication)
+        let factors = RiskAttribution.factors(
+            engines: usedModels.compactMap { HeartAgeModel.Engine(rawValue: $0.name) },
+            subject: subject, age: age,
+            cholesterolAssumed: assumedCholesterol)
+        let systolicShare = factors.first { $0.metric == .bloodPressureSystolic }?.weight ?? 0
+
+        // Blood pressure carries its share on the contribution itself rather
+        // than as a second factor, so the overlay legend under "What goes into
+        // this" reads the same number this section draws.
+        var contributors = [MetricContribution(
+            metric: .bloodPressureSystolic, higherIsBetter: false,
+            weight: systolicShare, detail: "\(Int(systolic.rounded())) mmHg")]
+        // VO₂max and vascular age, charted by this card's own section and named
+        // in its drivers. `HeartAgeAnalyser` already reports them at weight 0
+        // and reads them off the analysis rather than the samples, so the chart
+        // cannot plot a different number than the driver line quotes.
+        contributors += HeartAgeAnalyser.contributors(ageAnalysis)
+            .filter { $0.metric != .bloodPressureSystolic }
+
         return InsightResult(
             id: id, title: title, primaryValue: consensus,
             headline: String(format: "%.1f%%", consensus),
             score: band.score, confidence: confidence,
             explanation: explanation, driverLines: drivers, unmetRequirements: unmet,
-            // Blood pressure is the one sensed input; everything else is a
-            // grounding fact, so no share of the figure is claimed for it.
-            contributors: [.init(metric: .bloodPressureSystolic, higherIsBetter: false,
-                                 weight: 0, detail: "\(Int(systolic.rounded())) mmHg")])
+            contributors: contributors,
+            weighting: .equation(usedModels.map(\.name).joined(separator: " and ")),
+            otherFactors: factors.filter { $0.metric != .bloodPressureSystolic })
     }
 
     private func notYetResult(unmet: [GroundingRequirement]) -> InsightResult {

@@ -227,16 +227,70 @@ card holding two years of it. An empty section arrives **collapsed** with the
 reason as its preview; `Patt` and `1st` arrive collapsed either way, previewing
 their strongest finding. See `SectionExpansion`.
 
-**"How this is weighted" is the one where empty is a fact about the card, not
-about the data.** Only Heart Health, Readiness, Sleep and Energy blend their
-components in fixed proportions. Cardiovascular Risk runs published equations,
-Blood Pressure runs an estimator, Substance Impact reports what each signal did
-after a logged event — all three report contributors at **weight 0 on purpose**,
-and that deliberate zero was previously invisible because the section simply
-wasn't drawn. It now says "Not a weighted average" and points at the two
-sections that do carry the per-signal detail. `SectionPlaceholder.weighting`
-distinguishes that from a model reporting no contributors at all, which is a
-different statement again — see `ChartedContributions`.
+**"How this is weighted" says how, on every card.** _Rewritten 2026-08-01; this
+paragraph previously argued the opposite and was wrong on three cards out of
+four._ It used to read: only Heart Health, Readiness, Sleep and Energy blend
+components in fixed proportions, so the other five said **"Not a weighted
+average"**. That conflated *nobody chose these proportions* with *there are no
+proportions*, and the two are not the same claim:
+
+- **Body Composition** and **Fitness** each rest on **one** measurement scored
+  against a published range — body fat (or BMI in fallback) and VO₂max. One
+  signal has 100% of the number, so "no signal has a percentage share of it"
+  described a card that does not exist. `ScoreWeighting.singleMeasure`.
+- **Substance Impact** is a worst-offender-dominant pool, and a pool of that
+  shape divides **exactly**: the combiner `worst + 0.35·√(Σ rest²)` is
+  homogeneous of degree one, so by Euler's theorem each penalty's own
+  contribution sums to the whole with no approximation.
+  `SubstanceResponseAnalyzer.penaltyShares`.
+- **Heart Attack & Stroke Risk** runs published equations, which is a reason the
+  shares are not proportions anyone chose — not a reason they cannot be
+  reported. `RiskAttribution` holds one factor at its optimal value and re-runs
+  the same equation; the drop is that factor's contribution. That is the
+  vascular-age method the app already ships, it is what the card's own *"that
+  gap is the modifiable part"* line already describes, and it **reuses
+  `HeartAgeModel.riskPercent` unchanged** so no coefficient is written down
+  twice.
+
+Only **Blood Pressure's cuff route** is genuinely unweighted — and even there
+*"this is your own cuff reading from the last 24 hours, taken at face value"*
+says more than a negation. `ScoreWeighting.measurement`.
+
+**The basis is stated by the model, not inferred from the weights.** A card
+whose contributors all came back at zero used to be indistinguishable from one
+that had decided there was nothing to divide. `InsightResult.weighting` is that
+statement, it defaults to `.unstated` so a new insight is silent rather than
+claiming a basis nobody chose for it, and
+`ScoreAttributionTests.testEveryScoringCardStatesHowItsNumberIsFormed` stops a
+card going back to having a number and no account of it.
+
+### The second group: charted, not scored
+
+The section draws **two** groups now. Below the bars, every signal the card
+reads that carries no share of the number, **named**. It was a count in the
+caveat — "5 signals tracked, not scored" — which cannot answer the question a
+reader has, which is *which*. Fitness has five and Readiness eleven.
+
+Two different things land there and both belong:
+
+- **Signals with no validated 0–100 curve.** `dayStrain`, heart-rate recovery,
+  walking heart rate. Unchanged policy: an invented weight inside a number the
+  user is asked to trust is worse than none.
+- **References the score is measured *against* rather than moved by.** Height on
+  Body Composition (the only thing on that card that cannot change between two
+  readings), resting heart rate on Energy (the line exertion is counted above),
+  and the cuff readings on Blood Pressure's estimate route (the fit's
+  calibration, not today's input).
+
+Plus, on the risk card, a factor **already at or better than its optimal value**
+— which arrives at weight 0 and stays on screen, because "your cholesterol is
+carrying none of your risk" and "we didn't look at your cholesterol" are
+opposite statements and a row missing says the second.
+
+**Age and sex are marked with a lock.** They carry the risk card's largest share
+and are the one row nobody can act on; ranked silently beside cholesterol the
+section reads as a list of things to work on with the biggest bar on the one
+that cannot move. `ScoreFactor.isModifiable`.
 
 The collapsed preview for a card that *does* weight names the heaviest signal,
 and `[MetricContribution].weightingPreview` refuses the superlative on a tie:
@@ -270,6 +324,43 @@ invalidates.
 | Blood Pressure | trend | 2 | `.bloodPressureReadings` (override) | — |
 | Body Composition | trend | 2 | `.groundingFacts` | — |
 
+### How each card's number divides
+
+_Read out of the models 2026-08-01. `ScoreWeighting` is the model's own
+statement; the shares are what "How this is weighted" draws._
+
+| Insight | `weighting` | Where the shares come from | Charted, not scored |
+|---|---|---|---|
+| Readiness | `weightedAverage` | six fixed weights, renormalised over what had data | the 11 further vitals the scan covers |
+| Sleep | `weightedAverage` | nine terms summing to 1 — restated in `contributors` | — |
+| Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR (the exertion line); heart rate when the day is too thin to count |
+| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem | any signal that moved the welcome way |
+| Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
+| Fitness | `singleMeasure` | VO₂max carries all of it — both halves read one series | strain, HR recovery, walking HR, steps, active energy |
+| Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | VO₂max, vascular age; any factor already at optimal |
+| Blood Pressure | route-dependent — see below | | |
+| Body Composition | `singleMeasure` | body fat, or body mass through BMI | lean, muscle, bone, water, height |
+
+**Blood Pressure has three, and which one is live is what the section says:**
+
+| Dial route | `weighting` | Shares |
+|---|---|---|
+| a cuff reading from the last 24 h | `measurement` | none — the number *is* the reading |
+| past a day: the experimental estimate | `fit` | resting HR and HRV, from the fitted coefficients |
+| no wearable to estimate from | `measurement` | none — an average of N readings over M days |
+
+**Energy's weights were three constants.** 0.6 / 0.25 / 0.15, written in the
+card, appearing nowhere in `EnergyModel` — under a heading promising "the share
+each signal has of the score". They also left the drain half's second term
+unrepresented: time above resting is a full peer of active energy in the model
+and reaches the reader as a driver line, and **heart rate charted on no card in
+the app** despite being the signal behind it.
+
+**Sleep's are still restated by hand** and the file says so at the point it does
+it: every weight in `contributors` must equal its coefficient in the score
+expression twenty lines above. They drifted apart once already. This is the
+remaining instance of the pattern `EnergyModel.Output.terms` closed.
+
 **The maths of every merged card was kept**, as components with their own tests:
 `VO2Trajectory`, `FitnessAgeModel`, `HeartAgeAnalyser`, `SleepDebtModel`,
 `CircadianConsistencyModel`, `VitalSignsCheck`, `HealthWatchModel`,
@@ -287,7 +378,7 @@ Key — `●` yes · `○` no · `—` not applicable.
 |---|---|---|---|---|---|---|---|
 | 2 | Score over time | all 9 | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
 | 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
-| 4 | How this is weighted | all 9 | **closed** | ● 2 reasons | `n` weighted | `unscored` | — |
+| 4 | How this is weighted | all 9 | **closed** | ● 5 reasons | `n` weighted | `unscored` | — |
 | 5a | Your readings | BP | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
 | 5b | Heart/Fitness age over time | CVR, Fit | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
 | 5c | If today's numbers hold | CVR | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
@@ -395,6 +486,33 @@ The absolute temperatures (`skinTemperature`, `bodyTemperature`) joined Sleep
 for the same reason: the card read the *deviation* and nothing read the absolute,
 which on a device reporting only the absolute was the whole signal.
 
+### Declared and never read — the gap nothing was checking
+
+_Found 2026-08-01, four instances, all by hand._ Two directions exist and only
+one was tested. `ContributorsTests.testReportedContributorsAreAlwaysDeclaredInputs`
+catches a card charting a metric it never declared. Nothing caught the commoner
+direction: **a card declaring a metric and then never reporting it.**
+
+The consequence is invisible rather than wrong, which is why it survived.
+`ChartedContributions.resolve` substitutes the declared list only when a card
+reports *nothing* — so on a card that reports anything at all, a
+declared-but-unreported input charts nowhere, links nowhere under "Full history",
+and appears in no legend. The paragraph above claiming the absolute temperatures
+"joined Sleep" is the shape of it: they were declared and read by nothing.
+
+| Card | Declared, unread | Where it *was* visible |
+|---|---|---|
+| Heart Attack & Stroke Risk | VO₂max, vascular age — **not even declared** | its own "Heart age over time" chart, and a driver line |
+| Heart Health | heart-rate recovery — **not even declared** | the whole of its own bespoke section |
+| Energy | heart rate, resting heart rate | a driver line, "5.2 h with your heart rate above resting" |
+| Sleep | skin temperature, body temperature | nowhere — the term silently took its neutral 75 |
+
+`testEveryDeclaredInputWithDataIsActuallyRead` now closes the class. The
+exception it has to allow is *alternatives* — rMSSD or SDNN, a deviation or an
+absolute — and that is `MetricType.interchangeableGroups`, two rows of data
+rather than a per-model exception list, which only ever catches the models
+somebody remembered to leave out of it.
+
 ---
 
 ## 2. Metric detail screens
@@ -484,6 +602,25 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 9. **Two presentation flags no view consults** —
    `MetricPresentation.allowsTimeframeSelection` and `.showsChart` are read only
    by `PresentationTests`.
+
+16. ~~**"How this is weighted" said "Not a weighted average" on four cards.**~~
+   **Closed 2026-08-01.** It was true on one of them. See "How this is
+   weighted says how, on every card" above for the three it was wrong on, the
+   method used for each, and the second group the section now draws.
+
+17. ~~**Four cards declared or drew a metric that reached "What goes into this"
+   on no card.**~~ **Closed 2026-08-01**, with the invariant that catches the
+   next one — see "Declared and never read" above.
+
+18. **Sleep's contributor weights are still a hand-written restatement of its
+   score expression.** Nine coefficients written twice in one function, twenty
+   lines apart, with a comment saying they drifted apart once already. Energy
+   had the same shape and it was closed by moving the arithmetic into
+   `EnergyModel.Output.terms`, where the coefficients live; Sleep wants the
+   same treatment and did not get it this session because its terms are not a
+   separable model the way Energy's are — the score is one expression rather
+   than a list of components. The honest small fix is a `terms` array built
+   before the sum, with the sum reading it.
 10. **Body Composition's "view & add" scan entry** — a fourth
    `ContributionRoute`. Deferred by the user on 2026-08-01 to its own session.
    The capture it points at is the camera + LiDAR body scan, which is

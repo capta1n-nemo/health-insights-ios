@@ -82,8 +82,12 @@ final class SectionPlaceholderTests: XCTestCase {
             .overlay(inputCount: 9),
             .periodContrast(comparable: 0),
             .periodContrast(comparable: 6),
-            .weighting(areReported: false, contributorCount: 0),
-            .weighting(areReported: true, contributorCount: 2),
+            .weighting(basis: .unstated, areReported: false, contributorCount: 0),
+            .weighting(basis: .unstated, areReported: true, contributorCount: 2),
+            .weighting(basis: .measurement("A cuff reading."), areReported: true,
+                       contributorCount: 2),
+            .weighting(basis: .worstOffender, areReported: true, contributorCount: 2),
+            .weighting(basis: .weightedAverage, areReported: true, contributorCount: 2),
             .needsMore(subject: "A trend through your weigh-ins", have: 0, need: 2,
                        noun: "weigh-in"),
             .needsMore(subject: "A trend through your weigh-ins", have: 1, need: 2,
@@ -216,33 +220,63 @@ final class SectionPlaceholderTests: XCTestCase {
         XCTAssertFalse(steady.detail.lowercased().contains("not enough"))
     }
 
-    /// "How this is weighted" is on every card now, and on most of them the
-    /// honest answer is that nothing is weighted — Cardiovascular Risk runs
-    /// published equations, Blood Pressure runs an estimator, Substance Impact
-    /// reports what each signal did after a logged event. Their contributors
-    /// carry `weight: 0` **on purpose**, and that deliberate zero is exactly
-    /// what an absent section could never convey.
-    func testWeightingSeparatesNotWeightedFromNotReported() {
-        let notAnAverage = SectionPlaceholder.weighting(areReported: true,
-                                                        contributorCount: 3)
-        XCTAssertTrue(notAnAverage.headline.lowercased().contains("not a weighted"),
-                      notAnAverage.headline)
-        XCTAssertTrue(notAnAverage.detail.contains("3 inputs"), notAnAverage.detail)
+    /// "How this is weighted" is on every card, and the reasons it can have
+    /// nothing to draw are not one reason.
+    ///
+    /// **Repointed 2026-08-01, and what it was protecting is kept.** This used
+    /// to assert the headline "Not a weighted average" on any card whose
+    /// contributors were all weight 0 — which was four cards, and on three of
+    /// them it was false: Body Composition and Fitness each rest on one
+    /// measurement that carries the whole number, and Substance Impact and the
+    /// risk card have exactly computable shares. Only a cuff reading is
+    /// genuinely unweighted. The two claims worth keeping are here unchanged:
+    /// an unweighted card must not read as a gap the reader could close by
+    /// recording more, and "no share to divide" must stay distinguishable from
+    /// "this card never said".
+    func testWeightingSeparatesAMeasurementFromNothingReported() {
+        let measured = SectionPlaceholder.weighting(
+            basis: .measurement("This is your own cuff reading from the last 24 hours."),
+            areReported: true, contributorCount: 3)
+        XCTAssertTrue(measured.headline.lowercased().contains("measurement"),
+                      measured.headline)
+        XCTAssertTrue(measured.detail.contains("3 signals"), measured.detail)
         // Must not read as a gap the reader could close by recording more.
-        XCTAssertFalse(notAnAverage.detail.lowercased().contains("yet"),
-                       notAnAverage.detail)
+        XCTAssertFalse(measured.detail.lowercased().contains("yet"), measured.detail)
 
-        let silent = SectionPlaceholder.weighting(areReported: false, contributorCount: 0)
-        XCTAssertNotEqual(silent, notAnAverage)
+        let silent = SectionPlaceholder.weighting(basis: .unstated, areReported: false,
+                                                  contributorCount: 0)
+        XCTAssertNotEqual(silent, measured)
         XCTAssertTrue(silent.headline.lowercased().contains("no weighting reported"),
                       silent.headline)
     }
 
+    /// A pool that found nothing to deduct is the reassuring answer, and it must
+    /// not borrow the copy for a card that is missing data.
+    func testAnEmptyPenaltyPoolReadsAsGoodNews() {
+        let clean = SectionPlaceholder.weighting(basis: .worstOffender,
+                                                 areReported: true, contributorCount: 4)
+        XCTAssertTrue(clean.headline.lowercased().contains("nothing took anything off"),
+                      clean.headline)
+        XCTAssertFalse(clean.detail.lowercased().contains("not enough"), clean.detail)
+        XCTAssertFalse(clean.detail.lowercased().contains("waiting"), clean.detail)
+    }
+
     func testTheInputCountIsWordedForItsOwnNumber() {
-        XCTAssertTrue(SectionPlaceholder.weighting(areReported: true, contributorCount: 1)
-            .detail.contains("1 input "))
-        XCTAssertTrue(SectionPlaceholder.weighting(areReported: true, contributorCount: 2)
-            .detail.contains("2 inputs "))
+        let one = SectionPlaceholder.weighting(basis: .measurement("A reading."),
+                                               areReported: true, contributorCount: 1)
+        XCTAssertTrue(one.detail.contains("1 signal "), one.detail)
+        XCTAssertTrue(one.detail.contains(" is charted"), one.detail)
+        let two = SectionPlaceholder.weighting(basis: .measurement("A reading."),
+                                               areReported: true, contributorCount: 2)
+        XCTAssertTrue(two.detail.contains("2 signals "), two.detail)
+        XCTAssertTrue(two.detail.contains(" are charted"), two.detail)
+
+        XCTAssertTrue(SectionPlaceholder.weighting(basis: .unstated, areReported: true,
+                                                   contributorCount: 1)
+            .detail.contains("1 input"))
+        XCTAssertTrue(SectionPlaceholder.weighting(basis: .unstated, areReported: true,
+                                                   contributorCount: 2)
+            .detail.contains("2 inputs"))
     }
 
     /// A card with no number and a card whose number nothing explains are

@@ -166,6 +166,35 @@ public extension MetricType {
         return beatToBeat.contains(family) && beatToBeat.contains(other.family)
     }
 
+    /// Metrics that are one quantity reported in different units or by
+    /// different devices, so a card declaring several of them and reading
+    /// whichever its own device provides has read all of them.
+    ///
+    /// **Much narrower than `sharesMeasurementBasis`**, and the difference is
+    /// the point. That one is family-wide, so it would let a card declare
+    /// VO₂max, never read it, and pass on the strength of having read a resting
+    /// heart rate. This says only *these two are the same measurement* —
+    /// rMSSD and SDNN are both heart-rate variability, and an absolute skin
+    /// temperature, an absolute body temperature and a nightly deviation are one
+    /// thermometer reported three ways.
+    ///
+    /// Exists for `ContributorsTests.testEveryDeclaredInputWithDataIsActuallyRead`,
+    /// which is otherwise unwritable: "a card must read what it declares" is
+    /// true except for alternatives, and the alternative to stating them here is
+    /// a per-model exception list, which only ever catches the models somebody
+    /// remembered to leave out of it.
+    var interchangeable: Set<MetricType> {
+        for group in Self.interchangeableGroups where group.contains(self) {
+            return group.subtracting([self])
+        }
+        return []
+    }
+
+    static let interchangeableGroups: [Set<MetricType>] = [
+        [.heartRateVariabilityRMSSD, .heartRateVariabilitySDNN],
+        [.skinTemperatureDeviation, .skinTemperature, .bodyTemperature]
+    ]
+
     /// The hue this metric prefers. Not necessarily the one it gets — see
     /// `MetricPalette.slots(for:)`, which resolves collisions per chart.
     var colourSlot: Int { chartStyleIndex % MetricPalette.hueCount }

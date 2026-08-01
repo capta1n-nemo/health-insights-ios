@@ -149,7 +149,13 @@ public struct FitnessInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmet,
-            contributors: Self.contributors(samples: samples, now: now, vo2: vo2))
+            contributors: Self.contributors(samples: samples, now: now, vo2: vo2),
+            // Not `weightedAverage`, even though the score is 0.7 level + 0.3
+            // trajectory: both halves are read off the same VO₂max series, so
+            // one measurement carries the whole number and there is nothing for
+            // a missing component to be renormalised over.
+            weighting: .singleMeasure("the VO₂max norms for your age and sex, "
+                                      + "and the direction your own readings have moved"))
     }
 
     // MARK: - Contributions

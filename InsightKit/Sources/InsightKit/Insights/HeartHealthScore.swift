@@ -132,9 +132,19 @@ public struct HeartHealthInsight: InsightModel {
 
     public init() {}
 
+    /// `heartRateRecovery` is here because this card **draws it**. It is the
+    /// only measurement in "How your heart responds", which is this card's own
+    /// bespoke section — and it was declared by no card, so it charted nowhere,
+    /// linked nowhere under "Full history", and appeared in "What goes into
+    /// this" on Fitness only.
+    ///
+    /// It does not score, and `HeartResponseModel` says at length why: no
+    /// validated 0–100 curve exists for it, only a published cut-point. So it
+    /// arrives at weight 0 and the weighting section names it as charted rather
+    /// than counting it in a footnote.
     public var candidateMetrics: [MetricType] {
         [.vo2Max, .restingHeartRate, .heartRateVariabilityRMSSD,
-         .heartRateVariabilitySDNN, .respiratoryRate]
+         .heartRateVariabilitySDNN, .respiratoryRate, .heartRateRecovery]
     }
 
     public var requirements: [GroundingRequirement] {
@@ -227,13 +237,26 @@ public struct HeartHealthInsight: InsightModel {
             explanation += " Across \(standing.standings.count) measure\(standing.standings.count == 1 ? "" : "s") you sit around the \(Int(standing.overall.rounded()))th centile for people your age and sex — an approximation to published figures, not a lookup into a real distribution — and a centile describes where you sit, not whether anything is wrong."
         }
 
+        // The one measurement this card's own section draws, charted at weight 0
+        // beside the four it scores. Read through `VitalReader` on the same
+        // window `HeartResponseModel` uses, so the chart cannot show a reading
+        // the section beside it has already discarded as too old.
+        var contributors = out.contributions
+        if let recovery = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
+                                              freshWithin: HeartResponseModel.recoveryFreshness) {
+            contributors.append(.init(
+                metric: .heartRateRecovery, higherIsBetter: true, weight: 0,
+                detail: String(format: "−%.0f bpm in the first minute", recovery.value)))
+        }
+
         let all = lines + standingLines
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: band, score: out.score, confidence: confidence,
             explanation: explanation,
             driverLines: all.filter { $0.isNotable == true } + all.filter { $0.isNotable != true },
-            unmetRequirements: unmet, contributors: out.contributions)
+            unmetRequirements: unmet, contributors: contributors,
+            weighting: .weightedAverage)
     }
 
     static func band(_ score: Double) -> String {

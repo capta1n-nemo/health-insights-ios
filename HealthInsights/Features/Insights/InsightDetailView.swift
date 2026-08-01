@@ -679,47 +679,106 @@ struct InsightDetailView: View {
     /// three report their contributors at **weight 0 on purpose**, and that
     /// deliberate zero was invisible.
     ///
-    /// Only weighted contributors are drawn. Readiness appends the vitals it
-    /// merely *scans* at weight 0, and showing those as zero-width bars would
-    /// imply they were weighed and found irrelevant, when in fact they were
-    /// never in the average. They are counted in a footnote instead.
+    /// Two groups, and the split between them is the point: what carries a share
+    /// of the number, and what this card draws without scoring.
+    ///
+    /// The second group used to be a **count** in the caveat — "5 signals
+    /// tracked, not scored" — which cannot answer the question a reader
+    /// actually has. Fitness charts five of them and Readiness eleven, and
+    /// "which of these moved my number" is unanswerable from a number. Naming
+    /// them is also what stops a signal being invisible here while it is drawn
+    /// two sections down: heart-rate recovery is the whole of Heart Health's own
+    /// bespoke section and appeared in neither.
+    ///
+    /// Rows are `ScoreFactor`, not `MetricContribution`, because the risk card's
+    /// inputs are mostly things no sensor reports — a date of birth, a blood
+    /// test — and they carry most of its number. See `ScoreWeighting`.
     private func weightedContributionCard(_ result: InsightResult) -> some View {
         // Not `resolvedContributions`: a stand-in's weights are absences rather
         // than zeroes, and this section is entirely about telling those apart.
-        let weighted = result.contributors.weighted
-        let scanned = result.contributors.count - weighted.count
+        let weighted = result.weightedFactors
+        let unweighted = result.unweightedFactors
         var placeholder: SectionPlaceholder?
         if weighted.isEmpty {
             placeholder = SectionPlaceholder.weighting(
+                basis: result.weighting,
                 areReported: !result.contributors.isEmpty,
                 contributorCount: result.contributors.count)
         }
-        let slots = MetricPalette.slots(for: weighted.map(\.metric))
+        // Hues come from the metric-backed rows only, so a factor with no metric
+        // cannot take a slot the overlay chart has already given to a series.
+        let slots = MetricPalette.slots(for: (weighted + unweighted).compactMap(\.metric))
 
         return InsightSection(
             title: "How this is weighted",
             // The section whose whole subject is percentages had no
             // figure of its own until now.
             trailing: weighted.isEmpty ? "None" : "\(weighted.count) weighted",
-            caveat: placeholder == nil && scanned > 0
-                ? .unscored(signals: scanned)
+            caveat: placeholder == nil && !unweighted.isEmpty
+                ? .unscored(signals: unweighted.count)
                 : SectionCaveat.none,
             // Open rather than empty-collapsed if both are somehow nil: a
             // closed section with a blank preview line is a dead end.
             expansion: expansion(preview: placeholder?.headline
-                                 ?? result.contributors.weightingPreview)
+                                 ?? weighted.weightingPreview)
         ) {
             if let placeholder {
                 emptySection(placeholder)
+                // Even with nothing to weight, what the card *reads* is worth
+                // naming here — this is the section a reader opens to ask it.
+                if !unweighted.isEmpty {
+                    Divider()
+                    unweightedGroup(unweighted, slots: slots)
+                }
             } else {
-                Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
+                Text(result.weighting.explanation)
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                ForEach(weighted, id: \.metric) { contribution in
-                    weightRow(contribution, slots: slots)
+                ForEach(weighted, id: \.self) { factor in
+                    weightRow(factor, slots: slots)
+                }
+                // Age and sex sit in the same list because they genuinely carry
+                // the risk card's largest share, and a reader has to be able to
+                // tell the bar they can move from the one they cannot.
+                if weighted.contains(where: { !$0.isModifiable }) {
+                    Text("Marked \(Image(systemName: "lock.fill")) is not something you can change — it is the risk that comes with your age and sex, and it is here so the rest can be read against it.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !unweighted.isEmpty {
+                    Divider()
+                    unweightedGroup(unweighted, slots: slots)
                 }
             }
+        }
+    }
+
+    /// What the card draws but does not score, named rather than counted.
+    @ViewBuilder
+    private func unweightedGroup(_ factors: [ScoreFactor],
+                                 slots: [MetricType: Int]) -> some View {
+        Text("Charted, not scored")
+            .font(.subheadline.weight(.semibold))
+        Text("Real signals with no share of the number. Either no validated scale exists to score them on — day strain and heart-rate recovery are the standing examples — or they are what the score is measured *against* rather than something moving it. An invented weight inside a number you are asked to trust is worse than none.")
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        ForEach(factors, id: \.self) { factor in
+            HStack(alignment: .firstTextBaseline) {
+                if let metric = factor.metric {
+                    Circle().fill(Theme.metricColor(metric, slots: slots))
+                        .frame(width: 7, height: 7)
+                }
+                Text(factor.name).font(.subheadline)
+                Spacer()
+                if !factor.detail.isEmpty {
+                    Text(factor.detail)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(factor.name), \(factor.detail), charted but not scored")
         }
     }
 
@@ -972,18 +1031,30 @@ struct InsightDetailView: View {
             + "SD \(worst.z > 0 ? "above" : "below") your usual"
     }
 
-    private func weightRow(_ contribution: MetricContribution,
+    /// One share, as a bar.
+    ///
+    /// A factor with no metric behind it — the risk card's age and sex, its
+    /// cholesterol, the substance load — takes the neutral accent rather than a
+    /// palette slot: those slots are the overlay chart's identity encoding, and
+    /// handing one to something that draws no series would put a line's colour
+    /// under a row that has none.
+    private func weightRow(_ factor: ScoreFactor,
                            slots: [MetricType: Int]) -> some View {
-        let tint = Theme.metricColor(contribution.metric, slots: slots)
+        let tint = factor.metric.map { Theme.metricColor($0, slots: slots) } ?? Theme.accent
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
-                Text(contribution.metric.displayName).font(.subheadline)
-                Spacer()
-                if !contribution.detail.isEmpty {
-                    Text(contribution.detail)
-                        .font(.caption).foregroundStyle(.secondary)
+                if !factor.isModifiable {
+                    Image(systemName: "lock.fill")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
-                Text("\(Int((contribution.weight * 100).rounded()))%")
+                Text(factor.name).font(.subheadline)
+                Spacer()
+                if !factor.detail.isEmpty {
+                    Text(factor.detail)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                Text("\(Int((factor.weight * 100).rounded()))%")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(tint)
             }
@@ -991,14 +1062,15 @@ struct InsightDetailView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(tint.opacity(0.15))
                     Capsule().fill(tint)
-                        .frame(width: max(2, geometry.size.width * contribution.weight))
+                        .frame(width: max(2, geometry.size.width * factor.weight))
                 }
             }
             .frame(height: 6)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(contribution.metric.displayName), "
-            + "\(Int((contribution.weight * 100).rounded())) percent of the score")
+        .accessibilityLabel("\(factor.name), "
+            + "\(Int((factor.weight * 100).rounded())) percent of the score"
+            + (factor.isModifiable ? "" : ", not something you can change"))
     }
 
     /// What the weight on the scale is made of.

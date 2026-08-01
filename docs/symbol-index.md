@@ -48,7 +48,7 @@ the place to look.
   - `RawValue` :14
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :506
+  - `BloodPressureInsight` :555
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CardioTrajectory.swift`
@@ -60,7 +60,7 @@ the place to look.
 - `Insights/CircadianConsistency.swift`
   - `CircadianConsistencyModel` :29
 - `Insights/Energy.swift`
-  - `EnergyInsight` :301
+  - `EnergyInsight` :365
   - `EnergyModel` :29
 - `Insights/FitnessAgeModel.swift`
   - `FitnessAgeModel` :18
@@ -88,7 +88,7 @@ the place to look.
   - `InsightConfidence` :60
   - `InsightDriver` :96
   - `InsightID` :15
-  - `InsightModel` :221
+  - `InsightModel` :271
   - `InsightResult` :113
   - `RequirementStatus` :84
 - `Insights/InsightEngine.swift`
@@ -110,6 +110,8 @@ the place to look.
 - `Insights/ReadinessScore.swift`
   - `ReadinessInsight` :158
   - `ReadinessScore` :15
+- `Insights/RiskAttribution.swift`
+  - `RiskAttribution` :45
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
   - `ScoreChangeReader` :90
@@ -117,6 +119,9 @@ the place to look.
   - `ScoreHistory` :38
   - `ScorePoint` :4
   - `ScoreTrend` :214
+- `Insights/ScoreWeighting.swift`
+  - `ScoreFactor` :138
+  - `ScoreWeighting` :31
 - `Insights/SleepDebt.swift`
   - `SleepDebtModel` :25
 - `Insights/SleepInsight.swift`
@@ -193,7 +198,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :413
+  - `MetricPalette` :442
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -242,7 +247,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :327
+  - `SubstanceWindow` :392
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/PlainText.swift`

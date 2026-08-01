@@ -85,15 +85,21 @@ public struct BodyCompositionInsight: InsightModel {
             explanation += " " + composition
         }
 
-        // Every body measurement that actually reported. The contributor weights
-        // stay 0 — the dial below is not a weighted blend of these lines — but
-        // the card does now carry a score.
+        // Every body measurement that actually reported.
+        //
+        // **One of them carries the dial outright** — body fat where a scale
+        // reports it, body mass through BMI otherwise — and which one is the
+        // model's own answer rather than a guess made here. Everything else is
+        // charted and unscored, which is the honest description of lean, muscle,
+        // bone and water on this card: they narrate the *change* in weight and
+        // none of them enters the number.
         let present = candidateMetrics.filter { samples.latestValue($0) != nil }
         let bodyFat = samples.latestValue(.bodyFatPercentage)
+        let dial = Self.score(bodyFat: bodyFat, bmi: bmi,
+                              age: profile.age(asOf: now), sex: profile.sex)
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline,
-            score: Self.score(bodyFat: bodyFat, bmi: bmi,
-                              age: profile.age(asOf: now), sex: profile.sex),
+            score: dial?.value,
             confidence: Self.scoreConfidence(bodyFat: bodyFat, height: height,
                                              profile: profile, now: now),
             explanation: explanation,
@@ -104,10 +110,15 @@ public struct BodyCompositionInsight: InsightModel {
                 let unit = metric.unit
                 return .init(metric: metric,
                              higherIsBetter: metric == .bodyFatPercentage ? false : nil,
-                             weight: 0,
+                             weight: metric == dial?.metric ? 1 : 0,
                              detail: String(format: "%.1f%@", samples.latestValue(metric) ?? 0,
                                             unit.isEmpty ? "" : " \(unit)"))
-            })
+            },
+            weighting: dial?.metric == .bodyFatPercentage
+                ? .singleMeasure("the published healthy body-fat range for your age and sex")
+                : (dial == nil ? .unstated
+                   : .singleMeasure("the healthy BMI range of 18.5 to 24.9 — the fallback, "
+                                    + "because BMI cannot tell muscle from fat")))
     }
 
     /// Reads the direction of weight change against lean mass.
@@ -180,12 +191,28 @@ public struct BodyCompositionInsight: InsightModel {
     /// from fat — which is the whole distinction this card exists to draw, and
     /// the reason it carried no score for so long. Scoring BMI when a measured
     /// fat fraction is on hand would be choosing the worse instrument.
-    static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?) -> Double? {
+    ///
+    /// **Returns the measurement it rested on, not only the number.** The card
+    /// has to say which of its inputs carries the dial, and deriving that from a
+    /// second copy of this branch is how the picture and the number drift apart.
+    /// One measurement is the whole score on either branch: this card is not a
+    /// blend, and it used to say "not a weighted average" for that reason —
+    /// which describes a card with no attributable share rather than one where a
+    /// single input has all of it.
+    ///
+    /// The BMI branch attributes to **body mass** rather than splitting with
+    /// height. Both are needed to compute it, but height is a constant here: it
+    /// is the only thing on this card that cannot change between two readings,
+    /// so it is what the score is measured *against* rather than something
+    /// moving it. It stays a charted input at weight 0.
+    static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?)
+        -> (value: Double, metric: MetricType)? {
         if let bodyFat, let age, let sex {
             let range = healthyBodyFatRange(age: age, sex: sex)
-            return rangeScore(bodyFat, lower: range.lower, upper: range.upper)
+            return (rangeScore(bodyFat, lower: range.lower, upper: range.upper),
+                    .bodyFatPercentage)
         }
-        if let bmi { return rangeScore(bmi, lower: 18.5, upper: 24.9) }
+        if let bmi { return (rangeScore(bmi, lower: 18.5, upper: 24.9), .bodyMass) }
         return nil
     }
 
