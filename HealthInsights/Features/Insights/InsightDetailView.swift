@@ -71,28 +71,42 @@ struct InsightDetailView: View {
         }
     }
 
-    /// The window every timeframe-driven section below reads.
+    /// The window every timeframe-driven section reads, **pinned above the tab
+    /// bar** rather than placed in the scroll.
     ///
-    /// It used to live inside "Score over time" while also driving the overlay,
-    /// the patterns card and the lag card — so an insight with under two
-    /// replayable days lost the control for three sections that still used it,
-    /// and there was no way to change the window at all. Moving it out fixed
-    /// that; a `usesTimeframe` gate then kept it off cards where nothing read it.
+    /// Five sections read it — the score chart, the bespoke charts, the overlay
+    /// and both findings sections — and they are spread from position 3 to
+    /// position 11 of fourteen. Anywhere in the scroll it would be out of reach
+    /// from most of the sections it drives; at the top it is out of reach from
+    /// nearly all of them.
     ///
-    /// **That gate is gone, and its own reasoning is what retired it.** Both
-    /// findings sections now render on every card whatever they found, and both
-    /// read this window, so there is always a section below that this control
-    /// moves. More to the point, the one case the gate hid it in — a card with
-    /// no series at all — is exactly where widening the window is the remedy:
-    /// `overlaySeries` filters by it, so a card drawing nothing over a month can
-    /// draw plenty over a year. Hiding the control there left
-    /// `SectionPlaceholder` telling the reader to widen a timeframe that wasn't
-    /// on screen.
-    private var timeframePicker: some View {
+    /// Its history is worth keeping, because it is the same mistake twice. It
+    /// began *inside* "Score over time" while also driving four other sections,
+    /// so an insight with too few replayable days lost the control for sections
+    /// that still used it. Moving it out fixed that, and a `usesTimeframe` gate
+    /// then hid it on cards where nothing read it — including the one case where
+    /// widening the window is the remedy, a card with no series, which left
+    /// `SectionPlaceholder` telling the reader to widen a timeframe that was not
+    /// on screen. **Both bugs were the control being somewhere the reader
+    /// wasn't**, and pinning it is the fix that has no third version.
+    private var timeframeBar: some View {
         Picker("Timeframe", selection: $timeframe) {
             ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
         }
         .pickerStyle(.segmented)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        // `.bar` rather than a solid fill: the content scrolling underneath
+        // should be visible through it, so the bar reads as floating over the
+        // card rather than as the card ending there.
+        .background(.bar, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08))
+        )
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     var body: some View {
@@ -116,12 +130,9 @@ struct InsightDetailView: View {
                     headerCard(result)
                     // 2. Why it says that. The fastest read on the screen.
                     driversCard(result)
-                    // The timeframe control. Not one of the fourteen sections —
-                    // it is a screen-level control, and it sits here because
-                    // "Score over time" is the first section that reads it and
-                    // a control below the thing it drives is unfindable.
-                    timeframePicker
-                    // 3. How the number has moved.
+                    // 3. How the number has moved. The timeframe control that
+                    // used to sit here is pinned above the tab bar instead —
+                    // see `timeframeBar`.
                     scoreHistoryCard
                     // 4. The deltas, before any of the machinery behind them.
                     periodContrastCard(result)
@@ -160,6 +171,18 @@ struct InsightDetailView: View {
                 }
             }
             .padding()
+        }
+        // Pinned rather than placed in the scroll, so the control is in reach
+        // from anywhere on a card that is now fourteen sections long.
+        //
+        // `safeAreaInset` rather than `overlay`: an overlay would sit *on top*
+        // of the last section and permanently hide the bottom of the
+        // disclaimer. An inset shortens the scrollable area by the bar's own
+        // height, so everything can still be scrolled clear of it — and it
+        // stacks above the tab bar's safe area on its own, with no hard-coded
+        // guess at the tab bar's height.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if result != nil { timeframeBar }
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(result?.title ?? "Insight")

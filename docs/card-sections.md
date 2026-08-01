@@ -45,10 +45,26 @@ appendices.**_
 | 13 | View & add | What the card asks *of* you. |
 | 14 | Was this accurate? | The other thing asked of you. |
 
-**Two things are not sections and are not in that list.** The *timeframe picker*
-is a screen-level control and sits between 2 and 3, because "Score over time" is
-the first section that reads the window and a control below the thing it drives
-is unfindable. The *disclaimer* is chrome and is always last.
+**Two things are not sections and are not in that list.** The *disclaimer* is
+chrome and is always last. The *timeframe picker* has no position at all: it is
+**pinned above the tab bar** and on screen the whole time.
+
+That pinning is the third placement it has had, and the first two failed the
+same way. It began *inside* "Score over time" while also driving four other
+sections, so a card with too few replayable days lost the control for sections
+that still used it. Moved out and gated on `usesTimeframe`, it was then hidden
+on cards where nothing read it — including the one case where widening the
+window is the *remedy*, a card with no series, which left `SectionPlaceholder`
+telling the reader to widen a timeframe that was not on screen. **Both bugs were
+the control being somewhere the reader wasn't.** Five sections read it, spread
+from position 3 to position 11 of fourteen; there is no point in a fourteen-
+section scroll that is near all five.
+
+It is a `safeAreaInset(edge: .bottom)` rather than an `overlay`: an overlay would
+sit on top of the last section and permanently hide the bottom of the
+disclaimer, while an inset shortens the scrollable area by the bar's own height
+so everything can still be scrolled clear of it. The inset also stacks above the
+tab bar's own safe area with no hard-coded guess at its height.
 
 **6 before 7 is deliberate**: the overview of what feeds the score, then the
 arithmetic. **8 before 9** for the same shape — the outside comparison, then the
@@ -67,7 +83,6 @@ file having been brought along.
 |---|---|---|
 | 1 | `headerCard` | (the score itself — dial, headline, confidence, explanation) |
 | 2 | `driversCard` | What's driving this |
-| — | `timeframePicker` | *(screen control, not a section)* |
 | 3 | `scoreHistoryCard` | Score over time |
 | 4 | `periodContrastCard` | What changed |
 | 5 | `bespokeSection` | *(one `switch`, per card — see the matrix)* |
@@ -81,6 +96,7 @@ file having been brought along.
 | 13 | `ViewAndAddSection` | View & add |
 | 14 | `feedbackCard` | Was this accurate? |
 | — | `disclaimerCard` | *(chrome, not a section)* |
+| — | `timeframeBar` | *(screen control, pinned above the tab bar)* |
 
 <!-- CARD-MAP:END -->
 
@@ -96,9 +112,9 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 
 | # | Key | Section | Gate |
 |---|---|---|---|
+| — | *picker* | the timeframe control, pinned above the tab bar | **always** |
 | 1 | `Hdr` | the score — dial or headline, confidence badge, explanation | always |
 | 2 | `Drv` | "What's driving this" | **always** |
-| — | *picker* | the timeframe control | **always** |
 | 3 | `ScrHx` | "Score over time" | **always** |
 | 4 | `Chg` | "What changed" — period contrast | **always** |
 | 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |

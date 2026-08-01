@@ -67,18 +67,25 @@ for match in re.finditer(r"(?:private |@ViewBuilder )*(?:private )?(?:func|var) 
 
 HAND = {
     "headerCard": ["(the score itself — dial, headline, confidence, explanation)"],
-    "timeframePicker": ["*(screen control, not a section)*"],
+    "timeframeBar": ["*(screen control, pinned above the tab bar)*"],
     "disclaimerCard": ["*(chrome, not a section)*"],
     "bespokeSection": ["*(one `switch`, per card — see the matrix)*"],
     "ViewAndAddSection": ["View & add"],
     "feedbackCard": ["Was this accurate?"],
 }
 
+# The timeframe control is not in the scroll — it is a `safeAreaInset`, pinned
+# above the tab bar — but leaving it out of the map would lose the record of a
+# control that drives five sections. Appended rather than positioned, because it
+# has no position: it is on screen the whole time.
+if "timeframeBar" in src and "timeframeBar" not in order:
+    order.append("timeframeBar")
+
 rows = []
 position = 0
 for name in order:
     shown = titles.get(name) or HAND.get(name) or ["*(untitled)*"]
-    chrome = name in {"timeframePicker", "disclaimerCard"}
+    chrome = name in {"timeframeBar", "disclaimerCard"}
     if not chrome:
         position += 1
     rows.append((("—" if chrome else str(position)), name, " · ".join(shown)))
