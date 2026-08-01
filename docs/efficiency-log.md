@@ -111,7 +111,7 @@ that is not yet automated is the next thing to automate.
 | Miss an exhaustive switch over *another* enum | 2 | ✅ automated — generic switch lint (2026-07-30) |
 | Read CI status without burning 100K tokens | every | ✅ automated — `ci-status.sh` reads `refs/ci/*` |
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
-| **Lose the working directory in a shell call** | **3** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 anyway, twice in one session. A rule the model can skip is tier 1. See the roadmap: this one has a mechanical answer and should move to tier 2 |
+| **Lose the working directory in a shell call** | **4** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice and in session 16 **five times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
 | **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
@@ -147,12 +147,31 @@ that is not yet automated is the next thing to automate.
 
 ## The efficiency roadmap
 
-### ⬜ A `PreToolUse` hook for relative `scripts/…` calls — the top open item
+### ✅ Parse every changed app-target file before pushing — added session 16
+
+`verify.sh` now runs `swiftc -parse` over the app target. SwiftUI does not exist
+on Linux so nothing here can *type*-check `HealthInsights/`, and CI has always
+been the only gate for it — but parsing needs no SDK, and the brace-balance class
+is a real one: session 16 restructured `InsightDetailView` fourteen times, and a
+push to discover an unbalanced brace is a five-minute round trip for something a
+tenth of a second answers. Caught nothing this session because it was run by hand
+each time; it is here so the next session does not have to remember.
+
+### ⬜ A `PreToolUse` hook for the shell's working directory — the top open item
 
 **Why this one.** It is the ledger's highest-count row that has a *mechanical*
-answer and does not have it yet: three sessions, and the rule is already written
-in `CLAUDE.md` in the plainest words available. Session 15 broke it twice in one
-sitting while having read the file that forbids it.
+answer and does not have it yet: **four** sessions, five instances in session 16
+alone, and the rule is already written in `CLAUDE.md` in the plainest words
+available. Session 15 broke it twice while having read the file that forbids it;
+session 16 broke it five times having read the same file *and* the ledger row
+about it.
+
+**Session 16 narrowed the fix.** The mechanism is that the Bash tool's working
+directory persists between calls, so a single `cd InsightKit && swift test`
+relocates every later relative path — which means the failure is not confined to
+`./scripts/…` invocations at all. Two of session 16's five instances were Python
+heredocs and one was a `sed`. So the smaller and more complete fix is **prepend a
+`cd` to the repo root on every `Bash` call**, not reject a path shape.
 
 That is the whole argument for tier 2, made concretely. This log's own analysis
 says it: *a ceremony that depends on being invoked will be skipped*, and the only
@@ -323,6 +342,66 @@ with guesses.
 | 14 | 2026-08-01 | 15 | **4** | 8 | 2 (named below) | 672 → 724 | **`refs/ci/errors/<sha>` + `ci-errors.sh`** — the roadmap's top open item; `SleepNights` (14 tests) moves night-grouping into InsightKit; `BodyCompositionSplit` (+29 tests); `DataInventory.SourceStat` per-source attribution; `ScrubIndicator` shared by every chart; rebuild-from-providers | **Worse, and the worst ratio recorded** — 14 waste / 15 pushes = 0.93 against a 0.56 baseline. Four of the eight rework commits are one visual iterated by eye; see below |
 
 | 15 | 2026-08-01 | 3 | **0** | 0 | 2 (named below) | 724 → 772 | **`SectionCaveat` + `InsightSection` with a *required* `caveat` argument** — a section that infers without saying so is now a compile error; `VitalDeparture` gives the vitals scan's z thresholds one implementation, called by both the score and the strip; `PeerStandingModel.Band`; `PeriodContrast.windowDays`; `deploy-status.sh` names the three "no verdict" cases instead of asserting one; `PeerStandingBandTests`, `VitalDepartureTests`, `SectionCaveatTests`, `ContributionSummaryTests` (+48) | **Better on every absolute column** — red CI 4 → 0, rework 8 → 0, waste 14 → 2 — and the first session since 12 to be green on the first push *and* installed. 2 waste / 3 pushes = 0.67 reads above the 0.56 baseline, but the denominator is three. **The honest sting is in the notes: both remaining items are repeats, one for the sixth time** |
+
+| 16 | 2026-08-01 | 12 | **0** | 0 | 1 (named below) | 772 → 833 | **`scripts/card-map.sh`** — derives the card's section order from `InsightDetailView.body`, `--check` wired into `handover-check.sh`, and handover step 5 spells out what a new card versus a new section changes; `SectionPlaceholder` (+24 tests) gives every section a floor-derived empty state; `ChartedContributions` separates a deliberate zero from an absence; `CircadianConsistencyModel` split so a fit can be recomputed per window; `HeartResponseModel` (+8); `LegendCaption` (+13); `PeriodContrast.comparableCount` shares `dailyMeans` with `changes` | **Better on every measured column, and the cheapest long session recorded.** 1 waste / 12 pushes = 0.08 against a 0.56 baseline; twelve installs, zero red CI, zero rework. **The sting is the unmeasured column** — five dead round trips to the shell's working directory, a tier-1 rule now failing in its fourth consecutive session |
+
+### Session 16 notes
+
+**Red CI (0) and rework (0), across twelve pushes.** Every push was green first
+time and every one reported `installed`. Three things did that, and none is
+carefulness:
+
+1. **`swiftc -parse` on every changed app-target file before pushing.** SwiftUI
+   does not exist on Linux so the app target cannot be *type*-checked here, but
+   parsing catches the brace-balance class — and this session restructured
+   `InsightDetailView` fourteen times. Worth adding to `verify.sh`; see the
+   roadmap.
+2. **Refusing type-inference gambles in a target only CI compiles.**
+   `placeholder.map { .collapsed(…) } ?? .always` leans on leading-dot inference
+   flowing back through `map` and `??`; it was replaced with an explicit helper
+   at four call sites, and `SectionCaveat.none` was written out longhand in every
+   ternary rather than left as `.none`. Each would have cost a push to settle.
+3. **Two throwaway probes instead of two arguments.** "Score over time has been
+   removed from most cards" was a report about a section this session had not
+   touched. A twenty-line test replaying all nine models found the real answer —
+   **four cards produce zero score-history points** — in one round trip, and the
+   same trick found that only four of nine cards have any weighted contributors
+   at all. Both probes were deleted after reading.
+
+**Re-derivation (1), named.** `VitalReader.DailyPoint` — invented a type name,
+`where.sh` correctly reported no such thing, and the answer was `DailyValue`.
+One round trip. The tool worked; the guess came first, which is the ledger's
+"hunt for a type by guessing its name" one level down.
+
+**The honest failure: five dead round trips to the working directory.** Not a
+re-derivation and not rework, so it appears in no column above — which is
+exactly why it is written here. `cd InsightKit && swift test` leaves the shell
+in `InsightKit`, and the Bash tool's cwd **persists between calls**, so the next
+`./scripts/verify.sh` resolves to nothing. It happened five times: `verify.sh`
+once, `where.sh` once, a `sed` once and two Python heredocs.
+
+The rule is in `CLAUDE.md` in the plainest wording available, annotated "pure
+waste", and this is its **fourth consecutive session** of not holding. The log's
+own thesis covers this case explicitly — *a rule the model can skip is tier 1,
+and tier 1 does not hold* — and the mechanical answer has been sitting in the
+roadmap unbuilt for two sessions because it changes `.claude/settings.json`.
+**That is the thing to ask the user for.** Session 16 at least narrows it: the
+smaller fix is not "reject relative `scripts/…` calls" but "prepend a `cd` to the
+repo root on every `Bash` call", which fixes the heredocs and the `sed` too.
+
+**What the compounding column is really worth this time.** `card-map.sh` retires
+a category that had recurred twice in three sessions: the session that changes a
+card section updates the code and half the record. It is deliberately a *failing*
+check rather than a self-healing formatter, because only the ordering can be
+generated — the matrix, the gate table and the two feature audits beside it are
+hand-written and a moved section changes all four. A formatter would have made
+the document quietly wrong instead of loudly stale.
+
+**What made this session cheap.** The user reviewed twelve builds on the phone as
+they landed, so eight defects were found by the only gate that can see them
+rather than by a later session; the audited docs were read once at the start and
+trusted; and `deploy-status.sh` meant "installed" was reported twelve times from
+a ref rather than from optimism.
 
 ### Session 15 notes
 

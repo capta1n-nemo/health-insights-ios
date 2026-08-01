@@ -30,7 +30,130 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The Phase-2 session (latest).** One push, `dc5fae6`, CI green. "Continue with
+**The card-consistency session (latest).** Twelve pushes, all installed, no red
+CI. Driven end to end by the user reading the shipped cards on their phone and
+saying what was wrong — eight rounds of it. The through-line is one idea applied
+until it held everywhere:
+
+### A section that vanishes is an absence the reader cannot read
+
+Every section on `InsightDetailView` used to disappear when its data missed a
+floor, and the floors are high. Measured rather than assumed: replaying the nine
+models over a realistic five-signal dataset gives **four of them zero
+score-history points**, so "Score over time" was absent more often than present
+and the user reported it as *removed*. It had not been touched.
+
+The fix is that every section renders on every card and says **which** kind of
+empty it is. `SectionPlaceholder` (InsightKit, tested) derives each reason from
+the floor its own producer gates on — `ScoreHistory.minimumContributors`,
+`PatternFinder.defaultMinimumPairs`, `PeriodContrast.minimumDaysPerPeriod` — and
+quotes the real shortfall, so "not enough data yet" can never appear under a card
+holding two years of it.
+
+Three distinctions in that type are load-bearing and were each a defect avoided:
+
+- **A pending replay is not no-data.** `AppModel.scoreHistory` returns `[]` on
+  first ask and replays off the main actor, so a card opened cold is empty for a
+  second. `scoreHistoryIsPending(for:)` is what stops a false statement that
+  corrects itself only after it has been read.
+- **"Not enough history to compare" and "enough history, nothing moved" are
+  opposite messages.** `PeriodContrast.comparableCount` tells them apart, sharing
+  `dailyMeans` with `changes` so the two cannot disagree about which metrics
+  cleared the floor.
+- **"Keep recording and this fills in" is the wrong instruction for a cuff
+  reading.** `needsMore` versus `needsInput`, with a test pinning that neither
+  instruction appears in the other's copy.
+
+### The same zero can be a finding or an absence
+
+`weight: 0` and `higherIsBetter: nil` are *deliberate* on some cards — `dayStrain`
+is charted and unscored on purpose — and pure absences on others, because the
+screen substitutes an insight's declared inputs when it reports none. Rendered
+naively every row of such a card reads "tracked, not scored · neither direction
+is better", two claims no model made. **Substance Impact before its first logged
+event is the live case**, found by a test written for something else.
+`ChartedContributions` carries the distinction; `ContributorsTests` pins that
+Substance Impact is the only insight that reaches it.
+
+### Splitting a model is what made a chart pannable
+
+The bedtime strip had a real argument against panning: its window *was* the
+model's scoring window, so scrolling back would draw nights against a centre
+fitted only on recent ones. The answer was not to loosen that. Reading the
+nights is the expensive half — a filter and a daily bucket over the whole sample
+set — and fitting a centre, a weekend split and a spread to a few dozen of them
+is arithmetic. `CircadianConsistencyModel.nights(from:days:)` does the first
+once; `evaluate(nights:)` does the second per visible range, cheap enough for a
+drag. **Generalises: when a window cannot move because a fit is attached to it,
+separate the read from the fit before deciding the window is fixed.**
+
+### The card's order now has a rationale, and the map is self-checking
+
+The order is the user's, argued position by position in `docs/card-sections.md` ▸
+"The order, and why": score → why → how it moved → what changed → the card's own
+subject → what feeds it → how it is weighted → you against everyone → you against
+you → the findings → the appendices.
+
+**`scripts/card-map.sh` derives the order from `InsightDetailView.body`** and
+`handover-check.sh` runs `--check`, so a session cannot close while the record is
+stale. It fails rather than self-heals on purpose: only the ordering is
+generated, and the matrix, the gate table, the per-section feature audit and the
+per-chart audit beside it are hand-written, so a red check is a prompt to
+re-read. Handover step 5 spells out what a new *card* changes versus a new
+*section*. **Many more cards are coming and this is the thing that will keep
+telling us where the gaps are.**
+
+### The timeframe control is pinned, on its third placement
+
+It drives five sections spread from position 3 to 11 of fourteen. Inside "Score
+over time" it vanished with that section; gated on `usesTimeframe` it was hidden
+on exactly the cards where widening the window is the remedy. **Both bugs were
+the control being somewhere the reader wasn't.** It is now a
+`safeAreaInset(edge: .bottom)` above the tab bar — an inset rather than an
+overlay, so the last section can still be scrolled clear of it.
+
+### Heart Health has a section that speaks to a 25-year-old
+
+"How you compare" went universal, which took Heart Health's bespoke slot with it
+and exposed something worth writing down: **SCORE2 is validated 40–69 and ASCVD
+40–79**, so heart age and the risk card say *nothing* to a young reader. The fix
+is not to extrapolate past a validated band. Heart rate recovery is the one
+cardiac marker whose published threshold is a fixed count of beats rather than a
+curve through age — ≤12 bpm in the first minute marked roughly double six-year
+mortality across 2 428 adults (Cole et al., *NEJM* 1999), ~26 bpm is typical on a
+wrist device — so it reads the same at 25 and 65. `HeartResponseModel`, 8 tests.
+It does not score: no validated 0–100 curve exists and `RecoveryScale` draws a
+position between two published marks rather than a dial.
+
+**Considered and not built: AHA Life's Essential 8.** It is the construct
+designed for exactly this problem — only 32% of 20–39s hit five of eight ideal
+levels, and cumulative score from 18–45 predicts midlife disease. The app has
+6–7 of the components; **diet is entirely absent**. A partial LE8 needs a
+decision about renormalising over what we have. Raised with the user, not taken.
+
+### Norms exist for three metrics and no more
+
+"How you compare" now takes each card's own inputs. `PeerStandingModel.norm(for:
+age:sex:)` returns non-nil for exactly **resting heart rate, rMSSD and VO₂max**
+and `nil` for everything else, and the section *names* the unnormed signals
+rather than dropping them — two rows out of nine implies the other seven were
+checked and found unremarkable. Returning nil rather than guessing is the whole
+claim: a centile on an invented mean is indistinguishable on screen from one
+built on NHANES. Blood pressure is deliberately absent even though norms exist —
+it is classified into ACC/AHA bands rather than ranked. Crowd-sourced norms are
+scoped in `docs/progress.md`, privacy question first; `hasPublishedNorm(_:)` is
+the seam.
+
+### The one that got worse: shell working directory
+
+Five dead round trips to a relative path resolving in the wrong directory —
+`cd InsightKit && swift test` leaves the cwd there for the *next* call. The rule
+is in `CLAUDE.md` in the plainest words available and has now failed in four
+consecutive sessions. **It is a tier-1 rule and tier 1 does not hold.** The
+mechanical answer is a `PreToolUse` hook, which touches `.claude/settings.json`
+— the user's harness config — so it needs asking for. See the efficiency roadmap.
+
+**The Phase-2 session (previous).** One push, `dc5fae6`, CI green. "Continue with
 roadmap" — the open list was read back and the four buildable Phase 2 items were
 taken, plus a fifth the user added on reading the plan. Body Composition's scan
 entry was **deferred by the user** to its own session.
@@ -593,10 +716,6 @@ three fresh complaints. The findings from that half:
 
 ### What is still not done, and why
 
-- **On-device verification of everything since the last device-verified build.**
-  Nothing in this session or the previous two has been seen on the phone. CI
-  proves it compiles; both regressions two sessions ago were caught by the user's
-  screenshots, not by CI.
 - **`EnergyModel.exertionHours` still weights every heart-rate sample equally.**
   Deliberate and commented — a watch's own sampling gaps are not idle time, and
   using real inter-sample intervals needs a decision about what a gap means.
@@ -612,6 +731,11 @@ three fresh complaints. The findings from that half:
   the user's own developer credentials per provider and cannot be tested from
   here at all. Same for the VisionKit scanner and ECG import — device-only
   surfaces with no test path.
+- ~~**On-device verification of everything since the last device-verified
+  build.**~~ **Closed 2026-08-01**: twelve pushes this session, every one
+  reported `installed` by `deploy-status.sh`, and eight rounds of the user
+  reading the result on the phone and saying what was wrong. That loop is the
+  reason this session found things CI cannot see.
 - ~~**Filled `AreaMark` min/max bands** want a compile spike.~~ **Resolved
   2026-08-01**: `BodyCompositionTrendChart` ships `AreaMark(x:yStart:yEnd:)` for
   the water film and it draws correctly. The one real catch is that the overload
@@ -628,11 +752,17 @@ three fresh complaints. The findings from that half:
   and this bullet had gone stale claiming otherwise. **Also now closed:** reading
   a red CI cheaply, built 2026-08-01 as `refs/ci/errors/<sha>` +
   `scripts/ci-errors.sh`. Currently open, top first:
-  - **A `PreToolUse` hook rejecting relative `scripts/…` calls** (new, session
-    15). Three sessions have now lost round trips to it *while the rule sits in
-    `CLAUDE.md` in the plainest words available* — so the rule is not the fix.
-    Deliberately not built yet: it changes `.claude/settings.json`, which is the
-    user's harness config, so **ask before adding it**.
+  - **A `PreToolUse` hook that normalises the shell's working directory** (top
+    item, raised again session 16). **Four** consecutive sessions have lost round
+    trips to it, five in this one alone, *while the rule sits in `CLAUDE.md` in
+    the plainest words available* — so the rule is not the fix. Session 16 also
+    identified the mechanism precisely: the Bash tool's cwd **persists between
+    calls**, so a single `cd InsightKit && swift test` silently relocates every
+    later relative path. Two candidate fixes, and the second is smaller than the
+    first: reject relative `scripts/…` invocations, or prepend `cd <repo root>`
+    to every `Bash` call. Still not built, for the same reason: it changes
+    `.claude/settings.json`, which is the user's harness config, so **ask before
+    adding it**.
   - A build-environment parity check between CI and the user's Mac — the item
     that cost four deploys.
   - *Read the composited pixel before choosing another colour* (session 14's

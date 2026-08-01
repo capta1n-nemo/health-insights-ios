@@ -575,14 +575,44 @@ decide that in advance.
 
 ## In progress / not yet device-verified
 
+- [x] **The card-consistency session (2026-08-01), all twelve pushes installed
+      and reviewed on the phone by the user as they landed.** Eight rounds of
+      feedback drove it, so this one is device-verified by construction rather
+      than pending. What it established, so a later session does not re-derive
+      it: every section renders on every card and says which kind of empty it
+      is; the order has a written rationale; `scripts/card-map.sh` keeps
+      `docs/card-sections.md` honest and `handover-check.sh` enforces it.
+- [ ] **The four judgement calls from that session that only the phone can
+      settle**, none yet reported on:
+      - **The floating timeframe bar** — whether `.bar` material and an 8pt gap
+        above the tab bar read as floating rather than as the card ending, and
+        whether the inset leaves the disclaimer scrollable clear of it.
+      - **The chevron at 40% opacity on an open section.** Eleven at full accent
+        down one card looked like a row of alarms; that was a guess made without
+        seeing it.
+      - **`BodyCompositionTrendChart` rescaling its y-axis as you pan**, now that
+        the picker is a zoom rather than a filter.
+      - **The bedtime strip's band moving under your finger** as it re-fits per
+        window — informative, or jitter?
+- [ ] **Give Heart Health's new section a second look on a young profile.**
+      `HeartResponseModel` exists to say something to a reader under 40, and the
+      one thing no test can check is whether it actually does. Needs a device
+      with a recorded workout — heart rate recovery only exists on days with a
+      hard effort.
+
 - [ ] **Phase 2's five new sections on the phone** (`656bb9c`, **installed**).
       CI proves they compile; the app target has no test target and SwiftUI does
       not exist on Linux, so the device is the only gate for what they draw.
-      - **Heart Health ▸ "How you compare"** — three centile rows under the
-        weighting. The dot's position must agree with the phrase beside it (a
-        dot in the shaded middle reads "around average"), and a metric with no
-        recent reading should be **absent**, not drawn at zero.
-      - **Readiness ▸ "How far from your normal"** — the shaded band must line
+      - ~~**Heart Health ▸ "How you compare"** — three centile rows under the
+        weighting.~~ **Superseded 2026-08-01**: it is no longer under the
+        weighting, no longer Heart Health's, and no longer three rows. It is a
+        universal section taking each card's own metrics, and it now also lists
+        the signals with no published norm. The dot's position must still agree
+        with the phrase beside it, and a metric with no recent reading must
+        still be absent rather than drawn at zero.
+      - **"How far from your normal"** — no longer Readiness-only; every card
+        gets it, narrowed to its own metrics, and Readiness keeps the full
+        seventeen-vital scan. The shaded band must line
         up with which vitals the card above calls unusual. Two specific things:
         a vital below baseline in the *harmless* direction must not be red, and
         a row with a ⚠️ is one an absolute clinical bound pushed to unusual, so
@@ -606,8 +636,9 @@ decide that in advance.
       what is missing; Substance Impact can log from its own card; a card with a
       thin history still has a timeframe picker; a daily card (Readiness,
       Energy) can now show "What comes first" / "What changed".
-- [ ] On-device walkthrough of the latest nine-part UI pass (CI-green, not yet
-      manually confirmed on the phone) — see `activeContext.md`.
+- [x] On-device walkthrough of the nine-part UI pass — **overtaken 2026-08-01**
+      by eight rounds of the user reading the shipped cards and reporting back,
+      which is the same walkthrough done adversarially.
 - [ ] **The nine cards on the phone** (`c2afd04`, installed). Neither "Heart &
       Fitness Age" nor "Fitness Trajectory" exists any more — this item used to
       name both. What to look at now: Fitness carries VO₂max, its trajectory and

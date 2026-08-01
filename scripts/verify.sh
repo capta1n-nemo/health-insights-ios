@@ -299,6 +299,34 @@ if [ -f docs/symbol-index.md ] && [ -x scripts/gen-symbol-index.sh ]; then
     rm -f "$saved"
 fi
 
+# --- The app target must at least parse ------------------------------------
+# SwiftUI does not exist on Linux, so nothing here can *type*-check
+# `HealthInsights/` and CI has always been the only gate for it. Parsing needs no
+# SDK, though, and the brace-balance class is real: one session restructured
+# `InsightDetailView` fourteen times, and a push to discover an unbalanced brace
+# is a five-minute round trip for something a tenth of a second answers.
+#
+# `-parse` only. Not `-typecheck`, which would need the iOS SDK and fail on every
+# `import SwiftUI` — a check that always fails is a check nobody reads.
+if command -v swiftc >/dev/null 2>&1; then
+    # Keyed on swiftc's **exit status**, not on grepping its output for
+    # "error:". On this toolchain a file with an unterminated declaration exits
+    # non-zero while printing only `note:` lines, so the grep version passed a
+    # file that does not parse — caught by canarying the check itself.
+    parselog=$(mktemp)
+    find "$APP" -name '*.swift' -type f 2>/dev/null | while IFS= read -r f; do
+        if ! out=$(swiftc -parse "$f" 2>&1); then
+            printf '%s\n%s\n' "$f" "$out" >> "$parselog"
+        fi
+    done
+    if [ -s "$parselog" ]; then
+        note 'The app target does not parse:'
+        head -12 "$parselog"
+        fail=1
+    fi
+    rm -f "$parselog"
+fi
+
 # --- Tests, when a toolchain exists ----------------------------------------
 
 if [ "${1:-}" = "--tests" ]; then
