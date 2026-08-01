@@ -31,6 +31,8 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 | 3 | `Drv` | "What's driving this" | **always** |
 | 4 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
 | 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
+| 5x | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
+| 5y | `Nrm` | "How far from your normal" — the card's inputs against your own baseline | **always** |
 | 6 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
 | 7 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
 | 8 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
@@ -104,11 +106,11 @@ three: closed by the reader, opened by the reader, and not yet asked.
 
 | Insight | Tab | `Hdr` | `ScrHx` | `Drv` | `Wgt` | bespoke | `Patt` | `1st` | `Goes` | `Chg` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ● | ● | ● | ◐ "How far from your normal" | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ "Your fortnight" | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Health | Insights | ● | ● | ● | ● | ◐ "How you compare" | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ◐ | ● |
@@ -257,6 +259,36 @@ reports body fat — which never promises it will fill in on its own; and
 `notComputable(subject:because:)` where the reason is about the model rather
 than a count. A test pins that the two instructions never appear in each other's
 copy.
+
+### Two ways of placing a signal, on every card
+
+`Cmp` and `Nrm` answer the same question against two different references —
+**other people**, and **your own past** — and both were one card's bespoke
+section until 2026-08-01. Neither is a heart question; both are questions any
+card's inputs can be asked, which is why they are universal now.
+
+- **`Cmp` "How you compare"** takes the card's own metrics rather than a fixed
+  list, and **only three have a published norm**: resting heart rate, rMSSD and
+  VO₂max. `PeerStandingModel.norm(for:age:sex:)` returns `nil` for everything
+  else and the section *names* those signals rather than dropping them —
+  showing two rows out of nine implies the other seven were checked and found
+  unremarkable. Blood pressure is deliberately absent even though norms exist:
+  it is classified into ACC/AHA bands rather than ranked, and a systolic centile
+  beside a category is two answers to one question. Crowd-sourced comparison for
+  the rest is scoped in `docs/progress.md` ▸ "Crowd-sourced norms".
+- **`Nrm` "How far from your normal"** is narrowed to the card's metrics, except
+  on Readiness, whose subject *is* the whole seventeen-vital scan.
+
+**Heart Health lost its bespoke section to this** — "How you compare" was it —
+and gained `heartResponseCard`, which exists because of what the promotion
+exposed: everything else this app says about the heart is calibrated on middle
+age. SCORE2 is validated 40–69 and ASCVD 40–79, so the risk card and heart age
+say *nothing* to a 25-year-old. Heart rate recovery is the one cardiac marker
+whose published threshold is a fixed count of beats rather than a curve through
+age — 12 bpm or fewer in the first minute marked roughly double six-year
+mortality across 2 428 adults (Cole et al., NEJM 1999) — so it reads the same at
+25 and 65. Beside it sit resting rate and rMSSD as a pair, because they come off
+one beat-to-beat stream and only agreement between them is evidence.
 
 ### Feature audit — what each chart supports
 

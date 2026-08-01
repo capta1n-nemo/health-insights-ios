@@ -1091,6 +1091,44 @@ recalled.
       film and draws correctly. The overload takes no `stacking:` argument, which
       is a compile error rather than a silent one. See the `add-chart` skill.
 
+### Crowd-sourced norms — "How you compare" for the signals nobody has published
+
+"How you compare" renders on every card as of 2026-08-01 and places each of the
+card's inputs against a published age-and-sex distribution. **Exactly three
+metrics have one**: resting heart rate, rMSSD and VO₂max. Every other signal the
+app reads is listed by name under "No published norms for these yet".
+
+That is a gap in the literature rather than in anybody's data, and it is
+concentrated in precisely the signals only wearables measure — heart rate
+recovery, day strain, walking heart rate, sleep efficiency, skin-temperature
+deviation. The research has not caught up with the hardware.
+
+The open item is to compare those against other people using this app.
+Specifics, in the order they need deciding:
+
+- [ ] **Nothing leaves the phone today, and that must stay true until the user
+      opts in per signal.** Every number in the app is currently local or
+      provider-sourced; a comparison feature is the first thing that would
+      change that, and it changes the app's privacy claim rather than adding to
+      it. Opt-in per metric, not one blanket switch.
+- [ ] **A distribution needs a denominator before it means anything.** A centile
+      against forty other users is noise wearing a number. Decide the floor —
+      per age band and sex, not overall — and show "not enough people yet"
+      below it, the same way `SectionPlaceholder` handles every other floor.
+- [ ] **Aggregate on the server, never share rows.** What comes back should be
+      a mean and a spread per (metric, age band, sex), which is all
+      `PeerStandingModel.Norm` needs. That also keeps the client unchanged:
+      `norm(for:age:sex:)` returns a `Norm?` today and would return a fetched
+      one instead of `nil`.
+- [ ] **Say which kind of norm a row rests on.** A published NHANES-derived
+      centile and an in-app one are different claims and must not render
+      identically — `SectionCaveat.approximateNorms` currently speaks for the
+      published case only.
+- [ ] Decide whether a user contributes automatically once they consume, or
+      whether the two are separate choices.
+
+Nothing here is started. `PeerStandingModel.hasPublishedNorm(_:)` is the seam.
+
 ### On-device ML
 - [ ] Core ML personal anomaly detection once enough history exists.
 

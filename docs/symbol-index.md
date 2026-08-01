@@ -80,6 +80,8 @@ the place to look.
 - `Insights/HeartHealthScore.swift`
   - `HeartHealthInsight` :129
   - `HeartHealthScore` :13
+- `Insights/HeartResponse.swift`
+  - `HeartResponseModel` :37
 - `Insights/Insight.swift`
   - `GroundingRequirement` :68
   - `InsightCadence` :37
@@ -332,6 +334,8 @@ the place to look.
   - `MultiSourceChart` :37
 - `DesignSystem/PeerStandingStrip.swift`
   - `PeerStandingStrip` :28
+- `DesignSystem/RecoveryScale.swift`
+  - `RecoveryScale` :22
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :35
 - `DesignSystem/ScoreComparisonChart.swift`

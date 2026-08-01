@@ -90,6 +90,15 @@ public enum PeerStandingModel {
 
     public struct Output: Sendable, Equatable {
         public let standings: [Standing]
+        /// Metrics this card reads that **no published norm covers**.
+        ///
+        /// Carried rather than dropped. "How you compare" renders on every card
+        /// now, and a card whose signals are mostly unnormed would otherwise
+        /// show two rows and imply the rest had been checked and found
+        /// unremarkable. Naming them is also the honest place to say that the
+        /// gap is in the literature, not in the reader's data — see
+        /// `docs/progress.md` ▸ "Crowd-sourced norms".
+        public var unNormed: [MetricType] = []
         /// The mean centile across what could be measured.
         public let overall: Double
         public var best: Standing? { standings.max { $0.percentile < $1.percentile } }
@@ -154,28 +163,90 @@ public enum PeerStandingModel {
         return z >= 0 ? 1 - p : p
     }
 
-    public static func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
+    /// The published norm for a metric, or `nil` where there isn't one.
+    ///
+    /// **Three metrics, and that is the whole list.** Every other signal this
+    /// app reads is either not distributed in a way a normal approximation
+    /// describes — blood oxygen sits against a ceiling at 100% and is nothing
+    /// like Gaussian — or has no age-and-sex population summary published at
+    /// all, which is true of every wearable-native signal: heart rate recovery,
+    /// day strain, walking heart rate.
+    ///
+    /// Returning `nil` rather than guessing is the load-bearing part. A centile
+    /// built on an invented mean and spread is indistinguishable on screen from
+    /// one built on NHANES, and this section's entire claim is that the number
+    /// beside your reading came from a published distribution.
+    ///
+    /// Blood pressure is deliberately absent even though norms exist: it is
+    /// *classified* into ACC/AHA bands rather than ranked, and drawing a
+    /// systolic centile beside a category would be two answers to one question.
+    static func norm(for metric: MetricType, age: Double,
+                     sex: BiologicalSex) -> Norm? {
+        switch metric {
+        case .restingHeartRate: return restingHeartRateNorm(age: age, sex: sex)
+        case .heartRateVariabilityRMSSD: return hrvNorm(age: age, sex: sex)
+        case .vo2Max: return vo2Norm(age: age, sex: sex)
+        default: return nil
+        }
+    }
+
+    /// Whether any published distribution covers this metric. The public half
+    /// of `norm(for:age:sex:)`, for a caller that needs the answer without
+    /// needing the numbers — the roadmap note and the tests both do.
+    public static func hasPublishedNorm(_ metric: MetricType) -> Bool {
+        norm(for: metric, age: 40, sex: .male) != nil
+    }
+
+    /// How long a reading may be before it is too stale to place against a
+    /// population. VO₂max updates every few weeks by design; a resting heart
+    /// rate from last month is a fact about last month.
+    static func freshness(for metric: MetricType) -> TimeInterval {
+        metric == .vo2Max ? 45 * 86_400 : 7 * 86_400
+    }
+
+    /// Where the metrics **this card reads** sit against other people.
+    ///
+    /// Takes the card's own inputs rather than a fixed list, because "How you
+    /// compare" is on every card now and the three heart signals are not what
+    /// the Sleep card is about.
+    public static func evaluate(metrics: [MetricType],
+                                samples: [HealthMetricSample],
+                                profile: UserHealthProfile,
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
         guard let age = profile.age(asOf: now), let sex = profile.sex else { return nil }
 
         var standings: [Standing] = []
-        func add(_ metric: MetricType, freshWithin: TimeInterval, norm: Norm) {
+        var unNormed: [MetricType] = []
+        // De-duplicated in the card's own order, so the rows read in the same
+        // order as every other list on the screen.
+        var seen: Set<MetricType> = []
+        for metric in metrics where seen.insert(metric).inserted {
+            guard let norm = norm(for: metric, age: age, sex: sex) else {
+                unNormed.append(metric)
+                continue
+            }
             guard let reading = VitalReader.reading(metric, from: samples, now: now,
-                                                    freshWithin: freshWithin,
-                                                    calendar: calendar) else { return }
+                                                    freshWithin: freshness(for: metric),
+                                                    calendar: calendar) else { continue }
             standings.append(Standing(metric: metric, value: reading.value,
                                       percentile: percentile(reading.value, norm: norm)))
         }
-        add(.restingHeartRate, freshWithin: 7 * 86_400,
-            norm: restingHeartRateNorm(age: age, sex: sex))
-        add(.heartRateVariabilityRMSSD, freshWithin: 7 * 86_400,
-            norm: hrvNorm(age: age, sex: sex))
-        add(.vo2Max, freshWithin: 45 * 86_400, norm: vo2Norm(age: age, sex: sex))
 
-        guard !standings.isEmpty,
-              let overall = Baseline.mean(standings.map(\.percentile)) else { return nil }
-        return Output(standings: standings, overall: overall)
+        // An overall of nothing is not zero. A card with only unnormed signals
+        // still renders — that is the point of carrying them — but it has no
+        // average centile and must not print one.
+        guard !standings.isEmpty || !unNormed.isEmpty else { return nil }
+        return Output(standings: standings, unNormed: unNormed,
+                      overall: Baseline.mean(standings.map(\.percentile)) ?? 0)
+    }
+
+    /// The three heart signals, for callers that predate per-card metrics.
+    public static func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
+                                now: Date = Date(),
+                                calendar: Calendar = .current) -> Output? {
+        evaluate(metrics: [.restingHeartRate, .heartRateVariabilityRMSSD, .vo2Max],
+                 samples: samples, profile: profile, now: now, calendar: calendar)
     }
 }
 

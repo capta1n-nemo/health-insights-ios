@@ -143,6 +143,24 @@ public struct VitalDeparturePanel: Sendable, Equatable {
 
     /// Built from the scan's own output, so the strip charts exactly what the
     /// card scored — no second pass over the samples.
+    /// Narrowed to the signals one card reads.
+    ///
+    /// "How far from your normal" is on every card now, and the scan looks at
+    /// seventeen vitals regardless of which card is asking. Drawing all
+    /// seventeen under the Sleep card would answer a question nobody asked and
+    /// bury the two rows that are about sleep. `nil` keeps everything, which is
+    /// what the Readiness card wants — its subject *is* the whole scan.
+    public static func from(_ output: VitalSignsCheck.Output,
+                            limitedTo metrics: [MetricType]?) -> VitalDeparturePanel {
+        let whole = from(output)
+        guard let metrics else { return whole }
+        let wanted = Set(metrics)
+        return VitalDeparturePanel(
+            rows: whole.rows.filter { wanted.contains($0.metric) },
+            unjudged: whole.unjudged.filter { wanted.contains($0) },
+            stale: whole.stale.filter { wanted.contains($0) })
+    }
+
     public static func from(_ output: VitalSignsCheck.Output) -> VitalDeparturePanel {
         var rows: [VitalDeparture] = []
         var unjudged: [MetricType] = []

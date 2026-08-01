@@ -52,13 +52,13 @@ struct InsightDetailView: View {
             sleepRegularityCard
         case .substanceImpact:
             substanceLoadCard
+        // Heart Health and Readiness used to own "How you compare" and "How far
+        // from your normal" as their bespoke sections. Both are universal now —
+        // every card's inputs can be placed against a population and against
+        // the reader's own baseline — which left Heart Health without a picture
+        // of its own subject. `heartResponseCard` is that picture.
         case .heartHealth:
-            // The centiles this card absorbed from "Where You Stand". Both of
-            // these used to be nested under "How this is weighted", which was
-            // this card's bespoke section until that went universal.
-            peerStandingSection
-        case .readiness:
-            vitalDepartureSection
+            heartResponseCard
         case .bodyComposition:
             bodyCompositionSplitCard
         // Kept, though all nine cases are now named: making this exhaustive
@@ -117,6 +117,12 @@ struct InsightDetailView: View {
                     // The card's own picture of its own subject, directly under
                     // the three sections that explain its number.
                     bespokeSection
+                    // Two ways of placing the same signals: against other
+                    // people, and against the reader's own past. Both were one
+                    // card's bespoke section until 2026-08-01 and both are
+                    // questions every card's inputs can be asked.
+                    peerStandingSection(result)
+                    vitalDepartureSection(result)
                     // The two findings sections sit above the inputs the score
                     // is built from. They used to sit *below* "What goes into
                     // this", so the reader met a chart, a scale picker and a
@@ -705,34 +711,190 @@ struct InsightDetailView: View {
     /// card's bespoke one — but that section is now universal *and closed by
     /// default*, and a card's own picture of its own subject must not arrive
     /// hidden inside a collapsed generic section.
-    @ViewBuilder private var peerStandingSection: some View {
-        let evaluated = PeerStandingModel.evaluate(samples: model.samples,
-                                                   profile: model.profile)
-        if evaluated == nil || evaluated?.standings.isEmpty == true {
-            // Two quite different gaps, and the model returning nil is the one
-            // the reader can act on: it needs an age and a sex to pick a norm
-            // table at all.
-            let reason: SectionPlaceholder = evaluated == nil
-                ? .needsInput(subject: "Comparing you with other people",
-                              what: "your date of birth and sex")
-                : .notComputable(subject: "Comparing you with other people",
-                                 because: "needs one of the three signals with "
-                                    + "published age-and-sex norms — VO₂max, "
-                                    + "resting heart rate or heart rate "
-                                    + "variability — and none has recorded yet.")
-            InsightSection(title: "How you compare", trailing: nil, caveat: .none,
+    /// Heart Health's own picture: how the heart responds to a hard effort, and
+    /// where the autonomic pair has drifted.
+    ///
+    /// It replaced "How you compare", which went universal — and the replacement
+    /// is deliberately not another risk number. SCORE2 and ASCVD are validated
+    /// 40–69 and 40–79, so everything else this app says about the heart is
+    /// silent to a young reader. Heart rate recovery is the one cardiac marker
+    /// whose published threshold is a fixed count of beats rather than a curve
+    /// through age, which is what lets this section say the same thing at 25
+    /// and at 65. See `HeartResponseModel` for the sources.
+    @ViewBuilder private var heartResponseCard: some View {
+        let response = HeartResponseModel.evaluate(samples: model.samples)
+        if response.isEmpty {
+            let reason = SectionPlaceholder.needsInput(
+                subject: "How your heart responds",
+                what: "a recorded workout, which is where a recovery reading "
+                    + "comes from, plus a few days of resting rate and variability")
+            InsightSection(title: "How your heart responds", trailing: nil,
+                           caveat: .none,
                            expansion: expansion(preview: reason.headline)) {
                 emptySection(reason)
             }
-        } else if let standing = evaluated {
+        } else {
             InsightSection(
-                title: "How you compare",
-                trailing: "\(Int(standing.overall.rounded()))th centile overall",
-                caveat: .approximateNorms
+                title: "How your heart responds",
+                trailing: response.recovery.map { String(format: "−%.0f bpm in a minute", $0) },
+                caveat: .computed(.approximate,
+                                  "The 12-beat mark is from a published cohort study "
+                                    + "(Cole et al., NEJM 1999) and describes populations, "
+                                    + "not people. One reading after one workout is not a "
+                                    + "finding — the direction over months is the part "
+                                    + "worth reading."),
+                expansion: expansion(preview: heartResponsePreview(response))
             ) {
-                PeerStandingStrip(standings: standing.standings)
+                if let recovery = response.recovery, let band = response.recoveryBand {
+                    recoveryRow(recovery, band: band)
+                }
+                if !response.autonomic.isEmpty {
+                    if response.recovery != nil { Divider() }
+                    Text("Resting rate and variability, read off the same beat-to-beat signal.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ForEach(response.autonomic) { signal in
+                        autonomicRow(signal)
+                    }
+                    if let sentence = response.autonomicSentence {
+                        Text(sentence)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
+    }
+
+    private func heartResponsePreview(_ response: HeartResponseModel.Output) -> String {
+        if let recovery = response.recovery, let band = response.recoveryBand {
+            return String(format: "Your heart dropped %.0f beats in the minute after "
+                          + "your last hard effort — %@", recovery, band.phrase)
+        }
+        return "Resting rate and variability, without a recovery reading yet"
+    }
+
+    /// The recovery figure against the one published mark, drawn as a position
+    /// on a line rather than as a verdict: the cut-point is a population hazard
+    /// ratio and a single workout is not a diagnosis.
+    private func recoveryRow(_ bpm: Double,
+                             band: HeartResponseModel.RecoveryBand) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Heart rate recovery").font(.subheadline)
+                Spacer()
+                Text(String(format: "−%.0f bpm", bpm))
+                    .font(.subheadline.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(band == .attenuated ? Theme.warn : Theme.good)
+            }
+            Text("How far your heart rate fell in the first minute after your last "
+                 + "hard effort — \(band.phrase).")
+                .font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            RecoveryScale(bpm: bpm)
+            Text("A fall of \(Int(HeartResponseModel.attenuatedRecovery)) beats or "
+                 + "fewer is the published cut-point; around "
+                 + "\(Int(HeartResponseModel.typicalRecovery)) is typical on a wrist "
+                 + "device. Unlike a risk score, that mark is the same number at "
+                 + "every age.")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func autonomicRow(_ signal: HeartResponseModel.Signal) -> some View {
+        HStack(spacing: 8) {
+            Circle().fill(Theme.metricColor(signal.metric,
+                                            slots: MetricPalette.slots(for: [signal.metric])))
+                .frame(width: 8, height: 8)
+            Text(signal.metric.displayName).font(.subheadline)
+            Spacer()
+            if let perWeek = signal.perWeek, let improving = signal.isImproving {
+                Text(String(format: "%@%.1f a week", perWeek > 0 ? "+" : "−", abs(perWeek)))
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(improving ? Theme.good : Theme.warn)
+            } else {
+                Text("steady").font(.caption).foregroundStyle(.secondary)
+            }
+            Text(MetricValueFormatter.string(signal.value, signal.metric))
+                .font(.subheadline.weight(.medium)).monospacedDigit()
+        }
+    }
+
+    private func peerStandingSection(_ result: InsightResult) -> some View {
+        let metrics = resolvedContributions(result).metrics
+        let standing = PeerStandingModel.evaluate(metrics: metrics,
+                                                  samples: model.samples,
+                                                  profile: model.profile)
+        var placeholder: SectionPlaceholder?
+        if standing == nil {
+            // Without an age and a sex there is no norm table to pick, and that
+            // is the one gap on this section the reader can close today.
+            placeholder = SectionPlaceholder.needsInput(
+                subject: "Comparing you with other people",
+                what: "your date of birth and sex")
+        }
+        let drawn = standing?.standings ?? []
+        let unNormed = standing?.unNormed ?? []
+
+        return InsightSection(
+            title: "How you compare",
+            trailing: drawn.isEmpty
+                ? nil
+                : "\(Int((standing?.overall ?? 0).rounded()))th centile overall",
+            caveat: drawn.isEmpty ? SectionCaveat.none : .approximateNorms,
+            expansion: expansion(preview: placeholder?.headline
+                                 ?? comparePreview(drawn: drawn, unNormed: unNormed))
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
+                if !drawn.isEmpty {
+                    PeerStandingStrip(standings: drawn)
+                }
+                if !unNormed.isEmpty {
+                    unNormedRows(unNormed, hasStandings: !drawn.isEmpty)
+                }
+            }
+        }
+    }
+
+    /// The closed line for "How you compare".
+    private func comparePreview(drawn: [PeerStandingModel.Standing],
+                                unNormed: [MetricType]) -> String {
+        guard let best = drawn.max(by: { $0.percentile < $1.percentile }) else {
+            return "No published norms for this card's signals yet"
+        }
+        let rest = unNormed.isEmpty
+            ? ""
+            : " · \(unNormed.count) with no published norms"
+        return "\(best.metric.displayName): \(best.phrase) for your age and sex\(rest)"
+    }
+
+    /// The signals this card reads that no published distribution covers.
+    ///
+    /// Listed rather than dropped. A section showing two rows out of nine
+    /// implies the other seven were checked and found unremarkable, when in
+    /// fact nobody has published a distribution to check them against — the gap
+    /// is in the literature, not in the reader's data, and only saying so
+    /// distinguishes the two.
+    @ViewBuilder private func unNormedRows(_ metrics: [MetricType],
+                                           hasStandings: Bool) -> some View {
+        if hasStandings { Divider() }
+        Text(hasStandings
+             ? "No published norms for these yet"
+             : "None of this card's signals has a published norm yet")
+            .font(.caption.weight(.medium))
+        ForEach(metrics, id: \.self) { metric in
+            HStack(spacing: 8) {
+                Image(systemName: "questionmark.circle")
+                    .font(.caption2).foregroundStyle(.tertiary).frame(width: 14)
+                Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        Text("Placing a reading against a population needs somebody to have published one, by age and sex. Nobody has for these — they are mostly signals only wearables measure, and the research hasn't caught up. Comparing them against other people using this app is on the roadmap; nothing here is sent anywhere today.")
+            .font(.caption2).foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Every vital the scan looked at, as a distance from this person's own
@@ -741,30 +903,51 @@ struct InsightDetailView: View {
     /// of a list of seventeen sentences.
     ///
     /// Readiness's bespoke slot, promoted for the same reason as the strip above.
-    @ViewBuilder private var vitalDepartureSection: some View {
+    private func vitalDepartureSection(_ result: InsightResult) -> some View {
+        // Readiness's subject *is* the whole scan, so it keeps all seventeen
+        // vitals; every other card is narrowed to the signals it reads. A Sleep
+        // card drawing seventeen rows would answer a question nobody asked and
+        // bury the two that are about sleep.
         let panel = VitalDeparturePanel.from(
             VitalSignsCheck.evaluate(samples: model.samples,
-                                     events: model.vitalEvents))
+                                     events: model.vitalEvents),
+            limitedTo: insightID == .readiness
+                ? nil : resolvedContributions(result).metrics)
+        var placeholder: SectionPlaceholder?
         if panel.isEmpty {
-            let reason = SectionPlaceholder.notComputable(
-                subject: "The vitals scan",
-                because: "hasn't found a signal with enough history to have a "
-                    + "normal yet. It needs a baseline to measure a departure "
-                    + "from, and that is built from your own past readings.")
-            InsightSection(title: "How far from your normal", trailing: nil,
-                           caveat: .none,
-                           expansion: expansion(preview: reason.headline)) {
-                emptySection(reason)
-            }
-        } else {
-            InsightSection(
-                title: "How far from your normal",
-                trailing: "\(panel.rows.count) checked",
-                caveat: panel.footnote.map { .computed(.partial, $0) } ?? .none
-            ) {
+            placeholder = SectionPlaceholder.notComputable(
+                subject: "This card's signals",
+                because: "need enough of your own history to have a normal "
+                    + "before a departure from it means anything. None of them "
+                    + "has that yet — a baseline is built from your past "
+                    + "readings, so this arrives on its own.")
+        }
+        return InsightSection(
+            title: "How far from your normal",
+            trailing: panel.isEmpty ? nil : "\(panel.rows.count) checked",
+            caveat: panel.isEmpty
+                ? SectionCaveat.none
+                : panel.footnote.map { .computed(.partial, $0) } ?? .none,
+            expansion: expansion(preview: placeholder?.headline
+                                 ?? departurePreview(panel))
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 VitalDepartureStrip(panel: panel)
             }
         }
+    }
+
+    /// The closed line for "How far from your normal". Names the furthest-out
+    /// signal, or says plainly that nothing is out — which on most days is the
+    /// answer, and is the one worth being able to read without opening anything.
+    private func departurePreview(_ panel: VitalDeparturePanel) -> String {
+        guard let worst = panel.rows.first, worst.band != .ordinary else {
+            return "Everything is where it usually is"
+        }
+        return "\(worst.metric.displayName) is \(String(format: "%.1f", abs(worst.z))) "
+            + "SD \(worst.z > 0 ? "above" : "below") your usual"
     }
 
     private func weightRow(_ contribution: MetricContribution,
