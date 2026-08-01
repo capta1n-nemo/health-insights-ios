@@ -188,6 +188,38 @@ public enum SubstanceResponseAnalyzer {
         return Swift.min(100, size / fullStrengthEffectSize * 100)
     }
 
+    /// The most that *exposure alone* can take off the score once the body's
+    /// actual response is on the card.
+    ///
+    /// The load used to enter the penalty pool at full strength — up to 100 on
+    /// its own — so a regular user's dial read **0 whatever their body did**,
+    /// and a measured response that was mild could not be told from one that
+    /// was severe. The user's direction, 2026-08-01: *base it off actual
+    /// impact, not just outright usage*. So the load is treated as what it
+    /// honestly is — evidence of exposure, a prior — and the measurement
+    /// supersedes the prior as it arrives: with a well-measured response the
+    /// exposure penalty caps at one band's worth, and the measured severities
+    /// (which were always effect-size-based) carry the rest of the dial.
+    static let exposureCeilingWhenMeasured = 25.0
+
+    /// Measured signals needed before the response counts as well-measured and
+    /// the cap above fully applies. Below it the cap phases in linearly — one
+    /// weakly-paired metric must not discount a heavy fortnight on its own,
+    /// and with nothing measured at all the load still stands alone, because
+    /// exposure is then the only evidence there is.
+    static let signalsForMeasuredResponse = 3
+
+    /// The pool `score` and `penaltyShares` both draw from — the measured
+    /// severities plus the *effective* exposure penalty, always last. One
+    /// statement, so the dial and its attribution cannot disagree about how
+    /// much the load was allowed to take off.
+    static func effectivePenalties(load: Double, effects: [MetricEffect]) -> [Double] {
+        let measuredness = Swift.min(1, Double(effects.count) / Double(signalsForMeasuredResponse))
+        let capped = Swift.min(load, exposureCeilingWhenMeasured)
+        let effectiveLoad = load * (1 - measuredness) + capped * measuredness
+        return effects.map(severity) + [effectiveLoad]
+    }
+
     /// 0–100, higher is better — the same direction as every other dial in the
     /// app, including Cardiovascular *Risk*, which maps low risk to a high score.
     /// A raw load passed straight through would paint a heavy fortnight green.
@@ -195,15 +227,15 @@ public enum SubstanceResponseAnalyzer {
     /// Worst-offender-dominant, using the identical combiner `VitalSignsCheck`
     /// applies to its penalty pool: one large heart-rate response is the finding
     /// and must not be averaged away by five signals that didn't move, while a
-    /// week where everything shifted a little still scores below a clean one. The
-    /// fortnight's load enters the same pool as a penalty in its own right, so
-    /// heavy use scores low before any biometric response is even measurable.
+    /// week where everything shifted a little still scores below a clean one.
+    /// The fortnight's load enters the same pool as a penalty in its own right
+    /// — at full strength only while nothing is measured, capped once the
+    /// response is (see `exposureCeilingWhenMeasured`).
     ///
     /// nil for an empty log — no dial, and the card stays hidden.
     static func score(load: Double, effects: [MetricEffect]) -> Double? {
         guard !effects.isEmpty || load > 0 else { return nil }
-        var penalties = effects.map(severity)
-        penalties.append(load)
+        var penalties = effectivePenalties(load: load, effects: effects)
         penalties.sort(by: >)
         guard let worst = penalties.first else { return nil }
         let rest = penalties.dropFirst().reduce(0) { $0 + $1 * $1 }
@@ -228,7 +260,7 @@ public enum SubstanceResponseAnalyzer {
     /// The last element is always the load's share, because `score` appends it
     /// last — the two orderings are stated in one place for that reason.
     static func penaltyShares(load: Double, effects: [MetricEffect]) -> [Double] {
-        let penalties = effects.map(severity) + [load]
+        let penalties = effectivePenalties(load: load, effects: effects)
         guard let worstValue = penalties.max(), worstValue > 0 else {
             return Array(repeating: 0, count: penalties.count)
         }
@@ -365,11 +397,23 @@ public enum SubstanceResponseAnalyzer {
         // section as a factor rather than a contribution. Leaving it out would
         // put shares on screen that don't account for the number, and on a heavy
         // fortnight with no measurable biometric response it is the *whole* of it.
+        // When the response is well-measured, exposure was capped (see
+        // `exposureCeilingWhenMeasured`) and the row says so — a reader whose
+        // measured response is mild should see *why* a heavy fortnight no
+        // longer zeroes the dial, and a reader with no wearable should see
+        // that usage is the only evidence the number rests on.
+        let loadWasCapped = analysis.effects.count >= Self.signalsForMeasuredResponse
+            && analysis.recentLoad > Self.exposureCeilingWhenMeasured
         let loadFactor = shares.last.map {
             ScoreFactor(source: .derived, name: "Recent substance load",
                         weight: $0,
                         detail: "\(analysis.loadBand) — \(analysis.eventsInWindow) "
-                            + "\(analysis.eventsInWindow == 1 ? "log" : "logs") in \(loadWindowDays) days",
+                            + "\(analysis.eventsInWindow == 1 ? "log" : "logs") in \(loadWindowDays) days"
+                            + (loadWasCapped
+                               ? " — capped: your measured response carries the score"
+                               : (analysis.effects.isEmpty
+                                  ? " — usage is all this number can rest on until there is paired data"
+                                  : "")),
                         isModifiable: true)
         }
 

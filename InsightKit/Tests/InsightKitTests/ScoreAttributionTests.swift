@@ -260,6 +260,63 @@ final class ScoreAttributionTests: XCTestCase {
         XCTAssertEqual(SubstanceResponseAnalyzer.penaltyShares(load: 0, effects: []), [0])
     }
 
+    // MARK: The dial is measured impact, not usage (user direction, 2026-08-01)
+
+    /// A benign response: measured properly, and it barely moved.
+    private func benign(_ metric: MetricType) -> SubstanceResponseAnalyzer.MetricEffect {
+        .init(metric: metric, baseline: 60, afterUse: 60.6, deltaAbsolute: 0.6,
+              deltaPercent: 1, affectedNights: 5, baselineNights: 20,
+              isAdverse: true, baselineSD: 6)   // effect size 0.1 — noise
+    }
+
+    /// The complaint this closes: daily use saturated the load, the load
+    /// entered the pool at full strength, and the dial read 0 whatever the
+    /// body did. With the response well-measured and mild, exposure alone is
+    /// capped at one band's worth and the dial has to say "mild", not "worst
+    /// possible".
+    func testAMeasuredMildResponseIsNotScoredZeroByUsageAlone() throws {
+        let effects = [benign(.restingHeartRate), benign(.heartRateVariabilityRMSSD),
+                       benign(.sleepDurationHours)]
+        let heavy = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: effects))
+        XCTAssertGreaterThan(heavy, 60,
+                             "a well-measured mild response must dominate a saturated load")
+        // And the same usage with a genuinely large measured response still
+        // scores hard — the cap frees the measurement, it does not soften it.
+        let severe = [effect(.restingHeartRate, effectSize: 2.0),
+                      benign(.heartRateVariabilityRMSSD), benign(.sleepDurationHours)]
+        let bad = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: severe))
+        XCTAssertLessThan(bad, 25, "a full-strength measured response is still the finding")
+        XCTAssertLessThan(bad, heavy)
+    }
+
+    /// With nothing measured, exposure is the only evidence there is, and a
+    /// heavy fortnight must still read as one — the cap needs measurement to
+    /// earn it.
+    func testAnUnmeasuredHeavyFortnightStillScoresLow() throws {
+        let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: []))
+        XCTAssertEqual(score, 0)
+        // One weakly-paired signal discounts only a third of the way.
+        let one = try XCTUnwrap(SubstanceResponseAnalyzer.score(
+            load: 100, effects: [benign(.restingHeartRate)]))
+        XCTAssertLessThan(one, 40, "one measured signal must not fully discount exposure")
+    }
+
+    /// The shares and the score keep drawing from one pool after the cap, so
+    /// the Euler property survives it.
+    func testSharesStillAccountForTheDeductionWithTheCapApplied() throws {
+        let effects = [benign(.restingHeartRate), benign(.heartRateVariabilityRMSSD),
+                       benign(.sleepDurationHours)]
+        let shares = SubstanceResponseAnalyzer.penaltyShares(load: 100, effects: effects)
+        XCTAssertEqual(shares.reduce(0, +), 1, accuracy: 1e-9)
+        let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: effects))
+        let deduction = 100 - score
+        // The capped load is the worst penalty here and contributes itself.
+        let worstShare = try XCTUnwrap(shares.max())
+        XCTAssertEqual(worstShare * deduction,
+                       SubstanceResponseAnalyzer.exposureCeilingWhenMeasured,
+                       accuracy: 1e-6)
+    }
+
     // MARK: - Body Composition
 
     /// Body fat is the whole number where a scale reports it — which is what
