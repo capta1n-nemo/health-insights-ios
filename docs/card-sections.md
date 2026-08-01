@@ -681,15 +681,18 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    into anything. Same shape as *"that technique has a fatal flaw" is not "this
    is impossible"*, already in `activeContext.md`.
 
-18. **Sleep's contributor weights are still a hand-written restatement of its
-   score expression.** Nine coefficients written twice in one function, twenty
-   lines apart, with a comment saying they drifted apart once already. Energy
-   had the same shape and it was closed by moving the arithmetic into
-   `EnergyModel.Output.terms`, where the coefficients live; Sleep wants the
-   same treatment and did not get it this session because its terms are not a
-   separable model the way Energy's are — the score is one expression rather
-   than a list of components. The honest small fix is a `terms` array built
-   before the sum, with the sum reading it.
+18. ~~**Sleep's contributor weights are still a hand-written restatement of its
+   score expression.**~~ **Closed 2026-08-01.** The nine coefficients moved
+   into `SleepInsight.Weight`, one table both the score expression and the
+   contributors read — including the two derived lines (`durationLine` folds
+   consistency and debt into duration's line; `stageLine` halves the
+   restorative term across deep and REM), which were the numbers most likely
+   to drift because neither appeared verbatim in the score.
+   `testContributorWeightsMatchTheWeightsTheScoreApplies` still pins that the
+   chart's weights sum to 1. Sleep's score is one expression rather than a
+   separable model, so it got a shared table rather than Energy's
+   `Output.terms` — same category of fix (the duplicate is impossible, not
+   merely tested), smaller mechanism.
 10. **Body Composition's "view & add" scan entry** — a fourth
    `ContributionRoute`. Deferred by the user on 2026-08-01 to its own session.
    The capture it points at is the camera + LiDAR body scan, which is

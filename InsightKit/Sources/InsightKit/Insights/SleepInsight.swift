@@ -44,6 +44,44 @@ public struct SleepInsight: InsightModel {
     static let restorativeShareLow = 0.33
     static let restorativeShareHigh = 0.55
 
+    /// The nine coefficients of the score, stated once.
+    ///
+    /// The score expression and the `contributors` weights both read these.
+    /// They used to be written out twice in `evaluate`, twenty lines apart,
+    /// and drifted apart once when the stage breakdown was added — the same
+    /// shape Energy had until its weights moved into `EnergyModel.Output.terms`
+    /// (gap 18 in `docs/card-sections.md`). Sleep's score is one expression
+    /// rather than a list of separable terms, so the fix here is smaller: one
+    /// table both statements read, making the drift impossible rather than
+    /// testing that two copies agree. `testContributorWeightsMatchTheWeights-
+    /// TheScoreApplies` still pins that the chart's weights sum to 1.
+    ///
+    /// Duration keeps the largest share — nothing about a night's composition
+    /// rescues four hours of it. The two absorbed terms (debt, regularity) are
+    /// funded out of duration and the weakest evidence here rather than by
+    /// inflating the total: debt is duration measured against a need, and
+    /// regularity is the one thing on this card that is not about duration at
+    /// all, which is why it earns more than the breathing terms.
+    enum Weight {
+        static let duration = 0.30
+        static let debt = 0.12
+        static let consistency = 0.10
+        static let regularity = 0.10
+        static let efficiency = 0.13
+        static let restorative = 0.10
+        static let oxygen = 0.07
+        static let respiratory = 0.05
+        static let temperature = 0.03
+
+        /// Duration's chart line carries its own term plus the two terms
+        /// measured from the same series — consistency is the spread of the
+        /// sleep series itself and debt is that series against a learned
+        /// need, so three coefficients share one measurement and one line.
+        static let durationLine = duration + debt + consistency
+        /// Deep and REM are one restorative term drawn as two stage lines.
+        static let stageLine = restorative / 2
+    }
+
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         // One value per night, de-duplicated across devices. Previously this read
         // raw samples, so a nap counted as a night and a second source counted
@@ -187,20 +225,14 @@ public struct SleepInsight: InsightModel {
             CircadianConsistencyModel.score(spreadHours: $0.spreadHours)
         } ?? 75
 
-        // Duration keeps the largest share — nothing about a night's
-        // composition rescues four hours of it. The two absorbed terms are
-        // funded out of duration and the weakest evidence here, rather than by
-        // inflating the total: debt is duration measured against a need, and
-        // regularity is the one thing on this card that is not about duration at
-        // all, which is why it earns more than the breathing terms.
-        //
-        // These must sum to 1, and every weight repeated in `contributors`
-        // below must equal its coefficient here. They drifted apart once
-        // already when the stage breakdown was added.
-        let score = durationScore * 0.30 + debtScore * 0.12
-            + consistencyScore * 0.10 + regularityScore * 0.10
-            + efficiencyScore * 0.13 + restorativeScore * 0.10
-            + oxygenScore * 0.07 + respScore * 0.05 + tempScore * 0.03
+        // The coefficients live in `Weight`, which the contributors below read
+        // too — one statement, so the chart cannot drift from the score. Why
+        // each term earns what it does is argued at the table itself.
+        let score = durationScore * Weight.duration + debtScore * Weight.debt
+            + consistencyScore * Weight.consistency + regularityScore * Weight.regularity
+            + efficiencyScore * Weight.efficiency + restorativeScore * Weight.restorative
+            + oxygenScore * Weight.oxygen + respScore * Weight.respiratory
+            + tempScore * Weight.temperature
         let band = Self.band(score)
         // Each line classified by the sub-score behind it, so the detail card
         // leads with whatever cost the night its marks.
@@ -265,48 +297,51 @@ public struct SleepInsight: InsightModel {
         // folded into sleep's and the detail names it, so the 15% isn't
         // unaccounted for.
         //
-        // Every weight here must equal the coefficient applied above. They are
-        // two statements of one number — the score uses the coefficient, the
-        // detail chart uses this — and they drifted apart once already when the
-        // terms were rebalanced to make room for the stage breakdown.
-        // Duration carries its own term, the consistency term (the spread of
-        // this same series) and the debt term (this same series against a
-        // learned need) — three coefficients, one measurement, so one line.
+        // Every weight here is read from `Weight`, the same table the score
+        // applied above — one statement of each number, so the chart and the
+        // score cannot drift. `Weight.durationLine` folds the consistency and
+        // debt terms into duration's line: three coefficients, one
+        // measurement, so one line, with the detail naming all three.
         var contributors = [MetricContribution(
-            metric: .sleepDurationHours, higherIsBetter: true, weight: 0.52,
+            metric: .sleepDurationHours, higherIsBetter: true, weight: Weight.durationLine,
             detail: String(format: "%.1f h · consistency %d/100%@",
                            lastNight, Int(consistencyScore),
                            debt.map { String(format: " · %.1f h behind", $0.debtHours) } ?? ""))]
         if let regularity {
             contributors.append(.init(
-                metric: .sleepOnset, higherIsBetter: nil, weight: 0.10,
+                metric: .sleepOnset, higherIsBetter: nil, weight: Weight.regularity,
                 detail: String(format: "%@ ± %.1f h",
                                MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
                                regularity.spreadHours)))
         }
         if let latest = efficiencyReading?.value {
             contributors.append(.init(metric: .sleepEfficiency, higherIsBetter: true,
-                                      weight: 0.13, detail: String(format: "%.0f%%", latest)))
+                                      weight: Weight.efficiency,
+                                      detail: String(format: "%.0f%%", latest)))
         }
         if let latest = deepReading?.value {
             contributors.append(.init(metric: .sleepDeepMinutes, higherIsBetter: nil,
-                                      weight: 0.05, detail: String(format: "%.0f min", latest)))
+                                      weight: Weight.stageLine,
+                                      detail: String(format: "%.0f min", latest)))
         }
         if let latest = remReading?.value {
             contributors.append(.init(metric: .sleepRemMinutes, higherIsBetter: nil,
-                                      weight: 0.05, detail: String(format: "%.0f min", latest)))
+                                      weight: Weight.stageLine,
+                                      detail: String(format: "%.0f min", latest)))
         }
         if let latest = spo2Reading?.value {
             contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
-                                      weight: 0.07, detail: String(format: "%.0f%%", latest)))
+                                      weight: Weight.oxygen,
+                                      detail: String(format: "%.0f%%", latest)))
         }
         if let latest = respReading?.value {
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
-                                      weight: 0.05, detail: String(format: "%.0f br/min", latest)))
+                                      weight: Weight.respiratory,
+                                      detail: String(format: "%.0f br/min", latest)))
         }
         if let tempSignal {
             contributors.append(.init(metric: tempSignal.metric, higherIsBetter: nil,
-                                      weight: 0.03, detail: tempSignal.detail))
+                                      weight: Weight.temperature, detail: tempSignal.detail))
         }
 
         // A stale night can't buy high confidence however long the history is.
