@@ -105,20 +105,29 @@ enum Theme {
     /// Muscle that is not water — deep red.
     static let compositionMuscle = adaptive(light: 0xB23A3A, dark: 0xC44E4E)
 
-    /// Water, as itself. Used wherever water is named rather than drawn *inside*
-    /// something: the legend dot and the change row. Plain blue, because that is
-    /// what a reader looking for water expects to find in a key.
-    static let compositionWater = adaptive(light: 0x2F86D8, dark: 0x4F9FE8)
+    /// Water, as itself — the legend dot, the change row, and the film that goes
+    /// over muscle.
+    ///
+    /// **Cyan-leaning rather than a pure blue, and that is the whole trick.**
+    /// Purple is what you get when red and blue are close and green is low, so a
+    /// blue with a suppressed green channel laid over the muscle red can only
+    /// ever come out plum — the previous version measured rgb(126, 88, 121),
+    /// which is plum by definition. Pushing the green up carries it through the
+    /// mix: the film now lands on rgb(72, 126, 163), green above red and blue
+    /// dominant, which reads as blue over red rather than as purple.
+    static let compositionWater = adaptive(light: 0x0FA3DC, dark: 0x3FBFF0)
 
     /// How opaque the water film is where it lies over muscle.
     ///
-    /// Low on purpose. The film is drawn over an intact muscle band, so the red
-    /// beneath is meant to show through — that is what makes it read as water
-    /// *on* muscle rather than as a substance of its own. Three earlier attempts
-    /// pre-computed the blend and painted the result as a solid slice, which
-    /// removed the red from that stretch entirely; no ratio fixes that, because
-    /// the fault is geometric.
-    static let waterFilmOpacity: Double = 0.40
+    /// The film sits on an intact muscle band, so the red beneath still shows
+    /// through and the top of the band stays plainly red — that is what makes it
+    /// read as water *on* muscle rather than as a substance of its own.
+    ///
+    /// Raised from 0.40, where the red was strong enough through the film to
+    /// pull it to plum. With the cyan-leaning blue above, this is the point at
+    /// which the film reads unambiguously blue while the muscle underneath is
+    /// still doing visible work.
+    static let waterFilmOpacity: Double = 0.65
 
     /// Kept for the `muscleWater` legend case, which now resolves to plain blue:
     /// water is never drawn as a band of its own any more.
