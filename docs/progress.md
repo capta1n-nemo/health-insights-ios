@@ -574,6 +574,32 @@ decide that in advance.
       calibrated — that type owns the five-then-two rule and its wording.
 
 ## In progress / not yet device-verified
+
+- [ ] **Phase 2's five new sections on the phone** (`656bb9c`, **installed**).
+      CI proves they compile; the app target has no test target and SwiftUI does
+      not exist on Linux, so the device is the only gate for what they draw.
+      - **Heart Health ▸ "How you compare"** — three centile rows under the
+        weighting. The dot's position must agree with the phrase beside it (a
+        dot in the shaded middle reads "around average"), and a metric with no
+        recent reading should be **absent**, not drawn at zero.
+      - **Readiness ▸ "How far from your normal"** — the shaded band must line
+        up with which vitals the card above calls unusual. Two specific things:
+        a vital below baseline in the *harmless* direction must not be red, and
+        a row with a ⚠️ is one an absolute clinical bound pushed to unusual, so
+        it can legitimately sit near the middle of the axis. That marker exists
+        so it doesn't read as a rendering fault.
+      - **Fitness ▸ "Where this is heading"** — visibly dashed with one solid
+        dot at today, and the ± band rendering as a *band* rather than filling
+        down to the axis. `AreaMark(x:yStart:yEnd:)` is only device-proven for
+        the water film so far.
+      - **Risk ▸ "If today's numbers hold"** — reads "at 60", "at 70", "79 or
+        older". Never an extrapolated age.
+      - **"View & add" on all six cards that have it** — no readings, events or
+        fact values on the card; a green seal or a bar; one button; the
+        all-details link present even under four readings. The grounding route
+        has a button at all now, which it did not before.
+      - **Every card** — one footnote colour, and "What comes first" carrying a
+        caveat naming the overlap it was fitted through.
 - [ ] **Phase 1 of the card-consistency work** (`42efe4c`, installed). The
       things to look at: the BP card carries its own chart and adds a reading
       without leaving the screen; a grounded card shows what is set as well as

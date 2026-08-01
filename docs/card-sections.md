@@ -9,8 +9,9 @@ closed in Phase 1. Then the count itself turned out to be the real problem —
 seventeen cards with three built on VO₂max, three on sleep duration and three
 scanning the same baselines — and they were merged to nine.
 
-**Phase 2** (the remaining unique sections) is scoped in `docs/progress.md` and
-is now over nine cards rather than seventeen.
+**Phase 2 is done** as of 2026-08-01 (`dc5fae6`), bar Body Composition's
+"view & add" scan entry, which the user deferred to its own session — see
+"Still open" ▸ 10.
 
 ---
 
@@ -65,8 +66,15 @@ are not:
 - **`V&A` reaches six.** The three without it — Readiness, Sleep, Energy — ask
   the user for nothing and are built entirely from sensed data. That is correct,
   not a gap.
-- **The bespoke slot reaches six.** Heart Health, Body Composition and Readiness
-  are what Phase 2 is about.
+- **The bespoke slot reaches all nine**, and five cards draw *two* things in it,
+  nested under one `Divider()`.
+
+  This line said "reaches six" until 2026-08-01, while item 7 under "Still open"
+  in this same file already said all nine had one. **A file disagreeing with
+  itself, written in one session and half-updated in it** — which is what
+  handover step 11's second polarity exists to catch, and is the polarity that
+  keeps getting skipped: a claim that something is *missing* is exactly what the
+  work invalidates.
 
 ### Per-insight facts behind the matrix
 

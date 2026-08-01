@@ -111,12 +111,14 @@ that is not yet automated is the next thing to automate.
 | Miss an exhaustive switch over *another* enum | 2 | ✅ automated — generic switch lint (2026-07-30) |
 | Read CI status without burning 100K tokens | every | ✅ automated — `ci-status.sh` reads `refs/ci/*` |
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
-| Lose the working directory in a shell call | 2 | ✅ ruled in `CLAUDE.md` (2026-07-31) |
+| **Lose the working directory in a shell call** | **3** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 anyway, twice in one session. A rule the model can skip is tier 1. See the roadmap: this one has a mechanical answer and should move to tier 2 |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
 | **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
 | **A recorded product decision that was really an implementation artefact** | **2** | ⬜ open — "no provider gives us a bedtime" (session 10) and "windowed read or whole history?" (session 12). Both were logged as blocked on something inherent; both dissolved on first inspection. No mechanical check is possible; the rule is *measure before escalating a decision to the user* |
-| **A guard reporting a failure whose own premise is false** | **5** | ⚠️ partly — ruled in `CLAUDE.md` and named five times in `activeContext.md`; no mechanical check exists and it is unclear one can |
+| **A guard reporting a failure whose own premise is false** | **6** | ⚠️ partly — ruled in `CLAUDE.md` and named six times in `activeContext.md`; no mechanical check exists and it is unclear one can. Session 15's instance is the most instructive yet, because the guard was `if: always()` and the false premise was *that it always runs*: a runner that dies mid-step cannot write the verdict, so "no ref" had a third meaning nobody had enumerated. **The partial fix that generalises is to make the guard enumerate its own failure modes** — `deploy-status.sh` now prints all three and the tell for each, rather than asserting the one the author happened to think of |
+| **A section shipping without saying what it inferred** | 1 | ✅ automated — `InsightSection`'s `caveat` argument has no default, so omitting it is a compile error and `.none` is a visible choice (2026-08-01, session 15). The convention it replaced was being followed by four sections out of twelve |
+| **An oversized MCP result read as unanswerable rather than spilled to a file** | 1 | ✅ ruled — the Actions listing is ~450 KB and the tool writes it to disk; `python3` over that file costs a few hundred bytes. Recorded in `deploy-status.sh` where the question actually gets asked |
 | **A container branch that looks right and isn't** (`git checkout main`) | 1 | ✅ `ship-to-main` now ships with `git push origin HEAD:main`, which never reads the local ref |
 | A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
 | A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
@@ -144,6 +146,37 @@ that is not yet automated is the next thing to automate.
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
+
+### ⬜ A `PreToolUse` hook for relative `scripts/…` calls — the top open item
+
+**Why this one.** It is the ledger's highest-count row that has a *mechanical*
+answer and does not have it yet: three sessions, and the rule is already written
+in `CLAUDE.md` in the plainest words available. Session 15 broke it twice in one
+sitting while having read the file that forbids it.
+
+That is the whole argument for tier 2, made concretely. This log's own analysis
+says it: *a ceremony that depends on being invoked will be skipped*, and the only
+real answer to "a rule the model can skip" is something the **harness** runs. The
+precedent exists — `scripts/pre-push-gate.sh` is a `PreToolUse` hook on
+`Bash(git push*)` that denies the call outright.
+
+**Scope.** A `PreToolUse` hook on `Bash` that inspects the command and denies it
+when it invokes `scripts/…` or `./scripts/…`, or `source scripts/…`, without an
+absolute path — with a message naming the absolute form so the fix is a copy
+rather than a think. Cheap to write, and unlike the rule it replaces it cannot be
+forgotten by a fresh context.
+
+**Not built in session 15 on purpose**: it changes `.claude/settings.json`, which
+is the user's harness configuration rather than repo code, and it should be their
+call rather than something that appears in a docs commit. A future session should
+ask before adding it.
+
+**The weaker second candidate**, recorded so it is not re-derived: a watchdog
+reconciling deploy runs that finished with no verdict ref, since `if: always()`
+cannot cover a runner that stops heartbeating. The *messaging* half was done in
+session 15; a real fix would need a scheduled job on GitHub's own runners
+reading the deploy runs and writing the missing verdict. Worth it only if the
+Mac dying mid-build stops being a one-off.
 
 ### ✅ `scripts/ci-errors.sh <sha>` — done (session 14)
 
@@ -288,6 +321,71 @@ with guesses.
 | 12 | 2026-07-31 | 1 | **0** | 0 | 1 (named below) | 634 → 644 | `where.sh` answers for members, not just types; `EvaluationMemoTests` (10) pin a cache against its uncached path | **Better, and on every column.** 1 waste / 1 push; green CI and an installed deploy first time |
 | 13 | 2026-07-31/08-01 | 8 | **1** | 1 | 1 (named below) | 644 → 672 | **Settings ▸ Export my data** + `DataInventory`; `ContributionRoute` derived from `requirements` rather than a sixth `InsightID` switch; `MetricType.plausibleRange`; `NapContaminationTests` (12), `ContributionRouteTests` (10), `DataInventoryTests` (10); `add-insight` documents `contributions` | **Better — the best waste ratio recorded.** 3 waste / 8 pushes = 0.375, against a 0.56 baseline. The compounding column is the strongest yet: the export found two real defects in production data the first time it was used |
 | 14 | 2026-08-01 | 15 | **4** | 8 | 2 (named below) | 672 → 724 | **`refs/ci/errors/<sha>` + `ci-errors.sh`** — the roadmap's top open item; `SleepNights` (14 tests) moves night-grouping into InsightKit; `BodyCompositionSplit` (+29 tests); `DataInventory.SourceStat` per-source attribution; `ScrubIndicator` shared by every chart; rebuild-from-providers | **Worse, and the worst ratio recorded** — 14 waste / 15 pushes = 0.93 against a 0.56 baseline. Four of the eight rework commits are one visual iterated by eye; see below |
+
+| 15 | 2026-08-01 | 3 | **0** | 0 | 2 (named below) | 724 → 772 | **`SectionCaveat` + `InsightSection` with a *required* `caveat` argument** — a section that infers without saying so is now a compile error; `VitalDeparture` gives the vitals scan's z thresholds one implementation, called by both the score and the strip; `PeerStandingModel.Band`; `PeriodContrast.windowDays`; `deploy-status.sh` names the three "no verdict" cases instead of asserting one; `PeerStandingBandTests`, `VitalDepartureTests`, `SectionCaveatTests`, `ContributionSummaryTests` (+48) | **Better on every absolute column** — red CI 4 → 0, rework 8 → 0, waste 14 → 2 — and the first session since 12 to be green on the first push *and* installed. 2 waste / 3 pushes = 0.67 reads above the 0.56 baseline, but the denominator is three. **The honest sting is in the notes: both remaining items are repeats, one for the sixth time** |
+
+### Session 15 notes
+
+**Red CI (0). Rework (0).** Nothing pushed needed fixing, on a session that
+shipped 24 files and five new card sections. What made that possible is worth
+naming, because it is the reusable half: the whole InsightKit layer — four new
+types and 48 tests — was built and run locally before a line of the app target
+was touched, so every logic error was found by `swift test` rather than by CI.
+The app target still cannot be compiled here, and the three defects that *would*
+have broken it (`ClosedRange<Int>` against a `Double` chart domain, a method
+shadowed by a `ForEach` binding, and a trailing label reading "to at 79") were
+caught by re-reading the diff against the `add-chart` checklist rather than by a
+round trip.
+
+**Re-derivations (2), named. Both are repeats, which is the finding.**
+
+1. **Relative `scripts/swift-env.sh`, twice** — two dead round trips returning
+   `No such file or directory`. `CLAUDE.md` ▸ "Shell calls: absolute paths,
+   always" says exactly this and already annotates it "pure waste". Third
+   session. The rule is tier 1 and tier 1 is not holding — see the roadmap.
+2. **The deploy diagnosis was asserted before it was checked.** The user was
+   told the missing verdict "looks like the job queueing against an offline Mac
+   rather than a build failure". It was not: the Mac had claimed the job and
+   died ten minutes into the Xcode build. Sixth instance of the logged
+   false-premise category, and the sixth time it arrived wearing a different
+   costume.
+
+**`if: always()` does not always run, and that is a real blind spot.**
+
+The reasoning behind the wrong answer above was superficially sound:
+`deploy.yml`'s final step writes `refs/deploy/{passed,failed}/<sha>` under
+`if: always()`, so "no ref at all" ought to mean "the job never started". What
+actually happened is the third case nobody had written down — the runner claimed
+the job, cleared checkout, team-ID resolution, keychain unlock and the build
+stamp, then stopped heartbeating mid-build. GitHub concluded the job `failure`
+with the build step still `in_progress` and the verdict step never reached. **A
+runner that dies cannot execute `always()`**, so the verdict-ref mechanism has a
+state in which it records nothing at all.
+
+`deploy-status.sh` now prints all three cases and the tell for each —
+`runner_name: ""` on a queued job means nobody claimed it; a step stuck
+`in_progress` under a `failure` conclusion means the runner died holding it —
+plus the cheap way to read them. That last part matters on its own: the MCP
+Actions tool **spills an oversized result to a file rather than returning it**,
+so `python3` over that file answers the question for a few hundred bytes. The
+standing "never use the Actions API" rule is about reading the *response*; it
+was being read as "this question cannot be answered cheaply", and it can.
+
+**What made this session cheap.** The two audited docs were trusted rather than
+re-established, so it opened by stating the roadmap instead of surveying the
+code. `docs/card-sections.md` supplied the section inventory. `where.sh` found
+`PeerStandingModel`, `VitalSignsCheck` and `VO2Trajectory` without a filename
+guess. And the `add-chart` skill's §7 supplied the `AreaMark(x:yStart:yEnd:)`
+"takes no `stacking:`" rule at the moment the projection chart needed it, which
+is a compile error that cost session 14 a full CI cycle to discover.
+
+**One thing the audit caught that a handover had already missed.**
+`docs/card-sections.md` contradicted itself: line 68 said "the bespoke slot
+reaches six" while line 150 in the same file said all nine cards now have one.
+Both were written in the same session and only one was updated. Protocol step 11
+exists for exactly this and it is the step that keeps getting skipped — the
+second polarity, *claims that something is missing*, is the one that goes stale
+when work lands.
 
 ### Session 14 notes
 

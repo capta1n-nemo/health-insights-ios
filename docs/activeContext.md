@@ -201,10 +201,14 @@ worth reading before touching a chart here.
   amount of pulling dislodges them. "Refresh" and "replace" were different
   requests and only the first had a gesture. Manual entries, grounding, substance
   logs and feedback are SwiftData and untouched.
-- **Phase 2 is done**: all nine cards have a bespoke section. Heart Health and
-  Readiness share "How this is weighted" (drawn from `contributors`' renormalised
-  weight — no new type, no model change, exactly as the roadmap predicted); Body
-  Composition got "What you're made of" plus a stacked-area history.
+- **All nine cards got a bespoke section.** Heart Health and Readiness share
+  "How this is weighted" (drawn from `contributors`' renormalised weight — no new
+  type, no model change, exactly as the roadmap predicted); Body Composition got
+  "What you're made of" plus a stacked-area history.
+  *This bullet read "**Phase 2 is done**" until 2026-08-01, which conflated
+  every card having a section with the phase's other four items. Phase 2 is now
+  genuinely done — see "Current focus" — but for a different reason, and the
+  conflation is why nobody noticed the same file claiming both.*
 - **A scrub line on every chart.** Seven charts wrap `ScrollableMetricChart`, so
   drawing it there covered all seven at once; only the two standalone charts
   needed their own.
@@ -298,8 +302,12 @@ Phase 1 of the consistency work (`42efe4c`), the data export (`0d8bc48`), and
 **seventeen insight cards merged into nine** (`367e0ab`).
 
 `docs/card-sections.md` is the audit of record and was re-derived after each.
-**Phase 2 — the three cards still without a bespoke section — is scoped in
-`docs/progress.md` and not started.**
+~~**Phase 2 — the three cards still without a bespoke section — is scoped in
+`docs/progress.md` and not started.**~~ **Stale twice over, corrected
+2026-08-01**: all nine got a section a session later, and Phase 2 itself closed
+in `dc5fae6`. Left struck through rather than deleted because this is the
+narrative of a past session, and silently rewriting history is how a reader
+loses the ability to trust the dates.
 
 ### What to know before touching the insight layer
 
@@ -619,12 +627,23 @@ three fresh complaints. The findings from that half:
   built sessions ago as `scripts/where.sh` and `.claude/skills/session-start/`,
   and this bullet had gone stale claiming otherwise. **Also now closed:** reading
   a red CI cheaply, built 2026-08-01 as `refs/ci/errors/<sha>` +
-  `scripts/ci-errors.sh`. Currently open: a build-environment parity check
-  between CI and the user's Mac (the top item, and the one that cost four
-  deploys); *read the composited pixel before choosing another colour* (new, and
-  the most expensive item of session 14); never `git add -A` inside a canary; the
-  false-premise guard category, which may stay human; and a *"blocked on a
-  decision" note should carry the measurement that proves the tradeoff is real*.
+  `scripts/ci-errors.sh`. Currently open, top first:
+  - **A `PreToolUse` hook rejecting relative `scripts/…` calls** (new, session
+    15). Three sessions have now lost round trips to it *while the rule sits in
+    `CLAUDE.md` in the plainest words available* — so the rule is not the fix.
+    Deliberately not built yet: it changes `.claude/settings.json`, which is the
+    user's harness config, so **ask before adding it**.
+  - A build-environment parity check between CI and the user's Mac — the item
+    that cost four deploys.
+  - *Read the composited pixel before choosing another colour* (session 14's
+    most expensive lesson).
+  - Never `git add -A` inside a canary.
+  - The false-premise guard category, now at six and probably still human. The
+    one generalisable half found in session 15: **make a guard enumerate its own
+    failure modes** rather than assert the one its author thought of.
+  - A *"blocked on a decision" note should carry the measurement that proves the
+    tradeoff is real*.
+
   See `docs/efficiency-log.md`, which is the authority.
 
 ## Two regressions I shipped, and what they cost
