@@ -1001,12 +1001,12 @@ struct InsightDetailView: View {
 
     /// Closed behind its reason where a section is empty, open where it isn't.
     ///
-    /// A function rather than `placeholder.map { .collapsed(…) } ?? .always` at
+    /// A function rather than `placeholder.map { .collapsed(…) } ?? .open` at
     /// four call sites: that form leans on leading-dot inference flowing back
     /// through `map` and `??`, and the app target is compiled only by CI, so a
     /// type-inference gamble costs a push-and-wait to settle.
     private func expansion(preview: String?) -> SectionExpansion {
-        guard let preview, !preview.isEmpty else { return .always }
+        guard let preview, !preview.isEmpty else { return .open }
         return .collapsed(preview: preview)
     }
 

@@ -29,10 +29,10 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 | — | *picker* | the timeframe control — a screen-level control, not a card | **always** |
 | 2 | `ScrHx` | **"Score over time"** — the first section on every card | **always** |
 | 3 | `Drv` | "What's driving this" | **always** |
-| 4 | `Wgt` | "How this is weighted" — **collapsed by default** | **always** |
+| 4 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
 | 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
-| 6 | `Patt` | "Patterns worth a look" — **collapsed by default** | **always** |
-| 7 | `1st` | "What comes first" — lag, **collapsed by default** | **always** |
+| 6 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
+| 7 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
 | 8 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
 | 9 | `Chg` | "What changed" — period contrast | **always** |
 | 10 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
@@ -69,6 +69,33 @@ Two more moves later the same day, again on the user's reading of the screens:
 - **"How this is weighted" left the bespoke slot and became universal**, closed
   by default like the two findings sections. See below for why an empty one is
   worth drawing.
+
+### Every section closes; only some arrive closed
+
+Sections 2–10 are all `InsightSection`, and **every `InsightSection` has a
+chevron**. The two that do not — `V&A` and `Fbk` — are plain `Card`s and were
+excluded by the user by name, which is also why nothing had to be opted out: the
+capability comes from the container, and those two were never in it.
+
+*Collapsed* and *collapsible* were the same thing until 2026-08-01, and the bug
+that exposed the difference is worth keeping. "Score over time" was collapsible
+only while it was **empty**, because the view passed `.collapsed` for the
+placeholder and `.always` for the chart — so the reader could close the section
+that had nothing in it, and then lost the chevron the moment the replay landed
+and it had something. `SectionExpansion` is now a struct whose `startsExpanded`
+says only what the section does before anyone touches it.
+
+Which arrive closed: `Wgt`, `Patt`, `1st` always, plus **any section with
+nothing to show**, which shows its `SectionPlaceholder` headline as the preview
+line. Everything else arrives open. A section that arrives open has no preview:
+`trailing` is already the one number worth opening it for, and somebody who
+closed a section themselves does not need telling what they closed.
+
+**The reader's choice is a `Bool?`, not a `Bool`.** `startsExpanded` is derived
+from data that lands *after* the first render, so a plain flag would either
+freeze a section at whichever state it was born in, or reopen one the reader had
+deliberately closed each time new data arrived. Three states, because there are
+three: closed by the reader, opened by the reader, and not yet asked.
 
 ### The matrix
 

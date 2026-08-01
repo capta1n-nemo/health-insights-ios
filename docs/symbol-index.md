@@ -321,9 +321,9 @@ the place to look.
   - `CopyButton` :37
   - `Haptics` :10
 - `DesignSystem/InsightSection.swift`
-  - `InsightSection` :57
-  - `NestedInsightSection` :170
-  - `SectionExpansion` :19
+  - `InsightSection` :77
+  - `NestedInsightSection` :201
+  - `SectionExpansion` :26
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
