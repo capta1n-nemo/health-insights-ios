@@ -30,7 +30,20 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The sources-and-scoring session (latest).** One push, `bff6390`, CI green,
+**The load-performance session (latest).** Two pushes squashed to one deploy,
+`c0028f2`, CI green, installed. "Work on load performance, fix bugs, best
+judgment": the two items taken were the roadmap's own top two — the
+cold-launch cache decode (see "Immediate next steps", now closed there: JSON
+→ `SampleCacheCodec`, 965 ms → 4–6 ms on the benchmark shape, with a
+free one-way migration) and gap 18 (Sleep's nine coefficients written twice,
+now one `SleepInsight.Weight` table both the score and the contributors
+read). Full suite 878 tests green before the push. Not yet seen on the
+phone: launch should feel visibly faster on second-and-later cold starts —
+the first launch after this update still reads the legacy JSON once. The
+handover efficiency review has not run yet this session; the docs here and
+in `progress.md`/`card-sections.md` are current as of the push.
+
+**The sources-and-scoring session (previous).** One push, `bff6390`, CI green,
 installed. The user asked for a sweep of all nine cards: *how are the sources
 contributing to the score, and how are they reflected in each section?* — with
 two specific complaints, both of which turned out to be right about more cards
@@ -1256,16 +1269,20 @@ side of the change (x86 Linux, so read the *ratios*, not the absolutes):
   way. `testMemoDoesNotAnswerForADifferentArray` and
   `testEqualLengthCopyIsNotTreatedAsTheSameArray` pin it.
 
-**What is left is the decode, and it is now 68% of the remaining time.** The
-JSON is ~190 bytes per sample, and most of that is repetition: a full `UUID`
-string and a `{id, displayName}` source object written out for every single
-reading, when there are only a handful of distinct sources. Interning the source
-table would cut both the file and the decode substantially. That one *does* need
-the user, because it changes the on-disk cache format and so needs a migration
-path — the existing format has a test pinning it (`RawValue` as a bare JSON
-scalar) for exactly this reason. **Ask before building that one.** Note the
-measured dead end: `PropertyListEncoder(.binary)` is *slower* than JSON here
-(2190 ms vs 1026 ms), so "just use a binary cache" is not the answer.
+~~**What is left is the decode, and it is now 68% of the remaining time.**~~
+**Done 2026-08-01 (`c0028f2`, installed)** — the user's "work on load
+performance" was the ask this note said to wait for. `SampleCacheCodec`
+(InsightKit, 10 tests) interns the source and type tables and writes a fixed
+28-byte record per sample; `DataStore.loadCachedSamples` tries it first and
+falls back to the legacy JSON, which the next save retires, so migration is
+free and one-way. Decode went **965 ms → 4–6 ms** on the benchmark shape
+(file 19.6 MB → 2.9 MB). The finding worth carrying: after the byte-level fix
+the decode was *still* ~145 ms, and all of it was `UUID()` — 108k syscall-fed
+random ids for a field whose identity nothing needs across launches. Ids are
+now one random base per decode plus a counter. **When a fix lands and the
+cost stays, measure what replaced it.** The old note's dead end stands:
+`PropertyListEncoder(.binary)` is slower than JSON here (2190 ms vs 1026 ms).
+`synced_other.json` stays JSON — unmeasured, so deliberately untouched.
 
 The ten-item feedback list is closed and so is every roadmap item that could be
 closed from a sandbox. What remains falls into three groups.

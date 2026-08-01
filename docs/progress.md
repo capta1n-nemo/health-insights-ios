@@ -1145,23 +1145,34 @@ recalled.
       The decode half is **not** covered by this item — see the separate open one
       below, deliberately not folded in here. A multi-clause `[x]` hiding an
       unfinished clause is how six of them once survived a "closed" list.
-- [ ] **Shrink the cold-launch decode — needs the user, because it changes the
-      on-disk cache format.** After the insight-pass work above, the JSON decode
-      is 68% of what remains (1002 ms of 1564 ms on the benchmark set). The cache
-      writes a full `UUID` string and a `{id, displayName}` source object for
-      *every* reading, when there are only a handful of distinct sources —
-      ~190 bytes per sample, 24.7 MB for 131k. Interning the source table and
-      shortening the id would cut the file and the decode together.
+- [x] **Shrink the cold-launch decode** — **done 2026-08-01 (`c0028f2`,
+      installed).** This item said "needs the user" because a format change
+      needs a migration path; the user's "work on load performance" was the
+      go-ahead, and the migration path is the safe half of the design:
+      `loadCachedSamples` tries the compact file first and falls back to the
+      legacy JSON, which the next save retires, so nothing is lost on the way
+      through and a downgraded build merely re-syncs.
 
-      What makes it a question rather than a change: the format is persisted on
-      the user's device, so it needs a migration path, and the existing format has
-      a test pinning it (`RawValue` as a bare JSON scalar) for precisely this
-      reason — a cache written by the old build must still decode.
+      `SampleCacheCodec` (InsightKit, 10 tests): each distinct source and
+      metric type written once in two small tables, then a fixed 28-byte
+      record per sample. On the same benchmark shape as the row above
+      (~108k samples, x86 Linux, read the ratios): decode **965 ms → 4–6 ms**,
+      encode 1 450 ms → 75 ms, file 19.6 MB → 2.9 MB. Two findings worth
+      keeping:
 
-      Measured dead end, recorded so nobody repeats it: **`PropertyListEncoder`
-      with `.binary` is slower than JSON here**, 2190 ms against 1026 ms, despite
-      a smaller file (15.4 MB against 24.7). "Just use a binary cache" is not the
-      answer; interning the repetition is.
+      - **The per-sample UUID was the file's biggest field and its identity
+        was needed by nothing** — SwiftUI list identity within a session;
+        dedup keys on family/minute/value, the cache merge on `source.id`.
+        And regenerating with `UUID()` was itself measured at **145 ms for
+        108k calls — the entire remaining decode cost** — so ids are minted
+        from one random base per decode plus a counter. When a fix lands and
+        the cost stays, measure what replaced it.
+      - A malformed, truncated or legacy file decodes to `nil` and falls
+        back — never a crash or a half-read — and a record whose metric type
+        a future build retired is skipped, not fatal. The `RawValue`
+        bare-scalar pin is untouched: this codec covers `[HealthMetricSample]`
+        only; the smaller `synced_other.json` stays JSON, unmeasured and
+        deliberately unchanged.
 - [x] **The substance log page was slow because one call did far too much.**
       Tapping a chip called `recompute()`, which evaluates all seventeen insights
       across the whole sample set and then discards every derived cache. Exactly
