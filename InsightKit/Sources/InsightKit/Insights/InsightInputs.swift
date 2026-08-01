@@ -64,4 +64,43 @@ public extension Array where Element == MetricContribution {
     }
 
     var metrics: [MetricType] { map(\.metric) }
+
+    /// The ones that actually count toward the score.
+    ///
+    /// A weight of zero is a deliberate statement — `dayStrain` is charted and
+    /// not scored, because no validated 0–100 curve for it exists here — so
+    /// these are filtered out of the weighting picture rather than drawn as
+    /// zero-width bars, which would say they were weighed and found irrelevant.
+    var weighted: [MetricContribution] { filter { $0.weight > 0 }.byInfluence }
+
+    /// One line naming the heaviest signal, for a collapsed "How this is
+    /// weighted" to show in place of its bars.
+    ///
+    /// `nil` when nothing is weighted — the caller has a `SectionPlaceholder`
+    /// for that, and this returning a cheerful sentence about a 0% share is the
+    /// failure mode worth designing out.
+    ///
+    /// Says "carries the most" only when it genuinely does. `byInfluence`
+    /// breaks ties by name, so on a two-way tie the first is not the largest,
+    /// and claiming a superlative there would be false — a Readiness card with
+    /// six equal components is a real shape, not a contrived one.
+    var weightingPreview: String? {
+        let ranked = weighted
+        guard let top = ranked.first else { return nil }
+        let share = Int((top.weight * 100).rounded())
+        let magnitude = share == 0 ? "under 1%" : "\(share)%"
+        guard ranked.count > 1 else {
+            return "\(top.metric.displayName) is the whole of it, at \(magnitude)."
+        }
+        let tied = ranked.filter { $0.weight == top.weight }.count
+        if tied == ranked.count {
+            return "All \(ranked.count) signals count equally, at \(magnitude) each."
+        }
+        if tied > 1 {
+            return "\(tied) signals lead jointly at \(magnitude) each, "
+                + "across \(ranked.count) in total."
+        }
+        return "\(top.metric.displayName) carries the most, at \(magnitude) "
+            + "of \(ranked.count) signals."
+    }
 }

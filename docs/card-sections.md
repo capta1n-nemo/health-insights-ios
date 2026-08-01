@@ -26,18 +26,19 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 | # | Key | Section | Gate |
 |---|---|---|---|
 | 1 | `Hdr` | header — dial or headline, confidence badge, explanation | always |
-| 2 | `Drv` | "What's driving this" | **always** |
-| 3 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
 | — | *picker* | the timeframe control — a screen-level control, not a card | **always** |
-| 4 | `ScrHx` | "Score over time" | **always** |
-| 5 | `Patt` | "Patterns worth a look" — **collapsed by default** | **always** |
-| 6 | `1st` | "What comes first" — lag, **collapsed by default** | **always** |
-| 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
-| 8 | `Chg` | "What changed" — period contrast | **always** |
-| 9 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
-| 10 | `V&A` | "View & add" — what you've given, what's missing, how to add | the model's `contributions` is non-empty |
-| 11 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
-| 12 | `Disc` | disclaimer | always |
+| 2 | `ScrHx` | **"Score over time"** — the first section on every card | **always** |
+| 3 | `Drv` | "What's driving this" | **always** |
+| 4 | `Wgt` | "How this is weighted" — **collapsed by default** | **always** |
+| 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
+| 6 | `Patt` | "Patterns worth a look" — **collapsed by default** | **always** |
+| 7 | `1st` | "What comes first" — lag, **collapsed by default** | **always** |
+| 8 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
+| 9 | `Chg` | "What changed" — period contrast | **always** |
+| 10 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
+| 11 | `V&A` | "View & add" — what you've given, what's missing, how to add | the model's `contributions` is non-empty |
+| 12 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
+| 13 | `Disc` | disclaimer | always |
 
 **Reordered 2026-08-01, on the user's reading of the shipped screens.** Three
 moves, each with its own reason:
@@ -54,30 +55,49 @@ moves, each with its own reason:
 - **The timeframe picker lost its gate.** `usesTimeframe` hid it where nothing
   read the window; both findings sections now always render and both read it. It
   also hid it in the one case where widening the window is the *remedy* — a card
-  with no series — which left `FindingsPlaceholder` pointing at a control that
+  with no series — which left `SectionPlaceholder` pointing at a control that
   wasn't on screen.
+
+Two more moves later the same day, again on the user's reading of the screens:
+
+- **"Score over time" is now the first section on every card**, above "What's
+  driving this" and above the bespoke slot. The rule it replaces — bespoke
+  first, because the card's own subject is the finding and the months of scores
+  derived from it are supporting context — was a reasonable call and is simply
+  not the one the user wants. The timeframe picker moved up with it, because it
+  has to sit above every section that reads the window.
+- **"How this is weighted" left the bespoke slot and became universal**, closed
+  by default like the two findings sections. See below for why an empty one is
+  worth drawing.
 
 ### The matrix
 
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
-| Insight | Tab | `Hdr` | `Drv` | bespoke (+ nested) | `ScrHx` | `Patt` | `1st` | `Goes` | `Chg` | `Hist` | `V&A` | `Fbk` | `Disc` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ● | ◐ "How this is weighted" **+ "How far from your normal"** | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Sleep | Today | ● | ● | ◐ "Your fortnight" | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Energy | Today | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Substance Impact | Today | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Health | Insights | ● | ● | ◐ "How this is weighted" **+ "How you compare"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Fitness | Insights | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Blood Pressure | Insights | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Body Composition | Insights | ● | ● | ◐ "What you're made of" + "How that has changed" | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Insight | Tab | `Hdr` | `ScrHx` | `Drv` | `Wgt` | bespoke | `Patt` | `1st` | `Goes` | `Chg` | `Hist` | `V&A` | `Fbk` | `Disc` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Readiness | Today | ● | ● | ● | ● | ◐ "How far from your normal" | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ "Your fortnight" | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Health | Insights | ● | ● | ● | ● | ◐ "How you compare" | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
-**The bespoke slot is still one slot.** Five cards now draw two things in it,
+**The bespoke slot is still one slot.** Three cards draw two things in it,
 separated by a `Divider()` and wrapped in `NestedInsightSection` — the pattern
 Body Composition established. A second *top-level* section would have needed a
 second placement rule, and the one placement rule is the thing Phase 1 bought.
+
+It was five until 2026-08-01. Heart Health and Readiness had their centile strip
+and their departure panel nested under "How this is weighted", which was their
+bespoke section — and when that section went universal *and closed by default*,
+those two strips would have arrived hidden inside a collapsed generic section.
+**A card's own picture of its own subject must not be something you have to open
+a shared section to find**, so both were promoted into the bespoke slot itself.
 
 **Every card renders the same sections, in the same order, always.** Three
 deliberate exceptions remain, each about the *card* rather than about the data:
@@ -115,6 +135,22 @@ quotes the actual shortfall, so "not enough data yet" can never appear under a
 card holding two years of it. An empty section arrives **collapsed** with the
 reason as its preview; `Patt` and `1st` arrive collapsed either way, previewing
 their strongest finding. See `SectionExpansion`.
+
+**"How this is weighted" is the one where empty is a fact about the card, not
+about the data.** Only Heart Health, Readiness, Sleep and Energy blend their
+components in fixed proportions. Cardiovascular Risk runs published equations,
+Blood Pressure runs an estimator, Substance Impact reports what each signal did
+after a logged event — all three report contributors at **weight 0 on purpose**,
+and that deliberate zero was previously invisible because the section simply
+wasn't drawn. It now says "Not a weighted average" and points at the two
+sections that do carry the per-signal detail. `SectionPlaceholder.weighting`
+distinguishes that from a model reporting no contributors at all, which is a
+different statement again — see `ChartedContributions`.
+
+The collapsed preview for a card that *does* weight names the heaviest signal,
+and `[MetricContribution].weightingPreview` refuses the superlative on a tie:
+`byInfluence` breaks ties by name, so on six equal Readiness components the
+first is not "the most", and saying so would be false.
 
 **The `isComputing` arm is the one that earns its keep.** `AppModel.scoreHistory`
 returns `[]` on first ask and replays off the main actor, so a card opened cold

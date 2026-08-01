@@ -52,11 +52,13 @@ struct InsightDetailView: View {
             sleepRegularityCard
         case .substanceImpact:
             substanceLoadCard
-        case .heartHealth, .readiness:
-            // Both are weighted composites, and neither showed how. One section
-            // serves them because `InsightResult.contributors` already carries
-            // the renormalised weight — no new type, no model change.
-            weightedContributionCard
+        case .heartHealth:
+            // The centiles this card absorbed from "Where You Stand". Both of
+            // these used to be nested under "How this is weighted", which was
+            // this card's bespoke section until that went universal.
+            peerStandingSection
+        case .readiness:
+            vitalDepartureSection
         case .bodyComposition:
             bodyCompositionSplitCard
         // Kept, though all nine cases are now named: making this exhaustive
@@ -98,22 +100,30 @@ struct InsightDetailView: View {
             VStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
                     headerCard(result)
-                    driversCard(result)
-                    // One rule for every bespoke section: above "Score over
-                    // time". The card's own subject is the finding; the months
-                    // of scores derived from it are the supporting context.
-                    // Three different placements used to encode the same idea.
-                    bespokeSection
+                    // Above "Score over time" because that section reads it,
+                    // and it is a screen-level control rather than a card.
                     timeframePicker
+                    // **The first section on every card**, by the user's call on
+                    // 2026-08-01. The placement rule it replaces put the card's
+                    // own bespoke picture here and argued that the months of
+                    // scores derived from it were supporting context; the number
+                    // over time is what the reader opens the card for.
                     scoreHistoryCard
-                    // The two findings sections sit directly under the score
-                    // they are findings about, and above the inputs the score
+                    driversCard(result)
+                    // How the number divides, on every card — including the ones
+                    // where the answer is "it doesn't divide", which is a fact
+                    // about the card rather than a gap in the data.
+                    weightedContributionCard(result)
+                    // The card's own picture of its own subject, directly under
+                    // the three sections that explain its number.
+                    bespokeSection
+                    // The two findings sections sit above the inputs the score
                     // is built from. They used to sit *below* "What goes into
                     // this", so the reader met a chart, a scale picker and a
                     // thirteen-row legend before reaching the one part of the
                     // screen that had actually looked at the data for them.
                     //
-                    // Both now render on every card, whatever they found. See
+                    // Both render on every card, whatever they found. See
                     // `SectionExpansion` for why a section that vanishes is
                     // worse than one that says why it is empty. Neither is
                     // gated on cadence: the gate argued from the *tab's*
@@ -351,7 +361,7 @@ struct InsightDetailView: View {
             title: "What's driving this",
             trailing: routine.isEmpty ? nil : "\(lines.count) signals",
             caveat: .none,
-            expansion: expansion(for: placeholder)
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let placeholder {
                 emptySection(placeholder)
@@ -430,7 +440,7 @@ struct InsightDetailView: View {
             // With no line, it would be a footnote about nothing — and the
             // placeholder states the same floor as the reason instead.
             caveat: placeholder == nil ? SectionCaveat.scoreFloor : SectionCaveat.none,
-            expansion: expansion(for: placeholder)
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let placeholder {
                 emptySection(placeholder)
@@ -541,61 +551,59 @@ struct InsightDetailView: View {
     /// components, its declared `candidateMetrics` stand in.
     // MARK: - Phase 2 bespoke sections
 
-    /// How a weighted composite divides its score, for the two cards that are
-    /// one: Heart Health and Readiness.
+    /// How a score divides between its inputs — **on every card**, and closed by
+    /// default.
     ///
-    /// Both state a number and their drivers narrate the components, but neither
-    /// showed the *arithmetic* — which signal is 40% of this and which is 5%.
-    /// `InsightResult.contributors` has carried the renormalised weight since the
-    /// consolidation, so this needs no new type and no model change.
+    /// It began as a bespoke section for the two cards that are weighted
+    /// composites, Heart Health and Readiness. But "nothing here is weighted" is
+    /// a fact about how a card works rather than a gap in the data, and it is
+    /// precisely what a reader cannot infer from a missing section: Blood
+    /// Pressure runs an estimator, Cardiovascular Risk runs published equations,
+    /// Substance Impact reports what each signal did after a logged event. All
+    /// three report their contributors at **weight 0 on purpose**, and that
+    /// deliberate zero was invisible.
     ///
     /// Only weighted contributors are drawn. Readiness appends the vitals it
     /// merely *scans* at weight 0, and showing those as zero-width bars would
     /// imply they were weighed and found irrelevant, when in fact they were
     /// never in the average. They are counted in a footnote instead.
-    @ViewBuilder private var weightedContributionCard: some View {
-        if let result {
-            let weighted = result.contributors.filter { $0.weight > 0 }.byInfluence
-            let scanned = result.contributors.count - weighted.count
-            if weighted.count >= 2 {
-                let slots = MetricPalette.slots(for: weighted.map(\.metric))
-                InsightSection(
-                    title: "How this is weighted",
-                    // The section whose whole subject is percentages had no
-                    // figure of its own until now.
-                    trailing: "\(weighted.count) weighted",
-                    caveat: scanned > 0 ? .unscored(signals: scanned) : .none
-                ) {
-                    Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+    private func weightedContributionCard(_ result: InsightResult) -> some View {
+        // Not `resolvedContributions`: a stand-in's weights are absences rather
+        // than zeroes, and this section is entirely about telling those apart.
+        let weighted = result.contributors.weighted
+        let scanned = result.contributors.count - weighted.count
+        var placeholder: SectionPlaceholder?
+        if weighted.isEmpty {
+            placeholder = SectionPlaceholder.weighting(
+                areReported: !result.contributors.isEmpty,
+                contributorCount: result.contributors.count)
+        }
+        let slots = MetricPalette.slots(for: weighted.map(\.metric))
 
-                    ForEach(weighted, id: \.metric) { contribution in
-                        weightRow(contribution, slots: slots)
-                    }
+        return InsightSection(
+            title: "How this is weighted",
+            // The section whose whole subject is percentages had no
+            // figure of its own until now.
+            trailing: weighted.isEmpty ? "None" : "\(weighted.count) weighted",
+            caveat: placeholder == nil && scanned > 0
+                ? .unscored(signals: scanned)
+                : SectionCaveat.none,
+            // Open rather than empty-collapsed if both are somehow nil: a
+            // closed section with a blank preview line is a dead end.
+            expansion: expansion(preview: placeholder?.headline
+                                 ?? result.contributors.weightingPreview)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
+                Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    // The card's second picture, for the two cards that have
-                    // one. Nested inside this section rather than beside it,
-                    // because the bespoke slot is one slot.
-                    nestedBespokeSection
+                ForEach(weighted, id: \.metric) { contribution in
+                    weightRow(contribution, slots: slots)
                 }
             }
-        }
-    }
-
-    /// What Heart Health and Readiness each add underneath the weighting.
-    ///
-    /// Both were merged cards that absorbed a whole insight apiece — Heart
-    /// Health took the centiles from "Where You Stand", Readiness took the
-    /// vitals scan — and in both cases the *numbers* survived only as sentences.
-    /// `PeerStandingModel` computes a centile and the card said "top 25%";
-    /// `VitalSignsCheck` computes a z-score for every vital and the card said
-    /// "a little above your baseline".
-    @ViewBuilder private var nestedBespokeSection: some View {
-        switch insightID {
-        case .heartHealth: peerStandingSection
-        case .readiness: vitalDepartureSection
-        default: EmptyView()
         }
     }
 
@@ -603,12 +611,17 @@ struct InsightDetailView: View {
     /// and sex. Deliberately positions on an axis rather than a distribution
     /// curve: the published sources give means and spreads, not full curves,
     /// and a bell curve would draw a precision the model does not have.
+    ///
+    /// Heart Health's bespoke slot in its own right now. It used to be nested
+    /// under "How this is weighted", which was fine while that section was this
+    /// card's bespoke one — but that section is now universal *and closed by
+    /// default*, and a card's own picture of its own subject must not arrive
+    /// hidden inside a collapsed generic section.
     @ViewBuilder private var peerStandingSection: some View {
         if let standing = PeerStandingModel.evaluate(samples: model.samples,
                                                      profile: model.profile),
            !standing.standings.isEmpty {
-            Divider()
-            NestedInsightSection(
+            InsightSection(
                 title: "How you compare",
                 trailing: "\(Int(standing.overall.rounded()))th centile overall",
                 caveat: .approximateNorms
@@ -622,13 +635,14 @@ struct InsightDetailView: View {
     /// baseline. The scan already decided each verdict; this draws them on one
     /// axis so "one thing is off" is visible as a shape rather than counted out
     /// of a list of seventeen sentences.
+    ///
+    /// Readiness's bespoke slot, promoted for the same reason as the strip above.
     @ViewBuilder private var vitalDepartureSection: some View {
         let panel = VitalDeparturePanel.from(
             VitalSignsCheck.evaluate(samples: model.samples,
                                      events: model.vitalEvents))
         if !panel.isEmpty {
-            Divider()
-            NestedInsightSection(
+            InsightSection(
                 title: "How far from your normal",
                 trailing: "\(panel.rows.count) checked",
                 caveat: panel.footnote.map { .computed(.partial, $0) } ?? .none
@@ -849,7 +863,7 @@ struct InsightDetailView: View {
             title: "What goes into this",
             trailing: "\(series.count) of \(contributions.metrics.count)",
             caveat: .none,
-            expansion: expansion(for: placeholder)
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let placeholder {
                 emptySection(placeholder)
@@ -964,8 +978,8 @@ struct InsightDetailView: View {
             // nothing here that was inferred, and `.associationsNotCauses`
             // under an empty section would be warning about claims nobody made.
             caveat: patterns.isEmpty ? SectionCaveat.none : .associationsNotCauses,
-            expansion: .collapsed(preview: placeholder?.headline
-                                  ?? patterns[0].sentence)
+            expansion: expansion(preview: placeholder?.headline
+                                 ?? patterns[0].sentence)
         ) {
             if let placeholder {
                 emptySection(placeholder)
@@ -991,9 +1005,9 @@ struct InsightDetailView: View {
     /// four call sites: that form leans on leading-dot inference flowing back
     /// through `map` and `??`, and the app target is compiled only by CI, so a
     /// type-inference gamble costs a push-and-wait to settle.
-    private func expansion(for placeholder: SectionPlaceholder?) -> SectionExpansion {
-        guard let placeholder else { return .always }
-        return .collapsed(preview: placeholder.headline)
+    private func expansion(preview: String?) -> SectionExpansion {
+        guard let preview, !preview.isEmpty else { return .always }
+        return .collapsed(preview: preview)
     }
 
     /// What a section draws when it has nothing to show.
@@ -1057,7 +1071,7 @@ struct InsightDetailView: View {
             caveat: leads.isEmpty
                 ? SectionCaveat.none
                 : .fittedThrough(points: leads.map(\.sampleCount).min() ?? 0),
-            expansion: .collapsed(preview: placeholder?.headline ?? leads[0].sentence)
+            expansion: expansion(preview: placeholder?.headline ?? leads[0].sentence)
         ) {
             if let placeholder {
                 emptySection(placeholder)
@@ -1100,7 +1114,7 @@ struct InsightDetailView: View {
             caveat: changes.isEmpty
                 ? SectionCaveat.none
                 : .periodContrast(days: PeriodContrast.windowDays),
-            expansion: expansion(for: placeholder)
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let placeholder {
                 emptySection(placeholder)

@@ -191,6 +191,41 @@ public struct SectionPlaceholder: Sendable, Equatable {
                 + "reason. An ordinary day looks exactly like this.")
     }
 
+    // MARK: - How this is weighted
+
+    /// Why a card has no weighting to show — which is most of them, and for a
+    /// reason worth telling the reader.
+    ///
+    /// **Not every score is a weighted average.** Heart Health and Readiness
+    /// blend their components in fixed proportions and this section is the
+    /// arithmetic. Cardiovascular Risk runs published equations; Blood Pressure
+    /// runs an estimator; Substance Impact reports what each signal did after a
+    /// logged event and says so in its own source. Those report contributors at
+    /// **weight 0 deliberately** — there is no share to divide up, and inventing
+    /// one would be the exact dishonesty the zero was chosen to avoid.
+    ///
+    /// So "nothing is weighted here" is a fact about how the card works, not a
+    /// gap in the data, and it is the one thing a reader cannot infer from the
+    /// section being absent.
+    public static func weighting(areReported: Bool,
+                                 contributorCount: Int) -> SectionPlaceholder {
+        guard areReported else {
+            return SectionPlaceholder(
+                headline: "No weighting reported",
+                detail: "This card hasn't published how much each of its inputs "
+                    + "counts toward its number, so there is nothing to divide "
+                    + "up here. What it reads is charted under \"What goes into "
+                    + "this\" below.")
+        }
+        return SectionPlaceholder(
+            headline: "Not a weighted average",
+            detail: "This card's number isn't a blend of its "
+                + "\(contributorCount) \(SectionCaveat.plural(contributorCount, "input")) "
+                + "in fixed proportions, so no signal has a percentage share of "
+                + "it. Each one is reported on its own terms instead — see "
+                + "\"What's driving this\" above and \"What goes into this\" below.")
+    }
+
     // MARK: - What goes into this
 
     /// Why the overlay has no series. `inputCount` is what the card *declares*,

@@ -95,6 +95,72 @@ final class ContributorsTests: XCTestCase {
                        "insights reporting no contributors: \(silent)")
     }
 
+    // MARK: - The collapsed "How this is weighted" preview
+
+    /// The preview line stands in for the bars while the section is closed, so
+    /// for most readers it is the whole section. It claims a superlative, and a
+    /// superlative can be false.
+    func testThePreviewNeverClaimsALeaderThatIsTiedWithAnother() {
+        let tied = [
+            MetricContribution(metric: .restingHeartRate, higherIsBetter: false,
+                               weight: 0.5, detail: ""),
+            MetricContribution(metric: .sleepDurationHours, higherIsBetter: true,
+                               weight: 0.5, detail: "")
+        ]
+        // `byInfluence` breaks ties by name, so the first here is not "the most".
+        let preview = try? XCTUnwrap(tied.weightingPreview)
+        XCTAssertEqual(preview?.contains("carries the most"), false, preview ?? "")
+        XCTAssertEqual(preview?.contains("equally"), true, preview ?? "")
+
+        let clear = [
+            MetricContribution(metric: .restingHeartRate, higherIsBetter: false,
+                               weight: 0.7, detail: ""),
+            MetricContribution(metric: .sleepDurationHours, higherIsBetter: true,
+                               weight: 0.3, detail: "")
+        ]
+        XCTAssertEqual(clear.weightingPreview,
+                       "Resting Heart Rate carries the most, at 70% of 2 signals.")
+    }
+
+    /// Nothing weighted is not a 0% leader — the caller has a placeholder for
+    /// that, and a cheerful sentence about a zero share is the failure worth
+    /// designing out.
+    func testThePreviewIsAbsentRatherThanZeroWhenNothingIsWeighted() {
+        let unscored = [
+            MetricContribution(metric: .dayStrain, higherIsBetter: nil,
+                               weight: 0, detail: "14.2")
+        ]
+        XCTAssertNil(unscored.weightingPreview)
+        XCTAssertTrue(unscored.weighted.isEmpty)
+        XCTAssertNil([MetricContribution]().weightingPreview)
+    }
+
+    /// One weighted signal is the whole score, and saying "carries the most, of
+    /// 1 signal" would be a comparison with nothing.
+    func testASingleWeightedSignalIsDescribedAsTheWholeOfIt() {
+        let only = [MetricContribution(metric: .vo2Max, higherIsBetter: true,
+                                       weight: 1, detail: "")]
+        XCTAssertEqual(only.weightingPreview,
+                       "\(MetricType.vo2Max.displayName) is the whole of it, at 100%.")
+        XCTAssertTrue(only.weightingPreview?.contains("100%") == true)
+        XCTAssertFalse(only.weightingPreview?.contains("of 1 signals") == true)
+    }
+
+    /// Every card that *does* weight must produce a preview, or its section
+    /// collapses to a blank line.
+    func testEveryWeightedCardProducesAPreview() {
+        let samples = fullCoverage()
+        for model in InsightEngine().models {
+            let contributors = model.evaluate(samples: samples, profile: profile,
+                                              now: contributorNow).contributors
+            if contributors.weighted.isEmpty {
+                XCTAssertNil(contributors.weightingPreview, "\(model.id)")
+            } else {
+                XCTAssertNotNil(contributors.weightingPreview, "\(model.id)")
+            }
+        }
+    }
+
     /// The anti-drift check: a component added to a score without being tagged
     /// with its metric, or tagged with a metric the insight never declared,
     /// fails here.

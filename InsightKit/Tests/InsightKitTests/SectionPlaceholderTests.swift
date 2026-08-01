@@ -81,7 +81,9 @@ final class SectionPlaceholderTests: XCTestCase {
             .overlay(inputCount: 0),
             .overlay(inputCount: 9),
             .periodContrast(comparable: 0),
-            .periodContrast(comparable: 6)
+            .periodContrast(comparable: 6),
+            .weighting(areReported: false, contributorCount: 0),
+            .weighting(areReported: true, contributorCount: 2)
         ]
     }
 
@@ -159,6 +161,35 @@ final class SectionPlaceholderTests: XCTestCase {
         XCTAssertTrue(steady.headline.lowercased().contains("hasn't moved"), steady.headline)
         XCTAssertTrue(steady.detail.contains("6 signals"), steady.detail)
         XCTAssertFalse(steady.detail.lowercased().contains("not enough"))
+    }
+
+    /// "How this is weighted" is on every card now, and on most of them the
+    /// honest answer is that nothing is weighted — Cardiovascular Risk runs
+    /// published equations, Blood Pressure runs an estimator, Substance Impact
+    /// reports what each signal did after a logged event. Their contributors
+    /// carry `weight: 0` **on purpose**, and that deliberate zero is exactly
+    /// what an absent section could never convey.
+    func testWeightingSeparatesNotWeightedFromNotReported() {
+        let notAnAverage = SectionPlaceholder.weighting(areReported: true,
+                                                        contributorCount: 3)
+        XCTAssertTrue(notAnAverage.headline.lowercased().contains("not a weighted"),
+                      notAnAverage.headline)
+        XCTAssertTrue(notAnAverage.detail.contains("3 inputs"), notAnAverage.detail)
+        // Must not read as a gap the reader could close by recording more.
+        XCTAssertFalse(notAnAverage.detail.lowercased().contains("yet"),
+                       notAnAverage.detail)
+
+        let silent = SectionPlaceholder.weighting(areReported: false, contributorCount: 0)
+        XCTAssertNotEqual(silent, notAnAverage)
+        XCTAssertTrue(silent.headline.lowercased().contains("no weighting reported"),
+                      silent.headline)
+    }
+
+    func testTheInputCountIsWordedForItsOwnNumber() {
+        XCTAssertTrue(SectionPlaceholder.weighting(areReported: true, contributorCount: 1)
+            .detail.contains("1 input "))
+        XCTAssertTrue(SectionPlaceholder.weighting(areReported: true, contributorCount: 2)
+            .detail.contains("2 inputs "))
     }
 
     /// A card with no number and a card whose number nothing explains are
@@ -297,19 +328,28 @@ final class SectionPlaceholderTests: XCTestCase {
         }
     }
 
-    /// Every empty state does one of exactly two jobs: name the condition that
-    /// would fill it, or say plainly that empty is the right answer. "Check back
-    /// later" with neither is the failure mode this whole type exists to avoid,
-    /// and it is what the sections did by simply not being there.
-    func testEveryDetailEitherNamesItsConditionOrSaysEmptyIsFine() {
+    /// No empty state may be a dead end. Each one does exactly one of three
+    /// jobs: name the condition that would fill it, say plainly that empty is
+    /// the right answer, or send the reader to the section that does hold the
+    /// information. "Check back later" with none of the three is the failure
+    /// mode this type exists to avoid — and it is what the sections did by
+    /// simply not being there.
+    func testNoDetailIsADeadEnd() {
         let namesACondition = [
             "keep recording", "widen the timeframe", "widening", "connecting a source",
             "history is long enough", "more often", "nothing to hold up",
-            "as soon as", "waiting for", "cleared that yet", "sections below"
+            "as soon as", "waiting for", "cleared that yet"
         ]
         let saysEmptyIsFine = [
             "ordinary state", "usual answer", "ordinary day", "good answer",
             "gap in the app"
+        ]
+        // Where the answer is a fact about how the card works rather than about
+        // the data — "this score isn't a weighted average" — there is no
+        // condition to name and nothing to reassure about. Pointing at the
+        // section that does carry the information is the honest third option.
+        let pointsElsewhere = [
+            "what goes into this", "what's driving this", "sections below"
         ]
         for placeholder in everyVariant {
             let text = placeholder.detail.lowercased()
@@ -317,8 +357,9 @@ final class SectionPlaceholderTests: XCTestCase {
             XCTAssertGreaterThan(placeholder.detail.count, 60, placeholder.detail)
             XCTAssertTrue(
                 namesACondition.contains { text.contains($0) }
-                    || saysEmptyIsFine.contains { text.contains($0) },
-                "neither a condition nor reassurance: \(placeholder.detail)")
+                    || saysEmptyIsFine.contains { text.contains($0) }
+                    || pointsElsewhere.contains { text.contains($0) },
+                "dead-end empty state: \(placeholder.detail)")
         }
     }
 
