@@ -259,6 +259,8 @@ the place to look.
   - `CardStateExport` :26
 - `Text/DataInventory.swift`
   - `DataInventory` :19
+- `Text/ModelInternalsExport.swift`
+  - `ModelInternalsExport` :25
 - `Text/PlainText.swift`
   - `PlainText` :8
 
@@ -426,8 +428,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :155
-  - `OtherDataListView` :168
+  - `FullExport` :183
+  - `OtherDataListView` :196
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

@@ -17,6 +17,7 @@ struct DataExportView: View {
     @Environment(AppModel.self) private var model
     @State private var copied = false
     @State private var copiedCards = false
+    @State private var copiedInternals = false
     @State private var fullExport: FullExport?
     @State private var exportFailed: String?
 
@@ -43,6 +44,15 @@ struct DataExportView: View {
             profile: model.profile,
             buildStamp: BuildInfo.summary,
             now: Date())
+    }
+
+    /// What the cards judge against — baselines, comparison pools, derived
+    /// nights. Built by `ModelInternalsExport` in InsightKit, where it is tested.
+    private var modelInternals: String {
+        ModelInternalsExport.markdown(samples: model.samples,
+                                      events: model.substanceEvents,
+                                      buildStamp: BuildInfo.summary,
+                                      now: Date())
     }
 
     private var signalCount: Int {
@@ -98,6 +108,24 @@ struct DataExportView: View {
                 Text("Card outputs")
             } footer: {
                 Text("Every card as it reads right now — score, drivers, weighted shares, and whether each declared input actually has data — stamped with the build that produced it. This is the one to send when a card looks wrong: it shows what you're seeing, not what the code intends.")
+            }
+
+            Section {
+                ShareLink(item: modelInternals,
+                          preview: SharePreview("Health Insights — model internals")) {
+                    Label("Share model internals", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    UIPasteboard.general.string = modelInternals
+                    copiedInternals = true
+                } label: {
+                    Label(copiedInternals ? "Copied" : "Copy model internals",
+                          systemImage: copiedInternals ? "checkmark" : "doc.on.doc")
+                }
+            } header: {
+                Text("Model internals")
+            } footer: {
+                Text("What the cards judge against: the personal baseline behind every \"vs your normal\" figure (with how much history it holds), the substance comparison pools with their sizes, and the last month of nights per source. Send this with the card outputs when the question is why a card judged something.")
             }
 
             Section {

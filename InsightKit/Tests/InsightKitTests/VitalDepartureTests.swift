@@ -16,7 +16,7 @@ final class VitalDepartureTests: XCTestCase {
                          value: Double = 60) -> VitalSignsCheck.Reading {
         VitalSignsCheck.Reading(metric: metric, value: value, baseline: 60, zScore: z,
                                 status: status, note: "", normality: 50,
-                                measuredAt: Date(), sourceName: "Watch")
+                                measuredAt: Date(), sourceName: "Watch", historyDays: 28)
     }
 
     // MARK: - The threshold rule

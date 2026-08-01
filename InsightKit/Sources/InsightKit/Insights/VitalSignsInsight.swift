@@ -59,6 +59,10 @@ public enum VitalSignsCheck {
         public let measuredAt: Date
         /// Which device the judgement was made against.
         public let sourceName: String
+        /// Days of history the baseline was built from — what
+        /// `insufficientHistory` is short of. Carried on the reading so the
+        /// model-internals export states the shortfall rather than inferring it.
+        public let historyDays: Int
     }
 
     /// A vital the user records, but not recently enough to describe today.
@@ -402,7 +406,7 @@ public enum VitalSignsCheck {
 
         return Reading(metric: spec.metric, value: value, baseline: deviation?.baseline,
                        zScore: z, status: status, note: note, normality: normality,
-                       measuredAt: date, sourceName: source)
+                       measuredAt: date, sourceName: source, historyDays: history.count)
     }
 
     /// How ordinary a reading is, 0–100, continuous in z.

@@ -30,6 +30,17 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
+**A fourth export exists: Settings ▸ Export my data ▸ Model internals**
+(2026-08-02, built because the user asked what else a session needs). It answers
+*"what was the card's judgement made against?"* — the per-vital baseline table
+(value, baseline, z, **days of history vs the 7-day floor** — the
+diastolic-"not enough history" class), the substance comparison pools (**clean N
+vs after-use N** behind every "+X after use"), the floors and windows in force
+quoted from the constants, and the last month of nights per source (the layout
+that exposes date-keying bugs). `ModelInternalsExport` in InsightKit, tested.
+**Ask for it together with "card outputs" whenever the question is why a card
+judged something.**
+
 **The load-performance session (latest).** First half: `c0028f2`, CI green,
 installed. "Work on load performance, fix bugs, best judgment": the two items
 taken were the roadmap's own top two — the cold-launch cache decode (see
