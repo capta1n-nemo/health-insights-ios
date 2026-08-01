@@ -73,6 +73,39 @@ final class SleepQualityStagesTests: XCTestCase {
                       "the user has to be able to see what moved it")
     }
 
+    /// Ohayon 2017's own anchors, and the two edges that matter: falling
+    /// asleep instantly is appropriate, not suspicious, and the floor stops a
+    /// terrible night nuking a composite it holds 5% of.
+    func testLatencyScoresTheConsensusBands() {
+        XCTAssertEqual(SleepInsight.latencyScore(0), 100)
+        XCTAssertEqual(SleepInsight.latencyScore(14), 100)
+        XCTAssertEqual(SleepInsight.latencyScore(30), 70, accuracy: 0.001)
+        XCTAssertEqual(SleepInsight.latencyScore(70), 30)
+        XCTAssertEqual(SleepInsight.latencyScore(300), 30)
+        // Monotone, no cliffs.
+        let scores = stride(from: 0.0, through: 120, by: 1).map(SleepInsight.latencyScore)
+        for (a, b) in zip(scores, scores.dropFirst()) {
+            XCTAssertGreaterThanOrEqual(a, b)
+            XCTAssertLessThanOrEqual(a - b, 2.001, "no step bigger than the slope")
+        }
+    }
+
+    func testLatencyMovesTheScoreAndIsNamed() throws {
+        func night(latency: Double) -> [HealthMetricSample] {
+            samples(hours: 8) + [HealthMetricSample(
+                type: .sleepLatencyMinutes, value: latency,
+                start: TestClock.day(0), source: .oura)]
+        }
+        let quick = evaluate(night(latency: 8))
+        let insomnia = evaluate(night(latency: 75))
+        XCTAssertLessThan(try XCTUnwrap(insomnia.score), try XCTUnwrap(quick.score))
+        XCTAssertTrue(quick.drivers.contains { $0.contains("Fell asleep") })
+        XCTAssertTrue(quick.contributors.contains { $0.metric == .sleepLatencyMinutes })
+        // And a night with no latency reading carries no latency line.
+        XCTAssertFalse(evaluate(samples(hours: 8)).contributors
+            .contains { $0.metric == .sleepLatencyMinutes })
+    }
+
     /// Absent stage data must not be penalised — most of the world has a phone
     /// and no ring, and a night with no breakdown is not a bad night.
     func testANightWithNoBreakdownIsNotPunished() throws {
@@ -111,6 +144,8 @@ final class SleepQualityStagesTests: XCTestCase {
         // absent simply omits its contributor, which is correct and is why the
         // fixture has to be complete for this assertion to mean anything.
         var full = samples(hours: 8, efficiency: 88, deepMinutes: 96, remMinutes: 96)
+        full.append(HealthMetricSample(type: .sleepLatencyMinutes, value: 12,
+                                       start: TestClock.day(0), source: .oura))
         full.append(HealthMetricSample(type: .respiratoryRate, value: 14,
                                        start: TestClock.day(0), source: .oura))
         full.append(HealthMetricSample(type: .oxygenSaturation, value: 97,
@@ -132,7 +167,9 @@ final class SleepQualityStagesTests: XCTestCase {
         }
         let result = SleepInsight().evaluate(samples: full, profile: .init(),
                                                     now: sqNow)
-        XCTAssertEqual(result.contributors.count, 8,
+        // Nine since 2026-08-01: sleep latency joined (Ohayon 2017), funded
+        // out of the duration family rather than added on top.
+        XCTAssertEqual(result.contributors.count, 9,
                        "a term stopped contributing — update the expected sum below deliberately")
         let total = result.contributors.map(\.weight).reduce(0, +)
         XCTAssertEqual(total, 1.0, accuracy: 0.001,

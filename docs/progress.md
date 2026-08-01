@@ -814,6 +814,27 @@ not weighted, when almost every score should be weighted"*.
       and keeps `attrib`, `category`, `comment`. Both promotion rules aimed at
       numbered measures target unmapped types and still fire.
 
+- [x] **Substance Impact scores measured impact, not usage** (2026-08-01, user
+      direction). The load is a prior on exposure: it stands alone only while
+      nothing is measured, phases toward a 25-point cap as up to three signals
+      report, and the effect-size severities — which were always the measured
+      half — carry the dial from there. `effectivePenalties` is the one pool
+      `score` and `penaltyShares` both read, so the exact Euler attribution
+      survives; the load's own row says "capped — your measured response
+      carries the score" or "usage is all this number can rest on" as
+      appropriate. Four new tests, including heavy-use-with-mild-measured-
+      response scoring above 60 while the same usage with a 2-SD heart
+      response still scores under 25.
+- [x] **#4 — Sleep latency scores the night** (data-opportunities ranking).
+      `MetricType.sleepLatencyMinutes` from Oura's `latency` field, decoded in
+      the typed parser *behind the nap filter* — every nap and rest segment
+      carries a latency too, and promoting the field generically would let a
+      doze's instant onset become the night's figure (the bedtime defect, one
+      field over). Scored per Ohayon 2017 (≤15 min → 100, floor 30 past an
+      hour), weight 0.05 funded from duration and consistency so the table
+      still sums to 1. Reference band on the Vitals chart from the same
+      consensus panel as the efficiency band.
+
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.
 

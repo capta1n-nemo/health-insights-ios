@@ -24,7 +24,7 @@ no published bands can still raise an honest flag.**
 | 1 | ~~Apple Exercise Time (7,352)~~ **built 2026-08-01** | Fitness | **scored** | WHO 2020: 150–300 min/week moderate, with a stated dose–response. Apple's "exercise minute" *is* the moderate-intensity definition. Now `MetricType.exerciseMinutes` + `ActivityDoseModel` (weekly, missing-days-as-zero behind a 3-recorded-day floor), 0.20 of Fitness's primary pool per the rebalance below. |
 | 2 | Audio exposure, environmental + headphone (19,091) | **none exists** | yes | WHO-ITU H.870, NIOSH 85 dBA/8 h. The strongest basis in the set — a dose *is* a 0–100 by construction. |
 | 3 | Breathing disturbance index (Oura) | Sleep | no | None. Oura publishes no validated BDI→AHI conversion; AASM's bands are defined on polysomnography, not a ring. |
-| 4 | Sleep latency (median 10.5 min) | Sleep | **yes** | Ohayon 2017 (NSF consensus): ≤15 min appropriate, 16–30 uncertain, >30 inappropriate — the same consensus family the efficiency term already uses. |
+| 4 | ~~Sleep latency (median 10.5 min)~~ **built 2026-08-01** | Sleep | **scored** | Ohayon 2017 (NSF consensus): ≤15 min appropriate, 16–30 uncertain, >30 inappropriate. Now `MetricType.sleepLatencyMinutes`, emitted by the **typed, nap-aware** Oura parser only — the generic pipeline can't tell a nap's latency from a night's, the same hazard as the bedtime. Weight 0.05, funded duration 0.30→0.27 and consistency 0.10→0.08 per the caution below. |
 | 5 | WASO (derivable: time-in-bed − sleep − latency) | Sleep | **yes** | Ohayon 2017 again: ≤20 min appropriate, >50 inappropriate. |
 | 6 | Basal energy (45,602) | Body Composition | no — but a *prediction* exists | Mifflin-St Jeor (1990) predicts BMR from weight, height, age, sex — all four already grounding facts. Report measured-vs-predicted. |
 | 7 | Walking speed (27,207) | Fitness | no — hard bound only | Bohannon & Williams Andrews 2011 gives gait-speed norms; 1.0 m/s is a standard clinical cut-point. Justifies a bound, not a curve. |
@@ -56,6 +56,29 @@ no published bands can still raise an honest flag.**
 - **#5 carries a data caution**: confirm the `oura.sleep.*` fields are per-night
   before scoring anything derived from them. This card has already been burned by
   exactly that — see the nap defect in `docs/activeContext.md`.
+
+## The 2026-08-01 critical review — what was taken, what waits, and why
+
+Prompted by the user: *"look for opportunities to add more data sources, use
+more info that's currently just in vitals and unused."* Taken this round: #1
+(exercise dose) and #4 (sleep latency), both scorable against a published
+basis without new information. The rest, with the blocker named so the next
+session starts at the decision rather than the survey:
+
+- **#3 BDI** — highest-value sleep signal, but building it needs the exact
+  field identifier confirmed from a **fresh export** (and its per-night
+  semantics; the sleep endpoint's nap hazard applies). Design already scoped
+  above: pair with the SpO₂ floor as a screening line, never a score.
+- **#5 WASO** — same per-night confirmation needed before deriving anything.
+- **#6 BMR measured-vs-predicted** — buildable *now* (all four Mifflin-St
+  Jeor inputs are grounding facts; `basalEnergyBurned` is 45k readings in the
+  raw pile). Report-only on Body Composition. The next cheapest build here.
+- **#7 walking speed** — a 1.0 m/s clinical cut-point justifies a vitals-scan
+  hard bound, not a curve; needs a `MetricType` and a `Spec` row.
+- **#2 audio exposure** — strongest basis in the set, no card to live on;
+  needs the user to want a tenth card about hearing.
+- **Provider scores as second opinions** — the disagreement panel scoped
+  below; needs vendor-neutral `MetricType`s first.
 
 ## Oura's own scores — second opinion, never an input
 

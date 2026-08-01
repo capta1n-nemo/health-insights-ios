@@ -27,8 +27,9 @@ public struct SleepInsight: InsightModel {
     /// on a device that reports only the absolute it was the whole signal.
     public var candidateMetrics: [MetricType] {
         [.sleepDurationHours, .sleepOnset, .sleepEfficiency, .sleepDeepMinutes,
-         .sleepRemMinutes, .oxygenSaturation, .respiratoryRate,
-         .skinTemperatureDeviation, .skinTemperature, .bodyTemperature]
+         .sleepRemMinutes, .sleepLatencyMinutes, .oxygenSaturation,
+         .respiratoryRate, .skinTemperatureDeviation, .skinTemperature,
+         .bodyTemperature]
     }
 
     /// The share of a night the published figures put deep and REM sleep at,
@@ -63,12 +64,20 @@ public struct SleepInsight: InsightModel {
     /// regularity is the one thing on this card that is not about duration at
     /// all, which is why it earns more than the breathing terms.
     enum Weight {
-        static let duration = 0.30
+        // Latency (2026-08-01, data-opportunities #4) is funded out of the
+        // duration family — duration 0.30 → 0.27 and consistency 0.10 → 0.08 —
+        // never added on top: the coefficients sum to 1 and that sum is the
+        // claim "How this is weighted" makes on screen. It takes from
+        // duration's family rather than the breathing terms because it is
+        // evidence about the same night's shape, where the breathing terms
+        // are the card's only window on a different system.
+        static let duration = 0.27
         static let debt = 0.12
-        static let consistency = 0.10
+        static let consistency = 0.08
         static let regularity = 0.10
         static let efficiency = 0.13
         static let restorative = 0.10
+        static let latency = 0.05
         static let oxygen = 0.07
         static let respiratory = 0.05
         static let temperature = 0.03
@@ -180,6 +189,16 @@ public struct SleepInsight: InsightModel {
             }
         }()
 
+        // How long it took to fall asleep, against the same NSF consensus
+        // panel the efficiency band rests on (Ohayon 2017: ≤15 min
+        // appropriate, 16–30 uncertain, >30 inappropriate). Emitted only by
+        // the nap-aware typed Oura parser, so a doze's instant onset can't
+        // become the night's figure. Neutral 75 when absent, like every other
+        // absent term here.
+        let latencyReading = VitalReader.reading(.sleepLatencyMinutes, from: samples,
+                                                 now: now, freshWithin: 36 * 3600)
+        let latencyScore = latencyReading.map { Self.latencyScore($0.value) } ?? 75
+
         // Deep and REM as a share of the night, never as a minute target.
         let deepReading = VitalReader.reading(.sleepDeepMinutes, from: samples,
                                               now: now, freshWithin: 36 * 3600)
@@ -231,6 +250,7 @@ public struct SleepInsight: InsightModel {
         let score = durationScore * Weight.duration + debtScore * Weight.debt
             + consistencyScore * Weight.consistency + regularityScore * Weight.regularity
             + efficiencyScore * Weight.efficiency + restorativeScore * Weight.restorative
+            + latencyScore * Weight.latency
             + oxygenScore * Weight.oxygen + respScore * Weight.respiratory
             + tempScore * Weight.temperature
         let band = Self.band(score)
@@ -264,6 +284,11 @@ public struct SleepInsight: InsightModel {
         if let latest = efficiencyReading?.value {
             drivers.append(.component(String(format: "Efficiency: %.0f%% of your time in bed asleep", latest),
                                       score: efficiencyScore))
+        }
+        if let latest = latencyReading?.value {
+            drivers.append(.component(
+                String(format: "Fell asleep in about %.0f min", latest),
+                score: latencyScore))
         }
         if let share = restorativeShare {
             let deep = deepReading.map { String(format: "%.0f min deep", $0.value) }
@@ -319,6 +344,11 @@ public struct SleepInsight: InsightModel {
                                       weight: Weight.efficiency,
                                       detail: String(format: "%.0f%%", latest)))
         }
+        if let latest = latencyReading?.value {
+            contributors.append(.init(metric: .sleepLatencyMinutes, higherIsBetter: false,
+                                      weight: Weight.latency,
+                                      detail: String(format: "%.0f min", latest)))
+        }
         if let latest = deepReading?.value {
             contributors.append(.init(metric: .sleepDeepMinutes, higherIsBetter: nil,
                                       weight: Weight.stageLine,
@@ -354,6 +384,20 @@ public struct SleepInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
             unmetRequirements: [], contributors: contributors,
             weighting: .weightedAverage)
+    }
+
+    /// Ohayon 2017 (NSF consensus), piecewise linear through the panel's own
+    /// bands: ≤15 min appropriate (100), 16–30 uncertain (down to 70),
+    /// >30 inappropriate (falling to the 30 floor by minute 70).
+    /// A very short latency is *not* marked down: the panel rates it
+    /// appropriate, and severe sleepiness shows up in this app as sleep debt,
+    /// which has its own term.
+    static func latencyScore(_ minutes: Double) -> Double {
+        switch minutes {
+        case ..<15: return 100
+        case ..<30: return 100 - (minutes - 15) * 2       // 100 → 70
+        default: return Swift.max(30, 70 - (minutes - 30)) // 70 → 30, floored
+        }
     }
 
     static func durationScore(_ h: Double) -> Double {

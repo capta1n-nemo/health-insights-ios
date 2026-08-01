@@ -59,6 +59,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case sleepEfficiency           // % of time in bed actually asleep
     case sleepDeepMinutes          // minutes of deep (slow-wave) sleep
     case sleepRemMinutes           // minutes of REM sleep
+    /// Minutes from getting into bed to falling asleep. Emitted by the typed
+    /// Oura parser only for real nights — the generic pipeline must not feed
+    /// this, because the sleep endpoint's nap and rest segments carry a
+    /// latency too, and a nap's latency is not a night's.
+    case sleepLatencyMinutes       // minutes to fall asleep
     // Three thermal metrics, deliberately distinct. Core and skin are measured
     // in different places, sit two to three degrees apart, and mean different
     // things — judging one against the other's bounds was reporting every
@@ -107,6 +112,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .sleepEfficiency: return "Sleep Efficiency"
         case .sleepDeepMinutes: return "Deep Sleep"
         case .sleepRemMinutes: return "REM Sleep"
+        case .sleepLatencyMinutes: return "Sleep Latency"
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
@@ -141,7 +147,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         // not a thing.
         case .sleepOnset: return ""
         case .sleepEfficiency: return "%"
-        case .sleepDeepMinutes, .sleepRemMinutes: return "min"
+        case .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return "min"
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,

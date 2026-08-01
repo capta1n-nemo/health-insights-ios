@@ -375,9 +375,9 @@ statement; the shares are what "How this is weighted" draws._
 | Insight | `weighting` | Primary (80%) | Supporting (20%, shared) |
 |---|---|---|---|
 | Readiness | `weightedAverage` | six fixed weights, renormalised over what had data | the further vitals the scan covers, scored by the scan's own `normality` |
-| Sleep | `weightedAverage` | nine terms summing to 1 — restated in `contributors` | — none; every input is already weighted |
+| Sleep | `weightedAverage` | ten terms summing to 1 (latency joined 2026-08-01, funded from duration and consistency) — one `Weight` table read by the score and `contributors` both | — none; every input is already weighted |
 | Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR; heart rate when the day is too thin to count exertion |
-| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem | — the pool already covers every signal |
+| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem, over `effectivePenalties`: since 2026-08-01 exposure alone caps at 25 once ≥3 signals are measured, so the dial reads the body's *measured* response rather than zeroing on usage (user direction; the load stands alone only while nothing is measured) | — the pool already covers every signal |
 | Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
 | Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's exercise dose (0.20, `ActivityDoseModel`, WHO 2020) | strain, HR recovery, walking HR, resting HR, steps, active energy — plus exercise minutes only in a week with too few recorded days to judge a dose |
 | Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |

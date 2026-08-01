@@ -61,7 +61,29 @@ open items stand: device-only verification, provider credentials
 (Hume/Ultrahuman/Garmin/Fitbit), the deferred Body Composition scan entry
 (ARKit), the crowd-norms privacy decisions, and the audio-exposure tenth card
 (needs the user to want a card about hearing — see data-opportunities #2).
-The handover efficiency review has not run yet this session.
+Third half, on *"the substance card shouldn't just say zero when substances
+are used — base it off actual impact"* plus a critical review of the other
+cards for unused signals. **The substance dial now reads the measured
+response**: the fortnight's load used to enter the penalty pool at full
+strength (up to 100 alone), so regular use zeroed the dial whatever the body
+did. `effectivePenalties` treats exposure as a prior — with ≥3 measured
+signals it caps at 25 (one band's worth) and the effect-size severities carry
+the dial; with nothing measured the load still stands alone, because exposure
+is then the only evidence. One pool feeds both `score` and `penaltyShares`,
+so the Euler attribution survives unchanged, and the load's row says when it
+was capped and when usage is all the number rests on. **And data-opportunities
+#4 shipped**: `sleepLatencyMinutes`, emitted by the *typed, nap-aware* Oura
+parser only (a nap's instant onset must not become the night's figure — the
+generic pipeline cannot tell them apart), scored per Ohayon 2017 at weight
+0.05 funded from duration (0.30→0.27) and consistency (0.10→0.08). The
+critical-review verdicts on #2/#3/#5/#6/#7 and the provider-score panel are
+recorded in `docs/data-opportunities.md` ▸ "The 2026-08-01 critical review",
+each with its blocker named — #6 (BMR measured-vs-predicted) is the next
+cheapest build; #3 and #5 wait on a fresh export to confirm field identifiers
+and per-night semantics. Device checks: Substance Impact should now show a
+non-zero score if your measured response is mild (the load row will say
+"capped"), and Sleep should show "Fell asleep in about N min" once Oura
+re-syncs. The handover efficiency review has not run yet this session.
 
 **The sources-and-scoring session (previous).** One push, `bff6390`, CI green,
 installed. The user asked for a sweep of all nine cards: *how are the sources

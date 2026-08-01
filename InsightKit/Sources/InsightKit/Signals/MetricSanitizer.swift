@@ -32,8 +32,11 @@ public extension MetricType {
              // before 00:00, which is most of them.
              .sleepDurationHours, .sleepOnset,
              // Zero minutes of REM is a real night, and a night with no deep
-             // sleep recorded is exactly the night worth seeing.
+             // sleep recorded is exactly the night worth seeing. Zero latency
+             // is falling asleep the moment you lie down — a real (and
+             // clinically interesting) night.
              .sleepEfficiency, .sleepDeepMinutes, .sleepRemMinutes,
+             .sleepLatencyMinutes,
              .skinTemperatureDeviation,
              // Zero is the *good* value for both of these: no time in atrial
              // fibrillation, and a perfectly symmetric gait.
@@ -116,6 +119,9 @@ public extension MetricType {
         case .sleepDurationHours: return 0...24
         case .sleepOnset: return -12...12       // the encoding's own range
         case .sleepDeepMinutes, .sleepRemMinutes: return 0...(24 * 60)
+        // Twelve hours awake in bed is an extraordinary night, not an
+        // impossible one; the bound rejects only what a night cannot hold.
+        case .sleepLatencyMinutes: return 0...(12 * 60)
         case .skinTemperatureDeviation: return -15...15
         case .stepCount, .activeEnergyBurned: return nil
         // A single sample is an accrual interval, and a day holds 1,440 minutes.

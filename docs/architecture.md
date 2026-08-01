@@ -696,6 +696,7 @@ unused despite tens of thousands of samples.
 | bloodPressureSystolic/Diastolic | Blood Pressure, Heart Age, Cardiovascular Risk |
 | stepCount, activeEnergyBurned | Cardio Trajectory, Energy |
 | exerciseMinutes | Fitness (weekly WHO dose via `ActivityDoseModel`) |
+| sleepLatencyMinutes | Sleep (Ohayon 2017 term; typed Oura parser only, nap-aware) |
 | dayStrain | *(no reader — Whoop not connected)* |
 
 ## Keychain storage

@@ -46,6 +46,12 @@ public enum OuraResponseParser {
         let rem_sleep_duration: Double?        // seconds
         let time_in_bed: Double?               // seconds
         let efficiency: Double?                // percent, Oura's own figure
+        /// Seconds from getting into bed to falling asleep. Decoded here — in
+        /// the nap-aware typed parser — rather than promoted from the generic
+        /// pipeline on purpose: every nap and rest segment carries a latency
+        /// too, and a 20-minute doze's instant onset must not become the
+        /// night's figure. Same hazard, same defence as the bedtime above.
+        let latency: Double?                   // seconds
     }
 
     /// Parse a `usercollection/sleep` response.
@@ -96,6 +102,7 @@ public enum OuraResponseParser {
             }
             add(.sleepDeepMinutes, record.deep_sleep_duration.map { $0 / 60 })
             add(.sleepRemMinutes, record.rem_sleep_duration.map { $0 / 60 })
+            add(.sleepLatencyMinutes, record.latency.map { $0 / 60 })
             // Oura publishes its own efficiency, so that is what is used —
             // deriving it from asleep/in-bed would produce a second, slightly
             // different number for the same named quantity.

@@ -80,6 +80,25 @@ final class NapContaminationTests: XCTestCase {
         XCTAssertFalse(OuraResponseParser.isNight("late_nap"))
     }
 
+    /// Latency rides the same defence: a doze's near-instant onset must not
+    /// become the night's figure. This is why the metric is emitted by the
+    /// typed parser and not promoted from the generic pipeline, which cannot
+    /// tell a nap segment from a night.
+    func testANapsLatencyDoesNotBecomeTheNights() throws {
+        let night = """
+        {"day":"2026-07-20","type":"long_sleep","total_sleep_duration":27000,
+         "latency":900}
+        """
+        let nap = """
+        {"day":"2026-07-20","type":"late_nap","total_sleep_duration":1200,
+         "latency":30}
+        """
+        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(nap)"))
+        let latencies = samples.samples(of: .sleepLatencyMinutes)
+        XCTAssertEqual(latencies.map(\.value), [15],
+                       "one night, one latency, in minutes — the nap's 30 s is gone")
+    }
+
     /// An 8 pm nap encodes as −4.0 h, which is inside `SleepOnset.plausibleHours`,
     /// and `SleepOnset.samples` keeps the *earliest* segment of each night — so
     /// before the filter moved to the top of the loop, a nap outranked the real

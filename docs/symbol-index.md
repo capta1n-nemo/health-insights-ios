@@ -205,7 +205,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :453
+  - `MetricPalette` :460
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -254,7 +254,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :398
+  - `SubstanceWindow` :442
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/PlainText.swift`

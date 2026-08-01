@@ -75,7 +75,7 @@ public extension MetricType {
         case .stepCount, .activeEnergyBurned, .exerciseMinutes, .vo2Max,
              .dayStrain: return .activity
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
-             .sleepDeepMinutes, .sleepRemMinutes: return .sleep
+             .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return .sleep
         }
     }
 
@@ -148,6 +148,7 @@ public extension MetricType {
         // list to 0..<count, and this metric's usual chart is Fitness's
         // overlay, where hues resolve per chart anyway.
         case .exerciseMinutes: return 35
+        case .sleepLatencyMinutes: return 36
         }
     }
 
@@ -217,7 +218,7 @@ public extension MetricType {
              .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
-             .sleepDeepMinutes, .sleepRemMinutes,
+             .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry:
             // Sleep belongs here, not with the daily totals: it already arrives
@@ -260,7 +261,7 @@ public extension MetricType {
         case .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
-             .sleepDeepMinutes, .sleepRemMinutes,
+             .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
@@ -342,6 +343,12 @@ public extension MetricType {
             // proportions are abnormal. `SleepQualityInsight` scores the share
             // instead, which is the form the evidence is in.
             return nil
+
+        case .sleepLatencyMinutes:
+            return R(normal: B(low: 0, high: 15),
+                     cautionAbove: B(low: 15, high: 30),
+                     caption: "Falling asleep within 15 minutes is the consensus figure for a healthy sleeper; over 30 minutes regularly is worth attention.",
+                     provenance: "Ohayon et al., National Sleep Foundation sleep-quality consensus (Sleep Health 2017): ≤15 min appropriate, 16–30 uncertain, >30 inappropriate — the same panel the efficiency band comes from.")
 
         case .restingHeartRate:
             // No low shoulder on purpose: `concernWhenLow` is false for this
