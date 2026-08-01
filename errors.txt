@@ -1,0 +1,4 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/DesignSystem/BodyCompositionTrendChart.swift:336:21: error: incorrect argument labels in call (have 'x:yStart:yEnd:stacking:', expected 'xStart:xEnd:y:series:')
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/DesignSystem/BodyCompositionTrendChart.swift:339:33: error: type 'PlottableValue<_>' has no member 'unstacked'
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/DesignSystem/BodyCompositionTrendChart.swift:336:13: error: generic parameter 'S' could not be inferred
+** BUILD FAILED **
