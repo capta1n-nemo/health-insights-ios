@@ -35,6 +35,54 @@ look() {
     git ls-remote origin "refs/deploy/passed/$sha" "refs/deploy/failed/$sha" 2>/dev/null
 }
 
+# "No verdict" is three different situations and they need different actions.
+#
+# Written on 2026-08-01, when a deploy produced no ref and this script said the
+# runner was offline. It wasn't: the Mac had picked the job up, got through
+# checkout, signing and stamping, and **dropped off ten minutes into the Xcode
+# build**. GitHub concluded the job `failure`, and because the runner was gone
+# the `if: always()` verdict step never executed — so `always()` does not, in
+# fact, always run. A runner that dies mid-step writes neither passed nor
+# failed, and this script cannot tell that apart from "still building".
+#
+# The recipe below is the cheap way to tell them apart. The Actions run listing
+# is ~450 KB, which is over 100K tokens read directly — but the MCP tool spills
+# it to a file, so `python3` over that file costs a few hundred bytes. Do that
+# rather than reading the listing.
+no_verdict_help() {
+    cat <<'HELP'
+
+"No verdict" means one of three things, and they need different fixes:
+
+  1. still building — a device build plus install can outlast this wait
+  2. never started  — no runner claimed the job (the Mac is off or asleep)
+  3. died mid-build — a runner picked it up and stopped heartbeating, so the
+                      `if: always()` step that writes the verdict never ran
+
+To tell them apart, list the deploy runs and read the job's steps:
+
+  mcp__github__actions_list  method=list_workflow_runs  resource_id=deploy.yml
+  mcp__github__actions_list  method=list_workflow_jobs  resource_id=<run id>
+
+That first call spills ~450 KB to a file rather than returning it — parse the
+file, never the response:
+
+  python3 -c "
+  import json; raw=open(PATH).read(); d=json.loads(raw[raw.find('{'):])
+  for r in d['workflow_runs'][:5]:
+      print(r['head_sha'][:7], r['status'], r['created_at'], r['id'])"
+
+Read it as:
+  · status queued + runner_name "" ....... nobody claimed it → case 2
+  · a step stuck in_progress while the job
+    concluded failure, later steps pending .. runner died → case 3
+
+Case 2 and case 3 both end the same way: **the queued run deploys as soon as
+the Mac comes back**, and it will carry the newest commit, not the one that
+failed. Nothing needs re-pushing.
+HELP
+}
+
 report() {
     case "$1" in
         *"refs/deploy/passed/"*)
@@ -59,13 +107,14 @@ if [ "$wait" -eq 1 ]; then
         sleep 20
     done
     echo "no deploy verdict for ${sha:0:7} after 15 minutes"
-    echo "If the self-hosted Mac runner is offline the job queues and never starts."
+    no_verdict_help
     exit 2
 fi
 
 out=$(look)
 if [ -z "$out" ]; then
-    echo "no deploy verdict yet for ${sha:0:7} (still running, or pushed before refs/deploy existed)"
+    echo "no deploy verdict yet for ${sha:0:7}"
+    no_verdict_help
     exit 2
 fi
 report "$out"

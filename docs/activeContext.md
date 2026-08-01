@@ -122,6 +122,38 @@ controls pointing at one destination is what this section exists to remove; and
 `ContributionSummary.bloodPressure` **defers to `CalibrationStatus`** rather than
 forming a second opinion on whether it is calibrated.
 
+### `if: always()` does not always run, and the verdict refs have a blind spot
+
+Found while answering "why is it not deploying" on this session's own push, and
+worth keeping because the *first* answer given was wrong in the familiar way.
+
+`deploy.yml`'s last step writes `refs/deploy/{passed,failed}/<sha>` under
+`if: always()`, so the reasoning "no ref at all means the job never ran" looks
+sound. It is not. What actually happened to `dc5fae6`: the Mac claimed the job,
+cleared checkout, team-ID resolution, keychain unlock and the build stamp, then
+**stopped heartbeating ten minutes into the Xcode build**. GitHub concluded the
+job `failure` with step 7 still marked `in_progress` and steps 8–9 `pending`.
+A runner that dies cannot run `always()`.
+
+So "no verdict" is three situations — still building, never claimed, died
+mid-build — and `deploy-status.sh` could not tell them apart. It now prints all
+three and the recipe for deciding which, rather than asserting the runner is
+offline. **The tell**: `runner_name: ""` on a queued job means nobody claimed
+it; a step stuck `in_progress` under a `failure` conclusion means the runner
+died holding it.
+
+Reading that costs a few hundred bytes despite the ~450 KB listing, because the
+MCP tool spills oversized results to a file — `python3` over the file is the
+cheap path, and the standing "never use the Actions API" rule is about reading
+the *response*, not about the question being unanswerable.
+
+**Neither case needs a re-push**: the queued run deploys when the Mac returns,
+carrying the newest commit rather than the one that failed.
+
+Same shape as the `tunnelState` guard and the Oura scope guess, one level up:
+*verify a guard's premise against raw tool output before acting on its remedy* —
+here the guard was `always()`, and the premise was that it always runs.
+
 ### The gate that did not need to fire
 
 `progress.md` had carried "**Do this first**: ask the user for the data
