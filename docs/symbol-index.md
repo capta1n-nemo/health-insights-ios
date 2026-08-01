@@ -255,6 +255,8 @@ the place to look.
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
   - `SubstanceWindow` :442
+- `Text/CardStateExport.swift`
+  - `CardStateExport` :26
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/PlainText.swift`
@@ -424,8 +426,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :118
-  - `OtherDataListView` :131
+  - `FullExport` :153
+  - `OtherDataListView` :166
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

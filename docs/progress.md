@@ -835,6 +835,20 @@ not weighted, when almost every score should be weighted"*.
       still sums to 1. Reference band on the Vitals chart from the same
       consensus panel as the efficiency band.
 
+- [x] **Settings ▸ Export ▸ Card outputs** (2026-08-01, user request). The
+      card-level counterpart of the data inventory: every card's live result —
+      score, headline, confidence, weighting basis, all driver lines, every
+      weighted share with its own detail string, the charted-not-scored rows —
+      plus, per declared input, whether data exists at all (count, span,
+      latest, sources), a bounded 21-day score-history tail, the grounding
+      facts through their own formatters, and the **build stamp first**,
+      because "the fix didn't work" and "the fix isn't installed" look
+      identical from a screenshot. `CardStateExport` in InsightKit, 5 tests,
+      including one pinning the document stays under 200 KB on a 50k-sample
+      history — it is aggregates and wording only, sized to paste into a chat.
+      **This is the instrument for recalibration requests**: it shows what the
+      user is seeing, not what the code intends.
+
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.
 

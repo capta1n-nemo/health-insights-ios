@@ -83,7 +83,16 @@ cheapest build; #3 and #5 wait on a fresh export to confirm field identifiers
 and per-night semantics. Device checks: Substance Impact should now show a
 non-zero score if your measured response is mild (the load row will say
 "capped"), and Sleep should show "Fell asleep in about N min" once Oura
-re-syncs. The handover efficiency review has not run yet this session.
+re-syncs. Fourth half: **Settings ▸ Export my data ▸ Card outputs** — the user asked
+for an export of everything the cards are showing so a session can see what
+they see and recalibrate. `CardStateExport` (InsightKit, 5 tests): per card,
+the full shipped result plus per-declared-input data availability and a
+bounded history tail; build stamp first; tens of KB by construction (a test
+pins <200 KB on a 50k-sample history). **When the user shares one, read the
+build stamp before diagnosing anything** — their "substance card still says
+0" report predates the measured-impact fix landing on their phone, and the
+export exists precisely to make that distinction visible. The handover
+efficiency review has not run yet this session.
 
 **The sources-and-scoring session (previous).** One push, `bff6390`, CI green,
 installed. The user asked for a sweep of all nine cards: *how are the sources

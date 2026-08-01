@@ -16,6 +16,7 @@ import UniformTypeIdentifiers
 struct DataExportView: View {
     @Environment(AppModel.self) private var model
     @State private var copied = false
+    @State private var copiedCards = false
     @State private var fullExport: FullExport?
     @State private var exportFailed: String?
 
@@ -24,6 +25,22 @@ struct DataExportView: View {
     private var inventory: String {
         DataInventory.markdown(samples: model.samples,
                                rawGroups: model.otherDataGroups)
+    }
+
+    /// What every card is showing right now — the recalibration document.
+    /// Built by `CardStateExport` in InsightKit, where it is tested; aggregates
+    /// and wording only, so it stays paste-sized on any history.
+    private var cardOutputs: String {
+        CardStateExport.markdown(
+            results: model.results,
+            candidates: Dictionary(uniqueKeysWithValues:
+                model.engine.models.map { ($0.id, $0.candidateMetrics) }),
+            histories: Dictionary(uniqueKeysWithValues:
+                model.results.map { ($0.id, model.scoreHistory(for: $0.id)) }),
+            samples: model.samples,
+            profile: model.profile,
+            buildStamp: BuildInfo.summary,
+            now: Date())
     }
 
     private var signalCount: Int {
@@ -61,6 +78,24 @@ struct DataExportView: View {
                 Text("Inventory")
             } footer: {
                 Text("One line per signal: how many readings, over what dates, from which device, and the range of values. Small enough to paste into a message — this is the one to send.")
+            }
+
+            Section {
+                ShareLink(item: cardOutputs,
+                          preview: SharePreview("Health Insights — card outputs")) {
+                    Label("Share card outputs", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    UIPasteboard.general.string = cardOutputs
+                    copiedCards = true
+                } label: {
+                    Label(copiedCards ? "Copied" : "Copy card outputs",
+                          systemImage: copiedCards ? "checkmark" : "doc.on.doc")
+                }
+            } header: {
+                Text("Card outputs")
+            } footer: {
+                Text("Every card as it reads right now — score, drivers, weighted shares, and whether each declared input actually has data — stamped with the build that produced it. This is the one to send when a card looks wrong: it shows what you're seeing, not what the code intends.")
             }
 
             Section {
