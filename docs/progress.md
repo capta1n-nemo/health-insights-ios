@@ -573,6 +573,56 @@ decide that in advance.
       `CalibrationStatus`** rather than forming a second opinion on whether it is
       calibrated — that type owns the five-then-two rule and its wording.
 
+### Sources, scoring and the weighting section (2026-08-01, `bff6390`, installed)
+
+Driven by the user reading the shipped cards: *"if a source goes into a chart, it
+should go into the score, and it should show in 'what goes into this' — many
+details are in 'what's driving this' but not the others"*, and *"many say it's
+not weighted, when almost every score should be weighted"*.
+
+- [x] **Every card states how its number is formed.** `ScoreWeighting` on
+      `InsightResult`, defaulting to `.unstated` so a new insight is silent
+      rather than claiming a basis nobody chose for it. Six cases, each with its
+      own sentence above the bars — the renormalisation note belongs to a
+      weighted average alone, and printing it over an equation's
+      held-at-optimal shares would describe a calculation nobody ran.
+- [x] **Three of the four "Not a weighted average" cards had computable shares.**
+      Body Composition and Fitness rest on one measurement (`singleMeasure`);
+      Substance Impact's pool divides exactly by Euler's theorem
+      (`penaltyShares`); the risk card attributes by holding each factor at its
+      optimal value and re-running the equation (`RiskAttribution`), which
+      **reuses `HeartAgeModel.riskPercent` unchanged** rather than decomposing
+      the linear predictor — the coefficients are sitting in
+      `CardiovascularRiskModel` and a second copy is the `PressureBandTests`
+      defect one level up. Only Blood Pressure's cuff route is genuinely
+      unweighted, and it now says *what it is* rather than what it isn't.
+- [x] **The risk card's non-metric inputs reach the section.** `ScoreFactor`
+      carries a grounding fact or a derived quantity beside `MetricContribution`,
+      renormalised **together** because they are shares of one number.
+      `MetricContribution` stays the single statement of a metric's share, so
+      the overlay legend and this section cannot drift. Age and sex arrive as
+      one **locked** row: they carry the largest share and are the one thing
+      nobody can act on.
+- [x] **Blood pressure routes the dial the way the user described.** A cuff
+      reading from the last 24 hours wins outright. Past a day the experimental
+      estimate takes over — the only route that is a statement about *now*,
+      reading today's resting heart rate and HRV through a regression fitted to
+      the person's own readings. The recent average drops to the floor beneath
+      it, for whoever has cuff readings and no wearable to estimate from.
+      A second defect fell out: `hasFreshReading` was tested against a *sample*
+      while the value came from `profile.cuffSystolic`, so a stale grounding
+      fact could be dialled under a newer sample's freshness.
+- [x] **Four cards read or drew a metric that reached "What goes into this" on
+      no card.** All four fixed, and the invariant that catches the next one is
+      `ContributorsTests.testEveryDeclaredInputWithDataIsActuallyRead`. See
+      `docs/card-sections.md` ▸ "Declared and never read".
+- [x] **Energy's weights come from its model.** They were 0.6 / 0.25 / 0.15,
+      three constants written in the card, appearing nowhere in `EnergyModel` —
+      under a heading promising "the share each signal has of the score". Now
+      `EnergyModel.Output.terms`, beside the coefficients.
+- [x] **"Charted, not scored" is a named list, not a count.** Fitness has five
+      and Readiness eleven, and *which* is the question a count cannot answer.
+
 ## In progress / not yet device-verified
 
 - [x] **The card-consistency session (2026-08-01), all twelve pushes installed
@@ -582,18 +632,25 @@ decide that in advance.
       it: every section renders on every card and says which kind of empty it
       is; the order has a written rationale; `scripts/card-map.sh` keeps
       `docs/card-sections.md` honest and `handover-check.sh` enforces it.
-- [ ] **The four judgement calls from that session that only the phone can
-      settle**, none yet reported on:
-      - **The floating timeframe bar** — whether `.bar` material and an 8pt gap
-        above the tab bar read as floating rather than as the card ending, and
-        whether the inset leaves the disclaimer scrollable clear of it.
+- [x] **The four judgement calls from that session that only the phone can
+      settle — all four confirmed good by the user on 2026-08-01.** None needs
+      revisiting; the values they pin are the ones to keep.
+      - **The floating timeframe bar** — `.bar` material and an 8pt gap above
+        the tab bar read as floating rather than as the card ending, and the
+        `safeAreaInset` leaves the disclaimer scrollable clear of it. This was
+        the control's *third* placement and the first two both failed by being
+        somewhere the reader wasn't; it is settled.
       - **The chevron at 40% opacity on an open section.** Eleven at full accent
-        down one card looked like a row of alarms; that was a guess made without
-        seeing it.
-      - **`BodyCompositionTrendChart` rescaling its y-axis as you pan**, now that
-        the picker is a zoom rather than a filter.
+        down one card looked like a row of alarms; 40% was a guess made without
+        seeing it and it was right.
+      - **`BodyCompositionTrendChart` rescaling its y-axis as you pan**, now
+        that the picker is a zoom rather than a filter.
       - **The bedtime strip's band moving under your finger** as it re-fits per
-        window — informative, or jitter?
+        window — reads as informative rather than as jitter. Which is the
+        payoff for splitting `CircadianConsistencyModel` into
+        `nights(from:days:)` and `evaluate(nights:)`: the alternative was to
+        leave the window fixed, and the split is what made the movement mean
+        something rather than being noise.
 - [ ] **Give Heart Health's new section a second look on a young profile.**
       `HeartResponseModel` exists to say something to a reader under 40, and the
       one thing no test can check is whether it actually does. Needs a device

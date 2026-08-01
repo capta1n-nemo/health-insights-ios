@@ -30,10 +30,114 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The card-consistency session (latest).** Twelve pushes, all installed, no red
+**The sources-and-scoring session (latest).** One push, `bff6390`, CI green,
+installed. The user asked for a sweep of all nine cards: *how are the sources
+contributing to the score, and how are they reflected in each section?* — with
+two specific complaints, both of which turned out to be right about more cards
+than they named.
+
+### "Not a weighted average" was true on one card out of four
+
+The section said it on Cardiovascular Risk, Blood Pressure, Substance Impact and
+Body Composition, and the sentence behind it conflated two different claims:
+**nobody chose these proportions** (true) with **there are no proportions**
+(false on three of them).
+
+- **Body Composition and Fitness rest on one measurement** scored against a
+  published range — body fat (BMI in fallback) and VO₂max. One signal has 100%
+  of the number, so "no signal has a percentage share of it" described a card
+  that does not exist.
+- **Substance Impact's pool divides exactly.** `worst + 0.35·√(Σ rest²)` is
+  homogeneous of degree one, so by Euler's theorem each penalty's own
+  contribution `pᵢ·∂f/∂pᵢ` sums to the whole — no normalisation, no
+  approximation, and it is the same arithmetic `score` runs read backwards.
+- **The risk card attributes by holding a factor at its optimal value and
+  re-running the equation.** This is the decision worth carrying: the obvious
+  alternative is decomposing the linear predictor, and every coefficient is
+  sitting in `CardiovascularRiskModel` — which would be **a second copy of all
+  of them**, free to drift. `RiskAttribution` knows no coefficient. It calls
+  `HeartAgeModel.riskPercent`, which is the vascular-age method the app already
+  ships and exactly what the card's own *"that gap is the modifiable part"* line
+  already describes. **Generalises: when you need to attribute a model's output,
+  look for a re-run you can do rather than a decomposition you have to write.**
+
+Only Blood Pressure's cuff route is genuinely unweighted — and even there
+*"this is your own cuff reading from the last 24 hours, taken at face value"* is
+a stronger statement than a negation.
+
+**The basis is now stated by the model rather than inferred from whether the
+weights happen to be zero.** `InsightResult.weighting` defaults to `.unstated`,
+so a new insight is silent rather than claiming a basis nobody chose for it, and
+a test stops any card going back to having a number with no account of it.
+
+### A metric declared and never read is invisible, and nothing was checking
+
+Four cards were doing it, all found by hand. The consequence is *invisible*
+rather than wrong, which is why it survived a session that audited every section:
+`ChartedContributions.resolve` substitutes the declared list only when a card
+reports **nothing**, so on a card reporting anything at all a
+declared-but-unreported input charts nowhere, links nowhere under "Full history",
+and appears in no legend.
+
+- The risk card drew VO₂max and vascular age in **its own bespoke chart** and
+  declared neither.
+- Heart Health's **entire** bespoke section is heart-rate recovery, and the card
+  neither declared nor reported it.
+- Energy's drain half is heart rate against resting — a driver line saying
+  "5.2 h with your heart rate above resting" — and neither metric reached the
+  chart. **Heart rate charted on no card in the app.**
+- Sleep declared both absolute temperatures (`docs/card-sections.md` claimed
+  they had been "wired in") and read neither, so on a device reporting only an
+  absolute the temperature term silently took its neutral 75.
+
+`testEveryDeclaredInputWithDataIsActuallyRead` closes the class. **The
+interesting part is its one allowed exception**: alternatives — rMSSD or SDNN, a
+deviation or an absolute. `sharesMeasurementBasis` was the obvious candidate and
+is too coarse (family-wide, so VO₂max and resting heart rate share a basis and a
+card could declare one, read the other, and pass). `MetricType.interchangeableGroups`
+is two rows of data instead — narrow enough to be true, and generic enough that
+it is not a per-model exception list, which only ever catches the models somebody
+remembered to leave out of it.
+
+### Blood pressure's dial has three routes and they were in the wrong order
+
+The user's framing, and it was correct: a reading from the last day is the
+answer; past a day the dial should shift to the estimate built on all the data.
+It was ranked **below** the recent 30-day average, which answers a different
+question — *where has this been sitting* — and cannot move when the person does.
+Now: fresh cuff → experimental estimate → recent average as the floor for
+whoever has readings and no wearable.
+
+A second defect fell out of touching it: `hasFreshReading` was tested against a
+*sample* while the value scored came from `profile.cuffSystolic`, so a stale
+grounding fact could be dialled under a newer sample's freshness.
+
+### Two smaller things worth carrying
+
+- **A hand-written weight is a second copy of the model.** Energy's contributor
+  weights were 0.6 / 0.25 / 0.15, three constants written in the card and
+  appearing nowhere in `EnergyModel`, under a heading promising "the share each
+  signal has of the score". `Output.terms` computes them beside the
+  coefficients. **Sleep still has this shape** — nine coefficients written twice
+  in one function, with a comment saying they drifted apart once already. Open,
+  and recorded as gap 18 in `docs/card-sections.md`.
+- **A count cannot answer "which".** The unscored signals were a caveat reading
+  "5 signals tracked, not scored". Fitness has five and Readiness eleven, and
+  the reader's actual question is which of them moved the number. They are named
+  now, in their own group, with the two reasons they land there kept distinct:
+  no validated curve (`dayStrain`), versus being what the score is measured
+  *against* rather than something moving it (height, the resting-rate line, the
+  cuff readings behind the estimate).
+
+**The card-consistency session (previous).** Twelve pushes, all installed, no red
 CI. Driven end to end by the user reading the shipped cards on their phone and
-saying what was wrong — eight rounds of it. The through-line is one idea applied
-until it held everywhere:
+saying what was wrong — eight rounds of it. **All four of its
+device-only judgement calls were confirmed good by the user on 2026-08-01** —
+the floating timeframe bar's material and gap, the 40% chevron, the
+body-composition axis rescaling as you pan, and the bedtime band moving under
+your finger reading as informative. None needs revisiting.
+
+The through-line is one idea applied until it held everywhere:
 
 ### A section that vanishes is an absence the reader cannot read
 
