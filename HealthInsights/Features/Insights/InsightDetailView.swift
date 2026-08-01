@@ -536,6 +536,11 @@ struct InsightDetailView: View {
     /// lists `parts` (the true partition of body mass) while the bar stacks
     /// `bands` (the same partition with the water share cut out of its host), so
     /// only the legend needs this.
+    /// Which band a water inset's host metric refers to.
+    private func kind(ofMetric metric: MetricType) -> BodyCompositionSplit.Band.Kind {
+        metric == .muscleMass ? .muscle : .lean
+    }
+
     private func kind(of part: BodyCompositionSplit.Part) -> BodyCompositionSplit.Band.Kind {
         switch part.metric {
         case .bodyFatPercentage: return .fat
@@ -558,15 +563,30 @@ struct InsightDetailView: View {
                     }
 
                     // The same `bands` the trend chart stacks, so the bar and the
-                    // chart below it cannot draw the same body differently.
+                    // chart below it cannot draw the same body differently — and
+                    // the water drawn the same way too: a real translucent film
+                    // laid over the intact muscle block, not a slice cut out of
+                    // it. Carving it out is what made every previous attempt read
+                    // as a third substance, whatever colour it was given.
                     GeometryReader { geometry in
-                        HStack(spacing: 1.5) {
+                        let spacing = 1.5
+                        let usable = geometry.size.width
+                            - spacing * Double(max(0, split.bands.count - 1))
+                        HStack(spacing: spacing) {
                             ForEach(split.bands) { band in
                                 Rectangle()
                                     .fill(Theme.compositionColour(band.kind))
-                                    .frame(width: max(2, (geometry.size.width
-                                                          - 1.5 * Double(split.bands.count - 1))
-                                                         * band.fraction))
+                                    .frame(width: max(2, usable * band.fraction))
+                                    .overlay(alignment: .leading) {
+                                        if let water = split.water,
+                                           kind(ofMetric: water.host) == band.kind {
+                                            Rectangle()
+                                                .fill(Theme.compositionWater
+                                                    .opacity(Theme.waterFilmOpacity))
+                                                .frame(width: max(2, usable * band.fraction)
+                                                              * water.fractionOfHost)
+                                        }
+                                    }
                             }
                         }
                         .clipShape(Capsule())

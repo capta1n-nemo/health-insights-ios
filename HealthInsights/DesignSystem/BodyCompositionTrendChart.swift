@@ -22,18 +22,20 @@ import InsightKit
 /// is the one normalising destroys. In kilograms the top edge of the stack *is*
 /// body weight, so both readings are in one picture.
 ///
-/// ## Water is a band, not a line
+/// ## Water is a translucent film over the muscle band
 ///
-/// It was a hairline over the muscle band, which read as an axis annotation
-/// rather than as part of the muscle. It is now the lower share of the muscle
-/// band, summing to exactly the same total because `BodyCompositionSplit.bands`
-/// cuts the host block in two rather than adding one.
+/// Three attempts got this wrong the same way. A hairline, then a slice carved
+/// out of the muscle band and given a colour *blended* to imitate blue over red.
+/// The blend was the mistake: carving the slice out means the muscle band stops
+/// being red across that stretch, so nothing reads as sitting underneath the
+/// water and no choice of hue can put it back. The problem was geometry, not
+/// colour.
 ///
-/// Its colour is blue laid over the muscle red — computed, not composited, since
-/// in a stacked area the two shares are adjacent rather than overlapping and a
-/// genuinely translucent blue would blend with the grey background instead. See
-/// `Theme.compositionMuscleWater`. In the key it is plain blue: a key says what
-/// a substance *is*, and the red under it is a fact about where it sits.
+/// The muscle band is now drawn whole, in muscle red, and a genuinely
+/// translucent blue is painted over its lower portion — real alpha, real
+/// compositing, red showing through. `BodyCompositionSplit.waterSpan` gives the
+/// rectangle. Water is not in the stack and adds no mass, so the total is
+/// untouched.
 struct BodyCompositionTrendChart: View {
 
     let points: [BodyCompositionSplit.Dated]
@@ -75,7 +77,7 @@ struct BodyCompositionTrendChart: View {
     /// discounting the wobble of everything under it — and it is the band the
     /// question is usually about. Water sits directly above it, inside muscle.
     private static let order: [BodyCompositionSplit.Band.Kind] =
-        [.fat, .muscleWater, .muscle, .otherLean, .lean, .bone]
+        [.fat, .muscle, .otherLean, .lean, .bone]
 
     /// The label each band kind goes by, for every kind appearing anywhere in
     /// the window.
@@ -220,6 +222,15 @@ struct BodyCompositionTrendChart: View {
                             }
                         }
                     }
+                    if let water = change.waterDelta, abs(water) >= 0.05 {
+                        HStack(spacing: 3) {
+                            Circle().fill(Theme.compositionWater)
+                                .frame(width: 5, height: 5)
+                            Text("water").foregroundStyle(.secondary)
+                            Text(signed(water)).monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Spacer()
                 }
                 .font(.caption2)
@@ -256,6 +267,14 @@ struct BodyCompositionTrendChart: View {
                     }
                     .foregroundStyle(.secondary)
                 }
+                if let water = hit.split.water {
+                    HStack(spacing: 3) {
+                        Circle().fill(Theme.compositionWater)
+                            .frame(width: 5, height: 5)
+                        Text(String(format: "%.1f", water.kilograms)).monospacedDigit()
+                    }
+                    .foregroundStyle(.secondary)
+                }
                 if hit.isEstimated {
                     Image(systemName: "questionmark.circle")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -271,6 +290,7 @@ struct BodyCompositionTrendChart: View {
     private var chart: some View {
         Chart {
             bands
+            waterFilm
             estimatedScrim
             ScrubIndicator.at(selected)
         }
@@ -302,6 +322,40 @@ struct BodyCompositionTrendChart: View {
                      y: .value("Mass", row.kilograms),
                      stacking: .standard)
                 .foregroundStyle(by: .value("Part", row.label))
+        }
+    }
+
+    /// The water, painted **over** the muscle band rather than carved out of it.
+    ///
+    /// `stacking: .unstacked` is essential: this is an absolute band between two
+    /// cumulative heights, not another share to pile on. And the fill is really
+    /// translucent, so the muscle red composites through it rather than being
+    /// replaced by a colour picked to imitate the result.
+    @ChartContentBuilder private var waterFilm: some ChartContent {
+        ForEach(waterPoints) { point in
+            AreaMark(x: .value("Date", point.date),
+                     yStart: .value("From", point.from),
+                     yEnd: .value("To", point.to),
+                     stacking: .unstacked)
+                .foregroundStyle(Theme.compositionWater.opacity(Theme.waterFilmOpacity))
+                .interpolationMethod(.linear)
+        }
+    }
+
+    /// The film's rectangle per weigh-in. A named type, not a tuple: a key path
+    /// into a tuple element is a compile error.
+    private struct WaterPoint: Identifiable {
+        let date: Date
+        let from: Double
+        let to: Double
+        var id: Date { date }
+    }
+
+    private var waterPoints: [WaterPoint] {
+        points.compactMap { point in
+            point.split.waterSpan.map {
+                WaterPoint(date: point.date, from: $0.from, to: $0.to)
+            }
         }
     }
 

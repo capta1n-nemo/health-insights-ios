@@ -98,6 +98,52 @@ final class BodyCompositionSplitTests: XCTestCase {
         ])).water)
     }
 
+    // MARK: - Where the water film goes
+
+    /// Water is not a band and adds no mass. It is a rectangle painted over the
+    /// band that hosts it, so what matters is that its span sits *inside* that
+    /// band — carving it out instead is what made three attempts read as a third
+    /// substance whatever colour they were given.
+    func testTheWaterSpanSitsInsideItsHostBand() throws {
+        let split = try XCTUnwrap(BodyCompositionSplit.from(samples: actual))
+        let span = try XCTUnwrap(split.waterSpan)
+        // Fat is 33.9 kg, so the muscle band runs from there to 33.9 + 73.19.
+        let fat = try XCTUnwrap(split.parts.first { $0.label == "Fat" }).kilograms
+        let muscle = try XCTUnwrap(split.parts.first { $0.label == "Muscle" }).kilograms
+        XCTAssertEqual(span.from, fat, accuracy: 0.01, "starts at the top of fat")
+        XCTAssertEqual(span.to, fat + 57.80, accuracy: 0.05)
+        XCTAssertLessThanOrEqual(span.to, fat + muscle + 0.001, "never escapes the band")
+    }
+
+    /// The bands are the whole partition again — water is drawn over them, not
+    /// among them, so it must not appear as a band and must not change the sum.
+    func testWaterIsNotABandAndDoesNotChangeTheTotal() throws {
+        let split = try XCTUnwrap(BodyCompositionSplit.from(samples: actual))
+        XCTAssertEqual(split.bands.map(\.kind), [.fat, .muscle, .bone])
+        XCTAssertEqual(split.bands.reduce(0) { $0 + $1.kilograms },
+                       split.total, accuracy: 0.5)
+    }
+
+    /// Water above its host is clamped, so the film cannot spill out of the band
+    /// it is painted on.
+    func testTheWaterSpanIsClampedToItsHost() throws {
+        let split = try XCTUnwrap(BodyCompositionSplit.from(samples: [
+            sample(.bodyMass, 100), sample(.leanBodyMass, 60),
+            sample(.muscleMass, 40), sample(.boneMass, 3),
+            sample(.bodyWaterPercentage, 55),
+        ]))
+        let span = try XCTUnwrap(split.waterSpan)
+        let fat = try XCTUnwrap(split.parts.first { $0.label == "Fat" }).kilograms
+        XCTAssertEqual(span.to - span.from, 40, accuracy: 0.01, "capped at the muscle")
+        XCTAssertEqual(span.from, fat, accuracy: 0.01)
+    }
+
+    func testNoWaterMeansNoSpan() throws {
+        XCTAssertNil(try XCTUnwrap(BodyCompositionSplit.from(samples: [
+            sample(.bodyMass, 100), sample(.bodyFatPercentage, 25),
+        ])).waterSpan)
+    }
+
     // MARK: - The series
 
     private func dayOffset(_ n: Int) -> Double { Double(n) }

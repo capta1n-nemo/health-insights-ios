@@ -298,7 +298,7 @@ the place to look.
 - `DesignSystem/BloodPressureChart.swift`
   - `BloodPressureChart` :18
 - `DesignSystem/BodyCompositionTrendChart.swift`
-  - `BodyCompositionTrendChart` :37
+  - `BodyCompositionTrendChart` :39
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/Haptics.swift`
@@ -331,8 +331,8 @@ the place to look.
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :300
-  - `ConfidenceBadge` :316
+  - `Card` :268
+  - `ConfidenceBadge` :284
   - `Theme` :7
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :269

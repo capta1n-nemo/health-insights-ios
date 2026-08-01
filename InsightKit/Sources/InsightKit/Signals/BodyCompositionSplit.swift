@@ -82,8 +82,7 @@ public struct BodyCompositionSplit: Sendable, Equatable {
     }
 
     public var bands: [Band] {
-        var out: [Band] = []
-        for part in parts {
+        parts.map { part in
             let kind: Band.Kind
             switch part.metric {
             case .bodyFatPercentage: kind = .fat
@@ -92,23 +91,45 @@ public struct BodyCompositionSplit: Sendable, Equatable {
             case .leanBodyMass: kind = part.label == "Lean" ? .lean : .otherLean
             default: kind = .otherLean
             }
-            // The block holding the water is cut into its watery share and the
-            // rest, in that order, so water sits against the fat below it.
-            if let water, water.host == part.metric, water.kilograms > 0 {
-                let wet = Swift.min(water.kilograms, part.kilograms)
-                let dry = part.kilograms - wet
-                out.append(Band(kind: .muscleWater, label: "\(part.label) · water",
-                                kilograms: wet, fraction: wet / total))
-                if dry > 0.05 {
-                    out.append(Band(kind: kind, label: part.label,
-                                    kilograms: dry, fraction: dry / total))
-                }
-            } else {
-                out.append(Band(kind: kind, label: part.label,
-                                kilograms: part.kilograms, fraction: part.fraction))
-            }
+            return Band(kind: kind, label: part.label,
+                        kilograms: part.kilograms, fraction: part.fraction)
         }
-        return out
+    }
+
+    /// Where the water film is painted, as cumulative kilograms up the stack.
+    ///
+    /// Water is **not** a band and must never become one. It was briefly cut out
+    /// of its host as a slice of its own, which made the muscle band stop being
+    /// red over that stretch — so the water stopped looking like something *on*
+    /// muscle and started looking like a third substance beside it. No blend of
+    /// two adjacent slices can fix that, because the problem is the geometry
+    /// rather than the colour.
+    ///
+    /// So the host band is drawn whole, in its own colour, and this is the
+    /// rectangle a translucent film goes over: from the top of everything below
+    /// the host, up by the water's mass. The red underneath shows through, which
+    /// is the entire point and the only way the relationship reads.
+    public struct WaterSpan: Sendable, Equatable {
+        /// Cumulative mass at the bottom edge of the film.
+        public let from: Double
+        /// Cumulative mass at its top edge, clamped inside the host band.
+        public let to: Double
+    }
+
+    public var waterSpan: WaterSpan? {
+        guard let water else { return nil }
+        var below: Double = 0
+        for band in bands {
+            if band.kind == hostKind(water.host) { break }
+            below += band.kilograms
+        }
+        let host = bands.first { $0.kind == hostKind(water.host) }?.kilograms ?? 0
+        guard host > 0 else { return nil }
+        return WaterSpan(from: below, to: below + Swift.min(water.kilograms, host))
+    }
+
+    private func hostKind(_ metric: MetricType) -> Band.Kind {
+        metric == .muscleMass ? .muscle : .lean
     }
 
     /// Build the split, or `nil` when the scale hasn't reported enough for one
@@ -336,6 +357,9 @@ public struct BodyCompositionSplit: Sendable, Equatable {
         public let to: Date
         public let totalDelta: Double
         public let bands: [BandChange]
+        /// Water is not a band, so its movement is reported alongside them
+        /// rather than among them. `nil` when either end has no water reading.
+        public let waterDelta: Double?
     }
 
     /// First weigh-in of the window against the last.
@@ -357,9 +381,14 @@ public struct BodyCompositionSplit: Sendable, Equatable {
             return BandChange(kind: end.kind, label: end.label,
                               delta: end.kilograms - begin.kilograms)
         }
+        let waterDelta: Double? = {
+            guard let a = first.split.water?.kilograms,
+                  let b = last.split.water?.kilograms else { return nil }
+            return b - a
+        }()
         return Change(from: first.date, to: last.date,
                       totalDelta: last.split.total - first.split.total,
-                      bands: bands)
+                      bands: bands, waterDelta: waterDelta)
     }
 
     /// This split's lean block divided in the same proportions as `donor`'s.

@@ -45,12 +45,6 @@ enum Theme {
     /// the seventies reads as green at the peak while its troughs read as red,
     /// without the reader consulting the axis.
     ///
-    /// The stops assume the gradient is resolved against the **plot area**,
-    /// which is why this is only ever used on a chart with a fixed `0...100`
-    /// y-domain. If it turns out to resolve against the *mark's* bounding box
-    /// instead, the ordering still holds — green stays high and red stays low —
-    /// but the thresholds compress toward the highest score on screen, and the
-    /// fix is to compute these locations against that maximum rather than 100.
     /// - Parameter peak: the highest score the filled shape reaches.
     ///
     /// **The gradient resolves against the mark's own bounding box, not the plot
@@ -116,45 +110,19 @@ enum Theme {
     /// what a reader looking for water expects to find in a key.
     static let compositionWater = adaptive(light: 0x2F86D8, dark: 0x4F9FE8)
 
-    /// The pale blue that gets washed over muscle — **not** `compositionWater`,
-    /// and the difference is the whole reason this took three attempts.
+    /// How opaque the water film is where it lies over muscle.
     ///
-    /// Blending the *key's* blue over the muscle red can only ever produce two
-    /// things, and both were rejected on the phone: at a low ratio a flat mauve
-    /// that reads as a third substance, at a high one a solid slate that buries
-    /// the red completely. Neither is a glaze. A translucent film reads light —
-    /// so the colour being laid on has to be light to begin with, and then the
-    /// red shows through as a warm cast rather than as a mixing partner.
-    private static let waterGlazeLight: UInt32 = 0x9BCBF5
-    private static let waterGlazeDark: UInt32 = 0x7FB4E8
+    /// Low on purpose. The film is drawn over an intact muscle band, so the red
+    /// beneath is meant to show through — that is what makes it read as water
+    /// *on* muscle rather than as a substance of its own. Three earlier attempts
+    /// pre-computed the blend and painted the result as a solid slice, which
+    /// removed the red from that stretch entirely; no ratio fixes that, because
+    /// the fault is geometric.
+    static let waterFilmOpacity: Double = 0.40
 
-    /// How much of the glaze sits over the muscle beneath it.
-    static let waterOverMuscle: Double = 0.80
-
-    /// The water *within* muscle: `waterGlaze` laid over `compositionMuscle`,
-    /// worked out here rather than drawn with real transparency.
-    ///
-    /// It has to be computed. In a stacked area the water share and the dry
-    /// share are *adjacent* slices, not overlapping ones — nothing is drawn
-    /// underneath the water band — so an actually translucent blue would
-    /// composite against the chart's grey background rather than against muscle.
-    /// This produces what painting it over muscle would have.
-    static let compositionMuscleWater = adaptive(
-        light: blend(base: 0xB23A3A, over: waterGlazeLight, alpha: waterOverMuscle),
-        dark: blend(base: 0xC44E4E, over: waterGlazeDark, alpha: waterOverMuscle))
-
-    /// `over` composited onto `base` at `alpha`, in sRGB.
-    ///
-    /// A function rather than two more hex literals so the relationship survives
-    /// a change to either colour: re-tune the muscle red and the water in it
-    /// follows, instead of quietly drifting into a hue nobody chose.
-    private static func blend(base: UInt32, over: UInt32, alpha: Double) -> UInt32 {
-        func mix(_ shift: UInt32) -> UInt32 {
-            let b = Double((base >> shift) & 0xff), o = Double((over >> shift) & 0xff)
-            return UInt32((b * (1 - alpha) + o * alpha).rounded())
-        }
-        return (mix(16) << 16) | (mix(8) << 8) | mix(0)
-    }
+    /// Kept for the `muscleWater` legend case, which now resolves to plain blue:
+    /// water is never drawn as a band of its own any more.
+    static let compositionMuscleWater = compositionWater
     /// Bone — pale ivory, deepened just enough to hold an edge on a light card.
     static let compositionBone = adaptive(light: 0xD9C9A3, dark: 0xBFAE86)
     /// Lean mass before the scale began separating muscle from bone.
