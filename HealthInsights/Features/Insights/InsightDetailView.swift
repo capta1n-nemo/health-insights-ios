@@ -99,62 +99,61 @@ struct InsightDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.spacing) {
                 if let result {
+                    // ─────────────────────────────────────────────────────────
+                    // THE ORDER IS THE USER'S, AND IT HAS A RATIONALE.
+                    //
+                    // Set 2026-08-01. It reads top to bottom as *the number →
+                    // why → how it moved → what it is made of → how it compares
+                    // → the deep dives → the appendices*, and each position is
+                    // argued in `docs/card-sections.md` ▸ "The order, and why".
+                    // Read that before moving anything: three of these have been
+                    // moved once already for reasons that are written down, and
+                    // `scripts/card-map.sh --check` will fail if this list and
+                    // that document disagree.
+                    // ─────────────────────────────────────────────────────────
+
+                    // 1. The score itself, at a glance.
                     headerCard(result)
-                    // Above "Score over time" because that section reads it,
-                    // and it is a screen-level control rather than a card.
-                    timeframePicker
-                    // **The first section on every card**, by the user's call on
-                    // 2026-08-01. The placement rule it replaces put the card's
-                    // own bespoke picture here and argued that the months of
-                    // scores derived from it were supporting context; the number
-                    // over time is what the reader opens the card for.
-                    scoreHistoryCard
+                    // 2. Why it says that. The fastest read on the screen.
                     driversCard(result)
-                    // How the number divides, on every card — including the ones
-                    // where the answer is "it doesn't divide", which is a fact
-                    // about the card rather than a gap in the data.
-                    weightedContributionCard(result)
-                    // The card's own picture of its own subject, directly under
-                    // the three sections that explain its number.
+                    // The timeframe control. Not one of the fourteen sections —
+                    // it is a screen-level control, and it sits here because
+                    // "Score over time" is the first section that reads it and
+                    // a control below the thing it drives is unfindable.
+                    timeframePicker
+                    // 3. How the number has moved.
+                    scoreHistoryCard
+                    // 4. The deltas, before any of the machinery behind them.
+                    periodContrastCard(result)
+                    // 5. The card's own picture of its own subject.
                     bespokeSection
-                    // Two ways of placing the same signals: against other
-                    // people, and against the reader's own past. Both were one
-                    // card's bespoke section until 2026-08-01 and both are
-                    // questions every card's inputs can be asked.
+                    // 6. What feeds the score, then 7. how much each counts —
+                    // the overview before the arithmetic, for the reader who
+                    // wants the science behind it.
+                    contributorsCard(result)
+                    weightedContributionCard(result)
+                    // 8. You against everyone else, then 9. you against you.
                     peerStandingSection(result)
                     vitalDepartureSection(result)
-                    // The two findings sections sit above the inputs the score
-                    // is built from. They used to sit *below* "What goes into
-                    // this", so the reader met a chart, a scale picker and a
-                    // thirteen-row legend before reaching the one part of the
-                    // screen that had actually looked at the data for them.
-                    //
-                    // Both render on every card, whatever they found. See
-                    // `SectionExpansion` for why a section that vanishes is
-                    // worse than one that says why it is empty. Neither is
-                    // gated on cadence: the gate argued from the *tab's*
-                    // question, but this screen is reached from either tab and
-                    // is identical from both.
+                    // 10 and 11. The two findings sections: what the app noticed
+                    // in the data, and what runs ahead of the score. Both arrive
+                    // closed — see `SectionExpansion`.
                     patternsCard(result)
                     laggedCard(result)
-                    contributorsCard(result)
-                    periodContrastCard(result)
+                    // 12. The appendix: one link per input.
                     contributorLinksCard(result)
-                    // What this card takes from the user, in the one shape every
-                    // card uses. Gated *here* rather than inside the view: a
-                    // struct View with an empty body is still a VStack child and
-                    // would take spacing either side of it, so the three cards
-                    // that ask for nothing would carry a double gap.
-                    //
-                    // Second from the bottom, beside the other thing the screen
-                    // asks *of* the reader rather than tells them. It used to be
-                    // third from the top, which put a data-entry prompt ahead of
-                    // every finding on a screen nobody opens to type.
+                    // 13. What the card asks *of* the reader. Gated here rather
+                    // than inside the view: a struct View with an empty body is
+                    // still a VStack child and would take spacing either side,
+                    // so the three cards that ask for nothing would carry a
+                    // double gap.
                     if !contributionRoutes.isEmpty {
                         ViewAndAddSection(routes: contributionRoutes,
                                           unmetRequirements: result.unmetRequirements)
                     }
+                    // 14. The other thing asked of the reader.
                     feedbackCard(result)
+                    // Chrome, not a section. Always last.
                     disclaimerCard
                 } else {
                     ContentUnavailableView("Not available", systemImage: "questionmark")

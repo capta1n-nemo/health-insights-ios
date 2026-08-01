@@ -155,6 +155,27 @@ else
     ok 'Every script the rules reference exists and is executable'
 fi
 
+# --- 7b. The card map still matches the code -------------------------------
+# The insight detail screen is the app's most-edited surface and
+# `docs/card-sections.md` is the only record of what each card renders. A
+# session that moved a section and updated the code but not the document has
+# happened, twice; the ordering half is now generated, so it can be checked
+# rather than remembered.
+#
+# The check fails on a *stale ordering*, and that is deliberately a prompt to
+# re-read the rest of the file. A new or moved section also changes the matrix,
+# the gate table and the feature audit, and all three are written by hand.
+if [ -x scripts/card-map.sh ]; then
+    if scripts/card-map.sh --check >/dev/null 2>&1; then
+        ok 'docs/card-sections.md matches InsightDetailView.body'
+    else
+        bad 'docs/card-sections.md is out of date with the card sections.'
+        printf '    Run ./scripts/card-map.sh, then re-read the matrix, the gate\n'
+        printf '    table and the feature audit — those are hand-written and a\n'
+        printf '    moved section changes all three.\n'
+    fi
+fi
+
 # --- 8. Roadmap items are still countable ----------------------------------
 # Not a pass/fail — a number to read back to the user, so "nothing is missed" is
 # a count they can check rather than a claim they have to take on trust.

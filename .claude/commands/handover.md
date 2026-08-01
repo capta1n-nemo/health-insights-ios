@@ -31,7 +31,36 @@ has now happened four times in this repo's history.
      than appending. A stale rule that is still read is worse than no rule.
    Prefer self-healing over instructions: `verify.sh --tests` installs a Swift
    toolchain itself rather than telling the reader to.
-5. Run `./scripts/verify.sh` and `./scripts/gen-symbol-index.sh` so the index and
+5. **Bring `docs/card-sections.md` forward if any card section changed.** This
+   is a numbered step of its own because the insight detail screen is the most
+   edited surface in the app and that file is the only record of what each card
+   shows. Many more cards are coming; the value of the record is that a gap in a
+   *new* card is visible against the others, and that only works if it is true.
+
+   ```bash
+   ./scripts/card-map.sh          # regenerates the ordering block
+   ./scripts/card-map.sh --check  # what handover-check.sh runs
+   ```
+
+   The generated block is **the section order only**. Four things beside it are
+   hand-written, and a new or moved section changes all of them:
+
+   - **the matrix** — one row per insight, one column per section, `●`/`◐`/`○`;
+   - **the gate table** — what each section needs before it draws content rather
+     than a `SectionPlaceholder`;
+   - **the feature audit** — per section: arrives open or closed, has an empty
+     state, its figure, its caveat, its chart;
+   - **the chart audit** — per chart: pans, scrubs, honours the card's timeframe.
+
+   A new card means a new matrix row and a bespoke-slot entry. A new *section*
+   means a column in the matrix and a row in three tables. If the answer for a
+   new card is `○` in any column, say why in the file — "correct, not a gap" is
+   a finding and needs its reason beside it, exactly as `V&A` and `Fbk` do.
+
+   The order itself has a rationale, written down under "The order, and why".
+   Read it before moving anything.
+
+6. Run `./scripts/verify.sh` and `./scripts/gen-symbol-index.sh` so the index and
    lint are current before the docs commit.
 
 ## Part 2 — the efficiency review (mandatory, never skipped)
@@ -39,7 +68,7 @@ has now happened four times in this repo's history.
 A feedback loop, not a report. The point is that each session makes the next one
 cheaper, and that we can *tell* whether it did rather than assuming.
 
-6. **Measure from the repository — never from memory, and never from a token
+7. **Measure from the repository — never from memory, and never from a token
    count.** Token usage cannot be observed from inside a session, so any figure
    would be invented, and one invented baseline poisons every later comparison.
    Everything below is recomputable by the next session:
@@ -61,23 +90,23 @@ cheaper, and that we can *tell* whether it did rather than assuming.
      anyway. **Name each one**: which fact, and where it was already written
      down. An unnamed count is gameable and worthless; a named one is checkable.
 
-7. **Update the repeat-activity ledger** in `docs/efficiency-log.md`. Anything
+8. **Update the repeat-activity ledger** in `docs/efficiency-log.md`. Anything
    done in this session that has now happened in two or more sessions goes in, or
    has its count raised. Recurring-and-unautomated is what feeds the roadmap.
 
-8. **Add at least one item to the efficiency roadmap, or say why not.** The
+9. **Add at least one item to the efficiency roadmap, or say why not.** The
    ledger's top unautomated row is the default candidate.
 
-9. **Prefer the compounding fix to the careful one.** Being more careful does not
+10. **Prefer the compounding fix to the careful one.** Being more careful does not
    survive a context reset; a lint, a skill or a self-healing script does. When
    this session hit a problem, ask whether the fix retires the *instance* or the
    *category*, and reach for the category.
 
-10. **Append a row to the log table** in `docs/efficiency-log.md`, with a short
+11. **Append a row to the log table** in `docs/efficiency-log.md`, with a short
     notes block underneath naming the red CI, the rework and the re-derivations.
     Mark unmeasurable history as *not measured* — never back-fill a guess.
 
-11. **Re-read what you just wrote, against the code — both polarities.** Not
+12. **Re-read what you just wrote, against the code — both polarities.** Not
     "update the docs", *check* them. Two passes, and the second is the one that
     gets skipped:
     - every claim that something is **unbuilt, missing or not-yet-wired** — this
@@ -90,9 +119,9 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     still described as open, because updating a file and auditing a file are
     different acts and only the first was done.
 
-12. Commit with `docs: update active context, progress and efficiency log`.
+13. Commit with `docs: update active context, progress and efficiency log`.
 
-13. **Run the close-out gate and paste its output.**
+14. **Run the close-out gate and paste its output.**
 
     ```bash
     ./scripts/handover-check.sh <previous-handover-sha>
@@ -107,7 +136,7 @@ cheaper, and that we can *tell* whether it did rather than assuming.
 
 ## Part 3 — tell the user, out loud
 
-14. **End the reply with the efficiency verdict.** This is the non-negotiable
+15. **End the reply with the efficiency verdict.** This is the non-negotiable
     part. It must contain:
     - **More or less efficient than the last session**, stated plainly.
     - **The log table**, so the trend is visible rather than asserted.
@@ -117,7 +146,7 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     Be willing to report a regression. A log that only ever improves is one being
     written to flatter, and it stops being worth keeping the moment that happens.
 
-15. Confirm a new chat can be started safely — **on the strength of the gate's
+16. Confirm a new chat can be started safely — **on the strength of the gate's
     output, never on your own recollection.** "Everything is recorded" was said
     once from memory and was wrong; the check exists so that sentence has
     something behind it.
