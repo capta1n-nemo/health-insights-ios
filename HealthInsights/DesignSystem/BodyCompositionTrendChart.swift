@@ -56,6 +56,13 @@ struct BodyCompositionTrendChart: View {
         let start: Date
         let end: Date
         var id: Date { start }
+
+        /// A run of estimated points, widened to the measured weigh-ins either
+        /// side so the shading covers the whole stretch the inference carries.
+        init(points: [BodyCompositionSplit.Dated], from: Int, to: Int) {
+            self.start = points[Swift.max(0, from - 1)].date
+            self.end = points[Swift.min(points.count - 1, to)].date
+        }
     }
 
     /// Bottom of the stack first. Fat leads deliberately: it sits on the flat
@@ -94,12 +101,12 @@ struct BodyCompositionTrendChart: View {
         for (index, point) in points.enumerated() {
             if point.isEstimated, runStart == nil { runStart = index }
             if !point.isEstimated, let start = runStart {
-                spans.append(EstimatedSpan(date: points, from: start, to: index))
+                spans.append(EstimatedSpan(points: points, from: start, to: index))
                 runStart = nil
             }
         }
         if let start = runStart {
-            spans.append(EstimatedSpan(date: points, from: start, to: points.count - 1))
+            spans.append(EstimatedSpan(points: points, from: start, to: points.count - 1))
         }
         return spans
     }
@@ -198,14 +205,5 @@ struct BodyCompositionTrendChart: View {
                           xEnd: .value("To", span.end))
                 .foregroundStyle(Theme.cardScrim.opacity(0.55))
         }
-    }
-}
-
-private extension BodyCompositionTrendChart.EstimatedSpan {
-    /// A run of estimated points, widened to the measured weigh-ins either side
-    /// so the shading covers the whole stretch the inference is carrying.
-    init(date points: [BodyCompositionSplit.Dated], from: Int, to: Int) {
-        self.start = points[Swift.max(0, from - 1)].date
-        self.end = points[Swift.min(points.count - 1, to)].date
     }
 }
