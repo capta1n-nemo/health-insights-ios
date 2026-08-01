@@ -59,8 +59,11 @@ public enum ModelInternalsExport {
                 + "no judgement below \(VitalSignsCheck.minimumBaselineDays) days of history "
                 + "(that is what \"not enough history yet\" means — it counts *recent* days, "
                 + "so years-old readings do not help it).",
-            "- Departure bands: \"to watch\" at |z| ≥ \(num(VitalSignsCheck.watchZ)), "
-                + "\"unusual\" at |z| ≥ \(num(VitalSignsCheck.unusualZ)), direction-aware — "
+            // %g, not the shared one-decimal formatter: 1.25 must not print
+            // as "1.2" — a threshold misquoted by the instrument that exists
+            // to quote thresholds.
+            "- Departure bands: \"to watch\" at |z| ≥ \(String(format: "%g", VitalSignsCheck.watchZ)), "
+                + "\"unusual\" at |z| ≥ \(String(format: "%g", VitalSignsCheck.unusualZ)), direction-aware — "
                 + "a departure away from the concerning direction costs less.",
             "- Substance comparison: both sides drawn from the last "
                 + "\(Int(SubstanceResponseAnalyzer.comparisonWindowDays)) days; a reading counts as "
