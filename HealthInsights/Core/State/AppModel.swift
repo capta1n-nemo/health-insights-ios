@@ -32,6 +32,8 @@ final class AppModel {
     /// filling them mid-render must not invalidate the view that asked.
     @ObservationIgnored private var breakdownCache: [MetricType: MultiSourceBreakdown] = [:]
     @ObservationIgnored private var vitalsSummaryCache: [MetricType: VitalsSummary]?
+    /// The refresh currently running, if any — what `refresh()` coalesces onto.
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var otherGroupCache: [RawMetricGroup]?
     @ObservationIgnored private var bloodPressureCache: [BloodPressureEstimator.Reading]?
 
@@ -655,7 +657,34 @@ final class AppModel {
         diag.ok("Rebuild", "Rebuilt \(samples.count) sample(s) from \(registry.integrations.filter { if case .connected = $0.status { return true } else { return false } }.count) connected provider(s)")
     }
 
+    /// Coalesces every caller onto one running pipeline.
+    ///
+    /// `RefreshGate` cannot do this: it compares against `lastRefreshedAt`,
+    /// which is set when a refresh *completes* — so a pull-to-refresh three
+    /// seconds into the launch sync passed the gate and ran the whole pipeline
+    /// concurrently: every provider fetched twice, double ingest, double
+    /// insight pass. (Seen in the user's diagnostics on 2026-08-02: two
+    /// "Refresh started" three seconds apart, every Oura GET duplicated.)
+    /// A second caller means "make sure the data is fresh", so it joins the
+    /// refresh already doing that. A forced caller (the rebuild path, which
+    /// has just cleared the caches) waits the running one out and then runs
+    /// in full.
     func refresh(force: Bool = false) async {
+        while let inFlight = refreshTask {
+            if !force {
+                DiagnosticsLog.shared.info("Sync", "Refresh request joined the one already running")
+                await inFlight.value
+                return
+            }
+            await inFlight.value
+        }
+        let task = Task { await performRefresh(force: force) }
+        refreshTask = task
+        defer { refreshTask = nil }
+        await task.value
+    }
+
+    private func performRefresh(force: Bool) async {
         let startedAt = Date()
         // Above the refresh gate on purpose: a refresh skipped as too-soon must
         // still land on `.ready`, so nothing is left narrating a step that is
