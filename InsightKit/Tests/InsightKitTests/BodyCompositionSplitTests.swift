@@ -207,6 +207,82 @@ final class BodyCompositionSplitTests: XCTestCase {
         XCTAssertNil(series.finerSplitBegins)
     }
 
+    // MARK: - What changed
+
+    /// The question a composition history is opened for, which the chart could
+    /// not answer: not what the body *is* but what it has *done*.
+    func testTheChangeIsReportedWholeAndByBand() throws {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 120, daysAgo: 60), sample(.bodyFatPercentage, 40, daysAgo: 60),
+            sample(.leanBodyMass, 72, daysAgo: 60), sample(.muscleMass, 68, daysAgo: 60),
+            sample(.boneMass, 4, daysAgo: 60),
+            sample(.bodyMass, 110, daysAgo: 1), sample(.bodyFatPercentage, 30, daysAgo: 1),
+            sample(.leanBodyMass, 77, daysAgo: 1), sample(.muscleMass, 73, daysAgo: 1),
+            sample(.boneMass, 4, daysAgo: 1),
+        ], calendar: TestClock.utc)
+        let change = try XCTUnwrap(BodyCompositionSplit.change(over: series.points))
+        XCTAssertEqual(change.totalDelta, -10, accuracy: 0.001)
+        // 48 kg of fat down to 33 — the loss came off fat while muscle rose.
+        XCTAssertEqual(try XCTUnwrap(change.bands.first { $0.kind == .fat }).delta,
+                       -15, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(change.bands.first { $0.kind == .muscle }).delta,
+                       5, accuracy: 0.01)
+    }
+
+    /// The reason a total on its own is not enough: the same 10 kg off reads
+    /// completely differently depending on which band it came out of.
+    func testTheSameTotalLossIsADifferentEventDependingOnItsBand() throws {
+        func lastFat(_ fatPercent: Double, lean: Double, muscle: Double) throws -> Double {
+            let series = BodyCompositionSplit.series(samples: [
+                sample(.bodyMass, 120, daysAgo: 60), sample(.bodyFatPercentage, 40, daysAgo: 60),
+                sample(.leanBodyMass, 72, daysAgo: 60), sample(.muscleMass, 68, daysAgo: 60),
+                sample(.boneMass, 4, daysAgo: 60),
+                sample(.bodyMass, 110, daysAgo: 1), sample(.bodyFatPercentage, fatPercent, daysAgo: 1),
+                sample(.leanBodyMass, lean, daysAgo: 1), sample(.muscleMass, muscle, daysAgo: 1),
+                sample(.boneMass, 4, daysAgo: 1),
+            ], calendar: TestClock.utc)
+            let change = try XCTUnwrap(BodyCompositionSplit.change(over: series.points))
+            return try XCTUnwrap(change.bands.first { $0.kind == .muscle }).delta
+        }
+        // Losing it off fat leaves muscle up; losing it off muscle does not.
+        XCTAssertGreaterThan(try lastFat(30, lean: 77, muscle: 73), 0)
+        XCTAssertLessThan(try lastFat(43.6, lean: 62, muscle: 58), 0)
+    }
+
+    /// Direction-of-good is per band and is not a judgement about weight: fat
+    /// down is welcome, muscle down is not, and water is neither.
+    func testDirectionOfGoodIsPerBand() {
+        let kinds = BodyCompositionSplit.Band.Kind.self
+        func better(_ k: BodyCompositionSplit.Band.Kind) -> Bool? {
+            BodyCompositionSplit.BandChange(kind: k, label: "", delta: 0).higherIsBetter
+        }
+        XCTAssertEqual(better(kinds.fat), false)
+        XCTAssertEqual(better(kinds.muscle), true)
+        XCTAssertEqual(better(kinds.bone), true)
+        XCTAssertNil(better(kinds.muscleWater), "hydration is not an achievement")
+        XCTAssertNil(better(kinds.otherLean))
+    }
+
+    /// One weigh-in is a reading, not a change.
+    func testASinglePointHasNoChange() {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 110, daysAgo: 1), sample(.bodyFatPercentage, 30, daysAgo: 1),
+        ], calendar: TestClock.utc)
+        XCTAssertNil(BodyCompositionSplit.change(over: series.points))
+    }
+
+    /// A band at one end and not the other is skipped rather than counted as
+    /// having appeared out of nothing.
+    func testABandMissingAtOneEndIsSkipped() throws {
+        let series = BodyCompositionSplit.series(samples: [
+            sample(.bodyMass, 120, daysAgo: 60), sample(.bodyFatPercentage, 40, daysAgo: 60),
+            sample(.bodyMass, 110, daysAgo: 1), sample(.bodyFatPercentage, 30, daysAgo: 1),
+        ], calendar: TestClock.utc)
+        let change = try XCTUnwrap(BodyCompositionSplit.change(over: series.points))
+        XCTAssertEqual(change.bands.map(\.kind), [.fat, .lean])
+        XCTAssertEqual(change.totalDelta, -10, accuracy: 0.001)
+    }
+
     func testAnEmptyHistoryProducesNoPoints() {
         XCTAssertTrue(BodyCompositionSplit.series(samples: [],
                                                   calendar: TestClock.utc).points.isEmpty)

@@ -92,6 +92,28 @@ struct BodyCompositionTrendChart: View {
         Theme.compositionColour(rows.first { $0.label == label }?.kind ?? .lean)
     }
 
+    /// The top of the y axis: the heaviest weigh-in **in this window**, not a
+    /// round number above it.
+    ///
+    /// Swift Charts' automatic domain rounded up to 150 against a history topping
+    /// out near 124, which spent a third of the height on weights that never
+    /// happened and squashed the bands the chart exists to compare. Anchoring to
+    /// the window's own peak also means the picture re-scales as the timeframe
+    /// changes, which is the point: a month whose peak is 115 should use the
+    /// whole frame for the range 0–115.
+    ///
+    /// The baseline stays at zero and is not negotiable — these are stacked
+    /// shares of a mass, so a cropped bottom would make the bands lie about
+    /// their own size.
+    private var peak: Double {
+        max(points.map(\.split.total).max() ?? 1, 1)
+    }
+
+    /// First weigh-in of the window against the last.
+    private var change: BodyCompositionSplit.Change? {
+        BodyCompositionSplit.change(over: points)
+    }
+
     /// Consecutive runs of estimated weigh-ins, extended to their measured
     /// neighbours so the shading covers the span the inference actually spans
     /// rather than stopping at the last estimated point.
@@ -124,7 +146,55 @@ struct BodyCompositionTrendChart: View {
         VStack(alignment: .leading, spacing: 6) {
             readout
             chart
+            changeRow
         }
+    }
+
+    /// What the window actually did, by band.
+    ///
+    /// The chart says what the body *is* at every point and never said what it
+    /// had *done* — and a bare total would not be enough either, because two
+    /// kilograms off is a different event depending on which band it left. That
+    /// is the whole reason this chart has bands rather than one weight line, so
+    /// it is worth stating in numbers under it.
+    ///
+    /// Coloured per band, never by the total: fat down is welcome, muscle down
+    /// is not, and water is neither — it tracks hydration and the hour of the
+    /// weigh-in more than anything worth congratulating. `BandChange`
+    /// `higherIsBetter` owns that judgement so this only renders it.
+    @ViewBuilder private var changeRow: some View {
+        if let change {
+            VStack(alignment: .leading, spacing: 3) {
+                Divider()
+                HStack(spacing: 10) {
+                    ForEach(change.bands) { band in
+                        if abs(band.delta) >= 0.05 {
+                            HStack(spacing: 3) {
+                                Circle().fill(Theme.compositionColour(band.kind))
+                                    .frame(width: 5, height: 5)
+                                Text(band.label).foregroundStyle(.secondary)
+                                Text(signed(band.delta))
+                                    .monospacedDigit()
+                                    .foregroundStyle(tint(for: band))
+                            }
+                        }
+                    }
+                    Spacer()
+                }
+                .font(.caption2)
+            }
+        }
+    }
+
+    private func signed(_ kilograms: Double) -> String {
+        String(format: "%@%.1f", kilograms > 0 ? "+" : "−", abs(kilograms))
+    }
+
+    private func tint(for band: BodyCompositionSplit.BandChange) -> Color {
+        guard let higherIsBetter = band.higherIsBetter, abs(band.delta) >= 0.05 else {
+            return .secondary
+        }
+        return (band.delta > 0) == higherIsBetter ? Theme.good : Theme.bad
     }
 
     /// Above the chart, not as an annotation — a `RuleMark` chain resolves to
@@ -166,12 +236,15 @@ struct BodyCompositionTrendChart: View {
         .chartXSelection(value: selectionBinding)
         .chartForegroundStyleScale(domain: labels, range: labels.map(colour))
         .chartLegend(.hidden)   // the card draws its own, with the water sub-dot
+        .chartYScale(domain: 0...peak)
         .chartYAxis {
-            AxisMarks { value in
+            AxisMarks(values: [0, (peak / 2).rounded(), peak]) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let kg = value.as(Double.self) {
-                        Text("\(Int(kg))")
+                        // The top label is the actual peak, so the number the
+                        // axis tops out at is a weight that was really recorded.
+                        Text(kg == peak ? String(format: "%.1f", kg) : "\(Int(kg))")
                     }
                 }
             }

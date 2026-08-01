@@ -300,6 +300,68 @@ public struct BodyCompositionSplit: Sendable, Equatable {
                         : nil)
     }
 
+    // MARK: - What changed over a window
+
+    /// One band's movement between the first and last weigh-in of a window.
+    public struct BandChange: Sendable, Equatable, Identifiable {
+        public let kind: Band.Kind
+        public let label: String
+        public let delta: Double
+        public var id: String { kind.rawValue }
+
+        /// Whether this band moving *up* is the welcome direction.
+        ///
+        /// `nil` for the ones where neither direction is news: water tracks
+        /// hydration and the hour of the weigh-in more than anything else, and
+        /// unattributed lean is a rounding bucket.
+        public var higherIsBetter: Bool? {
+            switch kind {
+            case .fat: return false
+            case .muscle, .bone, .lean: return true
+            case .muscleWater, .otherLean: return nil
+            }
+        }
+    }
+
+    /// The change across a window, whole and by band.
+    ///
+    /// The chart shows what the body *is* at every point and never said what it
+    /// had *done*, which is the question a composition history is opened for —
+    /// and the one the card's own narrative already answers in prose. A total on
+    /// its own would not be enough: two kilograms off is a different event
+    /// depending on whether it came from fat or from muscle, and that split is
+    /// the whole reason this chart has bands rather than one weight line.
+    public struct Change: Sendable, Equatable {
+        public let from: Date
+        public let to: Date
+        public let totalDelta: Double
+        public let bands: [BandChange]
+    }
+
+    /// First weigh-in of the window against the last.
+    ///
+    /// Deliberately the plain endpoint difference rather than a fitted slope:
+    /// "what have I lost since March" is a question about two readings, and a
+    /// regression would answer a subtly different one while looking like this.
+    /// `nil` under two points, where there is no change to report.
+    ///
+    /// Bands are matched by kind, so a band present at one end and not the other
+    /// is skipped rather than counted as having appeared from nothing.
+    public static func change(over points: [Dated]) -> Change? {
+        guard let first = points.first, let last = points.last,
+              points.count >= 2, first.date < last.date else { return nil }
+        let start = Dictionary(uniqueKeysWithValues:
+            first.split.bands.map { ($0.kind, $0) })
+        let bands = last.split.bands.compactMap { end -> BandChange? in
+            guard let begin = start[end.kind] else { return nil }
+            return BandChange(kind: end.kind, label: end.label,
+                              delta: end.kilograms - begin.kilograms)
+        }
+        return Change(from: first.date, to: last.date,
+                      totalDelta: last.split.total - first.split.total,
+                      bands: bands)
+    }
+
     /// This split's lean block divided in the same proportions as `donor`'s.
     ///
     /// Returns `nil` when there is no undivided lean block to divide, or when the

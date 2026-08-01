@@ -647,15 +647,25 @@ struct InsightDetailView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("How that has changed").font(.subheadline.weight(.semibold))
                 Spacer()
-                Text("\(visible.count) weigh-ins")
-                    .font(.caption2).foregroundStyle(.secondary)
+                // The total is the trailing stat because it is the thing being
+                // asked; the weigh-in count moved into the caption, where it is
+                // context for the shading rather than the headline.
+                if let change = BodyCompositionSplit.change(over: visible) {
+                    Text(String(format: "%@%.1f kg",
+                                change.totalDelta > 0 ? "+" : "−",
+                                abs(change.totalDelta)))
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                } else {
+                    Text("\(visible.count) weigh-ins")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
             BodyCompositionTrendChart(
                 points: visible,
                 finerSplitBegins: series.finerSplitBegins.flatMap { date in
                     visible.contains { $0.date >= date } ? date : nil
                 })
-            Text("Height is your weight, split the same way as above. The top edge is what the scale read, so a band thinning while the total falls is where the weight came off.")
+            Text("Height is your weight, split the same way as above, across \(visible.count) weigh-ins. The axis tops out at your heaviest reading in this window rather than a round number above it, so changing the timeframe rescales the picture. A band thinning while the total falls is where the weight came off.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let begins = series.finerSplitBegins, visible.contains(where: { $0.date >= begins }) {
