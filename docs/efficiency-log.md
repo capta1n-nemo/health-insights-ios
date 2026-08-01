@@ -111,8 +111,8 @@ that is not yet automated is the next thing to automate.
 | Miss an exhaustive switch over *another* enum | 2 | ✅ automated — generic switch lint (2026-07-30) |
 | Read CI status without burning 100K tokens | every | ✅ automated — `ci-status.sh` reads `refs/ci/*` |
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
-| **Lose the working directory in a shell call** | **5** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice, session 16 **five times** and session 17
-**three times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
+| **Lose the working directory in a shell call** | **6** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice, session 16 **five times**, session 17
+**three times** and session 18 **two-to-three times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
 | **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
@@ -122,7 +122,9 @@ that is not yet automated is the next thing to automate.
 | **An oversized MCP result read as unanswerable rather than spilled to a file** | 1 | ✅ ruled — the Actions listing is ~450 KB and the tool writes it to disk; `python3` over that file costs a few hundred bytes. Recorded in `deploy-status.sh` where the question actually gets asked |
 | **A container branch that looks right and isn't** (`git checkout main`) | 1 | ✅ `ship-to-main` now ships with `git push origin HEAD:main`, which never reads the local ref |
 | A hard-coded count in prose going stale | 3+ | ✅ counts removed from `CLAUDE.md` and the skills rather than updated (2026-07-31) |
-| A declared weight drifting from the applied one | 1 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies` |
+| A declared weight drifting from the applied one | 2 | ✅ `testContributorWeightsMatchTheWeightsTheScoreApplies`; Sleep's second instance closed by `SleepInsight.Weight` — one table, so the duplicate is impossible rather than tested (2026-08-01) |
+| **A before/after comparison whose two sides come from different eras** | 1 | ✅ for the instance — `comparisonWindowDays` (2026-08-02; six years of BP rise read as "+21 mmHg after use"). ⬜ as a category: no mechanical check exists for the next comparison someone writes; the rule is *both sides of a delta share a window* |
+| **A new instrument violating a documented trap of the surface it reads, on first use** | 1 | ⬜ open — the card export shipped "none stored yet" over pending replays while `activeContext.md` carried the trap, mechanism and remedy by name. No mechanical check; the rule is *before shipping a reader of X, grep the docs for X's recorded traps* |
 | **A rule pointing at a script that isn't there** | 1 | ✅ `handover-check.sh` check 7 |
 | **`git add -A` in a canary, then `git reset --hard`** | 1 | ⬜ **open** — see roadmap |
 | **The user having to prompt the handover by hand** | 3+ | ✅ trigger widened to intent; checks moved into `verify.sh` (2026-07-31) |
@@ -164,15 +166,15 @@ each time; it is here so the next session does not have to remember.
 ### ⬜ A `PreToolUse` hook for the shell's working directory — the top open item
 
 **Why this one.** It is the ledger's highest-count row that has a *mechanical*
-answer and does not have it yet: **five** sessions, five instances in session 16
-and three in session 17, and the rule is already written in `CLAUDE.md` in the
+answer and does not have it yet: **six** sessions, five instances in session 16,
+three in session 17 and two-to-three in session 18, and the rule is already written in `CLAUDE.md` in the
 plainest words available. Session 15 broke it twice while having read the file
 that forbids it; session 16 broke it five times having read the same file *and*
 the ledger row about it; session 17 broke it three times having read both **and
 written the ledger row that says tier 1 does not hold for this**.
 
 **That last one is the argument, finished.** There is no version of "state the
-rule more clearly" left to try. Five sessions is enough evidence.
+rule more clearly" left to try. Six sessions is enough evidence.
 
 **Session 16 narrowed the fix.** The mechanism is that the Bash tool's working
 directory persists between calls, so a single `cd InsightKit && swift test`
@@ -354,6 +356,44 @@ with guesses.
 | 16 | 2026-08-01 | 12 | **0** | 0 | 1 (named below) | 772 → 833 | **`scripts/card-map.sh`** — derives the card's section order from `InsightDetailView.body`, `--check` wired into `handover-check.sh`, and handover step 5 spells out what a new card versus a new section changes; `SectionPlaceholder` (+24 tests) gives every section a floor-derived empty state; `ChartedContributions` separates a deliberate zero from an absence; `CircadianConsistencyModel` split so a fit can be recomputed per window; `HeartResponseModel` (+8); `LegendCaption` (+13); `PeriodContrast.comparableCount` shares `dailyMeans` with `changes` | **Better on every measured column, and the cheapest long session recorded.** 1 waste / 12 pushes = 0.08 against a 0.56 baseline; twelve installs, zero red CI, zero rework. **The sting is the unmeasured column** — five dead round trips to the shell's working directory, a tier-1 rule now failing in its fourth consecutive session |
 
 | 17 | 2026-08-01 | 4 | **0** | 1 | 0 | 833 → 868 | **`ScoreWeighting` + `ScoreFactor`** — a card states how its number is formed rather than having it inferred from whether its weights are zero; **`ScoreBlend` + `SupportingSignal`** — one place for the two-step arithmetic every card was doing by hand, one constant for the judgement; **`RiskAttribution`** — attribution by *re-running* the published equation rather than decomposing it, so no coefficient is copied; `MetricType.interchangeableGroups`; `ContributorsFixture` shared by two suites; **three invariants that each found real instances while being written** — `testEveryDeclaredInputWithDataIsActuallyRead`, `testEveryScoringCardStatesHowItsNumberIsFormed`, `testAnUnweightedRowAlwaysSaysWhy`; `add-insight` carries all three | **Level with session 16 on the measured columns, slightly worse on rework.** 1 waste / 4 pushes = 0.25 against session 16's 0.08 and a 0.56 baseline; four pushes, four installs, zero red CI. **The one rework is a user-directed reversal, not a defect** — and the unmeasured column is worse than it looks: three more dead round trips to the shell's working directory, a tier-1 rule now failing for the **fifth** consecutive session |
+
+| 18 | 2026-08-01/02 | 7 (10 commits) | **0** | 1 | 1 (named below) | 868 → 902 | **`SampleCacheCodec`** — the cold-launch decode 965 ms → 4–6 ms, with a free one-way migration (the roadmap's named next item, closed); **`CardStateExport`** — the recalibration instrument, whose *first real use found five live miscalibrations*; `SleepInsight.Weight` one-table coefficients (gap 18); `ActivityDoseModel` + `exerciseMinutes` (data-opportunities #1); `sleepLatencyMinutes` via the nap-aware parser (#4); Withings bookkeeping excluded keyed on the typed parser's own map; `effectivePenalties` one pool for the substance dial and its shares; `comparisonWindowDays`, `minimumTrendSpanDays`, `judgementSamples` — each a category guard with a test shaped like the user's data | **Better than baseline, level with 17, behind 16.** 2 waste / 7 pushes = 0.29 against 0.56 baseline (16: 0.08, 17: 0.25). Zero red CI across seven pushes, seven installs. The rework is the sharpest lesson: the new export violated a *documented* trap on its own first use |
+
+### Session 18 notes
+
+**Red CI (0), seven pushes, seven installs.** Every push green first time and
+every deploy reported `installed`.
+
+**Rework (1).** `d5016b8` fixed, among five things, the pending-replay
+blindness that `84df780` had shipped four hours earlier — the card-outputs
+export printed "none stored yet" for eight cards whose replays were still
+queued. Four of the five fixes in that commit repaired defects *older* than the
+session and are shipped work, not rework; this one clause is the rework, and it
+is the instructive kind — see the re-derivation below.
+
+**Re-derivations (1), named.** *"A pending replay is not no-data"* is in
+`docs/activeContext.md` under the card-consistency session, with the exact
+mechanism (`scoreHistory` returns `[]` on first ask) and the exact remedy
+(`scoreHistoryIsPending(for:)`). The export was built without consulting it and
+the rule was re-learnt from the user's shared document. **A new instrument
+should be checked against the recorded traps of the surfaces it reads** — the
+trap list existed; nothing prompted the reading of it.
+
+**The unmeasured column, sixth consecutive session.** Two-to-three dead round
+trips to the shell's working directory (`./scripts/where.sh` from the
+scratchpad, a relative `sed` from `InsightKit/`, `swift` not on PATH after a
+fresh call). The ledger row moves to 6; the `PreToolUse` hook remains the top
+roadmap item and still needs the user's permission, now with six sessions of
+evidence behind the ask.
+
+**What made the session cheap where it was cheap.** The audited docs were
+trusted and opened with work (the decode item and gap 18 were both taken
+straight from them); `data-opportunities.md` turned "look for high-value
+improvements" into a ranked list with the scoring bases pre-researched, so two
+new metrics landed through the skills with zero missed switches; and the
+session's own new instrument paid for itself before it was a day old — the
+user's first export produced five fixes, four of them for defects that predate
+the session and that no test could have found without the shipped numbers.
 
 ### Session 17 notes
 

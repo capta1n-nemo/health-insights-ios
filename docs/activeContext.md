@@ -131,8 +131,11 @@ bounded history tail; build stamp first; tens of KB by construction (a test
 pins <200 KB on a 50k-sample history). **When the user shares one, read the
 build stamp before diagnosing anything** — their "substance card still says
 0" report predates the measured-impact fix landing on their phone, and the
-export exists precisely to make that distinction visible. The handover
-efficiency review has not run yet this session.
+export exists precisely to make that distinction visible. The handover ran
+at the session's close — session 18 in `docs/efficiency-log.md`: 2 waste /
+7 pushes, zero red CI, seven installs, and the re-derivation named there
+(the export violating this file's own pending-replay trap on first use) is
+the lesson to carry.
 
 **The sources-and-scoring session (previous).** One push, `bff6390`, CI green,
 installed. The user asked for a sweep of all nine cards: *how are the sources
