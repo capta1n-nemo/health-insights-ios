@@ -83,8 +83,61 @@ final class SectionPlaceholderTests: XCTestCase {
             .periodContrast(comparable: 0),
             .periodContrast(comparable: 6),
             .weighting(areReported: false, contributorCount: 0),
-            .weighting(areReported: true, contributorCount: 2)
+            .weighting(areReported: true, contributorCount: 2),
+            .needsMore(subject: "A trend through your weigh-ins", have: 0, need: 2,
+                       noun: "weigh-in"),
+            .needsMore(subject: "A trend through your weigh-ins", have: 1, need: 2,
+                       noun: "weigh-in"),
+            .needsInput(subject: "This chart", what: "cuff readings you enter yourself"),
+            .notComputable(subject: "The vitals scan",
+                           because: "hasn't found a signal with enough history to "
+                              + "have a normal yet, and it needs one to measure "
+                              + "a departure from.")
         ]
+    }
+
+    // MARK: - The bespoke sections
+
+    /// "Not enough yet" without the shortfall is the empty state this whole type
+    /// replaced, so both numbers are in the sentence or the builder is pointless.
+    func testNeedsMoreAlwaysQuotesBothNumbers() {
+        let one = SectionPlaceholder.needsMore(subject: "A trend", have: 1, need: 2,
+                                               noun: "weigh-in")
+        XCTAssertTrue(one.detail.contains("needs 2 weigh-ins"), one.detail)
+        XCTAssertTrue(one.detail.contains("is 1 weigh-in so far"), one.detail)
+        XCTAssertFalse(one.detail.contains("1 weigh-ins"), one.detail)
+
+        let none = SectionPlaceholder.needsMore(subject: "A trend", have: 0, need: 5,
+                                                noun: "night")
+        XCTAssertTrue(none.detail.contains("are 0 nights so far"), none.detail)
+        // Nothing at all and not-quite-enough are different waits.
+        XCTAssertNotEqual(none.headline, one.headline)
+    }
+
+    /// An irregular plural — "hours of readings", not "hour of readingss".
+    func testNeedsMoreTakesAnExplicitPluralWhereAddingSIsWrong() {
+        let two = SectionPlaceholder.needsMore(
+            subject: "Today's curve", have: 0, need: 2,
+            noun: "hour of readings", plural: "hours of readings")
+        XCTAssertTrue(two.detail.contains("needs 2 hours of readings"), two.detail)
+        XCTAssertFalse(two.detail.contains("hour of readingss"), two.detail)
+    }
+
+    /// "Keep recording and this fills in" is the wrong instruction when nothing
+    /// the reader does passively will ever produce the value — a cuff reading, a
+    /// date of birth, a scale that reports body fat.
+    func testWaitingOnTheReaderNeverPromisesItWillFillInOnItsOwn() {
+        let input = SectionPlaceholder.needsInput(subject: "This chart",
+                                                  what: "cuff readings you enter")
+        XCTAssertTrue(input.detail.lowercased().contains("won't close on its own"),
+                      input.detail)
+        XCTAssertFalse(input.detail.lowercased().contains("as more arrive"), input.detail)
+
+        let passive = SectionPlaceholder.needsMore(subject: "A trend", have: 1,
+                                                   need: 2, noun: "weigh-in")
+        XCTAssertTrue(passive.detail.lowercased().contains("as more arrive"),
+                      passive.detail)
+        XCTAssertFalse(passive.detail.lowercased().contains("won't close"), passive.detail)
     }
 
     /// The parameterised variants, swept for wording rather than for identity.
@@ -338,7 +391,11 @@ final class SectionPlaceholderTests: XCTestCase {
         let namesACondition = [
             "keep recording", "widen the timeframe", "widening", "connecting a source",
             "history is long enough", "more often", "nothing to hold up",
-            "as soon as", "waiting for", "cleared that yet"
+            "as soon as", "waiting for", "cleared that yet",
+            // The bespoke builders. `needsMore` always ends "as more arrive";
+            // `notComputable` always states what it needs, because a reason
+            // that doesn't is the dead end this check exists to catch.
+            "as more arrive", "needs"
         ]
         let saysEmptyIsFine = [
             "ordinary state", "usual answer", "ordinary day", "good answer",
@@ -349,7 +406,8 @@ final class SectionPlaceholderTests: XCTestCase {
         // condition to name and nothing to reassure about. Pointing at the
         // section that does carry the information is the honest third option.
         let pointsElsewhere = [
-            "what goes into this", "what's driving this", "sections below"
+            "what goes into this", "what's driving this", "sections below",
+            "view & add"
         ]
         for placeholder in everyVariant {
             let text = placeholder.detail.lowercased()

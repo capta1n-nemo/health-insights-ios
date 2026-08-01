@@ -224,17 +224,17 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 2 | Score over time | all 9 | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
 | 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
 | 4 | How this is weighted | all 9 | **closed** | ● 2 reasons | `n` weighted | `unscored` | — |
-| 5a | Your readings | BP | open | ○ | category | `.none` | `BloodPressureChart` |
-| 5b | Heart/Fitness age over time | CVR, Fit | open | ○ | years/year | `replayedHistory` | `AgeHistoryChart` |
-| 5c | If today's numbers hold | CVR | open | ○ | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
-| 5d | Where this is heading | Fit | open | ○ | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
-| 5e | Today | Energy | open | ○ | spent of charge | `modelledCurve` | `EnergyCurveChart` |
-| 5f | Your fortnight | Sleep | open | ○ | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
-| 5g | Cardiovascular load | Subst | open | ○ | trend/week | `decayingLoad` | `SubstanceLoadChart` |
-| 5h | How you compare | HH | open | ○ | centile | `approximateNorms` | `PeerStandingStrip` |
-| 5i | How far from your normal | Readi | open | ○ | `n` checked | computed | `VitalDepartureStrip` |
-| 5j | What you're made of | BodyC | open | ○ | total kg | `.none` | stacked bar |
-| 5k | How that has changed | BodyC | open | ○ | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
+| 5a | Your readings | BP | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
+| 5b | Heart/Fitness age over time | CVR, Fit | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
+| 5c | If today's numbers hold | CVR | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
+| 5d | Where this is heading | Fit | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
+| 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
+| 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
+| 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
+| 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
+| 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
+| 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
 | 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
 | 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
 | 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
@@ -243,13 +243,20 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 11 | View & add | 6 | open, **not closable** | ○ | — | own | — |
 | 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
 
-**The pattern in the `Empty state` column is the finding.** Every *generic*
-section grew one; **not one bespoke section has**. All eleven still vanish, which
-is the behaviour the generic sections were changed away from — and the reason
-they were changed applies here too. "Your fortnight" absent could mean no sleep
-data, or fewer than `CircadianConsistencyModel.minimumNights` nights; "How you
-compare" absent could mean no date of birth on file, or no comparable metric.
-Nobody can tell from the outside. See gap 12.
+**Every section on every card now has an empty state**, bespoke included, as of
+2026-08-01. The eleven bespoke ones were the last that simply vanished, and their
+absence was the most confusing of any: "Your fortnight" gone could mean no sleep
+data at all or fewer than `CircadianConsistencyModel.minimumNights` nights — a
+provider problem and a patience problem, indistinguishable from the outside.
+
+Three builders cover them, and the split between the first two is the point:
+`needsMore(subject:have:need:noun:)` for a countable floor, which always quotes
+*both* numbers and ends "as more arrive"; `needsInput(subject:what:)` for the
+gaps only the reader can close — a cuff reading, a date of birth, a scale that
+reports body fat — which never promises it will fill in on its own; and
+`notComputable(subject:because:)` where the reason is about the model rather
+than a count. A test pins that the two instructions never appear in each other's
+copy.
 
 ### Feature audit — what each chart supports
 
@@ -414,8 +421,8 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    reaches it.
 
 
-12. **No bespoke section has an empty state.** All eleven vanish when their data
-   doesn't clear a floor — exactly the behaviour the nine generic sections were
+12. ~~**No bespoke section has an empty state.**~~ **Closed 2026-08-01.** All
+   eleven vanished when their data didn't clear a floor — exactly the behaviour the nine generic sections were
    moved away from on 2026-08-01, for a reason that applies here unchanged: an
    absence cannot be read. "Your fortnight" missing means no sleep data *or*
    fewer than `CircadianConsistencyModel.minimumNights` nights; "How you compare"

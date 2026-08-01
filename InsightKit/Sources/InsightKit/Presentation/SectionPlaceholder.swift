@@ -191,6 +191,54 @@ public struct SectionPlaceholder: Sendable, Equatable {
                 + "reason. An ordinary day looks exactly like this.")
     }
 
+    // MARK: - The bespoke sections
+
+    /// A card's own picture, waiting on a countable floor.
+    ///
+    /// One builder for the nine bespoke sections that are all the same shape —
+    /// *this needs N of something and has M* — rather than nine near-identical
+    /// paragraphs. What makes it honest is that both numbers are passed in:
+    /// "not enough yet" without the shortfall is the empty state this whole type
+    /// was written to replace, and a caller that cannot say how far off it is
+    /// probably does not know its own floor.
+    ///
+    /// The bespoke sections were the last eleven that still simply vanished.
+    /// They are a card's own subject, so their absence is the *most* confusing
+    /// of any section here: "Your fortnight" gone means no sleep data at all, or
+    /// fewer nights than the model scores on, and those are a provider problem
+    /// and a patience problem respectively.
+    public static func needsMore(subject: String, have: Int, need: Int,
+                                 noun: String, plural: String? = nil) -> SectionPlaceholder {
+        let haveNoun = SectionCaveat.plural(have, noun, plural: plural)
+        return SectionPlaceholder(
+            headline: have == 0 ? "Nothing recorded yet" : "Not enough yet",
+            detail: "\(subject) needs \(need) "
+                + "\(SectionCaveat.plural(need, noun, plural: plural)), and there "
+                + "\(have == 1 ? "is" : "are") \(have) \(haveNoun) so far. "
+                + "It fills in on its own as more arrive — nothing is wrong.")
+    }
+
+    /// A card's own picture, waiting on something only the reader can supply:
+    /// a cuff reading, a date of birth, a scale that reports body fat.
+    ///
+    /// Separate from `needsMore` because the two are opposite instructions.
+    /// "Keep recording and this fills in" is wrong when nothing the reader does
+    /// passively will ever produce the value.
+    public static func needsInput(subject: String, what: String) -> SectionPlaceholder {
+        SectionPlaceholder(
+            headline: "Waiting on you",
+            detail: "\(subject) is drawn from \(what), and the app doesn't have "
+                + "any yet. This is the one kind of gap that won't close on its "
+                + "own — see \"View & add\" near the bottom of this card.")
+    }
+
+    /// A card's own picture that cannot be computed from what is here, for a
+    /// reason that is about the model rather than about a count.
+    public static func notComputable(subject: String, because: String) -> SectionPlaceholder {
+        SectionPlaceholder(headline: "Can't draw this yet",
+                           detail: "\(subject) \(because)")
+    }
+
     // MARK: - How this is weighted
 
     /// Why a card has no weighting to show — which is most of them, and for a

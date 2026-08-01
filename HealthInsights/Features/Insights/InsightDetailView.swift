@@ -190,15 +190,23 @@ struct InsightDetailView: View {
     /// detail and the full dated history, neither of which is what you open the
     /// card to see. Both still exist there; this is the same `BloodPressureChart`
     /// component, not a second copy.
-    @ViewBuilder private var bloodPressureChartCard: some View {
+    private var bloodPressureChartCard: some View {
         let readings = model.bloodPressureReadings
-        if !readings.isEmpty {
-            // `.none`: these are cuff readings the user typed in, drawn as they
-            // were entered. The estimator's own uncertainty is the header card's
-            // subject, not this chart's.
-            InsightSection(title: "Your readings",
-                           trailing: readings.first?.category,
-                           caveat: .none) {
+        var placeholder: SectionPlaceholder?
+        if readings.isEmpty {
+            placeholder = SectionPlaceholder.needsInput(
+                subject: "This chart", what: "cuff readings you enter yourself")
+        }
+        // `.none`: these are cuff readings the user typed in, drawn as they
+        // were entered. The estimator's own uncertainty is the header card's
+        // subject, not this chart's.
+        return InsightSection(title: "Your readings",
+                              trailing: readings.first?.category,
+                              caveat: .none,
+                              expansion: expansion(preview: placeholder?.headline)) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 BloodPressureChart(readings: readings, timeframe: timeframe)
             }
         }
@@ -214,7 +222,7 @@ struct InsightDetailView: View {
     /// a three-age row; that row could not survive the cards being split by
     /// subject, so each card now draws its own age against the chronological
     /// line and the risk card carries the sentence about them disagreeing.
-    @ViewBuilder private var ageHistoryCard: some View {
+    private var ageHistoryCard: some View {
         // Filtered to this card's own age by blanking the other, rather than
         // by teaching the chart a mode: `AgePoint` already carries both as
         // optionals and `AgeHistoryChart` already skips a nil, so the data is
@@ -226,13 +234,24 @@ struct InsightDetailView: View {
                 : AgePoint(date: point.date, chronological: point.chronological,
                            heart: point.heart, fitness: nil)
         }
-        if points.count >= 3 {
-            InsightSection(
-                title: insightID == .fitness ? "Fitness age over time"
-                                             : "Heart age over time",
-                trailing: points.yearsPerYear.map { String(format: "%.1f a year", $0) },
-                caveat: .replayedHistory
-            ) {
+        var placeholder: SectionPlaceholder?
+        if points.count < 3 {
+            placeholder = SectionPlaceholder.needsMore(
+                subject: "A line through your computed age",
+                have: points.count, need: 3, noun: "replayed week")
+        }
+
+        return InsightSection(
+            title: insightID == .fitness ? "Fitness age over time"
+                                         : "Heart age over time",
+            trailing: points.yearsPerYear.map { String(format: "%.1f a year", $0) },
+            caveat: placeholder == nil ? SectionCaveat.replayedHistory
+                                       : SectionCaveat.none,
+            expansion: expansion(preview: placeholder?.headline)
+        ) {
+            if let placeholder {
+                emptySection(placeholder)
+            } else {
                 // The window comes from the card's own picker, like every
                 // other chart here. It used to fall back to the chart's
                 // 365-day default because no call site passed one, so this
@@ -277,7 +296,15 @@ struct InsightDetailView: View {
 
     @ViewBuilder private var riskProjectionSection: some View {
         let projections = model.heartAgeProjections()
-        if projections.count >= 2 {
+        if projections.count < 2 {
+            Divider()
+            NestedInsightSection(title: "If today's numbers hold", trailing: nil,
+                                 caveat: .none) {
+                emptySection(.needsMore(
+                    subject: "Running the equations at future ages",
+                    have: projections.count, need: 2, noun: "projected age"))
+            }
+        } else {
             Divider()
             NestedInsightSection(
                 title: "If today's numbers hold",
@@ -311,7 +338,17 @@ struct InsightDetailView: View {
     }
 
     @ViewBuilder private var fitnessProjectionSection: some View {
-        if let trajectory = model.fitnessTrajectory(), trajectory.readings >= 3 {
+        let trajectory = model.fitnessTrajectory()
+        let readings = trajectory?.readings ?? 0
+        if trajectory == nil || readings < 3 {
+            Divider()
+            NestedInsightSection(title: "Where this is heading", trailing: nil,
+                                 caveat: .none) {
+                emptySection(.needsMore(
+                    subject: "A trajectory through your VO₂max",
+                    have: readings, need: 3, noun: "reading"))
+            }
+        } else if let trajectory {
             Divider()
             NestedInsightSection(
                 title: "Where this is heading",
@@ -521,7 +558,16 @@ struct InsightDetailView: View {
     /// was put in. They move together and are not the same quantity.
     @ViewBuilder private var substanceLoadCard: some View {
         let series = model.substanceLoadSeries()
-        if series.count >= 7 {
+        if series.count < 7 {
+            let reason = SectionPlaceholder.needsMore(
+                subject: "The decaying load curve", have: series.count, need: 7,
+                noun: "day of logs", plural: "days of logs")
+            InsightSection(title: "Cardiovascular load", trailing: nil,
+                           caveat: .none,
+                           expansion: expansion(preview: reason.headline)) {
+                emptySection(reason)
+            }
+        } else {
             InsightSection(
                 title: "Cardiovascular load",
                 trailing: series.trendPerWeek.flatMap { perWeek in
@@ -660,9 +706,25 @@ struct InsightDetailView: View {
     /// default*, and a card's own picture of its own subject must not arrive
     /// hidden inside a collapsed generic section.
     @ViewBuilder private var peerStandingSection: some View {
-        if let standing = PeerStandingModel.evaluate(samples: model.samples,
-                                                     profile: model.profile),
-           !standing.standings.isEmpty {
+        let evaluated = PeerStandingModel.evaluate(samples: model.samples,
+                                                   profile: model.profile)
+        if evaluated == nil || evaluated?.standings.isEmpty == true {
+            // Two quite different gaps, and the model returning nil is the one
+            // the reader can act on: it needs an age and a sex to pick a norm
+            // table at all.
+            let reason: SectionPlaceholder = evaluated == nil
+                ? .needsInput(subject: "Comparing you with other people",
+                              what: "your date of birth and sex")
+                : .notComputable(subject: "Comparing you with other people",
+                                 because: "needs one of the three signals with "
+                                    + "published age-and-sex norms — VO₂max, "
+                                    + "resting heart rate or heart rate "
+                                    + "variability — and none has recorded yet.")
+            InsightSection(title: "How you compare", trailing: nil, caveat: .none,
+                           expansion: expansion(preview: reason.headline)) {
+                emptySection(reason)
+            }
+        } else if let standing = evaluated {
             InsightSection(
                 title: "How you compare",
                 trailing: "\(Int(standing.overall.rounded()))th centile overall",
@@ -683,7 +745,18 @@ struct InsightDetailView: View {
         let panel = VitalDeparturePanel.from(
             VitalSignsCheck.evaluate(samples: model.samples,
                                      events: model.vitalEvents))
-        if !panel.isEmpty {
+        if panel.isEmpty {
+            let reason = SectionPlaceholder.notComputable(
+                subject: "The vitals scan",
+                because: "hasn't found a signal with enough history to have a "
+                    + "normal yet. It needs a baseline to measure a departure "
+                    + "from, and that is built from your own past readings.")
+            InsightSection(title: "How far from your normal", trailing: nil,
+                           caveat: .none,
+                           expansion: expansion(preview: reason.headline)) {
+                emptySection(reason)
+            }
+        } else {
             InsightSection(
                 title: "How far from your normal",
                 trailing: "\(panel.rows.count) checked",
@@ -750,7 +823,16 @@ struct InsightDetailView: View {
     }
 
     @ViewBuilder private var bodyCompositionSplitCard: some View {
-        if let split = BodyCompositionSplit.from(samples: model.samples) {
+        if BodyCompositionSplit.from(samples: model.samples) == nil {
+            let reason = SectionPlaceholder.needsInput(
+                subject: "The split of your weight",
+                what: "a scale that reports body fat alongside your weight")
+            InsightSection(title: "What you're made of", trailing: nil,
+                           caveat: .none,
+                           expansion: expansion(preview: reason.headline)) {
+                emptySection(reason)
+            }
+        } else if let split = BodyCompositionSplit.from(samples: model.samples) {
             // `.none`: every figure here is a reading off the scale. The two
             // notes below are *findings about the data* — a scale contradicting
             // itself — so they stay in the content in `Theme.warn`, where they
@@ -863,7 +945,15 @@ struct InsightDetailView: View {
         let series = BodyCompositionSplit.series(samples: model.samples)
         let visible = series.points
         // Two weigh-ins is the floor for a trend: one is the bar above again.
-        if visible.count >= 2 {
+        if visible.count < 2 {
+            Divider()
+            NestedInsightSection(title: "How that has changed", trailing: nil,
+                                 caveat: .none) {
+                emptySection(.needsMore(subject: "A trend through your weigh-ins",
+                                        have: visible.count, need: 2,
+                                        noun: "weigh-in"))
+            }
+        } else {
             let begins = series.finerSplitBegins
             Divider()
             NestedInsightSection(
