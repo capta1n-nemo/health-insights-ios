@@ -27,7 +27,7 @@ struct VitalsView: View {
                               .sleepDeepMinutes, .sleepRemMinutes, .bodyTemperature,
                               .skinTemperature, .skinTemperatureDeviation,
                               .dayStrain]),
-        ("Activity & mobility", [.stepCount, .activeEnergyBurned,
+        ("Activity & mobility", [.stepCount, .activeEnergyBurned, .exerciseMinutes,
                                  .walkingSteadiness, .walkingAsymmetry])
     ]
 
@@ -115,7 +115,10 @@ struct VitalsView: View {
                         Spacer()
                         Text("\(Int(latest.systolic.rounded()))/\(Int(latest.diastolic.rounded())) mmHg")
                             .foregroundStyle(.secondary).monospacedDigit()
-                        Text("· \(bloodPressure.count)").font(.caption2).foregroundStyle(.tertiary)
+                        // "readings", spelt out — a bare "· 46" in the slot
+                        // where every other row shows a relative time reads
+                        // as a mystery number, not a count.
+                        Text("· \(bloodPressure.count) readings").font(.caption2).foregroundStyle(.tertiary)
                     }
                 }
             } header: {
@@ -155,16 +158,21 @@ struct VitalsView: View {
     /// The preview shows the single newest reading — not the average of each
     /// source's latest, which reads like a long-run figure when sources last
     /// reported at very different times. Anything not from today is dated, so a
-    /// stale number can't be mistaken for a current one.
+    /// stale number can't be mistaken for a current one. Cumulative metrics
+    /// show the newest day's total instead (see `VitalsSummary.displayValue`).
+    ///
+    /// `detailedString` renders the unit only when the value doesn't already
+    /// carry it — appending `metric.unit` by hand here is what shipped
+    /// "99% %" and "1h 19m min".
     @ViewBuilder private func row(for metric: MetricType) -> some View {
         let summary = model.vitalsSummaries[metric]
         HStack {
             Text(metric.displayName)
             Spacer()
             if let summary {
-                Text("\(formatMetric(summary.latest.value, metric)) \(metric.unit)")
+                Text(MetricValueFormatter.detailedString(summary.displayValue, metric))
                     .foregroundStyle(.secondary).monospacedDigit()
-                if let age = staleness(summary.latest.start) {
+                if let age = staleness(summary.displayDate) {
                     Text("· \(age)").font(.caption2).foregroundStyle(.tertiary)
                 }
                 if summary.sourceCount > 1 {

@@ -285,6 +285,17 @@ final class CardioTrajectoryInsightTests: XCTestCase {
                       "a stale reading must say it is stale rather than read as current")
     }
 
+    /// The phrase's difference must be taken between the two *displayed*
+    /// figures. Shaped like the user's own card: fitness age 67.5 at
+    /// chronological 28.4 shipped as "68 — 39 years older", and 68 − 28 is 40.
+    func testAgePhraseArithmeticSurvivesTheReadersOwnSubtraction() {
+        let output = FitnessAgeModel.Output(
+            fitnessAge: 67.5, vo2: 31, referenceForOwnAge: 43,
+            yearsYounger: 28.4 - 67.5, isCapped: false)
+        let phrase = FitnessInsight.agePhrase(output, chronologicalAge: 28.4)
+        XCTAssertEqual(phrase, "68 — 40 years older than you are")
+    }
+
     func testRegisteredInTheEngineAsATrendInsight() {
         let engine = InsightEngine()
         XCTAssertTrue(engine.models.contains { $0.id == .fitness })

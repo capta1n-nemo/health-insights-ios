@@ -199,7 +199,7 @@ struct MetricDetailView: View {
                         Text(series.displayName)
                         Spacer()
                         if let mean = series.mean {
-                            Text("\(formatMetric(mean, metric)) \(metric.unit)")
+                            Text(MetricValueFormatter.detailedString(mean, metric))
                                 .foregroundStyle(.secondary).monospacedDigit()
                         }
                         Text("· \(series.samples.count) readings")

@@ -110,7 +110,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :158
+  - `ReadinessInsight` :161
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
@@ -440,6 +440,6 @@ the place to look.
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :7
 - `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :188
+  - `OtherDataDetailView` :196
   - `VitalsView` :8
 

@@ -36,9 +36,17 @@ final class AppModel {
     @ObservationIgnored private var bloodPressureCache: [BloodPressureEstimator.Reading]?
 
     /// What a Vitals row needs, without building a full breakdown per row.
+    ///
+    /// `displayValue`/`displayDate` are what the row shows. For point-in-time
+    /// vitals they are the newest sample; for cumulative metrics
+    /// (`bucketStatistic == .sum`) they are the newest day's *total* — the
+    /// newest sample alone is whatever sliver the phone last wrote, and the
+    /// list shipped reading "Steps: 10" mid-afternoon.
     struct VitalsSummary {
         let latest: HealthMetricSample
         let sourceCount: Int
+        let displayValue: Double
+        let displayDate: Date
     }
 
     private func invalidateDerivedCaches() {
@@ -549,6 +557,10 @@ final class AppModel {
         if let cached = vitalsSummaryCache { return cached }
         var latest: [MetricType: HealthMetricSample] = [:]
         var families: [MetricType: Set<String>] = [:]
+        // Newest day's running total for cumulative metrics, tracked in the
+        // same pass — the day it belongs to, and the sum of that day's samples.
+        var dayTotals: [MetricType: (day: Date, total: Double)] = [:]
+        let calendar = Calendar.current
         for sample in samples {
             if let current = latest[sample.type] {
                 if sample.start > current.start { latest[sample.type] = sample }
@@ -556,10 +568,25 @@ final class AppModel {
                 latest[sample.type] = sample
             }
             families[sample.type, default: []].insert(sample.source.deviceFamily)
+            if sample.type.bucketStatistic == .sum {
+                let day = calendar.startOfDay(for: sample.start)
+                if let current = dayTotals[sample.type] {
+                    if day > current.day {
+                        dayTotals[sample.type] = (day, sample.value)
+                    } else if day == current.day {
+                        dayTotals[sample.type] = (day, current.total + sample.value)
+                    }
+                } else {
+                    dayTotals[sample.type] = (day, sample.value)
+                }
+            }
         }
         let built = latest.mapValues { sample in
-            VitalsSummary(latest: sample,
-                          sourceCount: families[sample.type]?.count ?? 1)
+            let total = dayTotals[sample.type]
+            return VitalsSummary(latest: sample,
+                                 sourceCount: families[sample.type]?.count ?? 1,
+                                 displayValue: total?.total ?? sample.value,
+                                 displayDate: total?.day ?? sample.start)
         }
         vitalsSummaryCache = built
         return built

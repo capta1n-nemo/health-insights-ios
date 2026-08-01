@@ -296,8 +296,16 @@ public struct FitnessInsight: InsightModel {
 
     static func agePhrase(_ output: FitnessAgeModel.Output,
                           chronologicalAge: Double) -> String {
-        let years = output.yearsYounger ?? 0
-        let age = String(format: "%.0f", output.fitnessAge)
+        // The difference is taken between the two *displayed* (rounded)
+        // figures, not the unrounded ones, so the sentence survives the
+        // reader's own arithmetic: a 28-year-old shown "fitness age 68" must
+        // read "40 years older", not the "39" that 67.5 − 28.4 rounds to.
+        guard output.yearsYounger != nil else {
+            return "\(String(format: "%.0f", output.fitnessAge)) — level with your actual age"
+        }
+        let displayedAge = output.fitnessAge.rounded()
+        let years = chronologicalAge.rounded() - displayedAge
+        let age = String(format: "%.0f", displayedAge)
         if abs(years) < 1 { return "\(age) — level with your actual age" }
         return years > 0
             ? String(format: "%@ — %.0f years younger than you are", age, years)

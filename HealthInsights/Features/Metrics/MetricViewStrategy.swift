@@ -128,7 +128,7 @@ private struct FluctuatingRangeSummary: View {
                         Spacer()
                         stat("High", summary.max)
                     }
-                    Text("Most readings fall between \(formatMetric(summary.p10, metric)) and \(formatMetric(summary.p90, metric)) \(metric.unit).")
+                    Text("Most readings fall between \(formatMetric(summary.p10, metric)) and \(MetricValueFormatter.detailedString(summary.p90, metric)).")
                         .font(.caption).foregroundStyle(.secondary)
                     if let latest = summary.latest, let percentile = summary.latestPercentile {
                         Text(latestText(latest.value, percentile: percentile))

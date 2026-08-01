@@ -94,10 +94,13 @@ public enum ReadinessScore {
         }
 
         // Skin-temp deviation — being near baseline is good; a spike (fever /
-        // strain / alcohol) pulls it down. Uses the deviation directly.
+        // strain / alcohol) pulls it down. Uses the deviation directly — which
+        // is why the name must say "vs your baseline": labelled "Body
+        // temperature" this row shipped reading "Body temperature: -0.1 °C",
+        // a signed offset presented as an absolute temperature.
         if let temp = fresh(.skinTemperatureDeviation) {
             let penalty = min(70, abs(temp.value) * 60)
-            comps.append(.init(name: "Body temperature", score: clamp(92 - penalty),
+            comps.append(.init(name: "Skin temp vs your baseline", score: clamp(92 - penalty),
                                weight: 0.10, detail: String(format: "%+.1f °C", temp.value),
                                metric: .skinTemperatureDeviation, higherIsBetter: nil))
         }
