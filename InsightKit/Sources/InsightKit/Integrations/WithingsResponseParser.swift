@@ -49,9 +49,12 @@ public enum WithingsResponseParser {
     }
 
     // The "other measures" capture that used to live here is now
-    // `WithingsMeasureIngestor`, which keeps every measure type — not only the
-    // unmapped ones — along with the group metadata (`attrib`, `category`,
-    // `deviceid`) and the free-text `comment` this could not represent.
+    // `WithingsMeasureIngestor`, which keeps the measure types this map does
+    // *not* promote (it asks `metricType(for:)`, so promoting a new type here
+    // automatically retires its raw copy), plus `attrib`, `category` and the
+    // free-text `comment` this could not represent. Device bookkeeping
+    // (`deviceid`, `algo`, sync stamps) is excluded there — the first export
+    // showed it was ~80 of the 232 rows in Other data.
 
     static func metricType(for withingsType: Int) -> MetricType? {
         switch withingsType {

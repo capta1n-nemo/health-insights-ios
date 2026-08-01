@@ -125,6 +125,27 @@ public struct WithingsMeasureIngestor: PayloadIngestor {
         self.policy = policy
     }
 
+    /// Device metadata the sweep must not turn into "signals".
+    ///
+    /// The first data export showed why this list exists: of the 232
+    /// "unmodelled signals" in the Vitals ▸ Other data browser, **~80 were
+    /// Withings bookkeeping** — a `.algo` and `.fm` row for every measure
+    /// type, record ids, sync timestamps. None is a measurement of a person,
+    /// and together they buried the rows that are (see
+    /// `docs/data-opportunities.md` ▸ "Housekeeping the export exposed").
+    /// Dropped by the same mechanism as the date keys — before the catalogue,
+    /// so they stop being "discovered fields" at all.
+    ///
+    /// `attrib`, `category` and `comment` are deliberately *kept*: the first
+    /// two say whether a reading was measured or typed in, and the comment is
+    /// the user's own words. Those are facts about the measurement, not about
+    /// the sync.
+    static let measureMetadataKeys: Set<String> = ["algo", "fm", "position", "apppfmid"]
+    static let groupMetadataKeys: Set<String> = [
+        "deviceid", "hash_deviceid", "created", "modified", "grpid", "timezone",
+        "apppfmid",
+    ]
+
     public func documents(from payload: IngestPayload) -> [IngestedDocument] {
         guard let root = try? JSONSerialization.jsonObject(with: payload.data) as? [String: Any],
               let body = root["body"] as? [String: Any],
@@ -139,22 +160,34 @@ public struct WithingsMeasureIngestor: PayloadIngestor {
             for measure in (group["measures"] as? [[String: Any]]) ?? [] {
                 guard let type = (measure["type"] as? NSNumber)?.intValue,
                       let value = (measure["value"] as? NSNumber)?.doubleValue else { continue }
+                // A type the typed parser already promotes to a canonical
+                // metric (weight, body fat, blood pressure, …) must not also
+                // arrive here: the same scale reading was showing once in
+                // Vitals and again as `withings.measure.1` in Other data, and
+                // the raw copy can only ever agree with or contradict the
+                // promoted one. Asking the parser's own map — rather than
+                // keeping a second list of type numbers — is what stops the
+                // two drifting when a new type is promoted.
+                guard WithingsResponseParser.metricType(for: type) == nil else { continue }
                 let exponent = (measure["unit"] as? NSNumber)?.doubleValue ?? 0
                 // Path is the bare type number: the endpoint name already
                 // supplies the "measure" namespace, giving `withings.measure.12`.
                 fields.append(FlatField(path: "\(type)",
                                         value: .number(value * pow(10, exponent))))
-                // `algo` / `fm` and any future per-measure metadata.
-                for (key, raw) in measure where !["type", "value", "unit"].contains(key) {
+                // Any future per-measure fields, minus the bookkeeping above.
+                for (key, raw) in measure
+                where !["type", "value", "unit"].contains(key)
+                    && !Self.measureMetadataKeys.contains(key) {
                     guard let scalar = RawValue(json: raw) else { continue }
                     fields.append(FlatField(path: "\(type).\(key)", value: scalar))
                 }
             }
 
-            // Group-level metadata: attrib, category, deviceid, and `comment`,
-            // which is free text and previously had nowhere to go.
-            let rest = JSONFlattener.flatten(group, policy: policy,
-                                             skipping: ["date", "measures"])
+            // Group-level fields worth keeping: attrib, category, and
+            // `comment`, which is free text and previously had nowhere to go.
+            let rest = JSONFlattener.flatten(
+                group, policy: policy,
+                skipping: Set(["date", "measures"]).union(Self.groupMetadataKeys))
             fields += rest.fields
             skipped += rest.skipped
 

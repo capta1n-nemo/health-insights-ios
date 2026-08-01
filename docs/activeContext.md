@@ -30,18 +30,38 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The load-performance session (latest).** Two pushes squashed to one deploy,
-`c0028f2`, CI green, installed. "Work on load performance, fix bugs, best
-judgment": the two items taken were the roadmap's own top two — the
-cold-launch cache decode (see "Immediate next steps", now closed there: JSON
-→ `SampleCacheCodec`, 965 ms → 4–6 ms on the benchmark shape, with a
-free one-way migration) and gap 18 (Sleep's nine coefficients written twice,
-now one `SleepInsight.Weight` table both the score and the contributors
-read). Full suite 878 tests green before the push. Not yet seen on the
-phone: launch should feel visibly faster on second-and-later cold starts —
-the first launch after this update still reads the legacy JSON once. The
-handover efficiency review has not run yet this session; the docs here and
-in `progress.md`/`card-sections.md` are current as of the push.
+**The load-performance session (latest).** First half: `c0028f2`, CI green,
+installed. "Work on load performance, fix bugs, best judgment": the two items
+taken were the roadmap's own top two — the cold-launch cache decode (see
+"Immediate next steps", now closed there: JSON → `SampleCacheCodec`,
+965 ms → 4–6 ms on the benchmark shape, with a free one-way migration) and
+gap 18 (Sleep's nine coefficients written twice, now one `SleepInsight.Weight`
+table both the score and the contributors read). Not yet seen on the phone:
+launch should feel visibly faster on second-and-later cold starts — the first
+launch after this update still reads the legacy JSON once.
+
+Second half, on "complete roadmap and look for high value for users and UX":
+the two buildable items from `docs/data-opportunities.md`, taken in its own
+ranking. **Item #1 — exercise minutes now score Fitness** (`ActivityDoseModel`:
+the trailing week against WHO 2020's 150–300 min band; the first term on that
+card about what the reader *does* this week rather than where their VO₂max
+sits). New `MetricType.exerciseMinutes` through all eight switches +
+`bucketStatistic`/`plausibleRange`; HealthKit promotes `appleExerciseTime` out
+of the raw pile; Fitness primary pool rebalanced to level 0.55 / trajectory
+0.25 / dose 0.20 exactly as that doc proposed, renormalising to within a point
+of the old 0.7/0.3 when no dose exists. **And the Withings housekeeping** —
+bookkeeping fields and already-promoted numbered measures excluded at ingest
+(~80 of the export's 232 "unmodelled signals"); the ingestor asks the typed
+parser's own map so promoting a type retires its raw copy automatically.
+Device checks for the phone: Fitness should show "N min of exercise this week"
+as a driver and in "What goes into this" at 16%; Vitals ▸ Other data should
+roughly halve after the next Withings sync; a new Exercise Minutes row appears
+under Activity. What was *not* buildable from here, so the roadmap's remaining
+open items stand: device-only verification, provider credentials
+(Hume/Ultrahuman/Garmin/Fitbit), the deferred Body Composition scan entry
+(ARKit), the crowd-norms privacy decisions, and the audio-exposure tenth card
+(needs the user to want a card about hearing — see data-opportunities #2).
+The handover efficiency review has not run yet this session.
 
 **The sources-and-scoring session (previous).** One push, `bff6390`, CI green,
 installed. The user asked for a sweep of all nine cards: *how are the sources

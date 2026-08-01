@@ -21,7 +21,7 @@ no published bands can still raise an honest flag.**
 
 | # | Signal | Card | Scored? | Published basis |
 |---|---|---|---|---|
-| 1 | Apple Exercise Time (7,352) | Fitness | **yes** | WHO 2020: 150–300 min/week moderate, with a stated dose–response. Apple's "exercise minute" *is* the moderate-intensity definition. |
+| 1 | ~~Apple Exercise Time (7,352)~~ **built 2026-08-01** | Fitness | **scored** | WHO 2020: 150–300 min/week moderate, with a stated dose–response. Apple's "exercise minute" *is* the moderate-intensity definition. Now `MetricType.exerciseMinutes` + `ActivityDoseModel` (weekly, missing-days-as-zero behind a 3-recorded-day floor), 0.20 of Fitness's primary pool per the rebalance below. |
 | 2 | Audio exposure, environmental + headphone (19,091) | **none exists** | yes | WHO-ITU H.870, NIOSH 85 dBA/8 h. The strongest basis in the set — a dose *is* a 0–100 by construction. |
 | 3 | Breathing disturbance index (Oura) | Sleep | no | None. Oura publishes no validated BDI→AHI conversion; AASM's bands are defined on polysomnography, not a ring. |
 | 4 | Sleep latency (median 10.5 min) | Sleep | **yes** | Ohayon 2017 (NSF consensus): ≤15 min appropriate, 16–30 uncertain, >30 inappropriate — the same consensus family the efficiency term already uses. |
@@ -89,13 +89,19 @@ what the two models value, and the user should see either.
 
 ## Housekeeping the export exposed
 
-- **~80 of the 232 "unmodelled signals" are Withings device metadata** —
-  `.algo`, `.fm`, `.position`, `.apppfmid`, `deviceid`, `created`, `modified`,
-  `grpid`, `timezone`. Plus the numbered measures (`measure.1` = weight,
-  `.5` = lean, `.6` = fat %, `.76` = muscle, `.77` = water, `.88` = bone) which
-  **duplicate metrics the typed parser already promotes**. An exclusion list at
-  ingest would cut the catalogue roughly in half and shrink both the store and
-  the export.
+- ~~**~80 of the 232 "unmodelled signals" are Withings device metadata**~~ —
+  **excluded at ingest 2026-08-01.** `WithingsMeasureIngestor` now drops the
+  bookkeeping (`algo`, `fm`, `position`, `apppfmid`, `deviceid`,
+  `hash_deviceid`, `created`, `modified`, `grpid`, `timezone`) and the numbered
+  copies of types the typed parser already promotes — it asks
+  `WithingsResponseParser.metricType(for:)`, so promoting a new type retires
+  its raw copy automatically. `attrib`, `category` and `comment` are kept:
+  facts about the measurement, not the sync. The two promotion rules aimed at
+  numbered measures (`measure.12`, `measure.4`) target *unmapped* types, so
+  both still fire — checked before shipping, because a rule whose field stops
+  surviving ingest fails silently. Old rows leave the store on the next
+  Withings sync (the cache merge replaces a returning source's samples
+  wholesale); the catalogue keeps them as history.
 - **`withings.measure.9/10/11` are diastolic / systolic / heart rate** from the
   BPM — a real, unmodelled blood-pressure source, though only ~31 records.
 - **559,251 readings.** The hydration work in session 12 was measured against a

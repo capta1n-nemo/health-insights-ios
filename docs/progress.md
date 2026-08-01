@@ -789,6 +789,31 @@ not weighted, when almost every score should be weighted"*.
 
 ## Next
 
+### From the data-opportunities ranking (2026-08-01, second half)
+
+- [x] **#1 — Exercise minutes score Fitness.** `MetricType.exerciseMinutes`
+      (HealthKit's `appleExerciseTime`, promoted out of the raw pile) feeds
+      `ActivityDoseModel`: the trailing week's minutes against WHO 2020's
+      150–300 min moderate-activity band — the one activity signal with a
+      published dose, because Apple's exercise minute *is* the guideline's
+      moderate-intensity definition. Weekly, never daily (the guideline says
+      nothing about spread, so `.exerciseMinutes` deliberately has no daily
+      `referenceRange`); missing days count as zero behind a 3-recorded-day
+      floor, so a barely-worn watch returns "can't judge" rather than a damning
+      number. Fitness's primary pool rebalanced to level 0.55 / trajectory
+      0.25 / dose 0.20 as `docs/data-opportunities.md` proposed; with no dose
+      data the other two renormalise to within a point of the old 0.7/0.3, so
+      a watchless profile sees the number it saw yesterday. 8 tests
+      (`ActivityDoseTests`), including the primary-term-beats-supporting
+      dedup and the two-devices-don't-double-count case.
+- [x] **Housekeeping — Withings bookkeeping excluded at ingest.** ~80 of the
+      export's 232 "unmodelled signals" were `.algo`/`.fm`/sync-stamp noise
+      plus numbered copies of measures the typed parser already promotes.
+      `WithingsMeasureIngestor` now drops both — asking
+      `WithingsResponseParser.metricType(for:)` so the exclusion can't drift —
+      and keeps `attrib`, `category`, `comment`. Both promotion rules aimed at
+      numbered measures target unmapped types and still fire.
+
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.
 

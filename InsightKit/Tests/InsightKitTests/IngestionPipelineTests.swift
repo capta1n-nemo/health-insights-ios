@@ -255,11 +255,18 @@ final class IngestionPipelineTests: XCTestCase {
 
     // MARK: Withings
 
-    func testWithingsMeasuresKeepEveryTypeAndTheirMetadata() {
+    /// This test used to pin the opposite: every measure type, metadata and
+    /// all. The first data export reversed that — ~80 of its 232 "unmodelled
+    /// signals" were Withings bookkeeping, and the numbered copies of
+    /// already-promoted types could only agree with or contradict the Vitals
+    /// row for the same reading.
+    func testWithingsMeasuresKeepDataAndDropBookkeeping() {
         let json = """
         {"status":0,"body":{"measuregrps":[
-          {"date":1736500000,"category":1,"comment":"after run","measures":[
-            {"value":365,"type":12,"unit":-1},
+          {"date":1736500000,"category":1,"comment":"after run",
+           "deviceid":"abc123","grpid":9812734,"created":1736500100,
+           "modified":1736500100,"timezone":"Europe/London","measures":[
+            {"value":365,"type":12,"unit":-1,"algo":3,"fm":131},
             {"value":70,"type":1,"unit":0}
           ]}
         ]}}
@@ -269,13 +276,26 @@ final class IngestionPipelineTests: XCTestCase {
             [payload(json, source: .withings, endpoint: "measure")], into: &catalogue)
         let byID = Dictionary(uniqueKeysWithValues: result.raw.map { ($0.identifier, $0.value) })
 
-        // Both types, not only the unmapped one, and the exponent is applied.
+        // An unmapped type survives with its exponent applied, and its
+        // promotion rule still fires — the rule reads this raw field, so
+        // dropping it here would break the promotion silently.
         XCTAssertEqual(byID["withings.measure.12"], .number(36.5))
-        XCTAssertEqual(byID["withings.measure.1"], .number(70))
-        // Free text that the old Double-only raw layer had nowhere to put.
-        XCTAssertEqual(byID["withings.measure.comment"], .text("after run"))
-        // Type 12 has a rule mapping it to body temperature.
         XCTAssertTrue(result.promoted.contains { $0.type == .bodyTemperature })
+        // A type the canonical parser promotes (1 = weight) must NOT also
+        // arrive raw: the same reading was showing once in Vitals and again
+        // in Other data.
+        XCTAssertNil(byID["withings.measure.1"])
+        // Facts about the measurement stay: attrib/category semantics and the
+        // user's own words.
+        XCTAssertEqual(byID["withings.measure.comment"], .text("after run"))
+        XCTAssertEqual(byID["withings.measure.category"], .number(1))
+        // Bookkeeping about the sync does not.
+        for gone in ["withings.measure.deviceid", "withings.measure.grpid",
+                     "withings.measure.created", "withings.measure.modified",
+                     "withings.measure.timezone", "withings.measure.12.algo",
+                     "withings.measure.12.fm"] {
+            XCTAssertNil(byID[gone], "\(gone) is device metadata, not a signal")
+        }
     }
 
     // MARK: Robustness
