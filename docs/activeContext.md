@@ -30,7 +30,110 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The charts-on-the-phone session (latest).** Fifteen pushes, all installed. It
+**The Phase-2 session (latest).** One push, `dc5fae6`, CI green. "Continue with
+roadmap" — the open list was read back and the four buildable Phase 2 items were
+taken, plus a fifth the user added on reading the plan. Body Composition's scan
+entry was **deferred by the user** to its own session.
+
+### One defect, three times: a number that dies at a string boundary
+
+This is the finding worth carrying, because it is a *class* and the codebase
+almost certainly has more of it.
+
+- `PeerStandingModel` computes a centile. `HeartHealthScore.swift:219-226` turns
+  each one into `"HRV 48 ms — top 25% for your age and sex"` and the number is
+  never seen again.
+- `HeartAgeAnalyser` fills `Analysis.projections` (`:146`).
+  `CardiovascularRiskInsight.swift:186` reads four *other* fields off that local
+  and lets it fall out of scope. Worse: the analyser's own `explanation()`
+  (`:273`) writes *"The projections below run the same validated equations at
+  future ages"* — and that function has **no production caller at all**, only
+  `DeepDiveTests` and `HeartAgeTests`. A promise nobody could see being broken.
+- `VO2Trajectory.projectedIn12Months` and `.residualSD` — the latter described in
+  its own doc comment as "the honest ± on the forecast" — were read nowhere
+  outside `CardioTrajectory.swift`.
+
+**How to find the next one**: grep a model's `Output` for a public field, then
+grep the app target for its name. `InsightResult` has no typed side-channel, so
+anything not in `contributors`, `driverLines`, `score` or `headline` reaches the
+screen only if some view calls the model directly — and mostly nothing does.
+
+### Two threshold tables that could have drifted, and now cannot
+
+Both are the `PressureBandTests` situation, and both were fixed by making the
+duplicate impossible rather than by testing that two copies agree.
+
+- `PeerStandingModel.Standing.phrase` held the edges 90 / 75 / 60 / 40 / 25
+  inline. A strip that *shades* those bands has to read the same numbers.
+  `PeerStandingModel.Band` owns them now; `phrase` reads it.
+- The vitals scan's `watchZ` / `unusualZ` moved into `VitalDeparture`, and
+  **`VitalSignsCheck.reading` now calls `VitalDeparture.band(z:concerning:)`**.
+  One implementation, not two that agree today.
+
+**And the strip's band is `Reading.status`, not a re-derivation from z.** Two
+reasons, both real:
+- **Direction matters.** `Spec.concernWhenHigh`/`concernWhenLow` mark the
+  clinically meaningful way round. Colouring by `abs(z)` would paint a resting
+  heart rate two SD *below* baseline — the best morning of the month — in the
+  same red as the worst.
+- **An absolute bound overrides a personal one.** A reading can be `.unusual` at
+  a small z. `VitalDeparture.isBeyondClinicalBound` is derived by asking whether
+  the z alone would have produced that band, and it exists because a red dot
+  near the middle of the axis with no explanation reads as a rendering fault.
+
+### The chrome rule is a compile error now, not a convention
+
+`InsightSection` (over `Card`) and `NestedInsightSection` carry title, at most
+one figure, content, caveat. **`caveat` has no default**, so a section cannot be
+written without stating one and `.none` is a visible choice.
+
+That is the compounding shape the efficiency log keeps asking for: it retires the
+*category* — "a section can ship without saying it inferred" — rather than the
+eight instances, and it needs no lint because the compiler is the gate. The old
+convention was followed by four sections out of twelve.
+
+What it replaced, measured by reading every section: footnote colour split three
+ways for one job (`.tertiary`, `.secondary`, `Theme.warn`), four header fonts,
+inner spacings of 8 / 10 / 12 with no rule, and **one trailing slot that changed
+quantity under a fallback** — a kilogram delta, or a count of weigh-ins, same
+position, nothing to tell them apart.
+
+Moving the wording into `SectionCaveat` (InsightKit, tested) immediately caught
+two shipped defects: the body-composition caption opened *"Height is your
+weight"*, and pluralised *"across 1 weigh-ins"*.
+
+### "View & add" claimed an anatomy it did not have
+
+Its own doc comment said "the anatomy is fixed whatever the route". Read against
+the code: blood pressure had a grounded summary and the other two did not; the
+grounding-facts route had **no add button at all**, so its rows were the only way
+in; the "all readings" link appeared only past three readings, so the screen was
+unreachable exactly while a user was learning the feature; and all three routes
+previewed their own contents on the card.
+
+Now everywhere: header and figure, green grounded summary, one prominent button
+into the sub-menu holding adding *and* what was added, and a link to the fuller
+screen **where one exists past it**. No previews — readings, events and fact
+values all moved behind the button (`GroundingDetailView` is new for the facts).
+
+Two decisions to keep: the link is blood-pressure-only, because
+`SubstanceLogView` and the grounding list already *are* the full view and two
+controls pointing at one destination is what this section exists to remove; and
+`ContributionSummary.bloodPressure` **defers to `CalibrationStatus`** rather than
+forming a second opinion on whether it is calibrated.
+
+### The gate that did not need to fire
+
+`progress.md` had carried "**Do this first**: ask the user for the data
+inventory" on Phase 2 for several sessions. It gated nothing, and the reason
+generalises: **every remaining item drew output a model was already computing**,
+so "does the data exist" was answered by the model producing a value at all.
+Each section self-gates on its own floor, which is what every existing section
+does — so a card with nothing to show doesn't draw it, and nothing had to be
+decided in advance. Same shape as *"this needs a product decision" is a claim
+about the implementation*.
+
+**The charts-on-the-phone session (previous).** Fifteen pushes, all installed. It
 began as "here is a fresh inventory" and became a long iterate-on-the-phone loop
 over the Body Composition card. What it produced, and what it cost, are both
 worth reading before touching a chart here.

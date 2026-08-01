@@ -437,13 +437,16 @@ The Vitals Check fix, applied everywhere it was also true.
       unmodelled fields nobody working on the app has ever seen.
 
 ### Card consistency, Phase 2 — the remaining unique sections
-**Not started.** Now over nine cards rather than seventeen, and three of its
-original items became sections of the merged cards instead of cards of their
-own. The audit is in `docs/card-sections.md` ▸ "Still open".
+**Done 2026-08-01 (`dc5fae6`), bar the Body Composition scan entry, which the
+user deferred to a later session.**
 
-**Do this first**: ask the user for the data inventory. Which of the remaining
-sections is worth building is a question about what data exists, and that is now
-answerable rather than guessable.
+The "ask for the data inventory first" note that used to head this section did
+not end up gating anything, and the reason generalises: **every remaining item
+drew output a model was already computing**, so "does the data exist" was
+answered by the model producing a value at all. Each new section self-gates on
+its own data floor, which is what every existing section already does — so a
+card with nothing to show simply doesn't draw it, and no inventory was needed to
+decide that in advance.
 
 - [x] **Three cards still have no bespoke section**: Heart Health, Body
       Composition, Readiness. **Done** — all nine cards now have one.
@@ -462,17 +465,113 @@ answerable rather than guessable.
       a block would count the same kilograms twice. A scale that disagrees with
       itself (muscle + bone > lean) collapses to one undivided lean block rather
       than drawing a bar that sums past the person's weight.
-- [ ] **Heart Health** could also carry the percentile standings it absorbed,
-      which it currently states only as sentences.
+- [x] **Heart Health carries the percentile standings it absorbed** (`dc5fae6`).
+      `PeerStandingStrip` — one row per metric, a 0–100 axis, the "around
+      average" band picked out, one dot. **Deliberately not a distribution
+      curve**: `PeerStandingModel` states in its own doc comment that these are
+      normal approximations to *published summary statistics*, and the sources
+      give means and spreads, not curves — drawing the bell claims a
+      distribution nobody has.
+
+      The extraction that made it safe: `Standing.phrase` held the bucket edges
+      90 / 75 / 60 / 40 / 25 inline, and a strip that *shades* those bands has to
+      read the same numbers or the picture and the sentence beside it drift.
+      `PeerStandingModel.Band` now owns them, `phrase` reads it, and
+      `PeerStandingBandTests` sweeps 0–100. Same shape as `PressureBandTests`.
 - [ ] **Body Composition** — the **"view & add" scan entry** the user asked for
-      (a fourth `ContributionRoute`). The composition split half is done, above,
-      and now carries a stacked-area history (`BodyCompositionTrendChart`) with a
-      per-band change row, an axis fitted to the window's peak weight, and water
-      drawn as a diagonal hatch over the muscle band.
-- [ ] **Readiness** — a z-score strip over the vitals it now scans.
-- [ ] The risk card and Fitness both compute projections nothing draws.
-- [ ] The two chrome rules — caveat footnotes and header trailing stats —
-      applied once, across the new sections and the old ones together.
+      (a fourth `ContributionRoute`). **Deferred by request 2026-08-01** to a
+      later session. Worth knowing before picking it up: the capture it would
+      point at is the camera + LiDAR body scan, which is deliberately a roadmap
+      note rather than a build and is ARKit, so nothing about it can be
+      exercised from a sandbox. The composition split half is done, above, and
+      carries a stacked-area history (`BodyCompositionTrendChart`).
+- [x] **Readiness — a z-score strip over the vitals it scans** (`dc5fae6`).
+      `VitalDepartureStrip`, one row per fresh vital on a shared
+      distance-from-baseline axis. The scan judges up to seventeen signals and
+      reached the card as seventeen sentences; on an ordinary day sixteen say
+      "in your normal range", so finding the one that doesn't was counting.
+
+      **The band a row is drawn in *is* `Reading.status`, not a re-derivation.**
+      Two things make that necessary rather than tidy. Direction matters — a
+      resting heart rate two SD *below* baseline is good news, and colouring by
+      `abs(z)` would paint the best morning of the month in the worst red. And
+      an absolute clinical bound overrides a personal one, so a reading can be
+      `.unusual` at a small z; `isBeyondClinicalBound` marks those, because a red
+      dot in the middle of the axis with no explanation reads as a rendering
+      fault. The thresholds themselves moved into `VitalDeparture` and
+      `VitalSignsCheck.reading` now calls it, so there is one implementation
+      rather than two that agree today.
+
+      Vitals with no baseline and vitals that are stale **leave the axis** and
+      become the caveat. A mark at the origin would say "measured, and
+      ordinary", which is the opposite of "we could not judge this" — the same
+      decision `weightedContributionCard` already makes for weight-0 rows.
+- [x] **Both projections are drawn** (`dc5fae6`). The risk card's was the
+      starker case: `HeartAgeAnalyser` fills `Analysis.projections`,
+      `CardiovascularRiskInsight` reads four other fields off that value and
+      lets it fall out of scope — and the analyser's own `explanation()` writes
+      *"The projections below run the same validated equations at future ages"*.
+      There was no section below, and that function has no production caller at
+      all (only `DeepDiveTests` and `HeartAgeTests`), so it was a promise nobody
+      could even see being broken.
+
+      Framing preserved exactly as recorded: **"if today's numbers hold"**,
+      never a lifetime figure, and a capped engine says "79 or older" rather
+      than printing an extrapolated number.
+
+      Fitness draws `projectedIn12Months` with `residualSD` as a band —
+      described in its own doc comment as "the honest ± on the forecast" and
+      read by nothing outside `CardioTrajectory.swift`. The whole chart is
+      dashed, because none of it was measured; the single solid point is today's
+      smoothed value, which is. The band is `AreaMark(x:yStart:yEnd:)`, which
+      takes no `stacking:`.
+- [x] **The two chrome rules, applied once** (`dc5fae6`). `InsightSection` over
+      `Card` — title, at most one figure, content, caveat — and
+      `NestedInsightSection` for a second picture inside one bespoke slot.
+
+      **`caveat` has no default**, so omitting it is a compile error and `.none`
+      is a choice somebody made. That is the compounding half: it retires the
+      *category* rather than the eight instances, and needs no lint because the
+      compiler is the gate. What it replaced: footnote colour split three ways
+      for one job (`.tertiary`, `.secondary`, `Theme.warn`), four header fonts,
+      inner spacings of 8 / 10 / 12 with no rule, and a footnote *presence* that
+      was arbitrary — "What comes first", a lag fitted through however many days
+      two series happen to overlap on, was the most inferential claim on the
+      screen and the only one with no caveat at all.
+
+      **One slot, one quantity.** The body-composition trend's trailing figure
+      showed a kilogram delta *or* a count of weigh-ins, in the same position,
+      with nothing to tell a reader which. The count moved into the caveat.
+
+      The wording lives in `SectionCaveat` in InsightKit: the app target has no
+      test target and the wording is the honesty claim, so it is the part that
+      can actually be wrong. Two defects it caught on the way in — the
+      body-composition caption opened *"Height is your weight"*, and pluralised
+      "across 1 weigh-ins".
+- [x] **"View & add" has the one anatomy it already claimed to have**
+      (`dc5fae6`, asked for this session). Its doc comment said "the anatomy is
+      fixed whatever the route" and it was not: blood pressure had a grounded
+      summary and the other two did not, the grounding-facts route had **no add
+      button at all** (its rows were the only way in), the "all readings" link
+      appeared only past three readings — so the screen was unreachable exactly
+      while a user was learning the feature — and all three routes previewed
+      their own contents on the card.
+
+      Now, everywhere: header and figure, a green grounded / not-grounded
+      summary, one prominent button into the sub-menu that holds adding *and*
+      what was added, and a link to the fuller screen where one exists past it.
+      **No previews** — the three readings, the three events and the fact values
+      all moved behind the button, into `GroundingDetailView` for the facts.
+
+      Two decisions worth keeping. The link is present only on blood pressure,
+      because it is the only route with somewhere further to go (the sheet takes
+      a reading; the metric screen holds the dated history, the chart and the
+      calibration detail). `SubstanceLogView` and the grounding list already
+      *are* the full view, and two controls pointing at one destination is the
+      thing this section was built to remove. And `ContributionSummary` computes
+      the grounded state in InsightKit, where blood pressure **defers to
+      `CalibrationStatus`** rather than forming a second opinion on whether it is
+      calibrated — that type owns the five-then-two rule and its wording.
 
 ## In progress / not yet device-verified
 - [ ] **Phase 1 of the card-consistency work** (`42efe4c`, installed). The

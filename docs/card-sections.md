@@ -42,17 +42,22 @@ Its `body` is a fixed sequence. Nothing is per-insight except the gates.
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
-| Insight | Tab | `Hdr` | `Drv` | `V&A` | bespoke | `ScrHx` | `Goes` | `Patt` | `1st` | `Chg` | `Hist` | `Fbk` | `Disc` |
+| Insight | Tab | `Hdr` | `Drv` | `V&A` | bespoke (+ nested) | `ScrHx` | `Goes` | `Patt` | `1st` | `Chg` | `Hist` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ◐ | ○ | ◐ "How this is weighted" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Readiness | Today | ● | ◐ | ○ | ◐ "How this is weighted" **+ "How far from your normal"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Sleep | Today | ● | ◐ | ○ | ◐ "Your fortnight" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Energy | Today | ● | ◐ | ○ | ◐ "Today" curve | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Substance Impact | Today | ● | ◐ | ● | ◐ "Cardiovascular load" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Heart Health | Insights | ● | ◐ | ● | ◐ "How this is weighted" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Fitness | Insights | ● | ◐ | ● | ◐ "Fitness age over time" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ◐ | ● | ◐ "Heart age over time" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Heart Health | Insights | ● | ◐ | ● | ◐ "How this is weighted" **+ "How you compare"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Fitness | Insights | ● | ◐ | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ◐ | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
 | Blood Pressure | Insights | ● | ◐ | ● | ◐ "Your readings" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
-| Body Composition | Insights | ● | ◐ | ● | ◐ "What you're made of" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+| Body Composition | Insights | ● | ◐ | ● | ◐ "What you're made of" + "How that has changed" | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ◐ | ● |
+
+**The bespoke slot is still one slot.** Five cards now draw two things in it,
+separated by a `Divider()` and wrapped in `NestedInsightSection` — the pattern
+Body Composition established. A second *top-level* section would have needed a
+second placement rule, and the one placement rule is the thing Phase 1 bought.
 
 **Ten of the twelve sections are uniform across all nine cards.** The two that
 are not:
@@ -149,11 +154,35 @@ different bodies. Unchanged by the consolidation.
    all nine cases are now named: making it exhaustive would add a sixth
    build-breaking switch over `InsightID`, which `activeContext.md` singles out
    as the most expensive way to add a feature here.
-8. **Caveat footnotes and header trailing stats are ad-hoc.** Deferred so the
-   rule is applied once, across new and old sections together.
+8. ~~**Caveat footnotes and header trailing stats are ad-hoc.**~~ **Closed
+   2026-08-01** (`dc5fae6`). Every section now goes through `InsightSection`
+   (or `NestedInsightSection`), which carries the title, at most one figure and
+   the caveat, at one spacing and one footnote colour.
+
+   **The rule is enforced by the compiler, not by a convention.** `caveat` has
+   no default value, so a section cannot be written without stating one and
+   `.none` is a visible choice. The previous convention was followed by four
+   sections out of twelve, and the one it was skipped on — "What comes first",
+   a correlation at a lag fitted through however many days two series overlap
+   on — was the most inferential claim on the screen.
+
+   The words are `SectionCaveat`, in InsightKit, with tests. Two defects fell
+   out of moving them there: the body-composition caption opened *"Height is
+   your weight"*, and it pluralised "across 1 weigh-ins".
+
+   The trailing slot now carries **one quantity**. It used to show a kilogram
+   delta *or* a count of weigh-ins in the same position on the same card.
 9. **Two presentation flags no view consults** —
    `MetricPresentation.allowsTimeframeSelection` and `.showsChart` are read only
    by `PresentationTests`.
+10. **Body Composition's "view & add" scan entry** — a fourth
+   `ContributionRoute`. Deferred by the user on 2026-08-01 to its own session.
+   The capture it points at is the camera + LiDAR body scan, which is
+   deliberately a roadmap note and is ARKit, so it cannot be exercised from a
+   sandbox at all. Adding the case touches `ContributionRoute`, the exhaustive
+   switch in `ViewAndAddSection.section(for:)`, an override on
+   `BodyCompositionInsight` returning *two* routes, and the skip list in
+   `ContributionRouteTests.testGroundingFactsAreDerivedFromTheModelsOwnRequirements`.
 
 ---
 
