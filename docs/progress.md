@@ -622,6 +622,18 @@ not weighted, when almost every score should be weighted"*.
       `EnergyModel.Output.terms`, beside the coefficients.
 - [x] **"Charted, not scored" is a named list, not a count.** Fitness has five
       and Readiness eleven, and *which* is the question a count cannot answer.
+- [x] **Then the weight-0 rule itself was reversed** (`3f74f06`, installed), at
+      the user's direction after reading the above on the phone. Everything a
+      card charts carries a share; supporting signals are judged against the
+      reader's own baseline — the mapping `ReadinessScore` already uses — and
+      share `SupportingSignal.collectiveShare` (20%) between them, so the
+      primary measurement still decides what the card says. Three exceptions
+      survive and each states its reason on its own row, enforced by
+      `testAnUnweightedRowAlwaysSaysWhy`. Height left Body Composition's inputs
+      rather than earning a weight: a static attribute with no series has no
+      honest bar. See `docs/card-sections.md` ▸ "Everything charted carries a
+      share" for the per-card numbers, and `docs/activeContext.md` for why the
+      original rule could not support the work it was doing.
 
 ## In progress / not yet device-verified
 

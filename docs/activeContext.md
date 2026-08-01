@@ -36,6 +36,48 @@ contributing to the score, and how are they reflected in each section?* — with
 two specific complaints, both of which turned out to be right about more cards
 than they named.
 
+### The rule that was reversed, and why the reversal is the interesting part
+
+The session ran in two halves and the second overturned the first. After the
+weighting work below shipped, the user read it and said: **"Everything that is
+in 'what goes into this' should go into the overall score. That's the whole
+point of that section, and the weighting should just be a list of things that
+all have a weight, even if some are very low."**
+
+That overrides a rule argued at length in three files — *an invented weight
+inside a number the user is asked to trust is worse than none* — and the rule is
+**still correct about what it actually says**. What it could not support is the
+work it was being used for. It argues against *inventing* a weight; it was being
+used to justify *not attributing* one. Those are different claims, and the gap
+between them shipped as a section headed "What goes into this" listing seven
+signals on Fitness of which one went into anything, and eleven on Readiness of
+which none did.
+
+**Same shape as "that technique has a fatal flaw" is not "this is impossible"**,
+already in this file from an earlier session. Worth generalising once more:
+*when a principle is doing load-bearing work, check that the thing it forbids is
+the thing you are declining to do.*
+
+Nothing had to be invented to fix it. The app has known how to judge a signal it
+has no published scale for since `VitalSignsCheck` was written — direction-aware
+departure from the reader's own normal — and `ReadinessScore` weights every one
+of its own components with exactly that mapping. `SupportingSignal.score` is
+that function, extended with the case where neither direction is the good one.
+Weaker evidence earns a **smaller** weight, not a zero one:
+`SupportingSignal.collectiveShare` is 20%, one constant, and it is the whole of
+the judgement — VO₂max keeps 80% of Fitness against six supporting signals at
+about 3% each, so no combination of them turns "Excellent" into "Needs work".
+
+**Three exceptions survive and each states its reason on its own row**, enforced
+by `testAnUnweightedRowAlwaysSaysWhy` — which found three bare zeroes on the
+risk card while being written. Two of them are one category: *the signal feeds a
+different number on this card* (VO₂max and vascular age feed heart age, not
+SCORE2; the autonomic pair feeds the estimator, which is not what the dial
+reads). The third is a signal that moved the way you'd want it to. **Height left
+Body Composition's inputs entirely** rather than earning a weight: it is a static
+attribute with no series and nothing that can change between two readings, and
+the only honest label for its bar would be "this cannot change".
+
 ### "Not a weighted average" was true on one card out of four
 
 The section said it on Cardiovascular Risk, Blood Pressure, Substance Impact and

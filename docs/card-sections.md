@@ -264,28 +264,65 @@ claiming a basis nobody chose for it, and
 `ScoreAttributionTests.testEveryScoringCardStatesHowItsNumberIsFormed` stops a
 card going back to having a number and no account of it.
 
-### The second group: charted, not scored
+### Everything charted carries a share — the weight-0 rule, reversed
 
-The section draws **two** groups now. Below the bars, every signal the card
-reads that carries no share of the number, **named**. It was a count in the
-caveat — "5 signals tracked, not scored" — which cannot answer the question a
-reader has, which is *which*. Fitness has five and Readiness eleven.
+_Set by the user 2026-08-01, **after** seeing the version above ship:_ **"Everything
+that is in 'what goes into this' should go into the overall score. That's the
+whole point of that section, and the weighting should just be a list of things
+that all have a weight, even if some are very low."**
 
-Two different things land there and both belong:
+This reverses a rule argued at length in three files. The argument was that an
+invented weight inside a number the user is asked to trust is worse than none —
+and it is sound *against inventing one*. It never justified what it was actually
+producing: a section headed "What goes into this" listing seven signals on
+Fitness of which one went into anything, and eleven on Readiness of which none
+did.
 
-- **Signals with no validated 0–100 curve.** `dayStrain`, heart-rate recovery,
-  walking heart rate. Unchanged policy: an invented weight inside a number the
-  user is asked to trust is worse than none.
-- **References the score is measured *against* rather than moved by.** Height on
-  Body Composition (the only thing on that card that cannot change between two
-  readings), resting heart rate on Energy (the line exertion is counted above),
-  and the cuff readings on Blood Pressure's estimate route (the fit's
-  calibration, not today's input).
+**Nothing is invented.** The app has always known how to judge a signal it has
+no published scale for — direction-aware departure from the reader's own normal
+— and has done it for seventeen vitals since `VitalSignsCheck` was written.
+`SupportingSignal.score` is the identical mapping `ReadinessScore` weights every
+one of its components with, extended with the case where neither direction is
+the good one. Weaker evidence earns a **smaller** weight, not a zero one.
 
-Plus, on the risk card, a factor **already at or better than its optimal value**
-— which arrives at weight 0 and stays on screen, because "your cholesterol is
-carrying none of your risk" and "we didn't look at your cholesterol" are
-opposite statements and a row missing says the second.
+`SupportingSignal.collectiveShare` is 20%, in one place, and it is the whole of
+the judgement: enough that a signal visibly moves the number, small enough that
+the card's primary measurement still decides what the card says. On Fitness,
+VO₂max keeps 80% against six supporting signals at about 3% each, and no
+combination of them turns "Excellent" into "Needs work".
+
+`ScoreBlend.blend` is the shared arithmetic — renormalise each group, multiply,
+sum — because adding a second group of terms to five cards separately is five
+places for the weights to stop summing to one, which is the claim the section
+makes on screen. A metric in both groups keeps its primary term, so a signal
+weighed on a published scale is never weighed again against its own baseline.
+
+**A card with nothing supporting is unchanged.** The 20% is only carved out when
+there is something to put in it, so a reader with no wearable sees the number
+they saw yesterday.
+
+### The three exceptions, and what they have in common
+
+Every remaining unweighted row **says why on the row itself**, and
+`ScoreAttributionTests.testAnUnweightedRowAlwaysSaysWhy` enforces it across
+every card. It found three bare zeroes on the risk card while being written.
+
+| Card | Row | Why it has no share |
+|---|---|---|
+| Heart Attack & Stroke Risk | VO₂max, vascular age | SCORE2 and ASCVD have **no term** for fitness; a provider's vascular age is a second opinion reported beside ours rather than folded in |
+| Blood Pressure (cuff routes) | resting HR, HRV | they feed the estimator, and the estimator is not what the dial is reading |
+| Substance Impact | a signal that moved the welcome way | it took nothing off |
+| Heart Attack & Stroke Risk | a factor at or better than optimal | it is carrying none of your risk — which is good news, and "carrying none" and "not looked at" are opposite statements |
+
+The first two are the same shape: **the signal feeds a different number on this
+card.** That is a real category and not a dodge — a weight for either would be
+claiming an input the published equations do not have.
+
+**Height left the card rather than earning a weight.** It is a static attribute
+— the app already gives it a plain value card with no chart — so it is neither a
+series to draw nor a thing that can change between two readings. It enters
+through BMI and is named in the drivers. The only honest label for its bar would
+be "this cannot change".
 
 **Age and sex are marked with a lock.** They carry the risk card's largest share
 and are the one row nobody can act on; ranked silently beside cholesterol the
@@ -329,25 +366,33 @@ invalidates.
 _Read out of the models 2026-08-01. `ScoreWeighting` is the model's own
 statement; the shares are what "How this is weighted" draws._
 
-| Insight | `weighting` | Where the shares come from | Charted, not scored |
+| Insight | `weighting` | Primary (80%) | Supporting (20%, shared) |
 |---|---|---|---|
-| Readiness | `weightedAverage` | six fixed weights, renormalised over what had data | the 11 further vitals the scan covers |
-| Sleep | `weightedAverage` | nine terms summing to 1 — restated in `contributors` | — |
-| Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR (the exertion line); heart rate when the day is too thin to count |
-| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem | any signal that moved the welcome way |
+| Readiness | `weightedAverage` | six fixed weights, renormalised over what had data | the further vitals the scan covers, scored by the scan's own `normality` |
+| Sleep | `weightedAverage` | nine terms summing to 1 — restated in `contributors` | — none; every input is already weighted |
+| Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR; heart rate when the day is too thin to count exertion |
+| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem | — the pool already covers every signal |
 | Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
-| Fitness | `singleMeasure` | VO₂max carries all of it — both halves read one series | strain, HR recovery, walking HR, steps, active energy |
-| Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | VO₂max, vascular age; any factor already at optimal |
+| Fitness | `weightedAverage` | VO₂max, both halves off one series | strain, HR recovery, walking HR, resting HR, steps, active energy |
+| Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |
 | Blood Pressure | route-dependent — see below | | |
-| Body Composition | `singleMeasure` | body fat, or body mass through BMI | lean, muscle, bone, water, height |
+| Body Composition | `weightedAverage` | body fat, or body mass through BMI | lean, muscle, bone, water |
 
-**Blood Pressure has three, and which one is live is what the section says:**
+**Blood Pressure has three routes, and which one is live is what the section says:**
 
 | Dial route | `weighting` | Shares |
 |---|---|---|
-| a cuff reading from the last 24 h | `measurement` | none — the number *is* the reading |
-| past a day: the experimental estimate | `fit` | resting HR and HRV, from the fitted coefficients |
-| no wearable to estimate from | `measurement` | none — an average of N readings over M days |
+| a cuff reading from the last 24 h | `singleMeasure` (ACC/AHA bands) | systolic and diastolic, by how far each has travelled along **its own** axis |
+| past a day: the experimental estimate | `fit` | the cuff pair carries the level (80%), today's resting HR and HRV carry the nudge (20%) |
+| no wearable to estimate from | `singleMeasure` (ACC/AHA bands, averaged) | the same two-number split, over the average |
+
+**Why not a leave-one-out for the cuff pair.** It was the obvious choice — it is
+what the risk card uses — and it has the wrong shape here: it measures the
+*deficit* against 120/80, so a reader at 112/72 has no deficit to divide and
+both rows come back at zero on the best reading they have ever taken.
+`readingShares` uses distance along each number's own scale instead (90→180 and
+60→120), which is always positive and still says which of the two is carrying
+more.
 
 **Energy's weights were three constants.** 0.6 / 0.25 / 0.15, written in the
 card, appearing nowhere in `EnergyModel` — under a heading promising "the share
@@ -478,9 +523,15 @@ is **a one-line fix at each call site** — the parameter already exists.
 
 `dayStrain` reached **no insight at all**; `heartRateRecovery` and
 `walkingHeartRateAverage` reached only the vitals scanner, never a score. All
-three are now on Fitness. They contribute at **weight 0** — real signals worth
+three are now on Fitness. ~~They contribute at **weight 0** — real signals worth
 charting, but no validated 0–100 curve exists for them here, and an invented
-weight inside a score the user is asked to trust is worse than none.
+weight inside a score the user is asked to trust is worse than none.~~
+**Superseded 2026-08-01**: all three carry a share now, judged against the
+reader's own baseline rather than a curve nobody has published — see
+"Everything charted carries a share" above. Struck through rather than deleted
+because the argument is still correct about *inventing* a weight, and a future
+session reading only the replacement would not know what it is a replacement
+for.
 
 The absolute temperatures (`skinTemperature`, `bodyTemperature`) joined Sleep
 for the same reason: the card read the *deviation* and nothing read the absolute,
@@ -611,6 +662,21 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 17. ~~**Four cards declared or drew a metric that reached "What goes into this"
    on no card.**~~ **Closed 2026-08-01**, with the invariant that catches the
    next one — see "Declared and never read" above.
+
+19. ~~**Four cards said "Not a weighted average"; three had computable
+   shares.**~~ **Closed 2026-08-01**, and then closed *again* the same day at
+   the user's direction — the first pass computed the missing shares and kept
+   the weight-0 signals as a named second group, and the user's answer on
+   seeing it was that everything charted should carry a weight. Both steps are
+   above.
+
+   **The lesson is about the shape of the original rule, not about the
+   numbers.** "An invented weight is worse than none" is a true statement that
+   was doing work it could not support: it argued against *inventing*, and it
+   was being used to justify *not attributing*. The two are different, and the
+   gap between them shipped as a section listing seven inputs of which one went
+   into anything. Same shape as *"that technique has a fatal flaw" is not "this
+   is impossible"*, already in `activeContext.md`.
 
 18. **Sleep's contributor weights are still a hand-written restatement of its
    score expression.** Nine coefficients written twice in one function, twenty
