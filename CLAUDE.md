@@ -15,13 +15,21 @@ so it is safe to run unconditionally.
 If it fails (no network), say so plainly in the reply and treat CI as the gate.
 Never imply a check ran when it didn't.
 
-## Shell calls: absolute paths, always
+## Shell calls: the harness anchors them now
 
-The `Bash` tool's working directory does not reliably persist between calls, and
-a relative `./scripts/verify.sh` that lands in the wrong directory costs a whole
-round trip to discover. Use `/home/user/health-insights-ios/...`, or lead with
-`cd /home/user/health-insights-ios &&`. This cost several calls in one session
-and is pure waste.
+The `Bash` tool's working directory persists between calls, so one
+`cd InsightKit && swift test` used to relocate every later relative path — six
+sessions of dead round trips. Since 2026-08-01 a `PreToolUse` hook
+(`scripts/bash-workdir-hook.sh`, wired in `.claude/settings.json`) rewrites
+every shell command to `cd /home/user/health-insights-ios && …`, so relative
+paths resolve from the repo root whatever the previous call did. Absolute
+paths remain good practice, but the round trip class is retired by the hook,
+not by care.
+
+One rule survives for anyone editing the hooks themselves: **a hook command in
+`settings.json` must be `$CLAUDE_PROJECT_DIR`-absolute** — hook processes
+inherit the shell's drifted cwd, and a relative hook path fails silently
+(exit 127 is a non-blocking hook error, not a denial).
 
 ## Primary Verification Commands
 - **The gate, before every push:** `./scripts/verify.sh --tests`

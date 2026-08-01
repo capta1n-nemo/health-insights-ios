@@ -111,8 +111,8 @@ that is not yet automated is the next thing to automate.
 | Miss an exhaustive switch over *another* enum | 2 | ✅ automated — generic switch lint (2026-07-30) |
 | Read CI status without burning 100K tokens | every | ✅ automated — `ci-status.sh` reads `refs/ci/*` |
 | Add a `MetricType` / `InsightID` / chart correctly | 4+ | ✅ skills exist |
-| **Lose the working directory in a shell call** | **6** | ⚠️ **the rule is not holding.** Ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice, session 16 **five times**, session 17
-**three times** and session 18 **two-to-three times**. A rule the model can skip is tier 1, and four sessions of evidence say tier 1 does not hold for this one. Session 16 named the mechanism — the Bash tool's cwd persists between calls, so one `cd X && …` relocates every later relative path — and the smallest fix with it: prepend a `cd` to the repo root on every call, rather than rejecting relative `scripts/…` invocations. Needs the user's permission; it edits `.claude/settings.json` |
+| **Lose the working directory in a shell call** | **6** | The rule alone did not hold: ruled in `CLAUDE.md` (2026-07-31) in the plainest wording available — "absolute paths, always", annotated "pure waste" — and it recurred in session 15 twice, session 16 **five times**, session 17
+**three times** and session 18 **two-to-three times**. ✅ **automated 2026-08-01 (session 19), with the user's explicit permission** — `scripts/bash-workdir-hook.sh`, a `PreToolUse` hook on `Bash` that rewrites every command to `cd <repo root> && …` via `updatedInput`. Built as session 16 scoped it: prepend, don't reject a path shape, because two of the five instances were heredocs and one a `sed`. See the roadmap entry for the finding that fell out of building it |
 | Re-run the full test suite more than needed | 2 | ✅ `verify.sh --tests <pattern>` (2026-07-31) |
 | Hunt for a type by guessing its filename | **3** | ✅ automated — `scripts/where.sh <Type>` (2026-07-31). Two rounds of prose failed; the fix is a command shorter than the grep |
 | **Hunt for a *method* by guessing its filename** | **1** | ✅ automated — `where.sh` now falls back to member declarations (2026-07-31, session 12). The type-only version told the reader "grep is right for those", and a reader grepping has to name a file — the same failure one level down |
@@ -163,7 +163,35 @@ push to discover an unbalanced brace is a five-minute round trip for something a
 tenth of a second answers. Caught nothing this session because it was run by hand
 each time; it is here so the next session does not have to remember.
 
-### ⬜ A `PreToolUse` hook for the shell's working directory — the top open item
+### ✅ A `PreToolUse` hook for the shell's working directory — done (session 19)
+
+Built 2026-08-01 with the user's explicit permission ("I am saying yes, do it"),
+after six sessions of evidence. `scripts/bash-workdir-hook.sh` is a `PreToolUse`
+hook on `Bash` that rewrites every command to `cd <repo root> && <command>` via
+`hookSpecificOutput.updatedInput` — session 16's "prepend, don't reject a path
+shape" scope, verbatim. A command already anchored to the root passes through
+untouched, and a command that deliberately works elsewhere still does: its own
+`cd` runs after ours. Proved live in-session: a bare `pwd` after a stray
+`cd InsightKit` came back at the repo root.
+
+**The finding that fell out of building it**: hook processes inherit the Bash
+tool's *drifted* working directory — the first version invoked itself as
+`./scripts/bash-workdir-hook.sh` and died with exit 127 while the shell sat in
+`InsightKit`. The bug this hook exists to fix was breaking the hook. Worse, the
+**pre-push gate had the same latent hole**: `./scripts/pre-push-gate.sh` in
+`settings.json` would silently fail to run (a non-blocking hook error, not a
+denial) on any push issued while the shell had drifted — a gate bypass nobody
+would see. Both hook invocations are now `"$CLAUDE_PROJECT_DIR/…"`-absolute.
+The rule for the next hook: **a hook command in `settings.json` must use an
+absolute path, because it inherits exactly the cwd drift the rest of this
+entry is about.**
+
+One permission side-effect, handled: Claude Code splits compound commands on
+`&&` and checks each part, so the prefix needs its own allow entry —
+`Bash(cd /home/user/health-insights-ios)` — and every existing rule keeps
+matching its original part.
+
+### The original scoping, kept for the record
 
 **Why this one.** It is the ledger's highest-count row that has a *mechanical*
 answer and does not have it yet: **six** sessions, five instances in session 16,

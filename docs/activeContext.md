@@ -406,6 +406,15 @@ consecutive sessions. **It is a tier-1 rule and tier 1 does not hold.** The
 mechanical answer is a `PreToolUse` hook, which touches `.claude/settings.json`
 — the user's harness config — so it needs asking for. See the efficiency roadmap.
 
+**Closed 2026-08-01 (session 19): the user said yes, and the hook exists.**
+`scripts/bash-workdir-hook.sh` rewrites every `Bash` command to
+`cd <repo root> && …`, so the drift can no longer happen — proved live with a
+bare `pwd` after a stray `cd InsightKit`. Building it found a second defect:
+hook commands in `settings.json` inherit the *drifted* cwd, so the relatively
+pathed pre-push gate could silently fail to run on a push issued after a `cd`
+— both hooks are now `$CLAUDE_PROJECT_DIR`-absolute. Full account in
+`docs/efficiency-log.md` ▸ the session-19 roadmap entry.
+
 **The Phase-2 session (previous).** One push, `dc5fae6`, CI green. "Continue with
 roadmap" — the open list was read back and the four buildable Phase 2 items were
 taken, plus a fifth the user added on reading the plan. Body Composition's scan
