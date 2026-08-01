@@ -116,23 +116,32 @@ enum Theme {
     /// what a reader looking for water expects to find in a key.
     static let compositionWater = adaptive(light: 0x2F86D8, dark: 0x4F9FE8)
 
-    /// The water *within* muscle — `compositionWater` laid over
-    /// `compositionMuscle` at `waterOverMuscle` opacity, worked out here rather
-    /// than drawn with real transparency.
+    /// The pale blue that gets washed over muscle — **not** `compositionWater`,
+    /// and the difference is the whole reason this took three attempts.
+    ///
+    /// Blending the *key's* blue over the muscle red can only ever produce two
+    /// things, and both were rejected on the phone: at a low ratio a flat mauve
+    /// that reads as a third substance, at a high one a solid slate that buries
+    /// the red completely. Neither is a glaze. A translucent film reads light —
+    /// so the colour being laid on has to be light to begin with, and then the
+    /// red shows through as a warm cast rather than as a mixing partner.
+    private static let waterGlazeLight: UInt32 = 0x9BCBF5
+    private static let waterGlazeDark: UInt32 = 0x7FB4E8
+
+    /// How much of the glaze sits over the muscle beneath it.
+    static let waterOverMuscle: Double = 0.80
+
+    /// The water *within* muscle: `waterGlaze` laid over `compositionMuscle`,
+    /// worked out here rather than drawn with real transparency.
     ///
     /// It has to be computed. In a stacked area the water share and the dry
-    /// share are *adjacent* slices, not overlapping ones, so an actually
-    /// translucent blue would composite against the chart's grey background and
-    /// come out pale — the one thing it must not look like. Blending against the
-    /// muscle red here produces what painting it over muscle would have.
-    ///
-    /// The first attempt hard-coded the result at 30% blue and landed on a flat
-    /// mauve that read as a third substance. At 72% it reads blue, visibly
-    /// warmed by the red underneath — water in muscle, which is what it is.
-    static let waterOverMuscle: Double = 0.72
+    /// share are *adjacent* slices, not overlapping ones — nothing is drawn
+    /// underneath the water band — so an actually translucent blue would
+    /// composite against the chart's grey background rather than against muscle.
+    /// This produces what painting it over muscle would have.
     static let compositionMuscleWater = adaptive(
-        light: blend(base: 0xB23A3A, over: 0x2F86D8, alpha: waterOverMuscle),
-        dark: blend(base: 0xC44E4E, over: 0x4F9FE8, alpha: waterOverMuscle))
+        light: blend(base: 0xB23A3A, over: waterGlazeLight, alpha: waterOverMuscle),
+        dark: blend(base: 0xC44E4E, over: waterGlazeDark, alpha: waterOverMuscle))
 
     /// `over` composited onto `base` at `alpha`, in sRGB.
     ///

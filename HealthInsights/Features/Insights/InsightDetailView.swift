@@ -618,7 +618,7 @@ struct InsightDetailView: View {
                             .font(.caption2).foregroundStyle(Theme.warn)
                             .fixedSize(horizontal: false, vertical: true)
                     } else if split.water != nil {
-                        Text("The blue is water, shaded inside the tissue holding it rather than given its own block — it's already counted there, and showing it twice would make you heavier than you are. On the bar it takes the red underneath it, which is why it reads cooler there than in the key.")
+                        Text("The blue is water, shaded inside the tissue holding it rather than given its own block — it's already counted there, and showing it twice would make you heavier than you are. On the bar it's a wash over the muscle, so it comes out paler and warmer there than the dot in the key.")
                             .font(.caption2).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
