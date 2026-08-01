@@ -221,11 +221,33 @@ public struct FitnessInsight: InsightModel {
     /// `ReadinessScore` already weights every one of its components with —
     /// direction-aware departure from this person's own normal — and it earns
     /// the smaller weight that weaker evidence deserves rather than none at all.
-    static func supportingTerms(samples: [HealthMetricSample], now: Date) -> [ScoreBlend.Term] {
+    static func supportingTerms(samples: [HealthMetricSample], now: Date,
+                                calendar: Calendar = .current) -> [ScoreBlend.Term] {
         contextMetrics.compactMap { metric, higherIsBetter in
-            VitalReader.reading(metric, from: samples, now: now)
+            VitalReader.reading(metric,
+                                from: judgementSamples(for: metric, samples: samples,
+                                                       now: now, calendar: calendar),
+                                now: now)
                 .flatMap { ScoreBlend.supporting($0, higherIsBetter: higherIsBetter) }
         }
+    }
+
+    /// A cumulative metric read mid-day is not a low day.
+    ///
+    /// The user's own card export is the evidence: "Steps: 224 · 1.5 SD below
+    /// your normal", exported in the morning — today's partial total judged
+    /// against a baseline of complete days, a comparison that reads
+    /// catastrophic every day before dinner. Cumulative metrics are judged on
+    /// the last *complete* day instead; yesterday is still inside the
+    /// freshness window, so nothing goes stale by waiting for midnight.
+    /// Point-in-time vitals keep today — a heart rate at 9 am is a whole
+    /// measurement, not a fraction of one.
+    static func judgementSamples(for metric: MetricType,
+                                 samples: [HealthMetricSample],
+                                 now: Date, calendar: Calendar) -> [HealthMetricSample] {
+        guard metric.presentation == .cumulativeTotal else { return samples }
+        let startOfToday = calendar.startOfDay(for: now)
+        return samples.filter { $0.start < startOfToday }
     }
 
     /// The supporting signals, and which direction is the good one.
@@ -246,10 +268,15 @@ public struct FitnessInsight: InsightModel {
     ]
 
     static func contextDrivers(samples: [HealthMetricSample], now: Date,
-                               excluding: Set<MetricType> = []) -> [InsightDriver] {
+                               excluding: Set<MetricType> = [],
+                               calendar: Calendar = .current) -> [InsightDriver] {
         contextMetrics.compactMap { metric, _ in
             guard !excluding.contains(metric),
-                  let reading = VitalReader.reading(metric, from: samples, now: now) else { return nil }
+                  let reading = VitalReader.reading(
+                    metric,
+                    from: judgementSamples(for: metric, samples: samples,
+                                           now: now, calendar: calendar),
+                    now: now) else { return nil }
             return .routine("\(metric.displayName): \(MetricValueFormatter.string(reading.value, metric)) \(metric.unit)")
         }
     }

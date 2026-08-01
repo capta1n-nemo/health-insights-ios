@@ -85,6 +85,22 @@ final class CardStateExportTests: XCTestCase {
                           "aggregates only — raw readings belong to the full export")
     }
 
+    /// "A pending replay is not no-data" — eight of nine cards read "none
+    /// stored yet" on the document's first real use, while their replays were
+    /// still queued. The two states get different sentences.
+    func testAPendingReplayIsNotReportedAsNoData() {
+        let engine = InsightEngine()
+        let results = engine.evaluateAll(samples: realisticSamples(), profile: .init(), now: now)
+        let text = CardStateExport.markdown(
+            results: results, candidates: [:], histories: [:],
+            pendingHistories: Set(results.map(\.id)),
+            samples: [], profile: .init(), buildStamp: "dev", now: now,
+            calendar: TestClock.utc)
+        XCTAssertTrue(text.contains("replay still computing"))
+        XCTAssertFalse(text.contains("none stored yet"),
+                       "a queued replay must not read as an empty history")
+    }
+
     func testEmptyStateDoesNotCrashAndSaysSo() {
         let text = CardStateExport.markdown(
             results: [], candidates: [:], histories: [:], samples: [],

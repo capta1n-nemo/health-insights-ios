@@ -200,6 +200,11 @@ public enum BloodPressureEstimator {
         }
     }
 
+    /// Days the readings must span before a per-week slope is offered at all.
+    /// Two weeks is the smallest window in which "per week" describes the
+    /// pattern rather than the gap between two mornings.
+    public static let minimumTrendSpanDays = 14.0
+
     /// The recent cuff pattern, or nil when there are too few readings to
     /// describe one.
     ///
@@ -219,8 +224,17 @@ public enum BloodPressureEstimator {
         // Drift in mmHg per week, fitted against real elapsed time rather than
         // sample index — cuff readings are irregular, so an index regression
         // would report a slope per *reading*, which means nothing.
+        //
+        // And only across a spread that supports the unit it is quoted in. A
+        // fit through readings a few days apart extrapolates day-to-day cuff
+        // noise (±10–15 mmHg is ordinary) into a weekly figure — this shipped
+        // as "trending up 49.3 mmHg per week" from readings clustered inside
+        // one, a slope no living person's blood pressure sustains. Same
+        // lesson as the drift counter's ±5 floor: a relative measure needs an
+        // absolute companion, here a floor on the baseline it is measured over.
         let days = readings.map { $0.date.timeIntervalSince(oldest) / 86_400 }
-        let perWeek = Set(days).count >= 2
+        let spreadDays = (days.max() ?? 0) - (days.min() ?? 0)
+        let perWeek = spreadDays >= Self.minimumTrendSpanDays
             ? Baseline.linearRegression(x: days, y: readings.map(\.systolic)).map { $0.slope * 7 }
             : nil
 

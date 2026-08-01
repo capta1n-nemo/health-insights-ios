@@ -50,7 +50,7 @@ the place to look.
   - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :579
+  - `BloodPressureInsight` :593
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CardioTrajectory.swift`
@@ -254,7 +254,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :442
+  - `SubstanceWindow` :499
 - `Text/CardStateExport.swift`
   - `CardStateExport` :26
 - `Text/DataInventory.swift`
@@ -426,8 +426,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :153
-  - `OtherDataListView` :166
+  - `FullExport` :155
+  - `OtherDataListView` :168
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

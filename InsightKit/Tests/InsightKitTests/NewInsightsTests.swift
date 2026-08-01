@@ -92,7 +92,11 @@ final class SubstanceAnalyzerTests: XCTestCase {
                                               start: day(11 + j).addingTimeInterval(7 * 3600), source: .oura))
         }
 
-        let analysis = SubstanceResponseAnalyzer.analyze(events: events, samples: samples)
+        // `now` inside the fixture's own fortnight: the comparison window is
+        // deliberately contemporaneous (90 days), so a fixture judged from the
+        // real present would have every reading filtered as ancient.
+        let analysis = SubstanceResponseAnalyzer.analyze(events: events, samples: samples,
+                                                         now: day(14))
         let rhr = analysis.effects.first { $0.metric == .restingHeartRate }
         XCTAssertNotNil(rhr)
         XCTAssertTrue(rhr!.isAdverse)

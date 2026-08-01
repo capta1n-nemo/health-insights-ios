@@ -105,6 +105,33 @@ final class ActivityDoseTests: XCTestCase {
                       "the weekly line is the card's one sentence about this week")
     }
 
+    /// "Steps: 224 · 1.5 SD below your normal", exported at breakfast — a
+    /// partial day judged against complete ones reads catastrophic every
+    /// morning. Cumulative metrics are judged on the last complete day.
+    func testAPartialDayOfStepsIsNotJudgedAsALowDay() throws {
+        var samples: [HealthMetricSample] = []
+        for day in 1...14 {
+            // Some spread, or the baseline has no SD and nothing can be judged.
+            samples.append(HealthMetricSample(
+                type: .stepCount, value: 8000 + Double(day % 5) * 400,
+                start: TestClock.day(day), source: .appleHealthDevice("iPhone")))
+        }
+        // This morning: 224 steps so far. TestClock.now is mid-day, so the
+        // day-0 bucket is genuinely partial.
+        samples.append(HealthMetricSample(
+            type: .stepCount, value: 224,
+            start: TestClock.utc.startOfDay(for: TestClock.now).addingTimeInterval(8 * 3600),
+            source: .appleHealthDevice("iPhone")))
+
+        let terms = FitnessInsight.supportingTerms(samples: samples, now: TestClock.now,
+                                                   calendar: TestClock.utc)
+        let steps = try XCTUnwrap(terms.first { $0.metric == .stepCount })
+        XCTAssertFalse(steps.detail.contains("224"),
+                       "this morning's partial total must not be the judged value: \(steps.detail)")
+        XCTAssertGreaterThan(steps.score, 30,
+                             "yesterday's complete day is ordinary; 224 against an 8k baseline would score ~0")
+    }
+
     func testAWatchlessProfileScoresExactlyAsBefore() {
         // No exercise data at all: the dose term must renormalise away, not
         // drag the score with a phantom zero.

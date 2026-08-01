@@ -37,6 +37,8 @@ struct DataExportView: View {
                 model.engine.models.map { ($0.id, $0.candidateMetrics) }),
             histories: Dictionary(uniqueKeysWithValues:
                 model.results.map { ($0.id, model.scoreHistory(for: $0.id)) }),
+            pendingHistories: Set(model.results.map(\.id)
+                .filter { model.scoreHistoryIsPending(for: $0) }),
             samples: model.samples,
             profile: model.profile,
             buildStamp: BuildInfo.summary,

@@ -17,6 +17,18 @@ public enum SubstanceResponseAnalyzer {
     public static let loadWindowDays = 14
     /// Weighted units over `loadWindowDays` that saturate the load indicator.
     public static let loadSaturationUnits = 8.0
+    /// How far back the before/after comparison reaches, for **both** sides.
+    ///
+    /// It used to reach the whole history, and the user's own card export
+    /// showed what that measures: their cuff readings span six years, their
+    /// logging spans a fortnight, so "after use" meant *recent* and the clean
+    /// baseline meant *years ago* — and a blood pressure that rose over those
+    /// years reached the card as "+21 mmHg after use", 87% of the score. A
+    /// substance response is an acute claim; both sides of it have to come
+    /// from the same stretch of the person's life. Ninety days keeps a
+    /// fortnightly cuff-er above the pairing floors while staying inside one
+    /// season.
+    public static let comparisonWindowDays = 90.0
 
     public struct MetricEffect: Sendable, Equatable {
         public let metric: MetricType
@@ -83,7 +95,8 @@ public enum SubstanceResponseAnalyzer {
     public static func analyze(events: [SubstanceEvent], samples: [HealthMetricSample], now: Date = Date()) -> Analysis {
         var effects: [MetricEffect] = []
         for (metric, upIsAdverse) in watched {
-            if let e = effect(for: metric, upIsAdverse: upIsAdverse, events: events, samples: samples) {
+            if let e = effect(for: metric, upIsAdverse: upIsAdverse, events: events,
+                              samples: samples, now: now) {
                 effects.append(e)
             }
         }
@@ -99,8 +112,12 @@ public enum SubstanceResponseAnalyzer {
     }
 
     static func effect(for metric: MetricType, upIsAdverse: Bool,
-                       events: [SubstanceEvent], samples: [HealthMetricSample]) -> MetricEffect? {
+                       events: [SubstanceEvent], samples: [HealthMetricSample],
+                       now: Date) -> MetricEffect? {
+        // Contemporaneous, on both sides — see `comparisonWindowDays`.
+        let cutoff = now.addingTimeInterval(-comparisonWindowDays * 86_400)
         let series = samples.samples(of: metric)
+            .filter { $0.start >= cutoff && $0.start <= now }
         guard series.count >= 5 else { return nil }
         let times = events.map(\.timestamp)
 
@@ -160,6 +177,31 @@ public enum SubstanceResponseAnalyzer {
     /// Derived from `watched`, so the two can never disagree about what this
     /// analyser looks at — the detail screen charts this list.
     public static let comparedMetrics: [MetricType] = watched.map { $0.0 }
+
+    /// The short form of an adverse effect, for the card's headline slot.
+    /// Exhaustive over `watched`'s metrics by construction: a metric added
+    /// there without a label here falls to the generic form, which is still
+    /// true — never silent.
+    static func headlineLabel(_ effect: MetricEffect) -> String {
+        let arrow = effect.deltaAbsolute >= 0 ? "+" : "−"
+        let magnitude = abs(effect.deltaAbsolute)
+        switch effect.metric {
+        case .restingHeartRate: return String(format: "HR %@%.0f after use", arrow, magnitude)
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN:
+            return String(format: "HRV %@%.0f%% after use",
+                          effect.deltaPercent >= 0 ? "+" : "−", abs(effect.deltaPercent))
+        case .bloodPressureSystolic: return String(format: "BP %@%.0f after use", arrow, magnitude)
+        case .sleepDurationHours: return String(format: "Sleep %@%.1f h after use", arrow, magnitude)
+        case .respiratoryRate: return String(format: "Breathing %@%.1f after use", arrow, magnitude)
+        case .oxygenSaturation: return String(format: "SpO₂ %@%.1f%% after use", arrow, magnitude)
+        case .heartRateRecovery: return String(format: "Recovery %@%.0f after use", arrow, magnitude)
+        case .atrialFibrillationBurden: return String(format: "AFib %@%.1f%% after use", arrow, magnitude)
+        case .skinTemperature, .skinTemperatureDeviation:
+            return String(format: "Temp %@%.1f °C after use", arrow, magnitude)
+        default:
+            return String(format: "%@ %@%.1f after use", effect.metric.displayName, arrow, magnitude)
+        }
+    }
 
     static func higherIsBetter(_ metric: MetricType) -> Bool? {
         switch metric {
@@ -338,10 +380,18 @@ public enum SubstanceResponseAnalyzer {
             text: "Recent cardiovascular load: \(analysis.loadBand) (\(analysis.eventsInWindow) logs in \(loadWindowDays) days)",
             isNotable: analysis.recentLoad >= 50))
 
-        // Headline: the most salient adverse effect if any, else the load band.
+        // Headline: the *strongest* adverse effect, else the load band. It was
+        // hardcoded to resting heart rate, so the user's card led with
+        // "HR −1 after use" — good news — while a +21 mmHg systolic response
+        // carried 87% of the score two lines down. The headline is the one
+        // thing the card says on the Today tab; it has to be the finding.
         let headline: String
-        if let rhr = analysis.effects.first(where: { $0.metric == .restingHeartRate }) {
-            headline = String(format: "HR %@%.0f after use", rhr.deltaAbsolute >= 0 ? "+" : "−", abs(rhr.deltaAbsolute))
+        if let worst = analysis.effects.filter({ $0.isAdverse })
+            .max(by: { severity($0) < severity($1) }), severity(worst) > 0 {
+            headline = headlineLabel(worst)
+        } else if let rhr = analysis.effects.first(where: { $0.metric == .restingHeartRate }) {
+            headline = String(format: "HR %@%.0f after use",
+                              rhr.deltaAbsolute >= 0 ? "+" : "−", abs(rhr.deltaAbsolute))
         } else {
             headline = "\(analysis.loadBand.capitalized) load"
         }
@@ -358,10 +408,17 @@ public enum SubstanceResponseAnalyzer {
         } else {
             explanation = "You've logged use, but there isn't enough paired biometric data yet to show reliable before/after differences. Keep your wearable synced."
         }
-        // Safety flag for a large stimulant/heart response.
+        // Safety flag. "Your heart is showing a notable response" is a claim
+        // about the *measurements*, so only a measured response may say it —
+        // it used to fire on heavy usage alone, which is exactly the
+        // usage-versus-impact conflation the score itself was corrected for.
+        // A heavy fortnight still gets the care line, honestly attributed to
+        // the log rather than to the body.
         let bigHR = analysis.effects.contains { $0.metric == .restingHeartRate && $0.deltaAbsolute >= 12 }
-        if bigHR || analysis.recentLoad >= 80 {
+        if bigHR {
             explanation += " Your heart is showing a notable response — if your heart rate stays high, or you feel palpitations, chest pain or breathlessness, please seek medical care."
+        } else if analysis.recentLoad >= 80 {
+            explanation += " Recent use has been heavy by your own log — if you notice palpitations, chest pain or breathlessness, please seek medical care."
         }
 
         // Each signal's share of what came off the score.

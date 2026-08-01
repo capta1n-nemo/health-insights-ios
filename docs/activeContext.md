@@ -83,7 +83,47 @@ cheapest build; #3 and #5 wait on a fresh export to confirm field identifiers
 and per-night semantics. Device checks: Substance Impact should now show a
 non-zero score if your measured response is mild (the load row will say
 "capped"), and Sleep should show "Fell asleep in about N min" once Oura
-re-syncs. Fourth half: **Settings ▸ Export my data ▸ Card outputs** — the user asked
+re-syncs. Fifth half: **the export came back, and it earned its keep in one use.** The
+user shared their card outputs and five real miscalibrations fell out — every
+one a claim no test could have caught without the shipped numbers, and each
+now has a test shaped like the user's own data:
+
+- **Substance 0 was a confounded measurement, not the load** (the cap worked
+  — its row read "capped"). "After use" meant *recent* and the clean baseline
+  meant *years ago*: 46 cuff readings spanning 2020–2026 against a fortnight
+  of logs turned six years of BP rise into "+21 mmHg after use" at 87% of the
+  score. `comparisonWindowDays = 90` — both sides of the comparison now come
+  from the same stretch of life. **Generalises: a before/after comparison
+  inherits every long-term trend in the series unless both sides are drawn
+  from the same window.** Also: the headline now names the *strongest*
+  measured effect (it was hardcoded to resting HR, so the card led with good
+  news while BP carried the score), and the "your heart is showing a notable
+  response" safety line fires only on a measured response — heavy usage gets
+  a care line honestly attributed to the log.
+- **"Steps: 224 · 1.5 SD below your normal" at breakfast** — a partial day
+  judged against complete-day baselines reads catastrophic every morning.
+  Fitness's cumulative supporting metrics (steps, energy) are judged on the
+  last *complete* day; point-in-time vitals keep today.
+- **"Systolic trending up 49.3 mmHg per week"** — a per-week slope fitted
+  through readings clustered inside a few days extrapolates cuff noise.
+  `minimumTrendSpanDays = 14`: under a fortnight of spread, no slope.
+- **Body Composition penalised the loss its own drivers called good** —
+  "Weight trending down (good)" beside "110.6 · 2.1 SD below your normal" at
+  a cost. The supporting direction for weight now matches the drivers'
+  judgement (`false`); muscle loss still costs through the lean/muscle rows.
+- **The export itself walked into the pending-replay trap its docs warn
+  about**: eight cards read "none stored yet" while their replays were
+  queued. `pendingHistories` now says "replay still computing — re-export in
+  a few seconds", and asking is what queues the replay, so the sentence is
+  also the remedy.
+
+Not changed on purpose, from the same export: Fitness 41 / fitness age 68 is
+the norm table being honest about a VO₂max of 31 at 28; risk 0.7% with the
+under-40 caveat is correct; Sleep's consistency 0/100 and 6.9 h debt are the
+data. The user's 150/89 cuff reading is a real Stage-2 figure and the card
+says so — nothing to recalibrate there.
+
+Fourth half: **Settings ▸ Export my data ▸ Card outputs** — the user asked
 for an export of everything the cards are showing so a session can see what
 they see and recalibrate. `CardStateExport` (InsightKit, 5 tests): per card,
 the full shipped result plus per-declared-input data availability and a

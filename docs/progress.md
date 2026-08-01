@@ -849,6 +849,22 @@ not weighted, when almost every score should be weighted"*.
       **This is the instrument for recalibration requests**: it shows what the
       user is seeing, not what the code intends.
 
+- [x] **The first card-outputs export, acted on** (2026-08-02). Five
+      miscalibrations found and fixed, each with a test shaped like the user's
+      own data: the substance comparison is contemporaneous (90 days both
+      sides — a six-year cuff history had been posing as the clean baseline
+      for a fortnight of logs, turning years of BP rise into "+21 mmHg after
+      use" at 87% of the score); the substance headline names the strongest
+      measured effect and the safety line fires only on a measured response;
+      Fitness's cumulative supporting metrics are judged on the last complete
+      day (steps at breakfast are not a low day); a BP per-week slope needs a
+      fortnight of spread ("49.3 mmHg per week" from clustered readings was
+      cuff noise extrapolated); Body Composition's weight direction matches
+      its own drivers (loss the card calls good no longer costs 20%-pool
+      points); and the export distinguishes a pending replay from an empty
+      history. See `docs/activeContext.md` ▸ "Fifth half" for what was
+      deliberately *not* changed.
+
 ### More "gap-filling" insights
 Listed cheapest-first — the second one can't start without new plumbing.
 

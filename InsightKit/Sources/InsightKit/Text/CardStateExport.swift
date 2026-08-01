@@ -42,6 +42,7 @@ public enum CardStateExport {
     public static func markdown(results: [InsightResult],
                                 candidates: [InsightID: [MetricType]],
                                 histories: [InsightID: [ScorePoint]],
+                                pendingHistories: Set<InsightID> = [],
                                 samples: [HealthMetricSample],
                                 profile: UserHealthProfile,
                                 buildStamp: String,
@@ -83,6 +84,7 @@ public enum CardStateExport {
             out.append(contentsOf: card(result,
                                         candidates: candidates[result.id] ?? [],
                                         history: histories[result.id] ?? [],
+                                        historyPending: pendingHistories.contains(result.id),
                                         samples: samples, now: now))
         }
         return out.joined(separator: "\n")
@@ -91,7 +93,8 @@ public enum CardStateExport {
     // MARK: - One card
 
     private static func card(_ result: InsightResult, candidates: [MetricType],
-                             history: [ScorePoint], samples: [HealthMetricSample],
+                             history: [ScorePoint], historyPending: Bool,
+                             samples: [HealthMetricSample],
                              now: Date) -> [String] {
         var out: [String] = []
         out.append("## \(result.title)")
@@ -158,7 +161,16 @@ public enum CardStateExport {
             out.append("")
         }
 
-        if history.isEmpty {
+        // "A pending replay is not no-data" — the trap `SectionPlaceholder`
+        // exists for, and this document walked straight into it on its first
+        // real use: eight cards read "none stored yet" while their replays
+        // were still queued, and only the one card the user had opened showed
+        // its 90 days. Asking for the history is what queues the replay, so
+        // the honest sentence is also the remedy.
+        if history.isEmpty && historyPending {
+            out.append("### Score history\n- replay still computing when this was "
+                       + "exported — re-export in a few seconds and it fills in")
+        } else if history.isEmpty {
             out.append("### Score history\n- none stored yet")
         } else {
             out.append("### Score history — \(history.count) days stored, last \(Swift.min(history.count, historyTailDays)):")

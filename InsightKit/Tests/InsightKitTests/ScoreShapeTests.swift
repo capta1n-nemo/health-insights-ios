@@ -213,6 +213,20 @@ final class BloodPressureTrendDialTests: XCTestCase {
                        BloodPressureEstimator.score(systolic: 118, diastolic: 76), accuracy: 1e-9)
     }
 
+    /// A per-week slope needs weeks to be fitted over. Readings clustered
+    /// inside a few days extrapolate ordinary cuff noise into an absurd
+    /// figure — the shipped case was "trending up 49.3 mmHg per week" — so
+    /// under a fortnight of spread the honest slope is no slope.
+    func testASlopeIsNotOfferedFromAFewClusteredDays() throws {
+        var samples: [HealthMetricSample] = []
+        for (days, sys) in [(5.0, 126.0), (3, 130), (1, 148), (0, 150)] {
+            samples += reading(sys, 85, daysAgo: days)
+        }
+        let trend = try XCTUnwrap(BloodPressureEstimator.recentTrend(from: samples))
+        XCTAssertNil(trend.systolicPerWeek,
+                     "five days of readings cannot support a per-week claim")
+    }
+
     func testTheTrendReportsDriftPerWeekNotPerReading() {
         var samples: [HealthMetricSample] = []
         // Exactly 2 mmHg a week, sampled irregularly. Fitted against elapsed

@@ -136,7 +136,16 @@ public struct BodyCompositionInsight: InsightModel {
     /// "this cannot change".
     static let supportingMetrics: [(MetricType, Bool?)] = [
         (.bodyFatPercentage, false),
-        (.bodyMass, nil),
+        // `false`, matching the judgement the drivers on this same card
+        // already make (`trendWord(..., higherIsBetter: false)` prints
+        // "Weight trending down (good)"). It was `nil` — departure in either
+        // direction penalised — so the user's export showed the card calling
+        // their loss good in one line and docking them "2.1 SD below your
+        // normal" for it in the share table. One card, one opinion. The
+        // muscle-loss half of a falling weight is not lost by this: lean and
+        // muscle mass below carry `true`, so loss that takes muscle with it
+        // still costs, which is exactly the narrative's own warning.
+        (.bodyMass, false),
         (.leanBodyMass, true),
         (.muscleMass, true),
         (.boneMass, true),

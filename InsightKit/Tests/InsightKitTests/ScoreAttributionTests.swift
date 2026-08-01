@@ -301,6 +301,39 @@ final class ScoreAttributionTests: XCTestCase {
         XCTAssertLessThan(one, 40, "one measured signal must not fully discount exposure")
     }
 
+    /// The defect the user's own card export found: their cuff readings span
+    /// six years, their log spans a fortnight, so "after use" meant *recent*
+    /// and the clean baseline meant *years ago* — and a blood pressure that
+    /// rose over the years reached the card as "+21 mmHg after use". Both
+    /// sides of the comparison must come from the same stretch of life.
+    func testYearsOldReadingsCannotPoseAsACleanBaseline() {
+        let now = TestClock.now
+        // Two years ago: systolic sat at 120. Recently: 148 on clean days,
+        // 150 within 18 h of a log — a true acute effect of ~2 mmHg.
+        var samples: [HealthMetricSample] = []
+        for day in 500..<520 {
+            samples.append(.init(type: .bloodPressureSystolic, value: 120,
+                                 start: TestClock.day(day), source: .withings))
+        }
+        var events: [SubstanceEvent] = []
+        for day in stride(from: 1, to: 30, by: 3) {
+            let evening = TestClock.day(day).addingTimeInterval(8 * 3600)
+            events.append(SubstanceEvent(substance: .alcohol, timestamp: evening))
+            samples.append(.init(type: .bloodPressureSystolic, value: 150,
+                                 start: evening.addingTimeInterval(12 * 3600),
+                                 source: .withings))
+        }
+        for day in stride(from: 31, to: 60, by: 3) {
+            samples.append(.init(type: .bloodPressureSystolic, value: 148,
+                                 start: TestClock.day(day), source: .withings))
+        }
+        let effect = SubstanceResponseAnalyzer.effect(
+            for: .bloodPressureSystolic, upIsAdverse: true,
+            events: events, samples: samples, now: now)
+        XCTAssertEqual(effect?.deltaAbsolute ?? 0, 2, accuracy: 0.5,
+                       "the years-old 120s must not be the baseline the +2 is measured from")
+    }
+
     /// The shares and the score keep drawing from one pool after the cap, so
     /// the Euler property survives it.
     func testSharesStillAccountForTheDeductionWithTheCapApplied() throws {
@@ -318,6 +351,28 @@ final class ScoreAttributionTests: XCTestCase {
     }
 
     // MARK: - Body Composition
+
+    /// One card, one opinion about a falling weight. The drivers already
+    /// print "Weight trending down (good)"; the share table was docking the
+    /// same reader "2.1 SD below your normal" for the same loss. The
+    /// supporting direction now matches the drivers' — and muscle loss still
+    /// costs, through the lean and muscle rows, which is the narrative's own
+    /// warning.
+    func testAFallingWeightIsNotPenalisedByItsOwnCard() throws {
+        let now = TestClock.now
+        var samples: [HealthMetricSample] = []
+        for day in 0..<28 {
+            // Steadily falling: `day` counts backwards, so older days are
+            // heavier and today sits below its own 28-day baseline.
+            samples.append(.init(type: .bodyMass, value: 108 + Double(day) * 0.15,
+                                 start: TestClock.day(day), source: .withings))
+        }
+        let terms = BodyCompositionInsight.supportingTerms(samples: samples, now: now,
+                                                           excluding: .bodyFatPercentage)
+        let weight = try XCTUnwrap(terms.first { $0.metric == .bodyMass })
+        XCTAssertGreaterThanOrEqual(weight.score, 65,
+                                    "a weight below its own baseline is the good direction here")
+    }
 
     /// Body fat is the whole number where a scale reports it — which is what
     /// "Not a weighted average" was denying.
