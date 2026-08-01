@@ -182,18 +182,13 @@ struct InsightDetailView: View {
     @ViewBuilder private var bloodPressureChartCard: some View {
         let readings = model.bloodPressureReadings
         if !readings.isEmpty {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Your readings").font(.headline)
-                        Spacer()
-                        if let latest = readings.first {
-                            Text(latest.category)
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    BloodPressureChart(readings: readings, timeframe: timeframe)
-                }
+            // `.none`: these are cuff readings the user typed in, drawn as they
+            // were entered. The estimator's own uncertainty is the header card's
+            // subject, not this chart's.
+            InsightSection(title: "Your readings",
+                           trailing: readings.first?.category,
+                           caveat: .none) {
+                BloodPressureChart(readings: readings, timeframe: timeframe)
             }
         }
     }
@@ -221,20 +216,97 @@ struct InsightDetailView: View {
                            heart: point.heart, fitness: nil)
         }
         if points.count >= 3 {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(insightID == .fitness ? "Fitness age over time"
-                                               : "Heart age over time").font(.headline)
-                    AgeHistoryChart(points: points)
-                    if let pace = points.yearsPerYear {
-                        Text(Self.pacePhrase(pace))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Text("Rebuilt from the readings as they stood on each day. Facts you entered once — cholesterol, smoking — are applied as they stand now, because the app has no history for them.")
-                        .font(.caption2).foregroundStyle(.tertiary)
+            InsightSection(
+                title: insightID == .fitness ? "Fitness age over time"
+                                             : "Heart age over time",
+                trailing: points.yearsPerYear.map { String(format: "%.1f a year", $0) },
+                caveat: .replayedHistory
+            ) {
+                AgeHistoryChart(points: points)
+                if let pace = points.yearsPerYear {
+                    Text(Self.pacePhrase(pace))
+                        .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // Where this age goes next, on today's numbers. Both cards
+                // computed a projection from the day they shipped and neither
+                // drew one — see `projectionSection`.
+                projectionSection
+            }
+        }
+    }
+
+    /// Where this card's own number goes next, on today's inputs.
+    ///
+    /// Both owners of `ageHistoryCard` computed a projection from the day they
+    /// shipped and neither drew one. The risk card's is the starker case:
+    /// `HeartAgeAnalyser` fills `Analysis.projections` and
+    /// `CardiovascularRiskInsight` reads four other fields off that value and
+    /// discards it — while the analyser's own `explanation` writes *"The
+    /// projections below run the same validated equations at future ages"*, a
+    /// sentence about a section that did not exist.
+    ///
+    /// The framing is fixed and is not a style choice: `docs/progress.md`
+    /// records that lifetime risk was **deliberately not faked**, because
+    /// nothing here is validated past 79 and compounding decades of ten-year
+    /// risk invents a number. So these are the same equations run at ages they
+    /// *are* validated for, labelled as a conditional.
+    @ViewBuilder private var projectionSection: some View {
+        switch insightID {
+        case .cardiovascularRisk: riskProjectionSection
+        case .fitness: fitnessProjectionSection
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder private var riskProjectionSection: some View {
+        let projections = model.heartAgeProjections()
+        if projections.count >= 2 {
+            Divider()
+            NestedInsightSection(
+                title: "If today's numbers hold",
+                trailing: projections.last.map { "out to \(ageLabel($0))" },
+                caveat: .ifTodaysNumbersHold
+            ) {
+                ForEach(projections, id: \.age) { projection in
+                    HStack(spacing: 10) {
+                        Text("at \(ageLabel(projection))")
+                            .font(.subheadline.monospacedDigit())
+                            .frame(width: 88, alignment: .leading)
+                        // Dashed, because nobody measured this. Same rule as
+                        // every projected line in the app.
+                        RiskProjectionBar(percent: projection.percent,
+                                          peak: projections.map(\.percent).max() ?? 1)
+                        Text(String(format: "%.1f%%", projection.percent))
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 46, alignment: .trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    /// "79 or older" rather than an extrapolated number — the engines are only
+    /// inverted inside their own validated bands, and printing 84 would be
+    /// inventing one. Same rule the heart-age headline already follows.
+    private func ageLabel(_ projection: HeartAgeModel.Projection) -> String {
+        let age = Int(projection.age.rounded())
+        return age >= 79 ? "79 or older" : "\(age)"
+    }
+
+    @ViewBuilder private var fitnessProjectionSection: some View {
+        if let trajectory = model.fitnessTrajectory(), trajectory.readings >= 3 {
+            Divider()
+            NestedInsightSection(
+                title: "Where this is heading",
+                trailing: String(format: "%.1f in a year", trajectory.projectedIn12Months),
+                caveat: .ifTodaysNumbersHold
+            ) {
+                FitnessProjectionChart(trajectory: trajectory)
+                Text(String(format: "That would put your fitness age at %.0f, against %.0f now.",
+                            trajectory.fitnessAgeIn12Months, trajectory.fitnessAgeNow))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -267,44 +339,45 @@ struct InsightDetailView: View {
         let upfront = lines.filter { $0.isNotable != false }
         let routine = lines.filter { $0.isNotable == false }
 
-        return Card {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("What's driving this").font(.headline)
-
-                if upfront.isEmpty {
-                    Label("Nothing is away from your usual pattern.",
-                          systemImage: "checkmark.circle")
-                        .font(.subheadline).foregroundStyle(Theme.good)
-                } else {
-                    ForEach(Array(upfront.enumerated()), id: \.offset) { _, line in
-                        driverRow(line.text, tint: line.isNotable == true ? Theme.warn : Theme.accent)
-                    }
+        // `.none`: every line here is the model narrating its own inputs. The
+        // lines that *are* inferences say so in their own words, which is where
+        // that judgement belongs.
+        return InsightSection(title: "What's driving this",
+                              trailing: routine.isEmpty ? nil : "\(lines.count) signals",
+                              caveat: .none) {
+            if upfront.isEmpty {
+                Label("Nothing is away from your usual pattern.",
+                      systemImage: "checkmark.circle")
+                    .font(.subheadline).foregroundStyle(Theme.good)
+            } else {
+                ForEach(Array(upfront.enumerated()), id: \.offset) { _, line in
+                    driverRow(line.text, tint: line.isNotable == true ? Theme.warn : Theme.accent)
                 }
+            }
 
-                if !routine.isEmpty {
-                    Divider()
-                    Button {
-                        withAnimation(.snappy) { showsRoutineDrivers.toggle() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(showsRoutineDrivers
-                                 ? "Hide the rest"
-                                 : "Show \(routine.count) more in your normal range")
-                                .font(.caption.weight(.medium))
-                            Image(systemName: "chevron.down")
-                                .font(.caption2)
-                                .rotationEffect(.degrees(showsRoutineDrivers ? 180 : 0))
-                            Spacer()
-                        }
-                        .foregroundStyle(Theme.accent)
-                        .contentShape(Rectangle())
+            if !routine.isEmpty {
+                Divider()
+                Button {
+                    withAnimation(.snappy) { showsRoutineDrivers.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(showsRoutineDrivers
+                             ? "Hide the rest"
+                             : "Show \(routine.count) more in your normal range")
+                            .font(.caption.weight(.medium))
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .rotationEffect(.degrees(showsRoutineDrivers ? 180 : 0))
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.accent)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
 
-                    if showsRoutineDrivers {
-                        ForEach(Array(routine.enumerated()), id: \.offset) { _, line in
-                            driverRow(line.text, tint: .secondary)
-                        }
+                if showsRoutineDrivers {
+                    ForEach(Array(routine.enumerated()), id: \.offset) { _, line in
+                        driverRow(line.text, tint: .secondary)
                     }
                 }
             }
@@ -329,27 +402,19 @@ struct InsightDetailView: View {
     @ViewBuilder private var scoreHistoryCard: some View {
         let history = model.scoreHistory(for: insightID)
         if history.count >= 2 {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Score over time").font(.headline)
-                        Spacer()
-                        Text(trendPhrase(history)).font(.caption).foregroundStyle(.secondary)
-                    }
-                    // The picker that used to live here is now above every
-                    // section that reads `timeframe`, this one included.
-                    ScoreHistoryChart(points: history,
-                                      window: window(spanning: scoreSpan(history)),
-                                      showsTrend: insightID.cadence == .trend)
-                    if insightID.cadence == .trend, let trend = history.trend, trend.isMeaningful {
-                        Text(String(format: "Fitted trend %@%.1f a week, with days scattering about %.0f points either side of it.",
-                                    trend.slopePerWeek > 0 ? "+" : "−",
-                                    abs(trend.slopePerWeek), trend.residualSD))
-                            .font(.caption2).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Text("Days before you had at least two signals recording aren't shown — a score resting on one measurement isn't one.")
-                        .font(.caption2).foregroundStyle(.tertiary)
+            InsightSection(title: "Score over time",
+                           trailing: trendPhrase(history),
+                           caveat: .scoreFloor) {
+                // The picker that used to live here is now above every
+                // section that reads `timeframe`, this one included.
+                ScoreHistoryChart(points: history,
+                                  window: window(spanning: scoreSpan(history)),
+                                  showsTrend: insightID.cadence == .trend)
+                if insightID.cadence == .trend, let trend = history.trend, trend.isMeaningful {
+                    Text(String(format: "Fitted trend %@%.1f a week, with days scattering about %.0f points either side of it.",
+                                trend.slopePerWeek > 0 ? "+" : "−",
+                                abs(trend.slopePerWeek), trend.residualSD))
+                        .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -363,19 +428,12 @@ struct InsightDetailView: View {
     /// presented like the ones whose subject is a month.
     @ViewBuilder private var energyCurveCard: some View {
         if let energy = model.energyToday(), energy.curve.count >= 2 {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Today").font(.headline)
-                        Spacer()
-                        Text(String(format: "%.0f spent of %.0f",
-                                    energy.spent, energy.morningCharge))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    EnergyCurveChart(curve: energy.curve,
-                                     morningCharge: energy.morningCharge)
-                }
+            InsightSection(title: "Today",
+                           trailing: String(format: "%.0f spent of %.0f",
+                                            energy.spent, energy.morningCharge),
+                           caveat: .modelledCurve) {
+                EnergyCurveChart(curve: energy.curve,
+                                 morningCharge: energy.morningCharge)
             }
         }
     }
@@ -389,19 +447,18 @@ struct InsightDetailView: View {
     @ViewBuilder private var sleepRegularityCard: some View {
         if let regularity = model.sleepRegularity(),
            regularity.nights.count >= CircadianConsistencyModel.minimumNights {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Your fortnight").font(.headline)
-                        Spacer()
-                        if let jetlag = regularity.socialJetlagHours, abs(jetlag) >= 0.5 {
-                            Text(String(format: "weekends %.1f h %@",
-                                        abs(jetlag), jetlag > 0 ? "later" : "earlier"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    SleepOnsetStripChart(output: regularity)
-                }
+            let jetlag = regularity.socialJetlagHours
+            InsightSection(
+                title: "Your fortnight",
+                trailing: jetlag.flatMap { hours in
+                    abs(hours) >= 0.5
+                        ? String(format: "weekends %.1f h %@",
+                                 abs(hours), hours > 0 ? "later" : "earlier")
+                        : nil
+                },
+                caveat: .fittedCentre(nights: regularity.nights.count)
+            ) {
+                SleepOnsetStripChart(output: regularity)
             }
         }
     }
@@ -414,19 +471,17 @@ struct InsightDetailView: View {
     @ViewBuilder private var substanceLoadCard: some View {
         let series = model.substanceLoadSeries()
         if series.count >= 7 {
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Cardiovascular load").font(.headline)
-                        Spacer()
-                        if let perWeek = series.trendPerWeek, abs(perWeek) >= 1 {
-                            Text(String(format: "%@%.0f a week",
-                                        perWeek > 0 ? "+" : "−", abs(perWeek)))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    SubstanceLoadChart(points: series)
-                }
+            InsightSection(
+                title: "Cardiovascular load",
+                trailing: series.trendPerWeek.flatMap { perWeek in
+                    abs(perWeek) >= 1
+                        ? String(format: "%@%.0f a week", perWeek > 0 ? "+" : "−",
+                                 abs(perWeek))
+                        : nil
+                },
+                caveat: .decayingLoad
+            ) {
+                SubstanceLoadChart(points: series)
             }
         }
     }
@@ -474,25 +529,81 @@ struct InsightDetailView: View {
             let scanned = result.contributors.count - weighted.count
             if weighted.count >= 2 {
                 let slots = MetricPalette.slots(for: weighted.map(\.metric))
-                Card {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("How this is weighted").font(.headline)
-                        Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                InsightSection(
+                    title: "How this is weighted",
+                    // The section whose whole subject is percentages had no
+                    // figure of its own until now.
+                    trailing: "\(weighted.count) weighted",
+                    caveat: scanned > 0 ? .unscored(signals: scanned) : .none
+                ) {
+                    Text("The share each signal has of the score, after dividing over the ones that had data today. A signal missing today isn't counted as zero — the others simply carry more.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                        ForEach(weighted, id: \.metric) { contribution in
-                            weightRow(contribution, slots: slots)
-                        }
-
-                        if scanned > 0 {
-                            Divider()
-                            Text("\(scanned) more signal\(scanned == 1 ? " is" : "s are") checked for anything unusual but not scored — a scan reports outliers rather than averaging them in.")
-                                .font(.caption2).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                    ForEach(weighted, id: \.metric) { contribution in
+                        weightRow(contribution, slots: slots)
                     }
+
+                    // The card's second picture, for the two cards that have
+                    // one. Nested inside this section rather than beside it,
+                    // because the bespoke slot is one slot.
+                    nestedBespokeSection
                 }
+            }
+        }
+    }
+
+    /// What Heart Health and Readiness each add underneath the weighting.
+    ///
+    /// Both were merged cards that absorbed a whole insight apiece — Heart
+    /// Health took the centiles from "Where You Stand", Readiness took the
+    /// vitals scan — and in both cases the *numbers* survived only as sentences.
+    /// `PeerStandingModel` computes a centile and the card said "top 25%";
+    /// `VitalSignsCheck` computes a z-score for every vital and the card said
+    /// "a little above your baseline".
+    @ViewBuilder private var nestedBespokeSection: some View {
+        switch insightID {
+        case .heartHealth: peerStandingSection
+        case .readiness: vitalDepartureSection
+        default: EmptyView()
+        }
+    }
+
+    /// Where your three comparable numbers sit against other people your age
+    /// and sex. Deliberately positions on an axis rather than a distribution
+    /// curve: the published sources give means and spreads, not full curves,
+    /// and a bell curve would draw a precision the model does not have.
+    @ViewBuilder private var peerStandingSection: some View {
+        if let standing = PeerStandingModel.evaluate(samples: model.samples,
+                                                     profile: model.profile),
+           !standing.standings.isEmpty {
+            Divider()
+            NestedInsightSection(
+                title: "How you compare",
+                trailing: "\(Int(standing.overall.rounded()))th centile overall",
+                caveat: .approximateNorms
+            ) {
+                PeerStandingStrip(standings: standing.standings)
+            }
+        }
+    }
+
+    /// Every vital the scan looked at, as a distance from this person's own
+    /// baseline. The scan already decided each verdict; this draws them on one
+    /// axis so "one thing is off" is visible as a shape rather than counted out
+    /// of a list of seventeen sentences.
+    @ViewBuilder private var vitalDepartureSection: some View {
+        let panel = VitalDeparturePanel.from(
+            VitalSignsCheck.evaluate(samples: model.samples,
+                                     events: model.vitalEvents))
+        if !panel.isEmpty {
+            Divider()
+            NestedInsightSection(
+                title: "How far from your normal",
+                trailing: "\(panel.rows.count) checked",
+                caveat: panel.footnote.map { .computed(.partial, $0) } ?? .none
+            ) {
+                VitalDepartureStrip(panel: panel)
             }
         }
     }
@@ -554,15 +665,14 @@ struct InsightDetailView: View {
 
     @ViewBuilder private var bodyCompositionSplitCard: some View {
         if let split = BodyCompositionSplit.from(samples: model.samples) {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("What you're made of").font(.headline)
-                        Spacer()
-                        Text(String(format: "%.1f kg", split.total))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-
+            // `.none`: every figure here is a reading off the scale. The two
+            // notes below are *findings about the data* — a scale contradicting
+            // itself — so they stay in the content in `Theme.warn`, where they
+            // read as findings. A caveat is context and is always quiet.
+            InsightSection(title: "What you're made of",
+                           trailing: String(format: "%.1f kg", split.total),
+                           caveat: .none) {
+                Group {
                     // The same `bands` the trend chart stacks, so the bar and the
                     // chart below it cannot draw the same body differently — and
                     // the water drawn the same way too: a real translucent film
@@ -647,9 +757,9 @@ struct InsightDetailView: View {
                             .font(.caption2).foregroundStyle(Theme.warn)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    bodyCompositionTrend
                 }
+
+                bodyCompositionTrend
             }
         }
     }
@@ -663,35 +773,28 @@ struct InsightDetailView: View {
         let visible = series.points.filter { start == nil || $0.date >= start! }
         // Two weigh-ins is the floor for a trend: one is the bar above again.
         if visible.count >= 2 {
-            Divider()
-            HStack(alignment: .firstTextBaseline) {
-                Text("How that has changed").font(.subheadline.weight(.semibold))
-                Spacer()
-                // The total is the trailing stat because it is the thing being
-                // asked; the weigh-in count moved into the caption, where it is
-                // context for the shading rather than the headline.
-                if let change = BodyCompositionSplit.change(over: visible) {
-                    Text(String(format: "%@%.1f kg",
-                                change.totalDelta > 0 ? "+" : "−",
-                                abs(change.totalDelta)))
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                } else {
-                    Text("\(visible.count) weigh-ins")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
+            let begins = series.finerSplitBegins.flatMap { date in
+                visible.contains { $0.date >= date } ? date : nil
             }
-            BodyCompositionTrendChart(
-                points: visible,
-                finerSplitBegins: series.finerSplitBegins.flatMap { date in
-                    visible.contains { $0.date >= date } ? date : nil
-                })
-            Text("Height is your weight, split the same way as above, across \(visible.count) weigh-ins. The axis tops out at your heaviest reading in this window rather than a round number above it, so changing the timeframe rescales the picture. A band thinning while the total falls is where the weight came off.")
-                .font(.caption2).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let begins = series.finerSplitBegins, visible.contains(where: { $0.date >= begins }) {
-                Text("Muscle and bone are only separated from \(begins.formatted(date: .abbreviated, time: .omitted)), when your scale started reporting them. Before that the lean part is drawn undivided rather than guessed at.")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Divider()
+            NestedInsightSection(
+                title: "How that has changed",
+                // One slot, one quantity. This used to fall back to a count of
+                // weigh-ins when there was no delta — a different measurement
+                // in the same position, with nothing to tell a reader which one
+                // they were looking at. The count is in the caveat, where it is
+                // context for the picture rather than the headline.
+                trailing: BodyCompositionSplit.change(over: visible).map { change in
+                    String(format: "%@%.1f kg", change.totalDelta > 0 ? "+" : "−",
+                           abs(change.totalDelta))
+                },
+                caveat: .joined([
+                    .compositionWindow(weighIns: visible.count),
+                    begins.map { .splitOnlyFrom($0.formatted(date: .abbreviated, time: .omitted)) }
+                        ?? .none
+                ])
+            ) {
+                BodyCompositionTrendChart(points: visible, finerSplitBegins: begins)
             }
         }
     }
@@ -704,40 +807,43 @@ struct InsightDetailView: View {
             let missing = contributions.metrics.filter { metric in
                 !series.contains { $0.metric == metric }
             }
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("What goes into this").font(.headline)
-                    Text(scale == .zScore
-                         ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average. The list below is ordered by how far each signal has moved — tap any of them to add or remove it."
-                         : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            // `.none`: these are measured series. Where a gap is bridged the
+            // chart draws it dashed and dimmed, which states the inference at
+            // the place it happens rather than in a footnote about the whole
+            // section.
+            InsightSection(title: "What goes into this",
+                           trailing: "\(series.count) of \(contributions.metrics.count)",
+                           caveat: .none) {
+                Text(scale == .zScore
+                     ? "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average. The list below is ordered by how far each signal has moved — tap any of them to add or remove it."
+                     : "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Picker("Scale", selection: $scale) {
-                        ForEach(SeriesScale.allCases) { Text($0.shortLabel).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-
-                    MetricOverlayChart(
-                        series: series, scale: scale, logarithmic: logarithmic,
-                        window: window(spanning: model.overlayRange(for: contributions.metrics,
-                                                                    timeframe: timeframe)),
-                        selectedMetrics: chartSelection
-                            ?? OverlaySelection.defaultSelection(series))
-
-                    if scale == .raw && series.supportsLogScale {
-                        Toggle("Logarithmic axis", isOn: $logarithmic)
-                            .font(.caption)
-                    }
-
-                    Divider()
-                    MetricOverlayLegend(
-                        series: series, contributions: contributions,
-                        missing: missing,
-                        selection: Binding(
-                            get: { chartSelection ?? OverlaySelection.defaultSelection(series) },
-                            set: { chartSelection = $0 }))
+                Picker("Scale", selection: $scale) {
+                    ForEach(SeriesScale.allCases) { Text($0.shortLabel).tag($0) }
                 }
+                .pickerStyle(.segmented)
+
+                MetricOverlayChart(
+                    series: series, scale: scale, logarithmic: logarithmic,
+                    window: window(spanning: model.overlayRange(for: contributions.metrics,
+                                                                timeframe: timeframe)),
+                    selectedMetrics: chartSelection
+                        ?? OverlaySelection.defaultSelection(series))
+
+                if scale == .raw && series.supportsLogScale {
+                    Toggle("Logarithmic axis", isOn: $logarithmic)
+                        .font(.caption)
+                }
+
+                Divider()
+                MetricOverlayLegend(
+                    series: series, contributions: contributions,
+                    missing: missing,
+                    selection: Binding(
+                        get: { chartSelection ?? OverlaySelection.defaultSelection(series) },
+                        set: { chartSelection = $0 }))
             }
         }
     }
@@ -773,24 +879,19 @@ struct InsightDetailView: View {
         let patterns = PatternFinder.patterns(in: series,
                                               against: model.scoreHistory(for: insightID))
         if !patterns.isEmpty {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Patterns worth a look", systemImage: "lightbulb")
-                        .font(.headline)
-                    ForEach(patterns) { pattern in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: icon(for: pattern.kind))
-                                .font(.caption)
-                                .foregroundStyle(Theme.accent)
-                                .frame(width: 16)
-                            Text(pattern.sentence)
-                                .font(.subheadline)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            InsightSection(title: "Patterns worth a look", icon: "lightbulb",
+                           trailing: "\(patterns.count) found",
+                           caveat: .associationsNotCauses) {
+                ForEach(patterns) { pattern in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: icon(for: pattern.kind))
+                            .font(.caption)
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 16)
+                        Text(pattern.sentence)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("These are associations found in your own data over this window, not causes, and not medical findings. A short run of days can show a relationship that isn't there.")
-                        .font(.caption2).foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -820,22 +921,26 @@ struct InsightDetailView: View {
         let leads = LagFinder.relationships(between: series,
                                             and: model.scoreHistory(for: insightID))
         if !leads.isEmpty {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("What comes first", systemImage: "clock.arrow.circlepath")
-                        .font(.headline)
-                    // Resolved across this list. Without slots a metric falls
-                    // back to its *preferred* hue, and RMSSD and SDNN prefer the
-                    // same one — two identical dots in one list, which is the
-                    // collision class this app has already shipped once.
-                    let slots = MetricPalette.slots(for: leads.map(\.metric))
-                    ForEach(leads) { lead in
-                        HStack(alignment: .top, spacing: 8) {
-                            Circle().fill(Theme.metricColor(lead.metric, slots: slots))
-                                .frame(width: 8, height: 8).padding(.top, 6)
-                            Text(lead.sentence).font(.subheadline)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+            // This section had no footnote at all, and it makes the most
+            // inferential claim on the screen: a correlation at a lag, fitted
+            // through however many days the two series happen to overlap on.
+            // The narrowest overlap is the honest number to quote.
+            InsightSection(
+                title: "What comes first", icon: "clock.arrow.circlepath",
+                trailing: "\(leads.count) leading",
+                caveat: .fittedThrough(points: leads.map(\.sampleCount).min() ?? 0)
+            ) {
+                // Resolved across this list. Without slots a metric falls
+                // back to its *preferred* hue, and RMSSD and SDNN prefer the
+                // same one — two identical dots in one list, which is the
+                // collision class this app has already shipped once.
+                let slots = MetricPalette.slots(for: leads.map(\.metric))
+                ForEach(leads) { lead in
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle().fill(Theme.metricColor(lead.metric, slots: slots))
+                            .frame(width: 8, height: 8).padding(.top, 6)
+                        Text(lead.sentence).font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -849,22 +954,21 @@ struct InsightDetailView: View {
         let changes = PeriodContrast.changes(for: resolvedContributions(result),
                                              samples: model.samples)
         if !changes.isEmpty {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("What changed").font(.headline)
-                    Text("Your last four weeks against the four before them.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    let slots = MetricPalette.slots(for: changes.map(\.metric))
-                    ForEach(changes) { change in
-                        HStack(spacing: 8) {
-                            Circle().fill(Theme.metricColor(change.metric, slots: slots))
-                                .frame(width: 9, height: 9)
-                            Text(change.metric.displayName).font(.subheadline)
-                            Spacer()
-                            Text(deltaLabel(change))
-                                .font(.subheadline.weight(.medium)).monospacedDigit()
-                                .foregroundStyle(tint(for: change))
-                        }
+            InsightSection(title: "What changed",
+                           trailing: "\(changes.count) signals",
+                           caveat: .periodContrast(days: PeriodContrast.windowDays)) {
+                Text("Your last four weeks against the four before them.")
+                    .font(.caption).foregroundStyle(.secondary)
+                let slots = MetricPalette.slots(for: changes.map(\.metric))
+                ForEach(changes) { change in
+                    HStack(spacing: 8) {
+                        Circle().fill(Theme.metricColor(change.metric, slots: slots))
+                            .frame(width: 9, height: 9)
+                        Text(change.metric.displayName).font(.subheadline)
+                        Spacer()
+                        Text(deltaLabel(change))
+                            .font(.subheadline.weight(.medium)).monospacedDigit()
+                            .foregroundStyle(tint(for: change))
                     }
                 }
             }
@@ -894,26 +998,25 @@ struct InsightDetailView: View {
     @ViewBuilder private func contributorLinksCard(_ result: InsightResult) -> some View {
         let metrics = resolvedContributions(result).metrics
         if !metrics.isEmpty {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Full history").font(.headline)
-                    let slots = MetricPalette.slots(for: metrics)
-                    ForEach(metrics, id: \.self) { metric in
-                        NavigationLink {
-                            MetricDetailView(metric: metric)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Circle().fill(Theme.metricColor(metric, slots: slots))
-                                    .frame(width: 9, height: 9)
-                                Text(metric.displayName).font(.subheadline)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption).foregroundStyle(.tertiary)
-                            }
-                            .contentShape(Rectangle())
+            InsightSection(title: "Full history",
+                           trailing: "\(metrics.count) signals",
+                           caveat: .none) {
+                let slots = MetricPalette.slots(for: metrics)
+                ForEach(metrics, id: \.self) { metric in
+                    NavigationLink {
+                        MetricDetailView(metric: metric)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Circle().fill(Theme.metricColor(metric, slots: slots))
+                                .frame(width: 9, height: 9)
+                            Text(metric.displayName).font(.subheadline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption).foregroundStyle(.tertiary)
                         }
-                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -929,8 +1032,8 @@ struct InsightDetailView: View {
                           systemImage: "checkmark.circle.fill")
                         .font(.caption).foregroundStyle(Theme.good)
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Was this accurate?").font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                        Text("Was this accurate?").font(.headline)
                         HStack(spacing: 10) {
                             Button {
                                 model.recordFeedback(insightID, accurate: true); feedbackGiven = true

@@ -8,6 +8,10 @@ enum Theme {
     static let corner: CGFloat = 20
     static let cardPadding: CGFloat = 16
     static let spacing: CGFloat = 16
+    /// Between the parts *inside* one card section — header, content, caveat.
+    /// One number, replacing the 8 / 10 / 12 that were in use across
+    /// `InsightDetailView` with no rule distinguishing them.
+    static let sectionSpacing: CGFloat = 10
 
     // Accent + semantic colours (adapt to light/dark via system materials).
     static let accent = Color(red: 0.90, green: 0.29, blue: 0.35)   // heart red

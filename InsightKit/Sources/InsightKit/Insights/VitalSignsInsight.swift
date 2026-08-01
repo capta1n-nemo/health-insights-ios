@@ -347,21 +347,24 @@ public enum VitalSignsCheck {
         var note = "in your normal range"
 
         if let z {
-            let magnitude = abs(z)
-            let high = z > 0
-            let concerning = (high && spec.concernWhenHigh) || (!high && spec.concernWhenLow)
-            if magnitude >= unusualZ {
-                status = concerning ? .unusual : .watch
-                note = high ? "well above your baseline" : "well below your baseline"
-            } else if magnitude >= watchZ {
-                // Only say "a little above your baseline" when the status
-                // actually reflects it. The old version overwrote the note even
-                // when it kept `.normal`, so a card could read "All normal" and
-                // "a little above your baseline" in the same breath.
-                if concerning {
-                    status = .watch
-                    note = high ? "a little above your baseline" : "a little below your baseline"
-                }
+            // The thresholds live in `VitalDeparture` so the Readiness strip
+            // shades its bands at the edges this scan actually judges by. Two
+            // copies of a threshold drift, and here the drift would be invisible:
+            // a dot sitting on the quiet side of a line the card had already
+            // called. This is the only place they are applied.
+            let concerning = VitalDeparture.isConcerning(z: z, spec: spec)
+            switch VitalDeparture.band(z: z, concerning: concerning) {
+            case .unusual: status = .unusual
+            case .watch: status = .watch
+            case .ordinary: status = .normal
+            }
+            // Only re-word when the status actually moved. The old version
+            // overwrote the note even when it kept `.normal`, so a card could
+            // read "All normal" and "a little above your baseline" in one breath.
+            if status != .normal {
+                let far = abs(z) >= unusualZ
+                note = (far ? "well " : "a little ")
+                    + (z > 0 ? "above your baseline" : "below your baseline")
             }
         } else if history.count < minimumBaselineDays {
             status = .insufficientHistory

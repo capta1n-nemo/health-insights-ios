@@ -28,6 +28,51 @@ public enum PeerStandingModel {
         let higherIsBetter: Bool
     }
 
+    /// The stretch of the distribution a centile falls in, and the words for it.
+    ///
+    /// Extracted from `Standing.phrase`, which used to hold the edges 90 / 75 /
+    /// 60 / 40 / 25 inline. A strip that *draws* these bands has to shade them
+    /// at the same edges the sentence beside it is chosen by, and two copies of
+    /// a threshold drift — the blood-pressure bands are the worked example
+    /// (`Category.of` classifies, `systolicRange` shades, and `PressureBandTests`
+    /// binds them). Same treatment here: the edges exist once, in `bounds`.
+    public enum Band: String, Sendable, Equatable, CaseIterable {
+        case top10, top25, aboveAverage, aroundAverage, belowAverage, bottom25
+
+        /// Declared high to low, which is what lets `of(_:)` be a search rather
+        /// than a second switch over the same numbers.
+        public var bounds: Range<Double> {
+            switch self {
+            case .top10: return 90..<100
+            case .top25: return 75..<90
+            case .aboveAverage: return 60..<75
+            case .aroundAverage: return 40..<60
+            case .belowAverage: return 25..<40
+            case .bottom25: return 0..<25
+            }
+        }
+
+        /// "top 10%" / "around average" — the phrase people actually repeat.
+        public var phrase: String {
+            switch self {
+            case .top10: return "top 10%"
+            case .top25: return "top 25%"
+            case .aboveAverage: return "above average"
+            case .aroundAverage: return "around average"
+            case .belowAverage: return "below average"
+            case .bottom25: return "bottom 25%"
+            }
+        }
+
+        /// The middle of the distribution — the one band a strip marks, so a
+        /// reader can see what "ordinary" looks like without reading six labels.
+        public var isTypical: Bool { self == .aroundAverage }
+
+        public static func of(_ percentile: Double) -> Band {
+            allCases.first { percentile >= $0.bounds.lowerBound } ?? .bottom25
+        }
+    }
+
     public struct Standing: Sendable, Equatable, Identifiable {
         public let metric: MetricType
         public let value: Double
@@ -37,17 +82,10 @@ public enum PeerStandingModel {
         public let percentile: Double
         public var id: MetricType { metric }
 
-        /// "top 15%" / "around average" — the phrase people actually repeat.
-        public var phrase: String {
-            switch percentile {
-            case 90...: return "top 10%"
-            case 75..<90: return "top 25%"
-            case 60..<75: return "above average"
-            case 40..<60: return "around average"
-            case 25..<40: return "below average"
-            default: return "bottom 25%"
-            }
-        }
+        public var band: Band { Band.of(percentile) }
+
+        /// "top 10%" / "around average" — the phrase people actually repeat.
+        public var phrase: String { band.phrase }
     }
 
     public struct Output: Sendable, Equatable {

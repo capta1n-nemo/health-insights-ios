@@ -175,6 +175,8 @@ the place to look.
   - `Timeframe` :5
 - `Presentation/ContributionRoute.swift`
   - `ContributionRoute` :14
+- `Presentation/ContributionSummary.swift`
+  - `ContributionSummary` :21
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
@@ -204,10 +206,15 @@ the place to look.
   - `SeriesScale` :4
 - `Presentation/OverlaySelection.swift`
   - `OverlaySelection` :10
+- `Presentation/SectionCaveat.swift`
+  - `SectionCaveat` :22
 - `Presentation/SeriesSegmentation.swift`
   - `GapBridge` :90
   - `SeriesBridging` :123
   - `SeriesSegmentation` :53
+- `Presentation/VitalDeparture.swift`
+  - `VitalDeparture` :27
+  - `VitalDeparturePanel` :109
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
 - `Signals/SleepNights.swift`
@@ -301,15 +308,23 @@ the place to look.
   - `BodyCompositionTrendChart` :39
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
+- `DesignSystem/FitnessProjectionChart.swift`
+  - `FitnessProjectionChart` :26
+  - `RiskProjectionBar` :125
 - `DesignSystem/Haptics.swift`
   - `CopyButton` :37
   - `Haptics` :10
+- `DesignSystem/InsightSection.swift`
+  - `InsightSection` :34
+  - `NestedInsightSection` :92
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
   - `MetricOverlayLegend` :11
 - `DesignSystem/MultiSourceChart.swift`
   - `MultiSourceChart` :37
+- `DesignSystem/PeerStandingStrip.swift`
+  - `PeerStandingStrip` :28
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :35
 - `DesignSystem/ScoreComparisonChart.swift`
@@ -331,9 +346,11 @@ the place to look.
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
 - `DesignSystem/Theme.swift`
-  - `Card` :334
-  - `ConfidenceBadge` :350
+  - `Card` :338
+  - `ConfidenceBadge` :354
   - `Theme` :7
+- `DesignSystem/VitalDepartureStrip.swift`
+  - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :269
   - `LastNightCard` :149
@@ -345,6 +362,8 @@ the place to look.
   - `AddBloodPressureView` :6
 - `Features/Grounding/CalibrationProgress.swift`
   - `CalibrationProgress` :5
+- `Features/Grounding/GroundingDetailView.swift`
+  - `GroundingDetailView` :15
 - `Features/Grounding/GroundingEntryView.swift`
   - `GroundingEntryView` :6
 - `Features/Grounding/GroundingPromptBanner.swift`
@@ -352,7 +371,9 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddSection.swift`
-  - `ViewAndAddSection` :20
+  - `GroundedSummary` :197
+  - `GroundingKindList` :222
+  - `ViewAndAddSection` :43
 - `Features/Insights/InsightDetailView.swift`
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`

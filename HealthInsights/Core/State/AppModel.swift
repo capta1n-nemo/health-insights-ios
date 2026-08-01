@@ -973,6 +973,51 @@ final class AppModel {
         return []
     }
 
+    /// Cardiovascular risk at future ages, on today's numbers.
+    ///
+    /// `HeartAgeAnalyser` has computed these since it shipped and
+    /// `CardiovascularRiskInsight` read four other fields off the same value and
+    /// let it fall out of scope — so the equations ran, every time, and nothing
+    /// ever drew the result. The analyser's own `explanation` even wrote "the
+    /// projections below", which was never true.
+    ///
+    /// Cached and computed off the main actor for `heartAgeHistory`'s reason:
+    /// this re-runs SCORE2 and ASCVD at four ages, which is not a view-body cost.
+    private(set) var riskProjections: [HeartAgeModel.Projection] = []
+    @ObservationIgnored private var riskProjectionsRunning = false
+
+    func heartAgeProjections() -> [HeartAgeModel.Projection] {
+        if !riskProjections.isEmpty { return riskProjections }
+        guard !riskProjectionsRunning else { return [] }
+        riskProjectionsRunning = true
+
+        let samples = self.samples
+        let profile = self.profile
+        let generation = scoreHistoryGeneration
+        Task.detached(priority: .userInitiated) {
+            let analysis = HeartAgeAnalyser().analyse(samples: samples, profile: profile,
+                                                      now: Date())
+            await MainActor.run { [weak self] in
+                guard let self, self.scoreHistoryGeneration == generation else { return }
+                self.riskProjections = analysis.projections
+                self.riskProjectionsRunning = false
+            }
+        }
+        return []
+    }
+
+    /// The VO₂max trajectory, including the twelve-month projection and its
+    /// residual spread — both computed since the card shipped and read by
+    /// nothing outside `CardioTrajectory.swift`.
+    ///
+    /// Not cached: unlike the two above this is a single least-squares fit over
+    /// one metric's dailies, and it already runs inside the insight pass every
+    /// refresh. Caching it would add an invalidation path for no measured gain.
+    func fitnessTrajectory() -> VO2Trajectory.Output? {
+        guard let age = profile.age(), let sex = profile.sex else { return nil }
+        return VO2Trajectory.evaluate(samples: samples, age: age, sex: sex)
+    }
+
     /// Standardised daily series for an insight's inputs, cached per insight and
     /// timeframe.
     ///

@@ -33,11 +33,16 @@ public enum PeriodContrast {
     public static let minimumDaysPerPeriod = 7
     /// Changes smaller than this share of the prior spread are noise.
     public static let minimumStandardisedDelta = 0.4
+    /// The length of each of the two windows. Named rather than left as a bare
+    /// default argument because the card's caveat quotes it, and a caption that
+    /// says "28 days" beside a comparison over some other number is the kind of
+    /// disagreement nobody notices.
+    public static let windowDays = 28
 
     /// Compare the `days` before `now` with the `days` before that.
     public static func changes(for metrics: [MetricContribution],
                                samples: [HealthMetricSample],
-                               days: Int = 28,
+                               days: Int = PeriodContrast.windowDays,
                                now: Date = Date(),
                                calendar: Calendar = .current) -> [PeriodChange] {
         let window = Double(days) * 86_400

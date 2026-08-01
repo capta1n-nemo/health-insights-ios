@@ -15,8 +15,31 @@ import InsightKit
 /// the model already declares — so this view never decides *what* a card takes,
 /// only how it looks.
 ///
-/// The anatomy is fixed whatever the route: a header with a status figure, what
-/// you have already given, what is still missing, and one prominent way to add.
+/// ## The anatomy, and what it stopped being
+///
+/// The doc comment here used to claim the anatomy was fixed whatever the route.
+/// It was not. Blood pressure had a grounded summary and the other two did not;
+/// the grounding-facts route had no add button at all, so its rows were the only
+/// way in; the "all readings" link appeared only once there were more than
+/// three; and all three routes **previewed their own contents** on the card —
+/// three readings, three events, and every fact with its value.
+///
+/// It is now, everywhere:
+///
+/// 1. A header, and one figure saying where you are.
+/// 2. The grounded / not-grounded summary — a seal, a sentence, and a bar while
+///    there is something left to fill.
+/// 3. One prominent button into the sub-menu that holds adding *and* what has
+///    been added.
+/// 4. A link to the fuller screen, where one exists beyond that sub-menu. Only
+///    blood pressure has one; see `ContributionSummary.detailLabel`.
+///
+/// **No previews.** A card is for where you stand; the sub-menu is for what you
+/// gave. Listing the last three readings on the card duplicated the first rows
+/// of the screen the button opens, and the fact values did the same for the
+/// grounding list. The state — how many, how recent, whether that is enough — is
+/// the part that belongs out here, and `ContributionSummary` computes it in
+/// InsightKit where it is tested.
 struct ViewAndAddSection: View {
     let routes: [ContributionRoute]
     /// Carried so a missing fact can show the model's own reason for wanting it,
@@ -25,9 +48,9 @@ struct ViewAndAddSection: View {
     let unmetRequirements: [GroundingRequirement]
 
     @Environment(AppModel.self) private var model
-    @State private var groundingKind: GroundingKind?
     @State private var addingBloodPressure = false
     @State private var showingSubstanceLog = false
+    @State private var showingGroundingDetail: GroundingKindList?
 
     var body: some View {
         if !routes.isEmpty {
@@ -39,13 +62,16 @@ struct ViewAndAddSection: View {
                     }
                 }
             }
-            .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
             .sheet(isPresented: $addingBloodPressure) {
                 AddBloodPressureView { systolic, diastolic, date in
                     model.logBloodPressure(systolic: systolic, diastolic: diastolic, at: date)
                 }
             }
             .sheet(isPresented: $showingSubstanceLog) { SubstanceLogView() }
+            .sheet(item: $showingGroundingDetail) { kinds in
+                GroundingDetailView(kinds: kinds.values,
+                                    unmetRequirements: unmetRequirements)
+            }
         }
     }
 
@@ -57,7 +83,30 @@ struct ViewAndAddSection: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - The one anatomy
+
+    /// Every route is this. The only per-route parts are the destination the
+    /// button opens and the destination the link pushes.
+    private func routeBody<Link: View>(
+        title: String,
+        summary: ContributionSummary,
+        add: @escaping () -> Void,
+        @ViewBuilder link: () -> Link
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header(title, status: summary.figure)
+            GroundedSummary(summary: summary)
+
+            Button(action: add) {
+                Label(summary.addLabel, systemImage: "plus.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+
+            link()
+        }
+    }
 
     /// The same header everywhere: what this is, and one figure saying where you
     /// are. The figure is the thing that makes the section worth looking at when
@@ -75,54 +124,15 @@ struct ViewAndAddSection: View {
         }
     }
 
-    // MARK: - Blood pressure
-
-    /// Readings, calibration progress, and the add button — on the card that
-    /// talks about blood pressure, rather than two taps away on a screen that
-    /// also holds the full history.
-    private var bloodPressureRoute: some View {
-        let readings = model.bloodPressureReadings
-        let status = model.bloodPressureCalibration
-        return VStack(alignment: .leading, spacing: 10) {
-            header("View & add readings",
-                   status: "\(status.recentReadings) in 30 days")
-
-            CalibrationProgress(status: status)
-
-            if readings.isEmpty {
-                Text("No readings yet. Add one from a cuff, or log some in Apple Health — they'll show here automatically with their dates.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                // Three, not the whole log: the full dated history is a screen
-                // of its own and this is a card about today's number.
-                ForEach(readings.prefix(3)) { reading in
-                    HStack(spacing: 8) {
-                        Text("\(Int(reading.systolic.rounded()))/\(Int(reading.diastolic.rounded()))")
-                            .font(.subheadline.weight(.semibold)).monospacedDigit()
-                        Text(reading.category)
-                            .font(.caption).foregroundStyle(.secondary)
-                        Spacer()
-                        Text(reading.date.formatted(.relative(presentation: .named)))
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
-                }
-            }
-
-            Button { addingBloodPressure = true } label: {
-                Label("Add a reading", systemImage: "plus.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-
-            if readings.count > 3 {
-                NavigationLink {
-                    MetricDetailView(subject: .bloodPressure)
-                } label: {
+    private func detailLink<Destination: View>(
+        _ summary: ContributionSummary,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        Group {
+            if let label = summary.detailLabel {
+                NavigationLink(destination: destination()) {
                     HStack(spacing: 4) {
-                        Text("All \(readings.count) readings and calibration detail")
-                            .font(.caption.weight(.medium))
+                        Text(label).font(.caption.weight(.medium))
                         Image(systemName: "chevron.right").font(.caption2)
                     }
                     .foregroundStyle(Theme.accent)
@@ -133,105 +143,83 @@ struct ViewAndAddSection: View {
         }
     }
 
+    // MARK: - Blood pressure
+
+    /// The one route with somewhere further to go: the sheet takes a reading,
+    /// the metric screen holds the dated history, the chart and the calibration
+    /// detail. The link used to appear only past three readings, so the screen
+    /// was unreachable from here exactly while a user was learning the feature.
+    private var bloodPressureRoute: some View {
+        let summary = ContributionSummary.bloodPressure(model.bloodPressureCalibration)
+        return routeBody(
+            title: "View & add readings",
+            summary: summary,
+            add: { addingBloodPressure = true },
+            link: {
+                detailLink(summary) { MetricDetailView(subject: .bloodPressure) }
+            })
+    }
+
     // MARK: - Substance log
 
+    /// `SubstanceLogView` is already both halves — the chips add, and the
+    /// entries below can be re-timed or removed — so the button is the whole
+    /// route and there is nothing for a link to reach past it.
     private var substanceRoute: some View {
-        let events = model.substanceEvents
-        return VStack(alignment: .leading, spacing: 10) {
-            header("View & add entries",
-                   status: events.isEmpty ? nil : "\(events.count) logged")
-
-            if events.isEmpty {
-                Text("Nothing logged yet. Logging what you have — and when — is what lets the app compare the hours afterwards against your ordinary days.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                ForEach(events.prefix(3)) { event in
-                    HStack(spacing: 8) {
-                        Text(event.substance.displayName).font(.subheadline)
-                        Spacer()
-                        Text(event.timestamp.formatted(.relative(presentation: .named)))
-                            .font(.caption).foregroundStyle(.tertiary)
-                    }
-                }
-            }
-
-            Button { showingSubstanceLog = true } label: {
-                Label("Log something", systemImage: "plus.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-
-            Text("Private and on-device. Recorded so the app can show how your body responds — no judgement, and no amounts.")
-                .font(.caption2).foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        let summary = ContributionSummary.substances(logged: model.substanceEvents.count)
+        return routeBody(
+            title: "View & add entries",
+            summary: summary,
+            add: { showingSubstanceLog = true },
+            link: { detailLink(summary) { EmptyView() } })
     }
 
     // MARK: - Grounding facts
 
-    /// One row per fact this card's model asks for, whether or not it is set.
-    ///
-    /// Showing the satisfied ones too is the "view" half, and it is what the old
-    /// requirements card could not do — it listed only what was missing, so a
-    /// card you had fully grounded simply lost the section and with it any way
-    /// to correct a value you had mistyped.
+    /// The route that had no button. Its rows were the only way to reach a
+    /// value, which meant the "add" half of "View & add" was a thing you had to
+    /// already know was there.
     private func factsRoute(_ kinds: [GroundingKind]) -> some View {
         let unmetKinds = Set(unmetRequirements.map(\.kind))
         let setCount = kinds.filter { !unmetKinds.contains($0) }.count
-        return VStack(alignment: .leading, spacing: 10) {
-            header("View & add details", status: "\(setCount) of \(kinds.count) set")
+        let summary = ContributionSummary.facts(set: setCount, of: kinds.count)
+        return routeBody(
+            title: "View & add details",
+            summary: summary,
+            add: { showingGroundingDetail = GroundingKindList(values: kinds) },
+            link: { detailLink(summary) { EmptyView() } })
+    }
+}
 
-            ForEach(kinds) { kind in
-                factRow(kind, isUnmet: unmetKinds.contains(kind))
+/// The green seal, the sentence, and a bar while there is something left to
+/// fill. Modelled on `CalibrationProgress`, which was the one route that had
+/// this and is now what all three look like.
+struct GroundedSummary: View {
+    let summary: ContributionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let progress = summary.progress {
+                ProgressView(value: progress).tint(Theme.accent)
             }
-
-            if setCount < kinds.count {
-                Text("The more of these the app has, the less it has to assume. Tap any row to set or change it.")
-                    .font(.caption2).foregroundStyle(.tertiary)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: summary.isGrounded ? "checkmark.seal.fill" : "target")
+                    .foregroundStyle(summary.isGrounded ? Theme.good : Theme.accent)
+                Text(summary.guidance)
+                    .font(.footnote).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.vertical, 2)
     }
+}
 
-    private func factRow(_ kind: GroundingKind, isUnmet: Bool) -> some View {
-        let input = model.profile.input(kind)
-        let rationale = unmetRequirements.first { $0.kind == kind }?.rationale
-        return Button {
-            groundingKind = kind
-        } label: {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: isUnmet ? "circle.dotted" : "checkmark.circle.fill")
-                    .font(.footnote)
-                    .foregroundStyle(isUnmet ? Color.secondary : Theme.good)
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(kind.displayName).font(.subheadline)
-                    // A stale value is still the best number available and is
-                    // still used — what it has stopped buying is confidence. So
-                    // it reads as "worth repeating", never as missing.
-                    if let input {
-                        Text(input.isFresh()
-                             ? kind.formatted(input.value)
-                             : "\(kind.formatted(input.value)) · worth repeating")
-                            .font(.caption)
-                            .foregroundStyle(input.isFresh() ? Color.secondary : Theme.warn)
-                    } else if let rationale {
-                        Text(rationale)
-                            .font(.caption2).foregroundStyle(.tertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: 4)
-                // Both branches are `Color`. `.tertiary` here would be a
-                // `HierarchicalShapeStyle`, and a ternary whose arms are two
-                // different ShapeStyle types has nothing to unify to.
-                Image(systemName: isUnmet ? "plus.circle.fill" : "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(isUnmet ? Theme.accent : Color.secondary)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
+/// `sheet(item:)` needs an `Identifiable`, and `[GroundingKind]` is not one.
+///
+/// A wrapper rather than a retroactive conformance on `Array`: conforming a
+/// standard-library type to a protocol it does not own is a change every other
+/// file in the target inherits, for one sheet's benefit.
+struct GroundingKindList: Identifiable {
+    let values: [GroundingKind]
+    var id: String { values.map(\.rawValue).joined(separator: "|") }
 }
