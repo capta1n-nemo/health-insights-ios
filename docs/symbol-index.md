@@ -174,6 +174,8 @@ the place to look.
 - `Models/RawMetricSample.swift`
   - `RawMetricGroup` :61
   - `RawMetricSample` :15
+- `Models/SampleCacheCodec.swift`
+  - `SampleCacheCodec` :38
 - `Models/Sex.swift`
   - `ASCVDRaceGroup` :23
   - `BiologicalSex` :5

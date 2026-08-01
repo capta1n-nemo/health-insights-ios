@@ -110,6 +110,19 @@ final class DataStore {
         return base.appendingPathComponent("synced_samples.json")
     }
 
+    /// The compact binary cache (`SampleCacheCodec`). Decoding the JSON file
+    /// above was measured at ~1 s on a real history — the largest single cost
+    /// left on a cold launch — against single-digit milliseconds for this
+    /// format. The JSON path survives below only to migrate: first launch
+    /// after the update reads the old file, the next save writes this one and
+    /// deletes it.
+    nonisolated private var compactCacheURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("synced_samples.hisc")
+    }
+
     nonisolated private var otherCacheURL: URL {
         let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
                                                  in: .userDomainMask, appropriateFor: nil, create: true))
@@ -118,13 +131,31 @@ final class DataStore {
     }
 
     nonisolated func loadCachedSamples() -> [HealthMetricSample] {
+        if let data = try? Data(contentsOf: compactCacheURL),
+           let samples = SampleCacheCodec.decode(data) {
+            return samples
+        }
+        // Legacy JSON cache, from builds before the compact format — read once
+        // and retired by the next save.
         guard let data = try? Data(contentsOf: syncedCacheURL) else { return [] }
         return (try? JSONDecoder().decode([HealthMetricSample].self, from: data)) ?? []
     }
 
     nonisolated func saveCachedSamples(_ samples: [HealthMetricSample]) {
-        guard let data = try? JSONEncoder().encode(samples) else { return }
-        try? data.write(to: syncedCacheURL, options: .atomic)
+        // `encode` only fails on a set it cannot represent (>65k distinct
+        // sources or types); keep the legacy path for that never-case rather
+        // than silently dropping the cache.
+        guard let data = SampleCacheCodec.encode(samples) else {
+            guard let json = try? JSONEncoder().encode(samples) else { return }
+            try? json.write(to: syncedCacheURL, options: .atomic)
+            return
+        }
+        do {
+            try data.write(to: compactCacheURL, options: .atomic)
+            // Superseded: leaving it would double disk use, and serve stale
+            // samples if the compact file were ever lost.
+            try? FileManager.default.removeItem(at: syncedCacheURL)
+        } catch {}
     }
 
     nonisolated func loadCachedOther() -> [RawMetricSample] {
@@ -157,6 +188,7 @@ final class DataStore {
     /// looks exactly like a rebuild that worked.
     nonisolated func clearSyncedCaches() -> (samples: Int, other: Int) {
         let discarded = (samples: loadCachedSamples().count, other: loadCachedOther().count)
+        try? FileManager.default.removeItem(at: compactCacheURL)
         try? FileManager.default.removeItem(at: syncedCacheURL)
         try? FileManager.default.removeItem(at: otherCacheURL)
         return discarded
