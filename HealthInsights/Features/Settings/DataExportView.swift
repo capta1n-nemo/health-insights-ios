@@ -232,15 +232,49 @@ struct DataExportView: View {
     private func buildFullExport() {
         exportFailed = nil
         preparingFullExport = true
-        let samples = model.samples
-        let rawGroups = model.otherDataGroups
+        // Everything the app holds, not just the measured series — the logged
+        // domains, the profile facts and each card's own output travel too. See
+        // `HealthDataExport`, whose domain switch is what keeps a future
+        // connector's data from being quietly left out of this file.
+        let bundle = HealthDataExport(
+            generatedAt: Date(),
+            build: BuildInfo.summary,
+            samples: model.samples,
+            unmodelled: model.otherDataGroups.flatMap(\.samples),
+            substances: model.substanceEvents,
+            medication: model.activeMedication.flatMap { record in
+                record.compound.map { compound in
+                    HealthDataExport.Medication(
+                        compound: compound.rawValue,
+                        brandName: record.brandName,
+                        startedOn: record.startedOn,
+                        doses: record.doses
+                            .sorted { $0.takenAt < $1.takenAt }
+                            .map { .init(takenAt: $0.takenAt, milligrams: $0.milligrams,
+                                         injectionSite: $0.injectionSite,
+                                         isInferred: $0.isInferred,
+                                         confirmedAt: $0.confirmedAt) })
+                }
+            },
+            sideEffects: model.sideEffects.map {
+                .init(name: $0.name, severity: $0.severity, date: $0.date)
+            },
+            profile: model.profile,
+            derivedScores: model.results.map { result in
+                HealthDataExport.DerivedScore(
+                    card: result.id.rawValue, title: result.title,
+                    score: result.score, primaryValue: result.primaryValue,
+                    headline: result.headline,
+                    confidence: result.confidence.rawValue,
+                    history: model.scoreHistory(for: result.id)
+                        .map { .init(date: $0.date, score: $0.score) })
+            })
         Task {
             // Detached: the JSON encode runs to tens of megabytes, and it used
             // to run synchronously on the main thread behind a button that
             // gave no sign anything was happening.
             let outcome = await Task.detached(priority: .userInitiated) {
-                Result { try DataInventory.fullExportJSON(samples: samples,
-                                                          rawGroups: rawGroups) }
+                Result { try bundle.json() }
             }.value
             preparingFullExport = false
             switch outcome {
