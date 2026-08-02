@@ -438,8 +438,13 @@ struct ScreenTimeEntrySheet: View {
                             ForEach(0...24, id: \.self) { Text("\($0) h").tag($0) }
                         }
                         .pickerStyle(.wheel).frame(maxWidth: .infinity)
+                        // Every minute, not quarters. A scan reads an exact
+                        // figure — the reader's own screenshot said 21h **1m** —
+                        // and a quarter-hour picker silently rounded it to 21h
+                        // 0m on the way in, which makes the app disagree with
+                        // the screenshot it just read.
                         Picker("Minutes", selection: $minutes) {
-                            ForEach([0, 15, 30, 45], id: \.self) { Text("\($0) m").tag($0) }
+                            ForEach(0...59, id: \.self) { Text("\($0) m").tag($0) }
                         }
                         .pickerStyle(.wheel).frame(maxWidth: .infinity)
                     }
@@ -546,26 +551,49 @@ private extension ScreenTimeEntrySheet {
         }
 
         if let day = result.dayTotal {
-            hours = Int(day.minutes) / 60
-            // Nearest quarter hour, because the picker offers quarters — and
-            // the exact minutes are still what gets saved if the reader leaves
-            // it alone... they are not, so round honestly and say the figure.
-            minutes = Int((day.minutes.truncatingRemainder(dividingBy: 60) / 15).rounded()) * 15
-            if minutes == 60 { hours += 1; minutes = 0 }
-            if let scanned = result.date { date = scanned }
-            var note = String(format: "Found %@ — %dh %dm.", day.label,
-                              Int(day.minutes) / 60, Int(day.minutes) % 60)
+            fill(minutes: day.minutes, on: result.date)
+            var note = String(format: "Found %@ — %@.", day.label,
+                              durationLabel(day.minutes))
             if let pickups = result.pickups { note += " \(pickups) pickups." }
             scanOutcome = note + " Check it and press Save."
-        } else if let other = result.otherReadings.first {
-            // The distinction the parser exists for, said out loud.
-            scanOutcome = "That screenshot shows a \(other.kind.displayName.lowercased()) "
-                + "(\(Int(other.minutes) / 60)h \(Int(other.minutes) % 60)m), not one day's "
-                + "total — so it hasn't been filled in. Open a single day in Screen Time and "
-                + "screenshot that."
+
+        } else if let average = result.readings.first(where: {
+            $0.kind == .dailyAverage || $0.kind == .weeklyTotal
+        }) {
+            // The distinction the parser exists for, said out loud. Only for a
+            // figure that is *definitely* not a day — an average or a week —
+            // because that is the one case where filling it in would be wrong.
+            scanOutcome = "That screenshot shows a \(average.kind.displayName.lowercased()) "
+                + "(\(durationLabel(average.minutes))), not one day's total — so it hasn't "
+                + "been filled in. Open the Day tab in Screen Time and screenshot that, or "
+                + "use the Week tab and I'll estimate each day."
+
+        } else if let unlabelled = result.readings.max(by: { $0.minutes < $1.minutes }) {
+            // **Not a dead end.** A figure whose label could not be read is
+            // still filled in, flagged, and left for the reader to confirm —
+            // "fills, never saves" already means nothing is recorded on a guess.
+            // The previous version refused, and told the reader to screenshot a
+            // single day, which is exactly what they had done.
+            fill(minutes: unlabelled.minutes, on: result.date)
+            scanOutcome = "Found \(durationLabel(unlabelled.minutes)), but couldn't tell "
+                + "from the words around it whether that is one day's total. It's filled in "
+                + "above — check it against your screenshot before saving."
+
         } else {
             scanOutcome = "No screen-time figures found in that image."
         }
+    }
+
+    /// Put a scanned figure into the pickers, exactly.
+    ///
+    /// The minute picker offers every minute for this reason: the reader's own
+    /// screenshot read 21h **1m** and the old quarter-hour picker turned it into
+    /// 21h 0m, so the app disagreed with the screenshot it had just read.
+    func fill(minutes scanned: Double, on day: Date?) {
+        let whole = Int(scanned.rounded())
+        hours = min(whole / 60, 24)
+        minutes = whole % 60
+        if let day { date = day }
     }
 
     /// A Week screenshot: an exact weekly total, and seven bars to split it by.

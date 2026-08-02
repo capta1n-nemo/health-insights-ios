@@ -150,13 +150,23 @@ public enum ScreenTimeScreenshotParser {
                 result.notifications = firstInteger(in: line)
                     ?? nextLineInteger(lines, after: index)
             }
-            if result.weekStart == nil,
-               let week = weekStart(in: line, capturedAt: capturedAt, calendar: calendar) {
-                result.weekStart = week
-            }
-            if result.date == nil,
-               let day = namedDay(in: lower, capturedAt: capturedAt, calendar: calendar) {
-                result.date = day
+            // "Show Today" and "Show This Week" are **buttons**, and they name
+            // the period you are *not* looking at — the Day view carries "Show
+            // Today" above the day it is actually showing, and the Week view
+            // carries "Show This Week" above last week's figures. Read as
+            // headings they file every retrospective screenshot into the current
+            // day or week, which is the exact bug this parser exists to fix,
+            // arriving through a different door. Found by a test built from the
+            // reader's own screenshots, 2026-08-02.
+            if !isPeriodSwitchButton(lower) {
+                if result.weekStart == nil,
+                   let week = weekStart(in: line, capturedAt: capturedAt, calendar: calendar) {
+                    result.weekStart = week
+                }
+                if result.date == nil,
+                   let day = namedDay(in: lower, capturedAt: capturedAt, calendar: calendar) {
+                    result.date = day
+                }
             }
 
             guard let minutes = duration(in: line) else { continue }
@@ -190,14 +200,51 @@ public enum ScreenTimeScreenshotParser {
     /// Order matters: "daily average" contains "daily", and "average" must win,
     /// or the very number this type exists to protect against would be recorded
     /// as a day's total.
+    ///
+    /// ## The Day view does not say "Total Screen Time"
+    ///
+    /// It says **"Yesterday, 2 August"** with the figure underneath, and the
+    /// only "Total Screen Time" row on the whole feature is on the *Week* view.
+    /// So the original list of day words — which was built around that row —
+    /// classified a real day's total as `.unlabelled` and told the reader to
+    /// "open a single day in Screen Time and screenshot that", which is what
+    /// they had just done. Caught on the device, 2026-08-02, from a screenshot
+    /// reading "Yesterday, 2 August / 21h 1m".
+    ///
+    /// ⚠️ Known false positive: an app called "Monday" in the Most Used list
+    /// puts a weekday above a duration. `Result.dayTotal` takes the *first*
+    /// day-classified reading and the heading is at the top of the screen, so it
+    /// wins in practice — and nothing is saved without the reader confirming it.
     static func classify(_ context: String) -> Reading.Kind {
         if context.contains("average") { return .dailyAverage }
         if context.contains("week") { return .weeklyTotal }
-        if context.contains("today") || context.contains("total screen time")
+        if namesADay(context) || context.contains("total screen time")
             || context.contains("screen time") || context.contains("total") {
             return .dailyTotal
         }
         return .unlabelled
+    }
+
+    /// Whether a line is one of Screen Time's "jump to the current period"
+    /// buttons rather than a heading.
+    ///
+    /// Matched on the whole line rather than a substring anywhere, because
+    /// "Show This Week" can share an OCR line with the "Screen Time" title
+    /// beside it — so the test is that the line *contains the button's phrase*,
+    /// and the phrase itself is specific enough not to appear in a heading.
+    /// A real heading is "Last Week's Average" or "Yesterday, 2 August";
+    /// neither contains "show".
+    static func isPeriodSwitchButton(_ lower: String) -> Bool {
+        lower.contains("show today") || lower.contains("show this week")
+            || lower.contains("show last week")
+    }
+
+    /// Whether these words head up a single day.
+    static func namesADay(_ context: String) -> Bool {
+        if context.contains("today") || context.contains("yesterday") { return true }
+        let names = ["sunday", "monday", "tuesday", "wednesday",
+                     "thursday", "friday", "saturday"]
+        return names.contains { context.contains($0) }
     }
 
     private static func labelText(_ line: String, previous: String?) -> String {

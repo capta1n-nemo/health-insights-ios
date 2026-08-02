@@ -118,6 +118,75 @@ final class ScreenTimeImportTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 272)
     }
 
+    /// **The Day view does not say "Total Screen Time" at all.** It heads the
+    /// figure with the day, and the app told the reader to "open a single day
+    /// and screenshot that" when that is precisely what they had done.
+    ///
+    /// Transcribed from the device, 2026-08-02.
+    func testTheRealDayViewHeadingIsReadAsADaysTotal() throws {
+        let result = parse("""
+        Screen Time
+        Show Today
+        Yesterday, 2 August
+        21h 1m
+        M Tu W Th F Sa Su
+        Productivity & Finance
+        Other
+        Social
+        16h 15m
+        2h 45m
+        16m
+        Updated today at 9:21am
+        """, capturedAt: date(2026, 8, 3))
+
+        let day = try XCTUnwrap(result.dayTotal)
+        XCTAssertEqual(day.minutes, 1261, "21h 1m")
+        XCTAssertEqual(result.date, date(2026, 8, 2), "yesterday, from a 3 Aug capture")
+        XCTAssertNil(result.weekStart, "a weekday axis is not a week heading")
+    }
+
+    /// **"Show This Week" is a button, and it names the week you are not
+    /// looking at.** It sits above last week's figures on the Week view, so
+    /// reading it as a heading files a retrospective screenshot into the current
+    /// week — the bug this whole parser exists to fix, arriving by another door.
+    ///
+    /// Transcribed from the reader's screenshot, where the title row reads
+    /// "Screen Time    Show This Week" above "Last Week's Average".
+    func testTheShowThisWeekButtonIsNotTheWeekBeingShown() throws {
+        let result = parse("""
+        Screen Time
+        Show This Week
+        Last Week's Average
+        14h 13m
+        Total Screen Time 99h 33m
+        """)
+        XCTAssertEqual(try XCTUnwrap(result.weekStart), date(2026, 7, 20),
+                       "last week, not the capture week")
+    }
+
+    /// The same button on the Day view, where it reads "Show Today" above a
+    /// screenshot of yesterday.
+    func testTheShowTodayButtonIsNotTheDayBeingShown() throws {
+        let result = parse("Screen Time\nShow Today\nYesterday, 2 August\n21h 1m",
+                           capturedAt: date(2026, 8, 3))
+        XCTAssertEqual(result.date, date(2026, 8, 2))
+    }
+
+    /// A weekday heading works the same way, for a day further back.
+    func testAWeekdayHeadingIsADaysTotal() throws {
+        let result = parse("Friday, 31 July\n7h 42m", capturedAt: date(2026, 8, 3))
+        XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 462)
+    }
+
+    /// The category totals under the day figure must not be mistaken for it —
+    /// they carry no day words, so they stay unlabelled and `dayTotal` picks the
+    /// heading's figure.
+    func testCategoryTotalsAreNotOfferedAsTheDay() throws {
+        let result = parse("Yesterday, 2 August\n21h 1m\nProductivity & Finance\n16h 15m",
+                           capturedAt: date(2026, 8, 3))
+        XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 1261)
+    }
+
     /// A week wins over a day: the weekday letters down a Week chart's axis
     /// (M Tu W Th F Sa Su) will resolve, and filing a week onto one Tuesday is
     /// the worst available outcome.

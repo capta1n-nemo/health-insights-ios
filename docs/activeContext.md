@@ -78,6 +78,32 @@ Two smaller things landed with it:
 
 **Screen Time screenshots file themselves retrospectively (latest, 2026-08-02).**
 
+⚠️ **Three defects found on the device after the first push** (`e566fbd`), all
+from the reader's own screenshots, all fixed and tested:
+
+1. **The Day view does not say "Total Screen Time".** It reads
+   *"Yesterday, 2 August"* with the figure underneath — that row only exists on
+   the *Week* view. So a real day's total classified as `.unlabelled` and the
+   app told the reader to "open a single day and screenshot that", which is what
+   they had just done. `classify` now recognises a day heading (`namesADay`).
+2. **"Show Today" and "Show This Week" are buttons, and they name the period you
+   are _not_ looking at.** The Day view carries "Show Today" above the day it is
+   showing; the Week view carries "Show This Week" above *last* week's figures.
+   Read as headings they file every retrospective screenshot into the current
+   day or week — the exact bug this parser exists to fix, arriving by another
+   door. `isPeriodSwitchButton` skips them. **This one was found by a test, not
+   the device**, and would otherwise have looked like the original bug was never
+   fixed.
+3. **The minute picker offered quarters**, so a scanned 21h **1m** was saved as
+   21h 0m and the app disagreed with the screenshot it had just read. It offers
+   every minute now, and `fill(minutes:on:)` sets the exact figure.
+
+Also: an unreadable label is no longer a dead end. A figure whose kind cannot be
+established is filled in and flagged for the reader to confirm rather than
+refused — "fills, never saves" already guarantees nothing is recorded on a
+guess. Only a definite average or week total is still withheld, which is the one
+case where filling it would be wrong.
+
 The user imports screenshots of weeks *past* — "not only last week, but weeks
 before it" — and they were all landing in the week they were imported.
 

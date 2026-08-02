@@ -515,7 +515,7 @@ the place to look.
   - `InputSheet` :178
   - `PushedInSheet` :230
   - `ScreenTimeEntrySheet` :336
-  - `SideEffectEntrySheet` :619
+  - `SideEffectEntrySheet` :647
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18
