@@ -1,0 +1,2 @@
+/Users/jason.salway/actions-runner/health-app-ios/health-insights-ios/health-insights-ios/HealthInsights/Features/Insights/InsightDetailView.swift:732:9: error: switch must be exhaustive
+** BUILD FAILED **
