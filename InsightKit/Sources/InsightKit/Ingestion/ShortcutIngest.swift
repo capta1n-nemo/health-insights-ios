@@ -92,6 +92,71 @@ public enum ShortcutIngest {
         return result
     }
 
+    // MARK: - Building one
+
+    /// The URL that delivers these readings, as `parse` would read it back.
+    ///
+    /// **The builder exists so that nothing hand-writes this string.** The setup
+    /// screen printed the template by interpolating a raw value into a literal,
+    /// and the App Intent needed the same string again — two hand-built copies of
+    /// a format whose only other definition is the parser above. A round trip
+    /// through `parse` is a test; two string literals agreeing is a hope.
+    ///
+    /// Percent-encoding is `URLComponents`' job rather than ours, which also
+    /// means a metric raw value that ever gains an unusual character keeps
+    /// working.
+    public static func url(for values: [MetricType: Double],
+                           on date: Date,
+                           calendar: Calendar = .current) -> URL? {
+        var components = URLComponents()
+        components.scheme = "healthinsights"
+        components.host = host
+        // Sorted so the same readings always produce the same URL — a template
+        // the reader is looking at should not reshuffle itself, and a test can
+        // then assert on the whole string.
+        components.queryItems = [URLQueryItem(name: "date",
+                                              value: dateString(date, calendar: calendar))]
+            + values.keys.sorted { $0.rawValue < $1.rawValue }.map { metric in
+                URLQueryItem(name: metric.rawValue, value: Self.number(values[metric] ?? 0))
+            }
+        return components.url
+    }
+
+    /// The template the setup screen shows, with `VALUE` where the reader wires
+    /// the shortcut's own number in and `YYYY-MM-DD` where Shortcuts formats the
+    /// date. Same builder, so it cannot drift from what the parser accepts.
+    public static func urlTemplate(for metrics: [MetricType]) -> String {
+        let query = (["date=YYYY-MM-DD"] + metrics.map { "\($0.rawValue)=VALUE" })
+            .joined(separator: "&")
+        return "healthinsights://\(host)?\(query)"
+    }
+
+    /// `yyyy-MM-dd` for a date, built from components for the same reason
+    /// `parseDate` is: `DateFormatter`'s locale-aware paths are Darwin-only in
+    /// places, and this package's tests run on Linux.
+    ///
+    /// Zero-padded by hand rather than with a format string — `String(format:)`
+    /// is available but this is three integers and the padding is the whole of
+    /// the requirement.
+    public static func dateString(_ date: Date, calendar: Calendar = .current) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = parts.year ?? 0, month = parts.month ?? 1, day = parts.day ?? 1
+        func pad(_ value: Int, _ width: Int) -> String {
+            let digits = String(value)
+            return digits.count >= width ? digits
+                : String(repeating: "0", count: width - digits.count) + digits
+        }
+        return "\(pad(year, 4))-\(pad(month, 2))-\(pad(day, 2))"
+    }
+
+    /// A number the parser's `Double(_:)` will read back exactly, without an
+    /// exponent or a thousands separator.
+    static func number(_ value: Double) -> String {
+        value == value.rounded() && abs(value) < 1e15
+            ? String(Int(value.rounded()))
+            : String(value)
+    }
+
     /// `yyyy-MM-dd` or a full ISO-8601 instant — the two shapes Shortcuts'
     /// "Format Date" action produces without the reader having to think.
     ///

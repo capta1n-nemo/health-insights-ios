@@ -3,7 +3,10 @@ import InsightKit
 
 @main
 struct HealthInsightsApp: App {
-    @State private var model = AppModel.makeDefault()
+    /// `AppModel.shared`, not a fresh one: an App Intent invoked from Shortcuts
+    /// runs outside this view tree and writes through the same model, and two
+    /// `AppModel`s would be two `DataStore`s over one file.
+    @State private var model = AppModel.shared
     /// The result of a file the OS just handed us, shown as soon as it lands.
     @State private var importOutcome: FileImportOutcome?
 

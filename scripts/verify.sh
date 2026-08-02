@@ -353,6 +353,30 @@ EOF
     fi
 fi
 
+# --- A band table is a curve, not a staircase ------------------------------
+#
+# `case 6..<7: return 65` next to `case 7..<7.5: return 85` is twenty points of
+# a reader's score for four seconds of sleep. Clinical guidance arrives as
+# bands, and scoring a band table with a `switch` over numeric ranges puts a
+# step at every edge — on quantities that wander across those edges by
+# measurement noise alone.
+#
+# A sweep on 2026-08-02 found seven of these across the 17 models. The worst was
+# 40 points of the blood-pressure card for a tenth of a millimetre of mercury.
+# `ScoreCurve.through` is the replacement and `ScoreContinuityTests` is the
+# guard; this stops the shape coming back, because the guard only covers curves
+# somebody remembered to enrol.
+#
+# Comment lines are skipped: `ScoreCurve` and `SleepInsight` both quote the old
+# shape in their doc comments, which is the point of the doc comments.
+bandswitch=$(grep -rnE '^[^/]*case [0-9.]+\.\.[.<][0-9.]+: *return [0-9.]+' \
+    InsightKit/Sources/InsightKit 2>/dev/null || true)
+if [ -n "$bandswitch" ]; then
+    note 'A numeric band table scored with a `switch` — every edge is a step in a card score. Use `ScoreCurve.through` and enrol it in ScoreContinuityTests:'
+    printf '%s\n' "$bandswitch"
+    fail=1
+fi
+
 # --- A test that asserts nothing is worse than no test ---------------------
 #
 # `ZZProbeTests` sat in the suite for several sessions: a scratch diagnostic

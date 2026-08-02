@@ -5,6 +5,35 @@ about confidence.**
 
 ## Shipped
 
+### The overnight session (2026-08-02)
+
+- [x] **Score discontinuities swept as a class.** Body Composition's `49 · 15 ·
+      15 · 55` chart was a noisy fitted slope crossing a fixed threshold and
+      switching a 4/100 term into the blend at full weight. Four of the seven
+      instances found across all 17 models are fixed —
+      `CompositionVelocity.changeConfidence`, `wrongWaySpread(by:)`, the blood
+      pressure ladders, and the three Sleep band tables. `ScoreCurve.through` is
+      the shared replacement, `ScoreContinuityTests` sweeps every enrolled curve
+      at 4000 points, and `verify.sh` fails on a reintroduced `case 6..<7:
+      return 65`. **Three instances remain open and are ranked in
+      `activeContext.md`** — do not re-derive the sweep, it is written down.
+- [x] **Blood pressure scored both numbers.** The band came from systolic *and*
+      diastolic, the position within it from systolic alone — 90/79.9 scored
+      100 and 90/80.0 scored 60. Each axis now has its own continuous ladder and
+      the worse one wins, which is the published "higher of the two bands" rule
+      made continuous.
+- [x] **Shortcuts is a native action.** `LogHealthDataIntent` with a metric
+      picker generated from `MetricType.allCases`, so the reader stops
+      hand-editing a URL and a new metric appears in Shortcuts for free. The URL
+      transport stays and both routes call one `ingestShortcut`.
+      `ShortcutIngest.url(for:on:)` round-trips against the parser for all 102
+      metrics.
+- [x] **Body Composition's RFM route documented as waiting, not broken**, and
+      pinned working by `BodyCompositionRouteTests` so it is not rediscovered as
+      rotten the day a waist measurement arrives.
+- [x] **A test that asserts nothing now fails the gate.** `ZZProbeTests` had
+      passed every run for several sessions while asserting nothing.
+
 > **Read the next three sections as history.** They describe the seventeen-card
 > era. Seventeen cards were merged into nine on 2026-07-31 — see "Card
 > consolidation" below and `docs/card-sections.md` for what exists now. The

@@ -46,7 +46,96 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**Export completeness + derived scores as data (latest, 2026-08-02, night).**
+**Score discontinuities: a defect class, swept and closed (latest, 2026-08-02,
+overnight).**
+
+This is the highest-value finding of the session and it is *audited* — every
+claim below was measured with a test, not read off the code.
+
+- **The symptom.** Body Composition's score-over-time chart read `49 · 15 · 15 ·
+  55` on four consecutive days. Reproduced from a body losing a perfectly steady
+  0.02 kg/day as `36 · 50 · 46 · 37` (`BodyCompositionStabilityTests`).
+- **The mechanism.** A noisy fitted statistic crossing a fixed constant switched
+  a scoring term in and out **at full weight**. `percentPerWeek` wobbles with
+  the scale's water swing (−0.127, −0.096, −0.068, −0.162 on those four days) and
+  `stableBandPercent` sits at 0.1, in the middle of that wobble. Above it,
+  `leanShareOfChange` becomes non-nil and a term scoring **4/100** enters the
+  blend at 25%.
+- **The class.** *A term's presence or weight flipping discontinuously on a
+  boolean derived from a continuous, noisy quantity.* A sweep of all 17 models
+  found seven instances. Four are fixed; three remain, ranked below.
+
+### What replaced them
+
+| Was | Now | Worth |
+| --- | --- | --- |
+| `BodyCompositionInsight` quality term at full weight past a threshold | scaled by `CompositionVelocity.changeConfidence`, a 0→1 ramp | 14 pts |
+| `rateScore` spread switching on `percentPerWeek > 0` | `wrongWaySpread(by:)`, ramped over the same span | 6–8 pts |
+| `BloodPressureEstimator.score` band from both numbers, position from systolic **only** | a continuous ladder per axis, worse one wins | **25–40 pts** |
+| `SleepInsight` duration / efficiency / oxygen `switch` tables | `ScoreCurve.through`, anchored on the same breakpoints | 4–9.5 pts |
+
+**`ScoreContinuityTests` is the guard.** It sweeps each curve at 4000 points and
+fails on any jump over 1 point. Enrol a new scoring curve in it; that is cheaper
+than the sweep that found these.
+
+Two lessons, both paid for:
+
+- **A confidence factor on one term says nothing about the term beside it.**
+  `changeConfidence` was written, shipped, and its doc comment claimed it
+  disarmed the sign flip "for free". It did — for `qualityScore`. `rateScore`
+  sat in the same `if let velocity` block with its own step at exactly zero,
+  *undamped precisely because the ramp is 0 there*. Caught by sweeping for the
+  class an hour after fixing the instance.
+- **A comment describing behaviour is not evidence of it.**
+  `BloodPressureEstimator` said "position within the band, by whichever number
+  put it there" directly above a line that read only `systolic`. It had been
+  wrong the whole time and read as correct.
+
+### Still open from that sweep, ranked
+
+1. **`VitalSignsInsight` hard-bound override** (`:390-399`, `:437-441`).
+   `boundNormality(distance: 0)` returns 35, which does not meet the Gaussian
+   curve it caps — a 47-point step in a reading's normality (65 for a reader
+   whose baseline sits on the bound). Realised impact is small (~1–2.5 pts)
+   because it reaches cards only as a Readiness supporting term, but
+   `VitalSignsCheck.score` itself would move 65 points. The relative-HRV floor
+   at `:403-409` (`min(normality, 25)` below `median × 0.6`) is the same shape on
+   the noisiest series in the app.
+2. **`EnergyModel.curve`** (`Energy.swift:341`) — `thisHour > 0.5 ? -thisHour :
+   trickleRechargePerHour` is a 3.0-point discontinuity *per hourly bucket*, and
+   the buckets compound across a day. 0.5 points is only ~5.5 kcal, so
+   light-activity hours do sit on it.
+3. **`ReadinessScore`** blood-oxygen fallback (`:131-137`) — `spo2.value >= 95 ?
+   85 : 60` is a 25-point step on the no-baseline path, worth ~1 point of card.
+   The `< 92` floor beside it is a deliberate absolute safety gate and arguably
+   should stay discrete.
+
+Verified continuous, so **do not re-derive**: `latencyScore`, `restorativeScore`,
+`HealthWatchModel.score`, `SubstanceResponseAnalyzer.severity`,
+`CardiovascularRiskInsight.score`, `HeartAgeAnalyser.score`,
+`CircadianConsistencyModel`, `SleepDebtModel`, `ActivityDoseModel`,
+`BodyCompositionInsight.rangeScore`, `HeartHealthScore.*`,
+`PeerStandingModel.percentile`, `RiskAttribution.factors`.
+
+### Shortcuts is now a native action, not a pasted URL
+
+`LogHealthDataIntent` + `HealthInsightsShortcuts` (`AppShortcutsProvider`) give
+Shortcuts a **Log health data** action with a metric picker, so the reader stops
+hand-editing `…&screenTimeMinutes=VALUE`. `MetricTypeQuery` generates the picker
+from `MetricType.allCases`, so a new metric appears in Shortcuts the day it is
+added with nothing to update — the same by-construction rule as `dataCategory`.
+
+The URL door stays open and **both doors lead to the same room**: the intent
+builds its URL with `ShortcutIngest.url(for:on:)` and calls the very same
+`AppModel.ingestShortcut`, so the plausibility guard, the per-day upsert and the
+last-run stamp have one implementation. `ShortcutURLBuilderTests` round-trips the
+builder against the parser for **all 102 metric types**.
+
+⚠️ `AppModel.shared` now exists and `HealthInsightsApp` uses it. An App Intent
+runs outside the view tree, and a second `AppModel` would be a second `DataStore`
+over one file.
+
+**Export completeness + derived scores as data (2026-08-02, night).**
 
 - **`HealthDataExport`** replaces the old two-field full export, which carried
   `samples` and the unmodelled catalogue only — the substance log, the regimen

@@ -195,14 +195,21 @@ final class SleepQualityStagesTests: XCTestCase {
                                         start: TestClock.day(0), source: .oura))
             return SleepInsight().evaluate(samples: s, profile: .init(), now: sqNow)
         }
-        // Two saturations either side of a band edge, so the sub-score moves by
-        // a known amount: 97% scores 100, 93% scores 60 (see `oxygenScore`).
+        // Two saturations far enough apart to move the sub-score meaningfully.
+        // The denominator is **asked of `oxygenScore`** rather than written out:
+        // it used to say "97% scores 100, 93% scores 60", which was true of the
+        // step table it was written against and silently wrong the day that
+        // table became a curve. A test that hard-codes the thing it is dividing
+        // by fails when the curve is retuned, and the curve is not what it is
+        // testing.
         let high = try XCTUnwrap(evaluateWith(spo2: 97).score)
         let low = try XCTUnwrap(evaluateWith(spo2: 93).score)
         let declared = try XCTUnwrap(
             evaluateWith(spo2: 97).contributors.first { $0.metric == .oxygenSaturation }).weight
 
-        let appliedCoefficient = (high - low) / (100.0 - 60.0)
+        let subScoreChange = SleepInsight.oxygenScore(97) - SleepInsight.oxygenScore(93)
+        XCTAssertGreaterThan(subScoreChange, 1, "the two saturations must actually differ")
+        let appliedCoefficient = (high - low) / subScoreChange
         XCTAssertEqual(appliedCoefficient, declared, accuracy: 0.005,
                        "the score moves by \(appliedCoefficient) per point of blood-oxygen sub-score, but the card declares \(declared) — the chart and the score disagree about how much this signal counts")
     }

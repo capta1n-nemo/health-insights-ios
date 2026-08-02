@@ -138,15 +138,7 @@ public struct SleepInsight: InsightModel {
         // it was being collected and ignored. Neutral 75 when absent, so nights
         // without a reading aren't penalised.
         let spo2Reading = VitalReader.reading(.oxygenSaturation, from: samples, now: now)
-        let oxygenScore: Double = {
-            guard let latest = spo2Reading?.value else { return 75 }
-            switch latest {
-            case 96...: return 100
-            case 94..<96: return 82
-            case 92..<94: return 60
-            default: return 35
-            }
-        }()
+        let oxygenScore = spo2Reading.map { Self.oxygenScore($0.value) } ?? 75
 
         // Skin temperature away from baseline disturbs sleep and marks the
         // night an illness or a heavy drink starts.
@@ -185,16 +177,7 @@ public struct SleepInsight: InsightModel {
         // composition of that night sat unread in the same payload.
         let efficiencyReading = VitalReader.reading(.sleepEfficiency, from: samples,
                                                     now: now, freshWithin: 36 * 3600)
-        let efficiencyScore: Double = {
-            guard let value = efficiencyReading?.value else { return 75 }
-            switch value {
-            case 90...: return 100
-            case 85..<90: return 88
-            case 80..<85: return 68
-            case 75..<80: return 50
-            default: return 30
-            }
-        }()
+        let efficiencyScore = efficiencyReading.map { Self.efficiencyScore($0.value) } ?? 75
 
         // How long it took to fall asleep, against the same NSF consensus
         // panel the efficiency band rests on (Ohayon 2017: ≤15 min
@@ -407,14 +390,52 @@ public struct SleepInsight: InsightModel {
         }
     }
 
+    /// Hours slept, on the NSF panel's bands — as the curve through their edges
+    /// rather than as the steps between them.
+    ///
+    /// **Why it is not a `switch` any more.** It was one, and the table's own
+    /// breakpoints were the score:
+    ///
+    /// ```swift
+    /// case 6..<7:   return 65        //  6 h 59 m → 65
+    /// case 7..<7.5: return 85        //  7 h 00 m → 85
+    /// ```
+    ///
+    /// Duration carries 27% of this card, so that is four points of the Sleep
+    /// score for four seconds of sleep, and ten points across the 10-hour edge.
+    /// A wearable disagrees with itself by more than that every night; a reader
+    /// who sleeps about seven hours watched the card move for no reason.
+    ///
+    /// The anchors **are** the old table's breakpoints with the old table's
+    /// values, so nothing about the published judgement has moved — 7.5 to 9
+    /// hours is still a flat 100, six hours is still 65. What changed is that
+    /// the space between two breakpoints is now crossed rather than jumped.
     static func durationScore(_ h: Double) -> Double {
-        switch h {
-        case 7.5...9: return 100
-        case 7..<7.5, 9..<9.5: return 85
-        case 6..<7, 9.5..<10: return 65
-        case 5..<6: return 45
-        default: return 30
-        }
+        ScoreCurve.through([
+            (4, 30), (5, 45), (6, 65), (7, 85), (7.5, 100),
+            (9, 100), (9.5, 85), (10, 65), (11, 45), (12, 30)
+        ], at: h)
+    }
+
+    /// Sleep efficiency — time asleep as a share of time in bed — on the same
+    /// consensus bands, and continuous for the same reason `durationScore` is.
+    ///
+    /// Extracted from an inline closure so it can be swept by
+    /// `ScoreContinuityTests`. A scoring curve nothing can call is a scoring
+    /// curve nothing can check.
+    static func efficiencyScore(_ value: Double) -> Double {
+        ScoreCurve.through([
+            (70, 30), (75, 50), (80, 68), (85, 88), (90, 100)
+        ], at: value)
+    }
+
+    /// Overnight blood oxygen, likewise. The floor is 35 rather than 0 because
+    /// a single low reading from a wrist sensor is as often a bad seal as it is
+    /// desaturation, and this term is 7% of the card.
+    static func oxygenScore(_ latest: Double) -> Double {
+        ScoreCurve.through([
+            (90, 35), (92, 60), (94, 82), (96, 100)
+        ], at: latest)
     }
     static func band(_ s: Double) -> String {
         switch s { case 80...: return "Excellent"; case 65..<80: return "Good"

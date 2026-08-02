@@ -863,6 +863,21 @@ final class AppModel {
         }
     }
 
+    /// The one production model, so anything outside the SwiftUI tree reaches
+    /// the same store the screens do.
+    ///
+    /// **This is not a convenience.** An `AppIntent` invoked from Shortcuts runs
+    /// outside the view hierarchy and has no environment to read, so it needs a
+    /// way to the model — and building a second `AppModel` would build a second
+    /// `DataStore` over the same file. Two writers, no coordination, and a
+    /// reading logged by Shortcuts would be invisible to the screens until a
+    /// relaunch.
+    ///
+    /// `@MainActor` makes the lazy initialisation safe without a lock: every
+    /// access is already on the main actor, which is also where `DataStore` and
+    /// every `@Observable` mutation here have to happen anyway.
+    static let shared = makeDefault()
+
     /// Convenience factory building the default production graph.
     static func makeDefault() -> AppModel {
         let dataStore = DataStore()

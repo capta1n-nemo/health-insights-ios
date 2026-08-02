@@ -152,3 +152,51 @@ wrong differently: raw `series.last` is one minute of one afternoon, and
 **since 2026-08-01 the converse too** — every declared metric with data must be
 read. `ScoreAttributionTests` asserts that a card with a score states its
 `weighting`, that its shares sum to 1, and that any row with no share says why.
+
+## 6. Scoring: a band table is a curve, not a staircase
+
+**Every line here was a shipped defect, found by a sweep on 2026-08-02 that
+turned up seven of them across 17 models.** The full ranking, including the
+three still open, is in `docs/activeContext.md` ▸ "Score discontinuities" —
+read it rather than sweeping again.
+
+The class: **a term's presence in a score, or its weight, flipping
+discontinuously on a boolean derived from a continuous, noisy quantity.** The
+reader sees a score lurch and nothing in the app can explain it, because nothing
+happened.
+
+The worked example. Body Composition's score-over-time chart read `49 · 15 · 15
+· 55` on four consecutive days. `percentPerWeek` is a least-squares fit through
+a scale carrying a kilogram of water swing, so it wobbles — −0.127, −0.096,
+−0.068, −0.162 — and `stableBandPercent` sat at 0.1 in the middle of that
+wobble. Above the line a term scoring **4 out of 100** entered the blend at its
+full 25% weight; below it, nothing.
+
+So, when your model scores anything:
+
+- **Never `switch` a measurement into a score.** `case 6..<7: return 65` beside
+  `case 7..<7.5: return 85` is twenty points for four seconds of sleep. Use
+  `ScoreCurve.through`, anchored on the band table's own breakpoints with the
+  band table's own values — the published judgement does not move, only the
+  cliff at its edges. `verify.sh` fails on the `switch` form.
+- **Never gate a term's presence on a threshold** over something that wanders.
+  Scale its *weight* with a 0→1 ramp instead (`CompositionVelocity.change-
+  Confidence` is the pattern). Where the evidence is marginal, the term that
+  depends on it carries a marginal weight.
+- **A confidence factor on one term says nothing about the term beside it.**
+  `changeConfidence` shipped claiming it disarmed a sign flip "for free". It
+  did — for `qualityScore`. `rateScore` sat in the same `if let` block with its
+  own step at exactly zero, *undamped precisely because the ramp is 0 there*.
+- **Score every axis, not the convenient one.** `BloodPressureEstimator` picked
+  the band from systolic **and** diastolic, then graded position within it from
+  systolic alone — 90/79.9 scored 100 and 90/80.0 scored 60. The comment above
+  it said "by whichever number put it there". **A comment describing behaviour
+  is not evidence of it.**
+- **Enrol the curve in `ScoreContinuityTests`.** It sweeps at 4000 points and
+  fails on any jump over one point. Sweeping both axes separately is the part
+  that matters: a step hides in one axis while the other is smooth, which is
+  exactly where the blood-pressure one was.
+
+A step is legitimate where the input genuinely is discrete — a stated goal, a
+chosen category, a count of days of data. Those do not wander, and this does not
+apply to them.

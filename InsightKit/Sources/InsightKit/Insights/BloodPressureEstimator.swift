@@ -453,20 +453,72 @@ public enum BloodPressureEstimator {
     ///
     /// Graded within each band rather than flat, so 121/79 and 129/79 don't read
     /// identically — a reading drifting up through "elevated" should show it.
+    /// **Each number is scored on its own ladder and the worse one wins**, which
+    /// is `Category.of`'s "higher of the two bands" rule made continuous.
+    ///
+    /// It used to pick the band from both numbers and then grade the position
+    /// inside it from `systolic` alone — the comment said "by whichever number
+    /// put it there", and the code only ever read one of them. When **diastolic**
+    /// promoted the band, systolic sat below that band's floor, the progress
+    /// term clamped to zero, and the score snapped to the new band's top:
+    ///
+    /// | reading | band | score |
+    /// | --- | --- | --- |
+    /// | 90/79.9 | normal | 100 |
+    /// | 90/80.0 | stage 1 | 60 |
+    ///
+    /// Forty points for a tenth of a millimetre of mercury, on a quantity that
+    /// moves five to ten between two cuff readings of the same arm.
+    ///
+    /// The ladders are the published thresholds with one score at each — so a
+    /// boundary reads the same from both sides — and diastolic's run-up to 80
+    /// spans the gap where its band table has no "elevated" step and systolic's
+    /// does. That missing band **was** the cliff: normal's floor and stage 1's
+    /// ceiling do not meet, and systolic only gets away with it by passing
+    /// through elevated in between.
+    ///
+    /// A crisis no longer returns a flat 5. It falls from 15 to 5 across the
+    /// twenty points above the threshold, because 179 and 181 are not different
+    /// readings and the *category* — which is what the card says out loud — still
+    /// changes at 180.
     public static func score(systolic: Double, diastolic: Double) -> Double {
-        let band = Category.of(systolic: systolic, diastolic: diastolic)
-        let (top, bottom, low, high): (Double, Double, Double, Double)
-        switch band {
-        case .normal:  (top, bottom, low, high) = (100, 85, 90, 120)
-        case .elevated:(top, bottom, low, high) = (80, 65, 120, 130)
-        case .stage1:  (top, bottom, low, high) = (60, 40, 130, 140)
-        case .stage2:  (top, bottom, low, high) = (35, 15, 140, 180)
-        case .crisis:  return 5
-        }
-        // Position within the band, by whichever number put it there.
-        let progress = Swift.max(0, Swift.min(1, (systolic - low) / Swift.max(1, high - low)))
-        return top - (top - bottom) * progress
+        Swift.min(ScoreCurve.through(systolicLadder, at: systolic),
+                  ScoreCurve.through(diastolicLadder, at: diastolic))
     }
+
+    /// ACC/AHA systolic thresholds — 120 elevated, 130 stage 1, 140 stage 2,
+    /// 180 crisis — with one score at each boundary.
+    static let systolicLadder: [(input: Double, score: Double)] = [
+        (90, 100), (120, 85), (130, 65), (140, 40), (180, 15), (200, 5)
+    ]
+
+    /// The diastolic thresholds — 80 stage 1, 90 stage 2, 120 crisis — carrying
+    /// **the same score at each as systolic carries at its equivalent**, so
+    /// neither axis is harsher than the other about the same band.
+    ///
+    /// The 75 anchor is this app's own and is the one invented number here. ACC/
+    /// AHA gives systolic an elevated band between normal and stage 1 and gives
+    /// diastolic nothing, so a faithful diastolic ladder has to fall from 100 to
+    /// 65 with no landing in between — which either makes the whole normal range
+    /// harsh (118/76, a healthy reading, scored 74) or puts the drop in a cliff
+    /// at 80. A five-point run-up mirroring systolic's ten-point one keeps the
+    /// published boundary values exactly and puts the descent somewhere
+    /// defensible: 79 really is closer to stage 1 than 70 is.
+    ///
+    /// It is still the steepest stretch in either ladder — about four points per
+    /// mmHg, so a cuff's own ±5 mmHg can move the card twenty points there. That
+    /// is the band table's claim, not this curve's: the published thresholds do
+    /// assert that 79 and 81 differ. What is fixed is the forty points for a
+    /// tenth of a mmHg; what remains is the guidance being steep where it is
+    /// steep.
+    ///
+    /// The low anchor is 60 rather than the bottom of the physiological range:
+    /// below that the number stops being reassuring and starts being low blood
+    /// pressure, which this card does not attempt to score and should not
+    /// reward with a rising number.
+    static let diastolicLadder: [(input: Double, score: Double)] = [
+        (60, 100), (75, 85), (80, 65), (90, 40), (120, 15), (140, 5)
+    ]
 
     /// How a reading's two numbers divide the score between them.
     ///

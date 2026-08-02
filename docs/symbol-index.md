@@ -57,7 +57,7 @@ the place to look.
   - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :593
+  - `BloodPressureInsight` :645
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CardioTrajectory.swift`
@@ -127,6 +127,8 @@ the place to look.
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
   - `ScoreChangeReader` :106
+- `Insights/ScoreCurve.swift`
+  - `ScoreCurve` :33
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
@@ -261,7 +263,7 @@ the place to look.
   - `BuildAssessmentModel` :64
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
-  - `CompositionVelocityModel` :80
+  - `CompositionVelocityModel` :89
 - `Signals/MedicationResponse.swift`
   - `MedicationResponse` :25
 - `Signals/NightSleepDetail.swift`
@@ -311,7 +313,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :55
+  - `FileImportOutcome` :58
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
@@ -328,6 +330,11 @@ the place to look.
   - `AppleHealthProvider` :7
 - `Core/Integrations/CredentialValidator.swift`
   - `CredentialValidator` :20
+- `Core/Integrations/HealthDataAppIntents.swift`
+  - `HealthInsightsShortcuts` :123
+  - `LogHealthDataIntent` :27
+  - `MetricTypeEntity` :81
+  - `MetricTypeQuery` :101
 - `Core/Integrations/HealthIntegration.swift`
   - `HealthIntegration` :25
   - `IntegrationCapabilities` :14

@@ -68,6 +68,15 @@ public struct CompositionVelocity: Sendable, Equatable {
     /// `qualityScore(leanShareOfChange:isLosing:)` for free — losing and gaining
     /// read the same ratio in opposite directions, up to a 96-point swing, and
     /// a slope can only change sign by passing through zero, where this is 0.
+    ///
+    /// ⚠️ **It does not cover `rateScore`, and a sweep for this defect class
+    /// caught that the day this was written.** Muting near zero protects only
+    /// the terms this scales. `rateScore` had its own step at exactly zero —
+    /// worth six to eight points of the card — and being 0 here is why: the
+    /// quality term is silent in the very band where that crossing lives, so
+    /// nothing damped it. It is fixed at its own site, by
+    /// `wrongWaySpread(by:)`. **The general lesson: a confidence factor on one
+    /// term says nothing about the term beside it.**
     public var changeConfidence: Double {
         let magnitude = abs(percentPerWeek)
         let floor = CompositionVelocityModel.stableBandPercent
@@ -227,16 +236,54 @@ public enum CompositionVelocityModel {
         //
         // Maintenance has no "beyond" and no wrong side, so it is symmetric —
         // but tighter than a shortfall, because any drift is off-goal.
+        //
+        // **The wrong-direction curve arrives gradually, and that is a fix.** It
+        // used to switch on `percentPerWeek > 0`, which put a 25-point step in
+        // this term at a slope of exactly zero: on a goal of losing, a distance
+        // of 0.75 scores 70.7 through the shortfall spread of 0.9 and 45.8
+        // through the wrong-way spread of 0.6. Zero is the one value this
+        // statistic is guaranteed to wander across — it is a least-squares fit
+        // through a scale carrying a kilogram of water swing — so the card's
+        // score moved six to eight points on consecutive days for a body that
+        // had not changed.
+        //
+        // That is the same defect `changeConfidence` was written for, and this
+        // term is the one it does **not** cover: its ramp is 0 below the stable
+        // band, which is precisely the neighbourhood this crossing lives in, so
+        // the quality term is muted there while the rate term sits at its full
+        // 30%. Handled here rather than by muting, because a reader who is not
+        // moving when they meant to lose is a real finding and should not be
+        // hidden — what was wrong was the cliff, not the judgement.
         let spread: Double
         switch goal {
         case .maintain:
             spread = 0.7
         case .lose:
-            spread = percentPerWeek > 0 ? 0.6 : (percentPerWeek < ideal ? 0.45 : 0.9)
+            spread = percentPerWeek < ideal ? 0.45
+                : wrongWaySpread(by: percentPerWeek)
         case .gain:
-            spread = percentPerWeek < 0 ? 0.6 : (percentPerWeek > ideal ? 0.45 : 0.9)
+            spread = percentPerWeek > ideal ? 0.45
+                : wrongWaySpread(by: -percentPerWeek)
         }
         return clamp(100 * exp(-0.5 * pow(distance / spread, 2)))
+    }
+
+    /// The curve width for a rate on the shortfall side of its goal, tightening
+    /// as it goes the wrong way instead of stepping when it crosses zero.
+    ///
+    /// `wrongness` is how far past zero the rate has gone in the unwanted
+    /// direction — negative or zero while the reader is still moving the way
+    /// they meant to, which holds the forgiving 0.9.
+    ///
+    /// Reaches the full wrong-way tightening at `confidentChangePercent`,
+    /// reusing that constant deliberately: it is already defined as the rate at
+    /// which a change is taken at face value rather than read as scale noise,
+    /// which is exactly the point at which going the wrong way should be scored
+    /// as going the wrong way.
+    static func wrongWaySpread(by wrongness: Double) -> Double {
+        let shortfall = 0.9, wrongWay = 0.6
+        let progress = Swift.min(1, Swift.max(0, wrongness / confidentChangePercent))
+        return shortfall + (wrongWay - shortfall) * progress
     }
 
     /// 0–100 for how much of the change was the tissue the reader wanted to

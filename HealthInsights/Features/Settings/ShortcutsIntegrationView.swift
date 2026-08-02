@@ -15,19 +15,31 @@ struct ShortcutsIntegrationView: View {
 
     /// The recipe the reader assembles. Deliberately short: a long one does not
     /// get built.
+    ///
+    /// Step three used to be "paste this address and replace VALUE with the
+    /// number from the action above it", which is three chances to get something
+    /// wrong in a string with no feedback. The app now ships a **Log health
+    /// data** action, so the reader picks the metric from a menu and drops the
+    /// variable in the way Shortcuts drops every other variable. The address is
+    /// still below, because a shortcut somebody already built has to keep
+    /// working.
     private let steps: [(String, String)] = [
         ("Open Shortcuts and make a new shortcut",
          "Name it anything — “Health Insights daily” works."),
         ("Add the actions that fetch what you want",
          "Screen Time needs an app that exposes it as a Shortcuts action. Calendar, weather and battery are all built in — anything that ends in a number can be sent."),
-        ("Add “Open URLs” as the last action",
-         "Paste the address below, and replace VALUE with the number from the action above it. Shortcuts will substitute it when it runs."),
+        ("Add “Log health data” as the last action",
+         "It's this app's own action — search for it by name. Pick the metric from the menu, then drag the number from the action above into the Value field."),
         ("Automate it",
          "In the Automation tab, run it at a time each day. Turn off “Ask Before Running” so it goes by itself.")
     ]
 
+    /// Built rather than written out. The parser is the only definition of this
+    /// format, and a literal here was a second one that could drift from it —
+    /// see `ShortcutIngest.urlTemplate`, which is round-tripped against the
+    /// parser in `ShortcutURLBuilderTests`.
     private var urlTemplate: String {
-        "healthinsights://shortcut?date=YYYY-MM-DD&\(MetricType.screenTimeMinutes.rawValue)=VALUE"
+        ShortcutIngest.urlTemplate(for: [.screenTimeMinutes])
     }
 
     var body: some View {
@@ -67,7 +79,7 @@ struct ShortcutsIntegrationView: View {
             } header: {
                 Text("The address")
             } footer: {
-                Text("Any signal this app knows can be sent this way — add `&stepCount=1234`, and so on, one per reading. Send the same day twice and the second replaces the first, so re-running to fix a number is safe. **Anything the app learns to track later works through the same shortcut without you changing it.**")
+                Text("Only needed if you'd rather use “Open URLs” than the app's own action — an old shortcut, or something that can only produce a web address. Add `&stepCount=1234` and so on, one per reading. Send the same day twice and the second replaces the first, so re-running to fix a number is safe. **Anything the app learns to track later works through either route without you changing anything.**")
             }
 
             Section {
