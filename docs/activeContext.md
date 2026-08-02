@@ -46,7 +46,67 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**Readiness section counts reconciled (latest, 2026-08-02, night).** The user
+**Export completeness + derived scores as data (latest, 2026-08-02, night).**
+
+- **`HealthDataExport`** replaces the old two-field full export, which carried
+  `samples` and the unmodelled catalogue only — the substance log, the regimen
+  and its doses, the side effects, the profile facts and every derived score were
+  absent from the file a reader hands back. Its `exportKey(for:)` is
+  **exhaustive over `DataDomain`**, so a new connector's data cannot ship without
+  an export home, and `HealthDataExportTests` checks the named key is really in
+  the encoded JSON. That test caught a live one: `medication` is optional and the
+  synthesised encoder omits nil optionals, so the key **vanished** on a phone
+  with no regimen — indistinguishable from the exporter having forgotten it.
+  `encode(to:)` is hand-written to emit an explicit null.
+- **`DataDomain.derivedScores`** — the user's ask from the audit ("ASCVD or
+  SCORE2 scores should be in the data tab"). Adding the case did what the enum
+  exists for: broke the Data tab's two switches *and* the new export switch until
+  each said where it goes. `DerivedScoreDataView` follows `DomainDataScaffold`.
+
+### ⚠️ Screen Time: researched 2026-08-02, and it is **blocked**. Don't re-derive.
+
+The user asked for a Screen Time integration. **A third-party app cannot read
+Screen Time into its own data model.** Three independent blockers, each
+sufficient, all confirmed against Apple docs/DTS forum answers:
+
+1. **`DeviceActivityReportExtension` runs in a read-only sandbox** deliberately,
+   so the numbers cannot reach the host app. App Groups, shared `UserDefaults`,
+   shared container files and `CFPreferences` **all fail by design** — Apple DTS
+   states this outright. The extension may only render SwiftUI the app embeds
+   without introspecting.
+2. **`com.apple.developer.family-controls` needs a paid team** (a free Personal
+   Team cannot sign it) — and this repo's App Group revert (`aaf185c`) is
+   evidence the signing identity is a free personal team.
+3. **The Developer Program Licence** forbids sharing usage data "beyond the
+   family controls You provide" — Apple has applied this even to explicitly
+   user-initiated sharing. Load-bearing here because the app has a BYO-key LLM
+   client.
+
+**The only route to a number in the model** is the *threshold-ladder* hack: a
+`DeviceActivityMonitorExtension` (a different extension, not sandboxed) with
+staggered `DeviceActivityEvent` thresholds, counting `eventDidReachThreshold`
+callbacks — usage ≈ callbacks × interval. Approximate (±5–10 min), **no history
+backfill**, 6 MB budget, and **actively regressed on iOS 26** (thresholds firing
+at interval start or not at all; reported since June 2025, unfixed).
+
+**Recommended instead: screen time as a first-class *manual/Shortcuts* input** —
+zero entitlement, exact numbers, works today. It plugs straight into
+`SleepOnsetModel`, which already names "screen or phone time before bed" in its
+`unseenFactors`. That needs a `MetricType` + an `InputKind` (load
+`add-data-or-input` and `add-metric-type`). **Not yet built — awaiting the
+user's call on the route.**
+
+Other device integrations worth having, researched at the same time and ranked
+by value ÷ friction: **under-used HealthKit types** (`HKStateOfMind` valence/
+labels iOS 18, sleep *stages*, `timeInDaylight`, mindful minutes, audio
+exposure) — no new permission surface at all; **CoreMotion** (one Info.plist key,
+and it **backfills 7 days** of activity logged while the app wasn't running);
+**EventKit** for meeting density as a work-stress covariate (needs
+`NSCalendarsFullAccessUsageDescription` + `requestFullAccessToEvents()` on
+iOS 17+). WeatherKit needs a paid team; CoreLocation visits need Always
+authorisation; SensorKit needs an IRB letter and is out of reach.
+
+**Readiness section counts reconciled (previous, 2026-08-02, night).** The user
 counted one card's headers: drivers 20, What-goes-into 11, weighted 11, compare
 11, departure 10 — *"How is this possible and why!?"* **Measured rather than
 reasoned about** (a throwaway probe test printing every section's count on a
