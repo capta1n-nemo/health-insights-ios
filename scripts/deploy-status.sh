@@ -13,6 +13,13 @@
 #   ./scripts/deploy-status.sh <sha>
 #   ./scripts/deploy-status.sh --wait       # poll until a verdict appears
 #   ./scripts/deploy-status.sh --errors     # print WHY it failed
+#   ./scripts/deploy-status.sh --fresh      # ignore the verdict already there
+#
+# `--fresh` is for a **re-run of a commit that already has a verdict**, which is
+# what happens every time a deploy is retried without a new push. The ref is
+# keyed on the sha alone, so `--wait` found the *previous* run's `failed` ref
+# and returned instantly — reporting a failure that had not happened yet. It
+# baselines whatever is there now and waits for it to change.
 #
 # `--errors` exists because the verdict was a single bit, so "the phone was
 # locked" and "signing rejected a capability" looked identical from here. That
@@ -30,11 +37,13 @@ cd "$(dirname "$0")/.."
 
 wait=0
 errors=0
+fresh=0
 sha=""
 for arg in "$@"; do
     case "$arg" in
         --wait) wait=1 ;;
         --errors) errors=1 ;;
+        --fresh) fresh=1; wait=1 ;;
         *) sha="$arg" ;;
     esac
 done
@@ -113,10 +122,17 @@ report() {
 }
 
 if [ "$wait" -eq 1 ]; then
+    # What is already recorded for this sha. Empty unless --fresh, so a normal
+    # --wait keeps returning the first verdict it sees.
+    baseline=""
+    [ "$fresh" -eq 1 ] && baseline=$(look)
+    if [ "$fresh" -eq 1 ]; then
+        echo "waiting for a new verdict for ${sha:0:7} (ignoring the one already recorded)"
+    fi
     # A device build plus install is slower than CI — allow ~15 minutes.
     for _ in $(seq 1 45); do
         out=$(look)
-        if [ -n "$out" ]; then report "$out"; exit $?; fi
+        if [ -n "$out" ] && [ "$out" != "$baseline" ]; then report "$out"; exit $?; fi
         sleep 20
     done
     echo "no deploy verdict for ${sha:0:7} after 15 minutes"

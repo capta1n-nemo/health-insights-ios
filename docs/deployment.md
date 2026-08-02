@@ -16,6 +16,16 @@ this repo:
   Simulators ▸ "Connect via network"), so `devicectl` can reach it without a
   cable.
 
+### Re-running a deploy: use `--fresh`
+
+The verdict ref is keyed on the sha alone, so a **re-run of a commit that
+already has a verdict** — which is every retry that doesn't involve a new push —
+leaves the old ref in place. `./scripts/deploy-status.sh --wait` finds it
+immediately and reports a failure that has not happened yet. `--fresh`
+baselines whatever is recorded and waits for it to *change*.
+
+Found on 2026-08-02 by believing the stale answer for a round.
+
 ### The share-sheet action extension is parked, and this is why
 
 `ShotsyImportAction` was built and reverted on 2026-08-02 (`aaf185c`, reverted
