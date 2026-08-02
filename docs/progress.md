@@ -428,6 +428,24 @@ The Vitals Check fix, applied everywhere it was also true.
       view of doses and side effects. `ContributionRouteStatus` is the one
       exhaustive resolver of a route's name and summary, so a new kind of data
       (dose, goal, scan…) costs the card a line and cannot skip the hub.
+- [x] **Viewing consolidated to one screen per card (2026-08-02, round 2).**
+      The user's call for "multiple data sources… viewed in a consolidated way".
+      `CardDataView` is the card-scoped Data tab — the signals the card reads
+      plus its logs and inputs, each opening the full record. The hub's per-route
+      view links became one "View all this card's data" link; routes there are
+      now purely *add*. `CardDataView.routeSection` is exhaustive over
+      `ContributionRoute`.
+- [x] **Two more published peer norms, and a three-way split (2026-08-02).**
+      Lean mass via **FFMI** (Kyle 2003, BIA); blood pressure moved from "no
+      norm" into **assessed-by-category** (ACC/AHA); the modelled medication
+      level dropped from the comparison entirely. SDNN, sleep duration, BMI and
+      bone/water researched and rejected with reasons — see `card-sections.md`
+      ▸ "How you compare".
+- [x] **The trend chip shows steady, and the score chart shows loading
+      (2026-08-02).** `ScoreChange.chipLabel` + a neutral steady chip so "no
+      change" is distinct from "not measured"; `SectionPlaceholder.isLoading`
+      drives a spinner on the replaying score chart, and the open card jumps the
+      replay queue.
 - [x] **Blood pressure's chart moved onto its own card**, as a shared
       `BloodPressureChart` drawn by both the insight and the metric screen. The
       metric screen keeps the calibration detail and the full dated history.

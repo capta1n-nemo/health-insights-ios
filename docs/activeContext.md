@@ -46,7 +46,37 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**The one-add-button session (latest, 2026-08-02, evening).** The user, from a
+**The screenshot-round-2 session (latest, 2026-08-02, evening).** Four asks off
+new screenshots, one push:
+
+1. **Trend indicator was "broken" — it was hiding the steady state.** The chip
+   rendered only when the score *moved*, so on a screen of daily cards only the
+   one that moved showed a badge and the rest looked broken. `ScoreChange` gained
+   `chipLabel` (steady = "No change"), `ScoreChangeChip` draws all three
+   directions (steady = neutral, equals sign, no valence colour), and the
+   dashboard shows it whenever a change exists — silence now means only "not
+   enough history to judge" (which is `nil`, and the trend cards genuinely are
+   there: they need 21 stored quarter-days). **Steady is a measured answer, not
+   an absence.**
+2. **Score-over-time charts looked stuck.** `SectionPlaceholder` gained
+   `isLoading`, set only on the replay's computing arm; `emptySection` draws a
+   real `ProgressView` there instead of the static tick, so "working" is
+   distinct from "empty". And the card you open now **jumps the replay queue**
+   (`scoreHistory(for:prioritise:)`) — it was sitting seventh behind eight cards
+   the Insights list requested on open.
+3. **"How you compare" — more norms, researched.** Added **lean mass via FFMI**
+   (Kyle 2003, BIA-measured, needs height, labels itself kg/m²) — the fifth
+   published norm. Split the section into three buckets: blood pressure moved out
+   of "no norm" into **assessed-by-category** (ACC/AHA), and the **modelled**
+   `activeMedicationLevel` is dropped entirely. Researched and *rejected* SDNN
+   (60 s vs 5 min window mismatch), sleep duration (U-shaped, breaks monotonic
+   `Norm`), BMI (non-monotonic), bone/water (BIA-specific). The exclusions are
+   the honesty constraint working, not a gap.
+4. **Consolidated data viewing (user chose one-screen-per-card).** `CardDataView`
+   — the card-scoped Data tab. The hub's per-route view links collapsed into one
+   "View all this card's data" link; routes in the hub are now purely *add*.
+
+**The one-add-button session (previous, 2026-08-02, evening).** The user, from a
 screenshot of Body Composition's "View & add" running four full-size route
 blocks with four identical red buttons: *"It should just be one add button, and
 this should show you the ability to add new data and view all previous data and

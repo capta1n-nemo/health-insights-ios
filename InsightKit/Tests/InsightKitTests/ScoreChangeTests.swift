@@ -66,6 +66,20 @@ final class ScoreChangeTests: XCTestCase {
         XCTAssertFalse(trend.isMeaningful)
     }
 
+    /// The chip renders in every direction — steady included — so the reader can
+    /// tell "no change" from "not measured". The signed label is still absent
+    /// when steady (nothing to point at); `chipLabel` is what the chip draws and
+    /// is never empty.
+    func testTheChipHasWordsInEveryDirection() throws {
+        let up = try XCTUnwrap(daily([60, 62, 61, 59, 63, 60, 61, 78]))
+        let down = try XCTUnwrap(daily([80, 82, 81, 79, 83, 80, 81, 62]))
+        let steady = try XCTUnwrap(daily([60, 68, 55, 71, 58, 66, 62, 64]))
+        XCTAssertEqual(up.chipLabel, "+17")
+        XCTAssertEqual(down.chipLabel, "−19")
+        XCTAssertEqual(steady.chipLabel, "No change")
+        XCTAssertFalse(steady.chipLabel.isEmpty)
+    }
+
     /// The same absolute move is a finding in a steady score and noise in a
     /// jumpy one — which is why this standardises rather than thresholding on
     /// points alone.

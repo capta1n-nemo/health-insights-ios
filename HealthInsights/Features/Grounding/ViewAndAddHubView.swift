@@ -18,15 +18,20 @@ import InsightKit
 /// 2. The grounded / not-grounded summary — a seal, a sentence, and a bar while
 ///    there is something left to fill.
 /// 3. One prominent button that adds.
-/// 4. A link to the dated history, where one exists beyond the entry sheet —
-///    blood pressure's readings screen, medication's dose and side-effect list.
-///    See `ContributionSummary.detailLabel`.
+///
+/// Viewing what has already been given is not per-route here: it is the single
+/// "View all this card's data" link at the top, which opens `CardDataView`. A
+/// card with four routes had four view links scattered down it, which is exactly
+/// the fragmentation the consolidated screen removes.
 ///
 /// Extensibility is the compiler's: `section(for:)` switches exhaustively over
 /// `ContributionRoute`, so the next kind of data — a scan, a goal, whatever
 /// comes — does not build until this screen says how it is added and where its
 /// history is seen.
 struct ViewAndAddHubView: View {
+    let cardTitle: String
+    /// The signals this card reads, for the consolidated data screen.
+    let metrics: [MetricType]
     let routes: [ContributionRoute]
     /// Carried so a missing fact can show the model's own reason for wanting
     /// it.
@@ -45,6 +50,24 @@ struct ViewAndAddHubView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.spacing) {
+                    // Viewing is consolidated into one screen; the sections
+                    // below are for adding. See `CardDataView`.
+                    Card {
+                        NavigationLink {
+                            CardDataView(cardTitle: cardTitle, metrics: metrics,
+                                         routes: routes, unmetRequirements: unmetRequirements)
+                        } label: {
+                            HStack {
+                                Label("View all this card's data", systemImage: "list.bullet.rectangle")
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                     ForEach(Array(routes.enumerated()), id: \.offset) { _, route in
                         Card { section(for: route) }
                     }
@@ -90,15 +113,15 @@ struct ViewAndAddHubView: View {
 
     // MARK: - The one anatomy
 
-    /// Every route is this. The only per-route parts are the destination the
-    /// button opens, the destination the link pushes, and any extra affordance
-    /// a route carries (`extra:` — medication's side-effect button, the file
-    /// importer's result line).
-    private func sectionBody<Link: View, Extra: View>(
+    /// Every route is this now: a header, the grounded summary, one add button,
+    /// and an optional bespoke `extra` (medication's side-effect button, the
+    /// file importer's result line). The per-route *view* links are gone —
+    /// viewing is the one consolidated screen at the top of this hub, so a route
+    /// here is purely "add", which is the job the card can't consolidate.
+    private func sectionBody<Extra: View>(
         _ status: ContributionRouteStatus,
         addAction: @escaping () -> Void,
-        @ViewBuilder link: () -> Link,
-        @ViewBuilder extra: () -> Extra
+        @ViewBuilder extra: () -> Extra = { EmptyView() }
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             header(status)
@@ -112,16 +135,7 @@ struct ViewAndAddHubView: View {
             .controlSize(.regular)
 
             extra()
-            link()
         }
-    }
-
-    private func sectionBody<Link: View>(
-        _ status: ContributionRouteStatus,
-        addAction: @escaping () -> Void,
-        @ViewBuilder link: () -> Link
-    ) -> some View {
-        sectionBody(status, addAction: addAction, link: link, extra: { EmptyView() })
     }
 
     /// The same header everywhere: what this is, and one figure saying where
@@ -137,59 +151,27 @@ struct ViewAndAddHubView: View {
         }
     }
 
-    private func detailLink<Destination: View>(
-        _ summary: ContributionSummary,
-        @ViewBuilder destination: () -> Destination
-    ) -> some View {
-        Group {
-            if let label = summary.detailLabel {
-                NavigationLink(destination: destination()) {
-                    HStack(spacing: 4) {
-                        Text(label).font(.caption.weight(.medium))
-                        Image(systemName: "chevron.right").font(.caption2)
-                    }
-                    .foregroundStyle(Theme.accent)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
     // MARK: - Blood pressure
 
-    /// The sheet takes a reading; the metric screen holds the dated history,
-    /// the chart and the calibration detail.
     private func bloodPressureSection(_ status: ContributionRouteStatus) -> some View {
-        sectionBody(status, addAction: { addingBloodPressure = true }) {
-            detailLink(status.summary) { MetricDetailView(subject: .bloodPressure) }
-        }
+        sectionBody(status, addAction: { addingBloodPressure = true })
     }
 
     // MARK: - Substance log
 
-    /// `SubstanceLogView` is already both halves — the chips add, and the
-    /// entries below can be re-timed or removed — so the button is the whole
-    /// route and there is nothing for a link to reach past it.
     private func substanceSection(_ status: ContributionRouteStatus) -> some View {
-        sectionBody(status, addAction: { showingSubstanceLog = true }) {
-            detailLink(status.summary) { EmptyView() }
-        }
+        sectionBody(status, addAction: { showingSubstanceLog = true })
     }
 
     // MARK: - Medication
 
-    /// Regimen, doses and side effects in one section: set up or log a dose
-    /// with the button, record a side effect beside it, and the full dated
-    /// history behind the link.
+    /// Set up or log a dose with the button, record a side effect beside it.
+    /// The dated history lives on the consolidated data screen.
     private func medicationSection(_ status: ContributionRouteStatus) -> some View {
         let medication = model.activeMedication
         return sectionBody(
             status,
             addAction: { activeInput = medication == nil ? .medicationRegimen : .medicationDose },
-            link: {
-                detailLink(status.summary) { MedicationHistoryView() }
-            },
             extra: {
                 if medication != nil {
                     Button("Record a side effect") { activeInput = .sideEffect }
@@ -200,23 +182,15 @@ struct ViewAndAddHubView: View {
 
     // MARK: - Body type
 
-    /// `BodyTypeSheet` is both halves too: it shows the estimate and the
-    /// current choice, and changes it.
     private func bodyTypeSection(_ status: ContributionRouteStatus) -> some View {
-        sectionBody(status, addAction: { activeInput = .bodyType }) {
-            detailLink(status.summary) { EmptyView() }
-        }
+        sectionBody(status, addAction: { activeInput = .bodyType })
     }
 
     // MARK: - Grounding facts
 
-    /// `GroundingDetailView` is the view-and-edit list of every fact the card
-    /// asks for.
     private func factsSection(_ status: ContributionRouteStatus,
                               kinds: [GroundingKind]) -> some View {
-        sectionBody(status, addAction: { showingGroundingDetail = GroundingKindList(values: kinds) }) {
-            detailLink(status.summary) { EmptyView() }
-        }
+        sectionBody(status, addAction: { showingGroundingDetail = GroundingKindList(values: kinds) })
     }
 
     // MARK: - File import
@@ -227,7 +201,6 @@ struct ViewAndAddHubView: View {
         sectionBody(
             status,
             addAction: { showingImporter = true },
-            link: { EmptyView() },
             extra: {
                 if let importMessage {
                     Text(importMessage)

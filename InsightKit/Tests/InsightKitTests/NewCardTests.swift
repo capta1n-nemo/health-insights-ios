@@ -371,6 +371,77 @@ final class PeerStandingTests: XCTestCase {
         XCTAssertTrue(result.unmetRequirements.contains { $0.kind == .dateOfBirth })
     }
 
+    // MARK: - Lean mass via FFMI
+
+    /// Lean mass is placed by fat-free mass index, so it needs a height. With
+    /// one it becomes a real centile and labels itself in kg/m²; without one it
+    /// falls to the unnormed list rather than being compared in raw kilograms,
+    /// which would place a tall person and a short person at the same weight
+    /// wrongly.
+    func testLeanMassIsComparedByFFMIAndNeedsAHeight() throws {
+        // 60 kg lean at 1.80 m → FFMI 18.5, a hair below the young-male mean of
+        // 19.0, so a little under the fiftieth centile.
+        let withHeight = nightly(.leanBodyMass, Array(repeating: 60.0, count: 3))
+            + nightly(.height, [1.80])
+        let output = try XCTUnwrap(PeerStandingModel.evaluate(
+            metrics: [.leanBodyMass], samples: withHeight,
+            profile: profile(age: 30, male: true), now: cardNow, calendar: cardCalendar))
+        let lean = try XCTUnwrap(output.standings.first { $0.metric == .leanBodyMass })
+        XCTAssertEqual(lean.value, 60.0 / (1.80 * 1.80), accuracy: 0.01)
+        XCTAssertEqual(lean.percentile, 45, accuracy: 12)
+        XCTAssertEqual(lean.displayLabel, "18.5 kg/m² (FFMI)")
+        XCTAssertTrue(output.unNormed.isEmpty)
+
+        let noHeight = nightly(.leanBodyMass, Array(repeating: 60.0, count: 3))
+        let fallback = try XCTUnwrap(PeerStandingModel.evaluate(
+            metrics: [.leanBodyMass], samples: noHeight,
+            profile: profile(age: 30, male: true), now: cardNow, calendar: cardCalendar))
+        XCTAssertTrue(fallback.standings.isEmpty)
+        XCTAssertEqual(fallback.unNormed, [.leanBodyMass])
+    }
+
+    /// More fat-free mass per height is a higher centile — the same orientation
+    /// VO₂max carries, and the check that FFMI is not accidentally lower-is-better.
+    func testMoreLeanMassIsAHigherCentile() throws {
+        func centile(lean: Double) throws -> Double {
+            let samples = nightly(.leanBodyMass, [lean]) + nightly(.height, [1.80])
+            let output = try XCTUnwrap(PeerStandingModel.evaluate(
+                metrics: [.leanBodyMass], samples: samples,
+                profile: profile(age: 30, male: true), now: cardNow, calendar: cardCalendar))
+            return try XCTUnwrap(output.standings.first).percentile
+        }
+        XCTAssertGreaterThan(try centile(lean: 68), try centile(lean: 56))
+    }
+
+    // MARK: - Blood pressure is judged, just not by centile
+
+    /// Systolic and diastolic used to sit under "no published norm", which reads
+    /// as the app not knowing what a healthy blood pressure is. They are assessed
+    /// by ACC/AHA category instead, and belong in their own bucket.
+    func testBloodPressureIsAssessedByCategoryNotListedAsUnnormed() throws {
+        let samples = nightly(.bloodPressureSystolic, [128]) + nightly(.bloodPressureDiastolic, [82])
+        let output = try XCTUnwrap(PeerStandingModel.evaluate(
+            metrics: [.bloodPressureSystolic, .bloodPressureDiastolic], samples: samples,
+            profile: profile(age: 40, male: true), now: cardNow, calendar: cardCalendar))
+        XCTAssertEqual(Set(output.assessedByCategory),
+                       [.bloodPressureSystolic, .bloodPressureDiastolic])
+        XCTAssertFalse(output.unNormed.contains(.bloodPressureSystolic))
+        XCTAssertFalse(output.unNormed.contains(.bloodPressureDiastolic))
+    }
+
+    /// A modelled quantity has no population to compare against and must not be
+    /// listed as "no published norm yet" — that would imply one is coming.
+    func testAModelledMetricIsDroppedFromTheComparisonEntirely() throws {
+        let samples = nightly(.restingHeartRate, Array(repeating: 55.0, count: 5))
+            + nightly(.activeMedicationLevel, [12.0])
+        let output = try XCTUnwrap(PeerStandingModel.evaluate(
+            metrics: [.restingHeartRate, .activeMedicationLevel], samples: samples,
+            profile: profile(age: 40, male: true), now: cardNow, calendar: cardCalendar))
+        XCTAssertFalse(output.unNormed.contains(.activeMedicationLevel))
+        XCTAssertFalse(output.assessedByCategory.contains(.activeMedicationLevel))
+        XCTAssertFalse(output.standings.contains { $0.metric == .activeMedicationLevel })
+    }
+
     /// A centile describes where you sit, not whether anything is wrong.
     func testItIsHonestAboutBeingAnApproximation() {
         let result = HeartHealthInsight().evaluate(

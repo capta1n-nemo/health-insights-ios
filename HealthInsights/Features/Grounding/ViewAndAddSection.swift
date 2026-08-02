@@ -33,6 +33,11 @@ import InsightKit
 /// `ContributionRouteStatus` says what its row shows and the hub says what its
 /// section offers.
 struct ViewAndAddSection: View {
+    /// The card's own name, for the consolidated data screen's title.
+    let cardTitle: String
+    /// The signals this card reads, passed through to the consolidated data
+    /// screen so it can list them.
+    let metrics: [MetricType]
     let routes: [ContributionRoute]
     /// Carried so a missing fact can show the model's own reason for wanting it,
     /// which is the sentence that used to live on "Add these for a better
@@ -64,7 +69,8 @@ struct ViewAndAddSection: View {
                 }
             }
             .sheet(isPresented: $showingHub) {
-                ViewAndAddHubView(routes: routes, unmetRequirements: unmetRequirements)
+                ViewAndAddHubView(cardTitle: cardTitle, metrics: metrics,
+                                  routes: routes, unmetRequirements: unmetRequirements)
             }
         }
     }

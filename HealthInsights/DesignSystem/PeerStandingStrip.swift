@@ -50,7 +50,11 @@ struct PeerStandingStrip: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(standing.metric.displayName).font(.subheadline)
                 Spacer(minLength: 4)
-                Text(MetricValueFormatter.string(standing.value, standing.metric))
+                // A height-adjusted comparison (lean mass → FFMI) says the
+                // number it was actually placed on; everything else formats its
+                // raw reading.
+                Text(standing.displayLabel
+                     ?? MetricValueFormatter.string(standing.value, standing.metric))
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Text(standing.phrase)
                     .font(.caption.weight(.semibold))

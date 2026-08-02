@@ -333,7 +333,11 @@ struct InsightCard: View {
                     }
                     HStack(spacing: 6) {
                         Text(result.headline).font(.title3.weight(.semibold))
-                        if let change, change.isMeaningful {
+                        // Rendered whenever a change was measurable at all —
+                        // steady included. Its absence means "not enough history
+                        // to judge", which is a different statement the chip must
+                        // not swallow into a blank.
+                        if let change {
                             ScoreChangeChip(change: change)
                         }
                     }
@@ -353,8 +357,12 @@ struct InsightCard: View {
     /// Folded into the card's combined label, because the chip's own label is
     /// unreachable once `accessibilityElement(children: .combine)` has merged it.
     private var changeSpeech: String {
-        guard let change, change.isMeaningful else { return "" }
-        return "\(change.direction == .up ? "Up" : "Down") \(Int(abs(change.delta).rounded())) points \(change.comparison). "
+        guard let change else { return "" }
+        switch change.direction {
+        case .up: return "Up \(Int(abs(change.delta).rounded())) points \(change.comparison). "
+        case .down: return "Down \(Int(abs(change.delta).rounded())) points \(change.comparison). "
+        case .steady: return "No change \(change.comparison). "
+        }
     }
 
     private var iconName: String {

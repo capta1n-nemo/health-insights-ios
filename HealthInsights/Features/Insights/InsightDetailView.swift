@@ -175,7 +175,9 @@ struct InsightDetailView: View {
                     // so the three cards that ask for nothing would carry a
                     // double gap.
                     if !contributionRoutes.isEmpty {
-                        ViewAndAddSection(routes: contributionRoutes,
+                        ViewAndAddSection(cardTitle: result.title,
+                                          metrics: resolvedContributions(result).metrics,
+                                          routes: contributionRoutes,
                                           unmetRequirements: result.unmetRequirements)
                     }
                     // 14. The other thing asked of the reader.
@@ -512,7 +514,9 @@ struct InsightDetailView: View {
     /// than present, and its absence read as the chart having been taken away
     /// rather than as the data not being there. It now says which.
     private var scoreHistoryCard: some View {
-        let history = model.scoreHistory(for: insightID)
+        // This is the card in view, so its replay wins the queue over the eight
+        // the Insights list requested on open.
+        let history = model.scoreHistory(for: insightID, prioritise: true)
         var placeholder: SectionPlaceholder?
         if history.count < 2 {
             placeholder = SectionPlaceholder.scoreHistory(
@@ -1001,6 +1005,7 @@ struct InsightDetailView: View {
         }
         let drawn = standing?.standings ?? []
         let unNormed = standing?.unNormed ?? []
+        let byCategory = standing?.assessedByCategory ?? []
 
         return InsightSection(
             title: "How you compare",
@@ -1017,11 +1022,39 @@ struct InsightDetailView: View {
                 if !drawn.isEmpty {
                     PeerStandingStrip(standings: drawn)
                 }
+                if !byCategory.isEmpty {
+                    categoryAssessedRows(byCategory, hasStandings: !drawn.isEmpty)
+                }
                 if !unNormed.isEmpty {
-                    unNormedRows(unNormed, hasStandings: !drawn.isEmpty)
+                    unNormedRows(unNormed,
+                                 hasStandings: !drawn.isEmpty || !byCategory.isEmpty)
                 }
             }
         }
+    }
+
+    /// Signals this card judges against a reference that isn't a centile — blood
+    /// pressure, placed into ACC/AHA stages. Split out of the "no published
+    /// norm" list because it is the opposite claim: these *are* assessed, just
+    /// not here. The user found systolic and diastolic sitting under "nobody has
+    /// published a distribution", which reads as the app not knowing what a
+    /// healthy blood pressure is when it has a whole card that does.
+    @ViewBuilder private func categoryAssessedRows(_ metrics: [MetricType],
+                                                   hasStandings: Bool) -> some View {
+        if hasStandings { Divider() }
+        Text("Placed by clinical category, not a centile")
+            .font(.caption.weight(.medium))
+        ForEach(metrics, id: \.self) { metric in
+            HStack(spacing: 8) {
+                Image(systemName: "cross.case")
+                    .font(.caption2).foregroundStyle(.tertiary).frame(width: 14)
+                Text(metric.displayName).font(.subheadline).foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        Text("Blood pressure is read against the ACC/AHA stages — normal, elevated, stage 1, stage 2 — rather than ranked against a population. The category is a stronger statement than a percentile, and drawing both would be two answers to one question. Your reading and its stage are on the Blood Pressure card.")
+            .font(.caption2).foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// The closed line for "How you compare".
@@ -1602,10 +1635,21 @@ struct InsightDetailView: View {
     /// teach the reader to read an empty patterns card as a problem.
     private func emptySection(_ placeholder: SectionPlaceholder) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "checkmark.circle")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 16)
+            // A spinner where the section is genuinely working (the replay), a
+            // static tick where it is simply empty. The two states read
+            // identically in words — "Working out your history" corrects itself
+            // in a second — so the reader needs the motion to tell "loading"
+            // from "nothing here".
+            Group {
+                if placeholder.isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 16)
             Text(placeholder.detail)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

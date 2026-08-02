@@ -17,49 +17,67 @@ import InsightKit
 /// today against the trailing week for daily cards, four weeks against the
 /// quarter for trend cards. The chip just draws the answer.
 ///
-/// ## Silence is a state
+/// ## Steady is a state the chip shows, not one it hides
 ///
-/// Nothing renders when the movement is inside the score's own usual spread.
-/// Apple suppresses a trend outright when nothing has moved; Garmin and Fitbit
-/// both render "inside your usual range" rather than a direction. A card seen
-/// several times a day has to earn the right to point at something.
+/// It used to render nothing when the movement was inside the score's own usual
+/// spread. That read as broken: on a screen of daily cards, only the one card
+/// that happened to move showed a badge and the rest showed nothing, and the
+/// reader could not tell "no change" from "not measured". The chip now draws all
+/// three directions — up, down, and a neutral **steady** — so silence means only
+/// one thing: not enough history to judge, which is when `ScoreChange` is `nil`
+/// and there is no chip at all.
+///
+/// Apple, Garmin and Fitbit all render "inside your usual range" rather than an
+/// arrow when nothing has moved; this is that, kept next to the number.
 ///
 /// ## Colour is valence, not direction
 ///
 /// Every score in this app is oriented so higher is better — that is what lets
-/// `ScoreDial` colour them all on one scale — so up is green and down is amber,
-/// and the arrow carries the direction. Where a metric's direction is not its
-/// valence, the right thing is no colour at all; no score here is in that
-/// position, and `Sleep Regularity` is scored (spread, not clock time)
-/// specifically so it isn't.
+/// `ScoreDial` colour them all on one scale — so up is green, down is amber, and
+/// steady is neutral. The arrow carries the direction; steady has no arrow, an
+/// equals sign, and no valence colour, because "unchanged" is neither good news
+/// nor bad.
 struct ScoreChangeChip: View {
     let change: ScoreChange
 
     var body: some View {
-        if let label = change.label {
-            HStack(spacing: 2) {
-                Image(systemName: change.direction == .up ? "arrow.up.right" : "arrow.down.right")
-                    .font(.caption2.weight(.bold))
-                Text(label)
-                    .font(.caption2.weight(.semibold))
-                    .monospacedDigit()
-            }
-            .foregroundStyle(tint)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(tint.opacity(0.14), in: Capsule())
-            .accessibilityLabel(accessibilityLabel)
+        HStack(spacing: 2) {
+            Image(systemName: iconName)
+                .font(.caption2.weight(.bold))
+            Text(change.chipLabel)
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(tint.opacity(0.14), in: Capsule())
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var iconName: String {
+        switch change.direction {
+        case .up: return "arrow.up.right"
+        case .down: return "arrow.down.right"
+        case .steady: return "equal"
         }
     }
 
     private var tint: Color {
-        change.direction == .up ? Theme.good : Theme.warn
+        switch change.direction {
+        case .up: return Theme.good
+        case .down: return Theme.warn
+        case .steady: return .secondary
+        }
     }
 
     /// Spoken in full, because "+7" alone says nothing about what it is seven of
     /// or what it is seven above.
     private var accessibilityLabel: String {
-        let direction = change.direction == .up ? "up" : "down"
-        return "\(direction) \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
+        switch change.direction {
+        case .up: return "up \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
+        case .down: return "down \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
+        case .steady: return "no change, \(change.comparison)"
+        }
     }
 }

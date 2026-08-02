@@ -122,7 +122,7 @@ the place to look.
   - `SupportingSignal` :24
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
-  - `ScoreChangeReader` :90
+  - `ScoreChangeReader` :106
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
@@ -404,7 +404,7 @@ the place to look.
 - `DesignSystem/RecoveryScale.swift`
   - `RecoveryScale` :22
 - `DesignSystem/ScoreChangeChip.swift`
-  - `ScoreChangeChip` :35
+  - `ScoreChangeChip` :40
 - `DesignSystem/ScoreComparisonChart.swift`
   - `ScoreComparisonChart` :12
 - `DesignSystem/ScoreDial.swift`
@@ -434,6 +434,8 @@ the place to look.
   - `LastNightCard` :159
   - `TodayView` :8
   - `VitalsGlance` :234
+- `Features/Data/CardDataView.swift`
+  - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
   - `OtherDataDetailView` :391
@@ -450,12 +452,12 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :332
-  - `MedicationHistoryView` :259
-  - `ViewAndAddHubView` :29
+  - `GroundingKindList` :305
+  - `MedicationHistoryView` :232
+  - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
-  - `ContributionRouteStatus` :96
-  - `GroundedSummary` :136
+  - `ContributionRouteStatus` :102
+  - `GroundedSummary` :142
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :19

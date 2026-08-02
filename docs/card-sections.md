@@ -616,14 +616,33 @@ section until 2026-08-01. Neither is a heart question; both are questions any
 card's inputs can be asked, which is why they are universal now.
 
 - **`Cmp` "How you compare"** takes the card's own metrics rather than a fixed
-  list, and **only three have a published norm**: resting heart rate, rMSSD and
-  VO₂max. `PeerStandingModel.norm(for:age:sex:)` returns `nil` for everything
-  else and the section *names* those signals rather than dropping them —
-  showing two rows out of nine implies the other seven were checked and found
-  unremarkable. Blood pressure is deliberately absent even though norms exist:
-  it is classified into ACC/AHA bands rather than ranked, and a systolic centile
-  beside a category is two answers to one question. Crowd-sourced comparison for
-  the rest is scoped in `docs/progress.md` ▸ "Crowd-sourced norms".
+  list. **Five signals now carry a published age/sex norm**: resting heart rate,
+  rMSSD, VO₂max, body-fat percentage, and — added 2026-08-02 — **lean mass via
+  the fat-free mass index**. `PeerStandingModel.norm(for:age:sex:)` returns `nil`
+  for everything else and the section *names* those signals rather than dropping
+  them, because two rows out of nine implies the other seven were checked and
+  found unremarkable.
+  - **FFMI (Kyle et al. 2003, n=5 635, BIA)** places lean mass ÷ height², not raw
+    kilograms — a tall person carries more of everything, so raw lean kg cannot
+    be compared across people. It needs a height (unnormed without one) and the
+    row labels itself in kg/m². The reference is BIA-measured, matching the
+    reader's scale, which is the point.
+  - **The section now has three buckets, not two.** Blood pressure used to sit
+    under "no published norm", which reads as the app not knowing what a healthy
+    reading is — the miscategorisation the user found. It is **assessed by
+    clinical category** (ACC/AHA stages), a stronger statement than a centile,
+    and has its own labelled group (`Output.assessedByCategory`) pointing at the
+    Blood Pressure card. A **modelled** quantity (`activeMedicationLevel`) is
+    dropped from the comparison entirely — there is no population for "your drug
+    in your system", and listing it as "no norm yet" would imply one is coming.
+  - **Deliberately still not normed, and why** (researched 2026-08-02): **SDNN**
+    — Apple computes it over ~60 s while the only published reference (Nunan
+    2010) is 5-minute, a window mismatch that biases the typical user below the
+    50th centile; **sleep duration** — real age/sex data exists (Lee 2026) but
+    it is U-shaped, and the monotonic `Norm` would reward oversleeping; **weight
+    / BMI** — non-monotonic and obesity-skewed; **bone mass / body water** —
+    BIA-specific with no population age/sex summary. Crowd-sourced comparison for
+    these is scoped in `docs/progress.md` ▸ "Crowd-sourced norms".
 - **`Nrm` "How far from your normal"** is narrowed to the card's metrics, except
   on Readiness, whose subject *is* the whole seventeen-vital scan.
 
@@ -947,9 +966,21 @@ inputs."* The split is now:
 - **Every route can show its history.** Medication was the gap — doses were
   visible only as aggregates in the Weight-management tables — and gained
   `MedicationHistoryView` (every dose and side effect, newest first, estimated
-  doses labelled), reached through `ContributionSummary.medication`'s new
-  `detailLabel`. `.fileImport` gained a summary factory so it renders through
+  doses labelled). `.fileImport` gained a summary factory so it renders through
   the same anatomy as everything else.
+
+**Then viewing itself consolidated, 2026-08-02 (evening, round 2).** The user:
+*"we can have multiple data sources… figure out how it views data in a
+consolidated way"* — and chose **one data screen per card**. The hub's per-route
+*view* links (metric screen, dose history, facts list, each separate) collapsed
+into a single "View all this card's data" link at the top of the hub, opening
+`CardDataView` — the card-scoped twin of the Data tab: the signals the card
+reads (same rows as `DataTabView`, latest value + source count), then its logs
+and inputs (BP readings, substances, doses & side effects, imports, build,
+details), each opening the full record. A route in the hub is now purely *add*;
+viewing is the one consolidated screen. `CardDataView.routeSection(_:)` is
+exhaustive over `ContributionRoute`, the same discipline `DataTabView` enforces
+app-wide.
 
 **Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
 listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as

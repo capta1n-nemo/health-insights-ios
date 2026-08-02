@@ -32,16 +32,16 @@ public struct ContributionSummary: Sendable, Equatable {
     public let progress: Double?
     /// The words on the button that opens the sub-menu.
     public let addLabel: String
-    /// The words on the link under the button, or `nil` where the button's own
-    /// destination already *is* the full view.
+    /// A label for the route's dated history, where one exists beyond the entry
+    /// sheet, or `nil` where the entry surface already *is* the full view.
     ///
-    /// Blood pressure has both because they answer different questions: the
-    /// sheet takes a reading, and the metric screen holds the dated history, the
-    /// chart and the calibration detail. The substance log and the grounding
-    /// list are single screens that already show everything they have, so a link
-    /// beside the button pointing at the same place would be two controls for
-    /// one destination — which is the kind of thing this section was built to
-    /// remove, not to spread.
+    /// Blood pressure and medication have one — a readings screen, a dose and
+    /// side-effect list — while the substance log and the grounding list are
+    /// single screens that already show everything they hold. Informational
+    /// since 2026-08-02: viewing moved to the one consolidated `CardDataView`,
+    /// so this is no longer rendered as a per-route link, but it remains the
+    /// tested statement of *what history a route has* for any surface that needs
+    /// to word it.
     public let detailLabel: String?
 
     // MARK: - Routes

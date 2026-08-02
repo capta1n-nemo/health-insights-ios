@@ -47,10 +47,17 @@ public struct SectionPlaceholder: Sendable, Equatable {
     /// The paragraph behind it: why there is nothing here, and what would change
     /// that. Never "check back later" without saying what is being waited for.
     public let detail: String
+    /// Whether this section is *working*, not empty. A spinner belongs beside a
+    /// computation the reader is waiting on — the 90-day replay — and nowhere
+    /// else: a genuinely empty section that spun forever would be a lie in the
+    /// opposite direction. Only the score-history builder's computing arm sets
+    /// it.
+    public let isLoading: Bool
 
-    public init(headline: String, detail: String) {
+    public init(headline: String, detail: String, isLoading: Bool = false) {
         self.headline = headline
         self.detail = detail
+        self.isLoading = isLoading
     }
 
     // MARK: - Patterns worth a look
@@ -156,7 +163,8 @@ public struct SectionPlaceholder: Sendable, Equatable {
                 headline: "Working out your history",
                 detail: "Rebuilding this card's score for each of the last 90 days "
                     + "from the readings as they stood on each one. It appears "
-                    + "here on its own as soon as that finishes.")
+                    + "here on its own as soon as that finishes.",
+                isLoading: true)
         }
         if points == 1 {
             return SectionPlaceholder(

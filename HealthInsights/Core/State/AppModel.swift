@@ -1325,11 +1325,28 @@ final class AppModel {
     /// Check is why: its baseline is now built per source from daily buckets,
     /// which means de-duplicating tens of thousands of heart-rate samples once
     /// per replayed day. Correct, but far too slow to run inside a view body.
-    func scoreHistory(for id: InsightID, days: Int = 90) -> [ScorePoint] {
+    /// `prioritise` jumps this card to the front of the queue. The Insights tab
+    /// asks for all nine histories the moment it opens, and with two running at
+    /// once the card the reader actually taps into can otherwise sit seventh in
+    /// line behind eight it isn't looking at — its chart the last to appear on
+    /// the one screen where it is the whole point. The card in view passes
+    /// `true`; the export and the comparison strip, which want all of them
+    /// equally, do not.
+    func scoreHistory(for id: InsightID, days: Int = 90,
+                      prioritise: Bool = false) -> [ScorePoint] {
         if let cached = scoreHistories[id] { return cached }
-        guard !scoreHistoryTasks.contains(id), !scoreHistoryQueue.contains(id) else { return [] }
         guard engine.models.contains(where: { $0.id == id }) else { return [] }
-        scoreHistoryQueue.append(id)
+        if scoreHistoryTasks.contains(id) { return [] }   // already running
+        if let queued = scoreHistoryQueue.firstIndex(of: id) {
+            // Already waiting: promote it if asked, otherwise leave it be.
+            if prioritise && queued != 0 {
+                scoreHistoryQueue.remove(at: queued)
+                scoreHistoryQueue.insert(id, at: 0)
+            }
+            return []
+        }
+        if prioritise { scoreHistoryQueue.insert(id, at: 0) }
+        else { scoreHistoryQueue.append(id) }
         drainScoreHistoryQueue(days: days)
         return []
     }

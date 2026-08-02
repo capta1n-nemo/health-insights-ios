@@ -80,7 +80,24 @@ public enum PeerStandingModel {
         /// the underlying metric runs — a resting heart rate of 48 is a high
         /// centile here even though 48 is a low number.
         public let percentile: Double
+        /// What the row shows for the value, when the compared quantity is not
+        /// the raw reading. Lean body mass is placed by its **fat-free mass
+        /// index** (mass ÷ height²), because raw kilograms cannot be compared
+        /// across people of different heights — so the centile is height-adjusted
+        /// and the row has to say the number it was actually placed on, in the
+        /// units it was placed in, rather than the raw kilograms the formatter
+        /// would print. `nil` for the metrics compared directly.
+        public let displayLabel: String?
+
         public var id: MetricType { metric }
+
+        public init(metric: MetricType, value: Double, percentile: Double,
+                    displayLabel: String? = nil) {
+            self.metric = metric
+            self.value = value
+            self.percentile = percentile
+            self.displayLabel = displayLabel
+        }
 
         public var band: Band { Band.of(percentile) }
 
@@ -99,6 +116,14 @@ public enum PeerStandingModel {
         /// gap is in the literature, not in the reader's data — see
         /// `docs/progress.md` ▸ "Crowd-sourced norms".
         public var unNormed: [MetricType] = []
+        /// Metrics this card reads that **are** assessed against a reference —
+        /// just not as a centile. Blood pressure is the case: it is classified
+        /// into ACC/AHA stages, and a systolic centile beside a stage would be
+        /// two answers to one question. Kept apart from `unNormed` so the card
+        /// stops implying "nobody has published a distribution" for a reading it
+        /// is, in fact, judging elsewhere — the miscategorisation the user found
+        /// on the Blood Pressure card.
+        public var assessedByCategory: [MetricType] = []
         /// The mean centile across what could be measured.
         public let overall: Double
         public var best: Standing? { standings.max { $0.percentile < $1.percentile } }
@@ -162,6 +187,54 @@ public enum PeerStandingModel {
     static func bodyFatNorm(age: Double, sex: BiologicalSex) -> Norm {
         let band = BodyCompositionInsight.healthyBodyFatRange(age: age, sex: sex)
         return Norm(mean: band.upper + 4, sd: 7, higherIsBetter: false)
+    }
+
+    /// Fat-free mass index — lean mass placed against other people of the same
+    /// age and sex, per height.
+    ///
+    /// Raw lean kilograms cannot be compared across people: a tall person
+    /// carries more of everything. FFMI (fat-free mass ÷ height², kg/m²) is the
+    /// height-normalised form, and it has a **BIA-measured** age/sex reference —
+    /// Kyle et al. (2003), 5 635 healthy Swiss adults on 50 kHz impedance,
+    /// cross-validated to DXA. That the reference was measured the same way the
+    /// reader's scale measures it is the point: a DXA-derived norm placed against
+    /// a BIA reading would carry a method bias the centile could not see.
+    ///
+    /// Anchored on the paper's young-adult medians — men 18.9, women 15.4 — with
+    /// the shallow published age course (roughly flat through midlife, easing
+    /// after 60 as fat-free mass falls). Higher is better across the healthy
+    /// range, the same orientation VO₂max carries; the wide SD comes from the
+    /// paper's own normal-BMI spread.
+    static func fatFreeMassIndexNorm(age: Double, sex: BiologicalSex) -> Norm {
+        let mean: Double
+        switch (sex, age) {
+        case (.male, ..<40):     mean = 19.0
+        case (.male, 40..<60):   mean = 19.2
+        case (.male, _):         mean = 18.4
+        case (.female, ..<40):   mean = 15.4
+        case (.female, 40..<60): mean = 15.8
+        case (.female, _):       mean = 15.2
+        }
+        return Norm(mean: mean, sd: sex == .male ? 1.7 : 1.5, higherIsBetter: true)
+    }
+
+    /// Metrics judged against a reference that isn't a centile.
+    ///
+    /// Blood pressure is classified into ACC/AHA stages by `BloodPressure`
+    /// `Category.of`, which is a stronger statement than a percentile and the
+    /// reason a systolic centile is deliberately not drawn. These belong in
+    /// `assessedByCategory`, not `unNormed`: the reading *is* placed against a
+    /// published reference, just not this section's kind.
+    static let categoryAssessed: Set<MetricType> = [.bloodPressureSystolic,
+                                                    .bloodPressureDiastolic]
+
+    /// Metrics that have no population distribution and never could — a value
+    /// this app **modelled** rather than measured. There is no "other people's
+    /// active medication level"; listing it as "no published norm yet" would
+    /// imply one might arrive, which is false. Excluded from the comparison
+    /// entirely rather than parked in a bucket.
+    static func isModelled(_ metric: MetricType) -> Bool {
+        metric == .activeMedicationLevel
     }
 
     /// The normal-approximation centile of `value` under `norm`, oriented so
@@ -245,10 +318,38 @@ public enum PeerStandingModel {
 
         var standings: [Standing] = []
         var unNormed: [MetricType] = []
+        var assessedByCategory: [MetricType] = []
+        let heightMetres = samples.latestValue(.height)
         // De-duplicated in the card's own order, so the rows read in the same
         // order as every other list on the screen.
         var seen: Set<MetricType> = []
         for metric in metrics where seen.insert(metric).inserted {
+            // A value the app worked out, not one it measured, has no population
+            // to compare against. Dropped entirely rather than listed.
+            if isModelled(metric) { continue }
+            // Judged, but by category rather than centile — its own bucket.
+            if categoryAssessed.contains(metric) {
+                assessedByCategory.append(metric)
+                continue
+            }
+            // Lean mass is placed by FFMI, which needs a height; without one it
+            // is genuinely uncomparable, so it falls to the unnormed list.
+            if metric == .leanBodyMass {
+                guard let height = heightMetres, height > 0.5,
+                      let reading = VitalReader.reading(metric, from: samples, now: now,
+                                                        freshWithin: freshness(for: metric),
+                                                        calendar: calendar) else {
+                    unNormed.append(metric)
+                    continue
+                }
+                let ffmi = reading.value / (height * height)
+                let norm = fatFreeMassIndexNorm(age: age, sex: sex)
+                standings.append(Standing(
+                    metric: metric, value: ffmi,
+                    percentile: percentile(ffmi, norm: norm),
+                    displayLabel: String(format: "%.1f kg/m² (FFMI)", ffmi)))
+                continue
+            }
             guard let norm = norm(for: metric, age: age, sex: sex) else {
                 unNormed.append(metric)
                 continue
@@ -263,8 +364,11 @@ public enum PeerStandingModel {
         // An overall of nothing is not zero. A card with only unnormed signals
         // still renders — that is the point of carrying them — but it has no
         // average centile and must not print one.
-        guard !standings.isEmpty || !unNormed.isEmpty else { return nil }
+        guard !standings.isEmpty || !unNormed.isEmpty || !assessedByCategory.isEmpty else {
+            return nil
+        }
         return Output(standings: standings, unNormed: unNormed,
+                      assessedByCategory: assessedByCategory,
                       overall: Baseline.mean(standings.map(\.percentile)) ?? 0)
     }
 

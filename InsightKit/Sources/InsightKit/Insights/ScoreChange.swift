@@ -85,6 +85,22 @@ public struct ScoreChange: Sendable, Equatable {
         guard isMeaningful else { return nil }
         return String(format: "%@%.0f", delta > 0 ? "+" : "−", abs(delta))
     }
+
+    /// The word for the chip in every state, including steady.
+    ///
+    /// Steady is a *measured* answer, not an absence — the app has enough
+    /// history to judge and the score has not moved past its own usual spread.
+    /// Rendering it (rather than hiding the chip) is the difference between "no
+    /// change" and "we don't know yet", which the reader could not otherwise
+    /// tell apart. A card with too little history returns no `ScoreChange` at
+    /// all, so this string only ever describes a judgement that was actually
+    /// made.
+    public var chipLabel: String {
+        switch direction {
+        case .up, .down: return label ?? "No change"
+        case .steady: return "No change"
+        }
+    }
 }
 
 public enum ScoreChangeReader {
