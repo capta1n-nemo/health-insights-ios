@@ -97,6 +97,37 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Tenth push — Shotsy as a listed integration, and the UTI that was blocking
+the share sheet.**
+
+- **The share sheet would never have offered us the file.** The user's
+  screenshot shows Shotsy exporting `data_080226.shotsyjson`, described as
+  *"Shotsy JSON Data"* — its **own exported UTI**, not `public.json`. A
+  receiving app declaring only `public.json` is never offered it, however valid
+  the JSON inside. `UTImportedTypeDeclarations` now imports `com.shotsy.json`
+  (extension `shotsyjson`, conforming to `public.json`/`public.data`) and the
+  document type targets it. **The file extension in a screenshot was the whole
+  answer** — worth remembering as a class: a share-sheet miss is a *type*
+  problem before it is a code problem.
+  ⚠️ **Unverified on device.** If the app still does not appear, the remaining
+  cause is that the share sheet's app row is populated by **Share Extensions**,
+  and document types only reach "Open With"/"Copy to". That fix is a new
+  extension target (new bundle id, signing, an app group) — deliberately not
+  attempted blind while deploys are failing.
+- **Shotsy is now in Settings ▸ Integrations**, at the user's request, beside
+  Oura and Withings. `ShotsyIntegration` conforms to `HealthIntegration` with
+  the differences visible rather than papered over: no Connect button (nothing
+  to authorise), `sync()` returns nothing (**there is no pull — Shotsy has no
+  API**), and the status line reports **when a file last arrived**, which is
+  the only truthful freshness claim it can make. `disconnect()` forgets the
+  source but **keeps the imported readings** — they are the reader's history,
+  and disconnecting a source is not a request to lose data.
+- `ShotsyIntegrationView` carries the three steps, a `shotsy://` deep link that
+  **says what to do if it does nothing** (a third-party scheme is a guess
+  unless documented, and a dead button is worse than none), and a file picker
+  whose accepted types include `com.shotsy.json` — a picker offering only JSON
+  greys the file out.
+
 **Ninth push — Shotsy import, the app's first file-shaped input.** Shotsy has
 no API, so its JSON backup *is* the integration: the user exports and shares
 it. `ShotsyImport` (InsightKit, 20 tests) parses **export version 2**, written

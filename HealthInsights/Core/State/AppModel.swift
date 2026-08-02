@@ -147,6 +147,9 @@ final class AppModel {
                 // cards reflect them without waiting for the next sync.
                 samples = (samples + dataStore.loadManualSamples()).partitionedVitals().kept
                 recompute()
+                // The integration's only honest freshness claim is when a file
+                // last arrived, so this is what writes it.
+                ShotsyIntegration.recordImport(summary: summary.sentence)
             }
             return summary.sentence
         } catch ShotsyImport.Failure.notAShotsyExport {
@@ -542,6 +545,10 @@ final class AppModel {
             apple,
             OuraProvider(credentials: credentials, webFlow: webFlow),
             WhoopProvider(credentials: credentials, webFlow: webFlow),
+            // File-based rather than API-based, and listed here anyway: from
+            // the reader's side "where does my data come from" has one answer
+            // and this is where it lives. See `ShotsyIntegration`.
+            ShotsyIntegration(),
             WithingsProvider(credentials: credentials, webFlow: webFlow)
         ])
         return AppModel(dataStore: dataStore, healthService: healthService,

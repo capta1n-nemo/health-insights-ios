@@ -331,6 +331,8 @@ the place to look.
   - `ProviderCredentials` :37
 - `Core/Integrations/ShotsyImportService.swift`
   - `ShotsyImportService` :19
+- `Core/Integrations/ShotsyIntegration.swift`
+  - `ShotsyIntegration` :21
 - `Core/Integrations/SyncedData.swift`
   - `SyncedData` :8
 - `Core/Integrations/WhoopProvider.swift`
@@ -473,10 +475,12 @@ the place to look.
   - `FullExport` :259
   - `OtherDataListView` :272
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :300
-  - `IntegrationRow` :201
-  - `IntegrationSummaryRow` :257
+  - `DisclaimerView` :310
+  - `IntegrationRow` :211
+  - `IntegrationSummaryRow` :267
   - `SettingsView` :4
+- `Features/Settings/ShotsyIntegrationView.swift`
+  - `ShotsyIntegrationView` :12
 - `Features/Settings/TelemetryOutboxView.swift`
   - `TelemetryOutboxView` :7
 - `Features/Settings/TroubleshootingView.swift`

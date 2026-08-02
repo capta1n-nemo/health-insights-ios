@@ -32,6 +32,16 @@ struct SettingsView: View {
                     } label: {
                         IntegrationSummaryRow(integration: integration, status: model.status(for: integration))
                     }
+                // File-based: there is nothing to authorise, so it gets an
+                // explainer rather than a Connect button — pressing Connect on
+                // a source that only ever receives files would do nothing.
+                } else if integration is ShotsyIntegration {
+                    NavigationLink {
+                        ShotsyIntegrationView()
+                    } label: {
+                        IntegrationSummaryRow(integration: integration,
+                                              status: model.status(for: integration))
+                    }
                 } else {
                     IntegrationRow(integration: integration) { action in
                         Task {
@@ -47,7 +57,7 @@ struct SettingsView: View {
         } header: {
             Text("Integrations")
         } footer: {
-            Text("Apple Health works on-device. Tap Oura or Withings for a simple, step-by-step guide to connect them — everything stays on your phone.")
+            Text("Apple Health works on-device. Tap Oura or Withings for a step-by-step guide. Shotsy has no API — you send it a file from Shotsy’s own share sheet, and tapping it explains how.")
         }
         .id(refreshToken)
     }

@@ -90,13 +90,47 @@
             <string>Alternate</string>
             <key>LSItemContentTypes</key>
             <array>
+                <string>com.shotsy.json</string>
                 <string>public.json</string>
-                <string>public.text</string>
             </array>
         </dict>
     </array>
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <false/>
+
+
+    <!-- Shotsy exports "data_080226.shotsyjson", and the share sheet calls it
+         "Shotsy JSON Data" — so it is **not** public.json. Shotsy exports its
+         own UTI for that extension, and a receiving app that only declares
+         public.json is never offered the file, however valid the JSON inside
+         it is.
+
+         Importing the declaration is how a second app says it understands
+         somebody else's type. Conformance to public.json is what lets the same
+         document type keep working if Shotsy ever switches to a plain .json
+         export. Discovered from the user's own share-sheet screenshot; the
+         file extension was the whole answer. -->
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.shotsy.json</string>
+            <key>UTTypeDescription</key>
+            <string>Shotsy JSON Data</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>shotsyjson</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 
     <key>CFBundleURLTypes</key>
     <array>
