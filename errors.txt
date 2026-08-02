@@ -1,0 +1,2 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Features/Insights/InsightDetailView.swift:1219:45: error: 'isModelled' is inaccessible due to 'internal' protection level
+** BUILD FAILED **
