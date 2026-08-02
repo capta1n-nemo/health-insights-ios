@@ -1,0 +1,2 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/App/HealthInsightsApp.swift:25:24: error: cannot find 'ShortcutIngest' in scope
+** BUILD FAILED **
