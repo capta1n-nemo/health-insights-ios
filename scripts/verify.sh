@@ -17,11 +17,26 @@ fail=0
 note() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 # Flag any match of $1 in the given paths. $2 is the explanation.
+# A banned pattern, **in code**. Comment lines are skipped.
+#
+# Not a convenience: this repo's house style is that every fix records the shape
+# it replaced, right there in a doc comment — so the ban patterns are quoted, by
+# design, in the very files that no longer commit the sin. Before this filter,
+# documenting a fix tripped the lint that motivated the fix, twice in one
+# session, and the only way out was to describe the mistake less clearly.
+#
+# A comment cannot be a compile error or a wrong architecture, which is what
+# every one of these bans is about. `//` in any leading position, plus ` * ` for
+# block-comment continuations.
 ban() {
     local pattern=$1 message=$2
     shift 2
     local out
-    if out=$(grep -rn --include='*.swift' -E "$pattern" "$@" 2>/dev/null); then
+    # grep -rn prints `path:line:content`; strip that prefix before deciding
+    # whether the *content* is a comment.
+    out=$(grep -rn --include='*.swift' -E "$pattern" "$@" 2>/dev/null \
+        | grep -vE '^[^:]*:[0-9]+:[[:space:]]*(//|\*)' || true)
+    if [ -n "$out" ]; then
         note "$message"
         printf '%s\n' "$out"
         fail=1
@@ -353,6 +368,37 @@ EOF
     fi
 fi
 
+# --- Nothing may clear this script's own verdict ---------------------------
+#
+# On 2026-08-02 `verify.sh --tests` exited 0 on a tree that plain `verify.sh`
+# exited 1 on. The runner-artifact recovery in the test block set `fail=0` to
+# undo a false failure it had just diagnosed — and `fail` is shared with every
+# lint above it, so a lint failure was erased whenever the serial re-run passed.
+# The mode CLAUDE.md mandates before every push was the *weaker* of the two, and
+# it shipped a tuple key path to `main` that the lint had correctly caught.
+#
+# The general shape: **a recovery may only undo the thing it diagnosed.** A
+# recovery that clears a flag it does not own silently forgives everything else
+# that set it. So `fail` is set to 0 exactly once, where it is declared, and any
+# recovery gets its own flag — `testfail` is the pattern.
+#
+# Self-referential on purpose: this file is the gate, so nothing else is in a
+# position to check it.
+# The needle is assembled from two pieces so that **this check's own source
+# never matches it** — otherwise the grep line, and the line excluding the grep
+# line, are themselves hits, and the check can only be made to pass by
+# weakening it. Excluded beyond that: comment lines and the sole top-level
+# declaration in column one.
+needle="fail=""0"
+stray=$(grep -nE "(^|[^a-zA-Z_])${needle}" "$0" \
+    | grep -vE '^[0-9]+:[[:space:]]*#' \
+    | grep -vE "^[0-9]+:${needle}$" || true)
+if [ -n "$stray" ]; then
+    note 'Something clears verify.sh'"'"'s own verdict after a check has set it. A recovery may only undo the thing it diagnosed — give it its own flag, as `testfail` does:'
+    printf '%s\n' "$stray"
+    fail=1
+fi
+
 # --- A band table is a curve, not a staircase ------------------------------
 #
 # `case 6..<7: return 65` next to `case 7..<7.5: return 85` is twenty points of
@@ -500,12 +546,24 @@ if [ "${1:-}" = "--tests" ]; then
         # nobody can diagnose. `tee` would mask the exit status, so read it back
         # out of PIPESTATUS.
         testlog="${TMPDIR:-/tmp}/insightkit-tests.log"
+
+        # **The test run gets its own flag, and this is load-bearing.**
+        #
+        # It used to set the shared `fail`, and the runner-artifact recovery
+        # below then cleared `fail` — erasing *every lint failure above it*. So
+        # `verify.sh --tests` exited 0 on a tree that plain `verify.sh` exited 1
+        # on, and the mode CLAUDE.md mandates before every push was the weaker
+        # of the two. It shipped a `\.0` tuple key path to `main` on 2026-08-02;
+        # the lint that exists to catch exactly that had fired and been wiped.
+        #
+        # A recovery may only undo the thing it diagnosed.
+        testfail=0
         if [ -n "${2:-}" ]; then
             note "Running InsightKit tests matching '$2' — NOT the gate. Run without a filter before pushing."
-            (cd InsightKit && swift test --parallel --filter "$2" 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || fail=1
+            (cd InsightKit && swift test --parallel --filter "$2" 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || testfail=1
         else
             note "Running InsightKit tests with $(swift --version | head -1)"
-            (cd InsightKit && swift test --parallel 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || fail=1
+            (cd InsightKit && swift test --parallel 2>&1 | tee "$testlog"; exit "${PIPESTATUS[0]}") || testfail=1
         fi
 
         # `swift test --parallel` on Linux intermittently exits non-zero after a
@@ -518,17 +576,20 @@ if [ "${1:-}" = "--tests" ]; then
         # passes serially then every test has genuinely passed and the gate has
         # no business staying red — but it says so loudly, because the day this
         # message means something else is the day it matters.
-        if [ "$fail" -ne 0 ] && [ -z "${2:-}" ] \
+        if [ "$testfail" -ne 0 ] && [ -z "${2:-}" ] \
            && ! grep -qE "error:|XCTAssert.*failed|Fatal error|Test Suite .* failed" "$testlog"; then
             note 'Non-zero exit but no failing test in the log — re-running serially to tell a runner artifact from a real failure.'
             if (cd InsightKit && swift test 2>&1 | tee "$testlog.serial"; exit "${PIPESTATUS[0]}"); then
                 printf '\033[33m!\033[0m %s\n' 'Parallel runner exited non-zero; the serial run passed in full. Treating as a runner artifact.'
-                fail=0
+                testfail=0
             else
                 printf '\033[31m✗\033[0m %s\n' "Serial run failed too — this is real. See $testlog.serial"
             fi
         fi
-        [ "$fail" -eq 0 ] || note "Full test output kept at $testlog"
+        if [ "$testfail" -ne 0 ]; then
+            fail=1
+            note "Full test output kept at $testlog"
+        fi
     else
         note 'Could not obtain a Swift toolchain (no network?). CI is the gate — say so in the reply.'
     fi

@@ -123,15 +123,20 @@ public struct RawMetricGroup: Identifiable, Sendable {
     /// thousand times too small, and reads as a series that quietly stopped
     /// meaning anything rather than as an obvious spike.
     public var suspectValues: Set<UUID> {
+        // A named pair rather than a tuple: `\.0` and `\.1` are key paths on a
+        // tuple element, which do not compile. It is a repo lint precisely
+        // because it has cost a CI round trip more than once.
+        struct Reading { let id: UUID; let value: Double }
         let numeric = samples.compactMap { sample in
-            sample.numericValue.map { (sample.id, $0) }
+            sample.numericValue.map { Reading(id: sample.id, value: $0) }
         }
         guard numeric.count >= Self.minimumHistoryForSuspicion,
-              let median = Baseline.quantile(0.5, of: numeric.map(\.1)),
+              let median = Baseline.quantile(0.5, of: numeric.map(\.value)),
               median > 0 else { return [] }
         let high = median * Self.unitSlipFactor
         let low = median / Self.unitSlipFactor
-        return Set(numeric.filter { $0.1 > high || ($0.1 > 0 && $0.1 < low) }.map(\.0))
+        return Set(numeric.filter { $0.value > high || ($0.value > 0 && $0.value < low) }
+            .map(\.id))
     }
 
     /// One sentence for the reader, or nil where nothing looks wrong.

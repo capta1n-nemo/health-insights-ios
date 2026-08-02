@@ -44,6 +44,36 @@ each held by an exhaustive switch rather than by memory:
 **Load the `add-data-or-input` skill before touching 1 or 2**, and `add-chart`
 before touching a chart. Both were written from shipped defects.
 
+## ⚠️ The gate lied, and it had been lying. Fixed 2026-08-02.
+
+**`./scripts/verify.sh --tests` — the command CLAUDE.md mandates before every
+push — exited 0 on a tree that plain `./scripts/verify.sh` exited 1 on.** The
+mandated mode was the *weaker* of the two. It let a `\.0` tuple key path reach
+`main`, red CI, on a commit whose gate had printed `Clean.`
+
+The mechanism: the test block's runner-artifact recovery set `fail=0` to undo a
+false failure it had just diagnosed (`swift test --parallel` intermittently
+exits non-zero with every test passing). But `fail` is shared with **every lint
+above it**, so any lint failure was erased whenever the serial re-run passed.
+The lint had fired, correctly, and was wiped a second later.
+
+**The general shape, worth more than the instance: a recovery may only undo the
+thing it diagnosed.** A recovery that clears a flag it does not own silently
+forgives everything else that set it. The test run now has its own `testfail`,
+and `verify.sh` **checks itself** for a stray `fail=0` — the needle assembled
+from two string pieces so the check's own source cannot match it, which is the
+only way a self-check can be made honest rather than made to pass.
+
+Two smaller things landed with it:
+
+- **`ban` now skips comment lines.** This repo's house style is that every fix
+  records the shape it replaced in a doc comment, so ban patterns are quoted, by
+  design, in the files that no longer commit the sin. Documenting a fix tripped
+  the lint that motivated it, twice in one session, and the only way out was to
+  describe the mistake less clearly. A comment cannot be a compile error.
+- **CI's `lint` job runs plain `verify.sh`**, which is why CI caught what the
+  local gate missed. That is a good property — keep it.
+
 ## Current focus
 
 **Score discontinuities: a defect class, swept and closed (latest, 2026-08-02,

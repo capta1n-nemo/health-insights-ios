@@ -79,3 +79,33 @@ call site in the app, not the declaration that is missing the init.
 
 If you add a public struct to InsightKit and construct it anywhere under
 `HealthInsights/`, write the `public init` in the same edit.
+
+## The gate checks itself now, because it lied once
+
+On 2026-08-02 `./scripts/verify.sh --tests` exited **0** on a tree that plain
+`./scripts/verify.sh` exited **1** on. The mode this skill tells you to run was
+the weaker of the two, and it shipped a compile error to `main` on a commit
+whose gate had printed `Clean.`
+
+The test block's runner-artifact recovery set `fail=0` to undo a false failure
+it had just diagnosed — and `fail` is the flag every lint above it also sets, so
+a real lint failure was erased whenever the serial re-run passed.
+
+**A recovery may only undo the thing it diagnosed.** A recovery that clears a
+flag it does not own silently forgives everything else that set it. The test run
+owns `testfail`; `fail` is assigned zero exactly once, at its declaration; and
+`verify.sh` greps itself for a stray assignment, with the needle assembled from
+two string pieces so the check's own source cannot match it.
+
+Two consequences for anyone editing the script:
+
+- **Give a new recovery its own flag.** The self-check fails the build if you
+  reach for `fail=0`.
+- **`ban` skips comment lines.** Quoting a banned pattern while documenting the
+  fix for it is the house style here, not a violation — and before this,
+  documenting a fix tripped the lint that motivated it.
+
+And a standing one for anyone reading a green gate: **CI's `lint` job runs plain
+`verify.sh` on Ubuntu with no toolchain.** That independence is what caught this,
+so if local and CI ever disagree again, trust CI and go looking for the reason
+rather than re-running.
