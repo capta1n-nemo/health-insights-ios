@@ -73,10 +73,17 @@ public struct SectionCaveat: Sendable, Equatable {
             + "entered once — cholesterol, smoking — are applied as they stand "
             + "now, because the app has no history for them.")
 
+    /// Reconstructed days need the floor; days the app itself scored do not.
+    /// The old copy claimed sub-floor days flatly "aren't shown", and the
+    /// user's export produced a counterexample the same week: a stored day the
+    /// app genuinely told them about, kept in the line (as it should be — a
+    /// stored point is the record of what was said), under a footnote denying
+    /// it existed.
     public static let scoreFloor = SectionCaveat(
         kind: .partial,
-        text: "Days before you had at least two signals recording aren't shown — "
-            + "a score resting on one measurement isn't one.")
+        text: "Reconstructed days are only drawn once at least two signals were "
+            + "recording — a score resting on one measurement isn't one. Days "
+            + "the app scored for you at the time are kept as they were shown.")
 
     /// Signals a scan looks at but does not weigh into the score.
     public static func unscored(signals: Int) -> SectionCaveat {

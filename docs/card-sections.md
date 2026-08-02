@@ -169,7 +169,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ "Your fortnight" | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
@@ -178,10 +178,24 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
-**The bespoke slot is still one slot.** Three cards draw two things in it,
-separated by a `Divider()` and wrapped in `NestedInsightSection` — the pattern
-Body Composition established. A second *top-level* section would have needed a
-second placement rule, and the one placement rule is the thing Phase 1 bought.
+**The bespoke slot is still one slot.** Four cards draw two things in it
+(Body Composition, Fitness, Heart Attack & Stroke Risk, and — since 2026-08-02
+— Sleep), separated by a `Divider()` and wrapped in `NestedInsightSection` —
+the pattern Body Composition established. A second *top-level* section would
+have needed a second placement rule, and the one placement rule is the thing
+Phase 1 bought.
+
+**Sleep's second picture is "Last night in stages"** (`NightSleepChart`,
+backed by `NightSleepDetail` in InsightKit): one lane per source, stage bands
+decoded from Oura's five-minute phase strings, a single stageless block for a
+source that reports only its window, and the gaps left visible. Built at the
+user's request off the night of 2026-07-29 — 4.3 h from Oura, 8.5 h from Apple
+Health — where the disagreement *was* the finding: a morning re-sleep one
+source typed as a nap. The same session changed the parser convention to
+match: a nap-typed Oura record that **begins before noon** joins the night's
+totals (`OuraResponseParser.isMorningReSleep`), afternoon and evening naps and
+untimed rest records stay excluded, and a re-sleep still never provides the
+night's bedtime or latency.
 
 It was five until 2026-08-01. Heart Health and Readiness had their centile strip
 and their departure panel nested under "How this is weighted", which was their
@@ -198,8 +212,9 @@ deliberate exceptions remain, each about the *card* rather than about the data:
   on a card that takes none is a control that can never do anything.
 - **The bespoke slot is per-card by construction** — it is the card's own
   picture of its own subject, so there is nothing generic to draw in its place.
-  It reaches all nine, and five cards draw *two* things in it, nested under one
-  `Divider()`.
+  It reaches all nine, and four cards draw *two* things in it, nested under one
+  `Divider()`. *(This line previously said five while the paragraph above said
+  three; the real count was three, and Sleep made it four on 2026-08-02.)*
 - **`Fbk` needs a number to rate.** "Was this accurate?" on a card showing no
   value is a control with no subject, and feedback recorded against nothing
   pollutes the telemetry the models are tuned on.
@@ -436,6 +451,7 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5d | Where this is heading | Fit | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
 | 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
 | 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
 | 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
@@ -520,15 +536,15 @@ one beat-to-beat stream and only agreement between them is evidence.
 | `BodyCompositionTrendChart` | ● **2026-08-01** | ● | ● shared | ● |
 | `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
 | `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
+| `NightSleepChart` | ○ | ○ | ● shared | — within a single night |
 | `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |
 
-**Seven of eleven charts pan** — the four that don't are the four that never
-wrapped the shared component. Two of those (`EnergyCurveChart`,
-`FitnessProjectionChart`) are correctly exempt: one plots hours within today, the
-other plots twelve months into the future, and neither has history to scroll
-back through.
+**Seven of twelve charts pan** — the five that don't never wrapped the shared
+component. Three of those (`EnergyCurveChart`, `FitnessProjectionChart`,
+`NightSleepChart`) are correctly exempt: hours within today, twelve months
+ahead, and one night — none has history to scroll back through.
 
 **Two charts pan but ignore the picker above them.** `AgeHistoryChart` and
 `SubstanceLoadChart` both declare `var window: TimeInterval = <default>` and

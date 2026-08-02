@@ -817,6 +817,36 @@ not weighted, when almost every score should be weighted"*.
 
 ## Next
 
+### AI as part of the analysis and the score — user direction, 2026-08-02
+
+The user's words: *"I just want to use AI to be part of the analysis and the
+ultimate score."* The agreed shape (proposed and accepted in the
+screenshot-review session) is the **graded second opinion**, on the Blood
+Pressure estimator's precedent — the app's existing pattern for an unvalidated
+number living honestly beside a validated one:
+
+1. **Phase 1 — the AI read, beside the dial.** The on-device model
+   (FoundationModels, same as the Today summary) receives the same inputs a
+   card's own model reads and produces its own 0–100 with a one-line rationale.
+   Displayed as a clearly-labelled second opinion on the card — never blended.
+   Every read is stored with the day's inputs.
+2. **Phase 2 — grade it.** The same mechanism the BP estimator uses against
+   cuff readings: score each AI read against the deterministic score, the
+   user's "Was this accurate?" feedback, and (where one exists) next-day
+   outcomes. The card shows the AI read's measured accuracy the way the BP
+   card shows "out by 13 mmHg on average".
+3. **Phase 3 — a share, once earned.** Only after the grading shows
+   calibration does the AI read take a bounded share of the ultimate score
+   (through `ScoreBlend`, as its own labelled row in "How this is weighted" —
+   "AI assessment · graded ±N over M days"). The share is a constant in one
+   place, like `SupportingSignal.collectiveShare`.
+
+Constraints that make this compatible with the app's honesty rules: the AI
+term must be **stored, not recomputed** (replay reads the stored reads, so
+score history stays reproducible); a day with no stored read blends without
+one; and the weighting row always states the basis. Not started — next
+session's candidate.
+
 ### From the data-opportunities ranking (2026-08-01, second half)
 
 - [x] **#1 — Exercise minutes score Fitness.** `MetricType.exerciseMinutes`

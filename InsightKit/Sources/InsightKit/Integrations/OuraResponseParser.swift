@@ -93,8 +93,20 @@ public enum OuraResponseParser {
             // `SleepOnset.plausibleHours`, and `SleepOnset.samples` keeps the
             // *earliest* segment of each night. So a nap would outrank the real
             // 11 pm bedtime and quietly become it.
-            guard Self.isNight(record.type) else { continue }
-            if let raw = record.bedtime_start,
+            //
+            // **One nap-typed shape does join the night: a morning re-sleep.**
+            // Oura closes "the night" at the first real wake and types a
+            // return to bed at 8 am `late_nap` — so the user's 07-29 read
+            // 4.3 h from Oura and 8.5 h from Apple Health, whose path sums
+            // every segment. The user's ruling (2026-08-02): that is one
+            // night's sleep. `isMorningReSleep` is deliberately narrow — the
+            // start time must be *known* and before noon — so every case the
+            // nap filter exists for (afternoon naps, evening dozes, untimed
+            // rest records) stays excluded, and a morning re-sleep still never
+            // provides the night's bedtime or latency.
+            guard Self.isNight(record.type) || Self.isMorningReSleep(record) else { continue }
+            if Self.isNight(record.type),
+               let raw = record.bedtime_start,
                let instant = ISO8601DateFormatter().date(from: raw) {
                 bedtimes.append(instant)
             }
@@ -185,6 +197,30 @@ public enum OuraResponseParser {
     static func isNight(_ type: String?) -> Bool {
         guard let type = type?.lowercased() else { return true }
         return !["late_nap", "nap", "rest"].contains(type)
+    }
+
+    /// A nap-typed record that is really the second half of the night: it
+    /// *begins* in the morning (before noon, local time). Oura closes a night
+    /// at the first real wake and types the return to bed `late_nap`; the user
+    /// ruled that a morning re-sleep is part of one night's sleep, which is
+    /// also the convention the Apple Health path (`SleepNights`) already sums
+    /// by. The start time must be known — an untimed nap record cannot prove
+    /// it was a morning, and defaulting it in would re-open the afternoon-nap
+    /// contamination this filter exists to stop.
+    private static func isMorningReSleep(_ record: SleepRecord) -> Bool {
+        guard !isNight(record.type),
+              let raw = record.bedtime_start,
+              let instant = ISO8601DateFormatter().date(from: raw) else { return false }
+        return Calendar.current.component(.hour, from: instant) < 12
+    }
+
+    /// The one rule for "does this segment count toward the night", callable
+    /// from code that holds only a type and a local start hour (the raw
+    /// catalogue) rather than a full record. The parser and the
+    /// model-internals export must agree on this or the export's
+    /// "counted as night?" column lies about the parser.
+    public static func countsTowardNight(type: String?, localStartHour: Int?) -> Bool {
+        isNight(type) || (localStartHour.map { $0 < 12 } ?? false)
     }
 
     private static func date(from record: SleepRecord) -> Date? {

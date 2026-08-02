@@ -49,7 +49,7 @@ struct InsightDetailView: View {
         case .energy:
             energyCurveCard
         case .sleep:
-            sleepRegularityCard
+            sleepNightCard
         case .substanceImpact:
             substanceLoadCard
         // Heart Health and Readiness used to own "How you compare" and "How far
@@ -559,27 +559,68 @@ struct InsightDetailView: View {
     /// months; neither draws the thing itself. A regular sleeper is a tight
     /// column and an irregular one is scatter, and that is the picture the whole
     /// insight is about.
-    @ViewBuilder private var sleepRegularityCard: some View {
-        if let regularity = model.sleepRegularity(),
-           regularity.nights.count >= CircadianConsistencyModel.minimumNights {
-            let jetlag = regularity.socialJetlagHours
-            InsightSection(
-                title: "Your fortnight",
-                trailing: jetlag.flatMap { hours in
-                    abs(hours) >= 0.5
-                        ? String(format: "weekends %.1f h %@",
-                                 abs(hours), hours > 0 ? "later" : "earlier")
-                        : nil
-                },
-                caveat: .fittedCentre(nights: regularity.nights.count)
-            ) {
-                SleepOnsetStripChart(
-                    output: regularity,
-                    // A year of bedtimes, not the scored fortnight: the strip
-                    // re-fits its centre and band over whatever comes into
-                    // view, so it needs something to scroll to.
-                    allNights: model.sleepOnsetNights(),
-                    window: window(spanning: nightsSpan(model.sleepOnsetNights())))
+    /// Sleep's bespoke slot: the night just slept, then the fortnight's shape —
+    /// two pictures of one subject in one slot, the Body Composition pattern.
+    ///
+    /// "Last night in stages" exists because of 2026-07-29: Oura filed 4.3 h,
+    /// Apple Health 8.5 h, and no aggregate could show both were true. One lane
+    /// per source, stage bands, gaps left visible — the user's request, verbatim:
+    /// show the gaps, show what type of sleep each part was, and let the
+    /// disagreement between sources be seen instead of averaged.
+    @ViewBuilder private var sleepNightCard: some View {
+        let detail = model.memoized("nightSleepDetail") {
+            NightSleepDetail.latest(raw: model.otherSamples, samples: model.samples)
+        }
+        InsightSection(
+            title: "Last night in stages",
+            trailing: detail.flatMap { d in
+                d.lanes.first.map { String(format: "%.1f h asleep", $0.asleepHours) }
+            },
+            caveat: .none
+        ) {
+            if let detail {
+                NightSleepChart(detail: detail)
+            } else {
+                emptySection(SectionPlaceholder.needsInput(
+                    subject: "A night drawn in stages",
+                    what: "a sleep source",
+                    remedy: "connect Oura (stage detail) or let Apple Health "
+                        + "record sleep, under Settings"))
+            }
+
+            Divider()
+
+            if let regularity = model.sleepRegularity(),
+               regularity.nights.count >= CircadianConsistencyModel.minimumNights {
+                let jetlag = regularity.socialJetlagHours
+                NestedInsightSection(
+                    title: "Your fortnight",
+                    trailing: jetlag.flatMap { hours in
+                        abs(hours) >= 0.5
+                            ? String(format: "weekends %.1f h %@",
+                                     abs(hours), hours > 0 ? "later" : "earlier")
+                            : nil
+                    },
+                    caveat: .fittedCentre(nights: regularity.nights.count)
+                ) {
+                    SleepOnsetStripChart(
+                        output: regularity,
+                        // A year of bedtimes, not the scored fortnight: the strip
+                        // re-fits its centre and band over whatever comes into
+                        // view, so it needs something to scroll to.
+                        allNights: model.sleepOnsetNights(),
+                        window: window(spanning: nightsSpan(model.sleepOnsetNights())))
+                }
+            } else {
+                NestedInsightSection(title: "Your fortnight", trailing: nil,
+                                     caveat: .none) {
+                    emptySection(SectionPlaceholder.needsMore(
+                        subject: "The shape of your fortnight",
+                        have: model.sleepRegularity()?.nights.count ?? 0,
+                        need: CircadianConsistencyModel.minimumNights,
+                        noun: "night with a recorded bedtime",
+                        plural: "nights with recorded bedtimes"))
+                }
             }
         }
     }

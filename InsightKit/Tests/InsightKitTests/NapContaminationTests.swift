@@ -99,6 +99,51 @@ final class NapContaminationTests: XCTestCase {
                        "one night, one latency, in minutes — the nap's 30 s is gone")
     }
 
+    // MARK: - A morning re-sleep is part of the night (user ruling, 2026-08-02)
+
+    /// The 07-29 shape from the user's own export: Oura closed the night at the
+    /// first wake (4.3 h) and typed the 8:20 am return to bed `late_nap`, while
+    /// Apple Health summed the same morning into 8.5 h. One night's sleep, per
+    /// the user — so a nap-typed record that *begins before noon* joins the
+    /// night's totals.
+    func testAMorningReSleepJoinsTheNight() throws {
+        let night = """
+        {"day":"2026-07-29","type":"long_sleep","bedtime_start":"2026-07-29T02:53:00+00:00",
+         "total_sleep_duration":15480}
+        """
+        let reSleep = """
+        {"day":"2026-07-29","type":"late_nap","bedtime_start":"2026-07-29T08:20:00+00:00",
+         "total_sleep_duration":15120}
+        """
+        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(reSleep)"))
+        let durations = samples.samples(of: .sleepDurationHours)
+        XCTAssertEqual(durations.count, 1)
+        XCTAssertEqual(try XCTUnwrap(durations.first).value, 8.5, accuracy: 0.01,
+                       "both blocks are one night's sleep")
+
+        // The re-sleep still never provides the night's bedtime.
+        let onsets = samples.samples(of: .sleepOnset)
+        XCTAssertEqual(onsets.count, 1)
+        XCTAssertEqual(try XCTUnwrap(onsets.first).value, 2.883, accuracy: 0.01,
+                       "the onset is 02:53, not 08:20")
+    }
+
+    /// The narrowness that keeps the nap filter's original cases safe: an
+    /// afternoon start is not a re-sleep, and a record with no start time
+    /// cannot prove it was a morning.
+    func testAnAfternoonNapStillDoesNotJoinTheNight() throws {
+        let night = """
+        {"day":"2026-07-20","type":"long_sleep","total_sleep_duration":27000}
+        """
+        let siesta = """
+        {"day":"2026-07-20","type":"late_nap","bedtime_start":"2026-07-20T15:00:00+00:00",
+         "total_sleep_duration":3600}
+        """
+        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(siesta)"))
+        XCTAssertEqual(try XCTUnwrap(samples.samples(of: .sleepDurationHours).first).value,
+                       7.5, accuracy: 0.001, "a siesta is still a nap")
+    }
+
     /// An 8 pm nap encodes as −4.0 h, which is inside `SleepOnset.plausibleHours`,
     /// and `SleepOnset.samples` keeps the *earliest* segment of each night — so
     /// before the filter moved to the top of the loop, a nap outranked the real

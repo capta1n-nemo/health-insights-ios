@@ -97,6 +97,36 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Third push of the afternoon (the user's rulings).** Answers came back:
+morning re-sleep IS one night's sleep, F15 traced-and-fixed, AI-in-score
+direction chosen (below). What shipped:
+
+- **The convention**: a nap-typed Oura record beginning before noon joins the
+  night (`OuraResponseParser.isMorningReSleep`; shared rule
+  `countsTowardNight(type:localStartHour:)` keeps the export's "counted"
+  column honest). 07-29 now reads ~8.5 h from both sources *after the next
+  Oura sync re-parses*. Afternoon/evening naps and untimed rest records stay
+  excluded; a re-sleep still never provides bedtime or latency.
+- **"Last night in stages"** — Sleep's bespoke slot now draws the night:
+  `NightSleepDetail` (InsightKit, tested — Oura 5-min phase strings → stage
+  bands, wake-day keying matching the canonical nights table, window-only
+  lanes for stageless sources) + `NightSleepChart` (one lane per source, gaps
+  visible, no bridging, single-night exemption like EnergyCurve). Sleep's slot
+  follows the two-things-one-slot pattern with "Your fortnight" nested below,
+  which also gained the empty state the docs already claimed it had.
+- **F15 resolved as truth-telling, not deletion**: replay enforces the
+  2-contributor floor; stored points are the record of what the app said and
+  are kept. The lie was the `scoreFloor` caveat ("aren't shown") — reworded to
+  distinguish reconstructed days from stored ones. `recordScores` now stores
+  the same "used" count the replay does (weighted contributors when any carry
+  weight), and the scrub read-out suppresses "· 0 signals" (structural zero on
+  the equation card).
+
+**Verify on the device next**: the segments table in the next model-internals
+export should show the four nights' second blocks as `late_nap` counted
+"yes — morning re-sleep"; the Sleep card should draw last night in stages;
+after the next Oura sync the nights table should agree ~8.5/8.5 on 07-29.
+
 - ~~F8 split nights~~ **rebuilt and re-exported on build 177: still split, values byte-identical** — the grouping fix is not the story. Diagnosis narrowed: the missing halves are almost certainly records Oura itself types `late_nap`/`rest` (a morning re-sleep), which `isNight` excludes while Apple Health's path sums every segment. The internals export now prints the raw Oura segments (type, hours, counted-or-not) for any day with several segments or a nap — the next export settles it, and the remaining question is a CONVENTION (should a morning re-sleep join the night, matching our Apple path, or stay a nap, matching Oura's own app?) — the user's call, since it moves the Sleep score materially on those nights.
 - The review's full ledger with file:line references survives only in this
   entry — the scratchpad findings file dies with the container.

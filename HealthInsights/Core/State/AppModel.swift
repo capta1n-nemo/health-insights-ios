@@ -966,8 +966,13 @@ final class AppModel {
     private func recordScores(_ results: [InsightResult]) {
         for result in results {
             guard let score = result.score else { continue }
+            // The same "used" arithmetic the replay stores, so a stored day and
+            // a reconstructed one mean the same thing by their count — weighted
+            // contributors where any carry weight, the full list otherwise.
+            let weighted = result.contributors.filter { $0.weight > 0 }.count
             dataStore.recordScore(result.id, score: score, confidence: result.confidence,
-                                  contributorCount: result.contributors.count)
+                                  contributorCount: weighted > 0 ? weighted
+                                                                 : result.contributors.count)
         }
     }
 
@@ -1244,9 +1249,11 @@ final class AppModel {
             results.append(updated)
         }
         if let score = updated.score {
+            let weighted = updated.contributors.filter { $0.weight > 0 }.count
             dataStore.recordScore(.substanceImpact, score: score,
                                   confidence: updated.confidence,
-                                  contributorCount: updated.contributors.count)
+                                  contributorCount: weighted > 0 ? weighted
+                                                                 : updated.contributors.count)
         }
         // Suggestions read `results`, so one changed result invalidates them.
         suggestionCache = nil

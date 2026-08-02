@@ -55,8 +55,13 @@ struct ScoreHistoryChart: View {
                     .font(.caption.weight(.semibold)).monospacedDigit()
                 Text(hit.date.formatted(date: .abbreviated, time: .omitted))
                     .foregroundStyle(.tertiary)
-                Text("· \(hit.contributorCount) signal\(hit.contributorCount == 1 ? "" : "s")")
-                    .foregroundStyle(.tertiary)
+                // Zero is structural on the equation card — its inputs are
+                // grounding facts, not sensed signals — and "· 0 signals"
+                // under a real score reads as the score having no basis.
+                if hit.contributorCount > 0 {
+                    Text("· \(hit.contributorCount) signal\(hit.contributorCount == 1 ? "" : "s")")
+                        .foregroundStyle(.tertiary)
+                }
                 Spacer()
             }
             .font(.caption2)

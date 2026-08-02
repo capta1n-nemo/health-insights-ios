@@ -239,16 +239,25 @@ public enum ModelInternalsExport {
 
         var out = ["### Oura sleep segments — days with more than one, or with naps"]
         out.append("_The raw records behind the Oura rows above. `long_sleep` and "
-                   + "`sleep` count toward the night; `late_nap` and `rest` are naps "
-                   + "and deliberately do not. A night that reads shorter from Oura "
-                   + "than from Apple Health usually has its missing hours sitting "
-                   + "here under a nap type — Oura calling a morning re-sleep a nap "
-                   + "where Apple counts it into the night._")
+                   + "`sleep` count toward the night, and so does a nap-typed record "
+                   + "that begins before noon — Oura closes a night at the first real "
+                   + "wake and types a morning re-sleep `late_nap`, and the user ruled "
+                   + "that is one night's sleep. Afternoon and evening naps, and rest "
+                   + "records with no start time, stay out._")
         out.append("| starts | type | asleep | counted as night? |")
         out.append("|---|---|---|---|")
         for (_, segments) in needsExplaining.sorted(by: { $0.key > $1.key }) {
             for segment in segments.sorted(by: { $0.start < $1.start }) {
-                let counted = OuraResponseParser.isNight(segment.type) ? "yes" : "no — nap"
+                let hour = calendar.component(.hour, from: segment.start)
+                let counted: String
+                if OuraResponseParser.isNight(segment.type) {
+                    counted = "yes"
+                } else if OuraResponseParser.countsTowardNight(type: segment.type,
+                                                               localStartHour: hour) {
+                    counted = "yes — morning re-sleep"
+                } else {
+                    counted = "no — nap"
+                }
                 out.append("| \(timestamp(segment.start, calendar: calendar)) "
                            + "| \(segment.type) "
                            + "| \(String(format: "%.1f h", segment.hours)) "

@@ -33,26 +33,32 @@ final class ModelInternalsExportTests: XCTestCase {
 
     /// The instrument for a night the two sources cannot agree on: the raw
     /// segments, typed, with whether each counted. Shaped like 2026-07-29 —
-    /// a 4.3 h `long_sleep` plus a 4.2 h `late_nap` that Apple Health counts
-    /// into the night and Oura's own typing excludes.
+    /// a 4.3 h `long_sleep` plus a 4.2 h `late_nap` at 8 am, which the parser
+    /// now counts into the night (the user's morning re-sleep ruling), while
+    /// an afternoon nap still says it was left out.
     func testDisagreeingNightExportsItsSegmentsWithTypes() {
         let nightStart = daysAgo(3, hour: 2)
-        let napStart = daysAgo(3, hour: 8)
+        let reSleepStart = daysAgo(3, hour: 8)
+        let siestaStart = daysAgo(3, hour: 15)
         let raw = [
             rawSleep("oura.sleep.total_sleep_duration", .number(4.3 * 3600),
                      start: nightStart, hours: 4.3),
             rawSleep("oura.sleep.type", .text("long_sleep"), start: nightStart),
             rawSleep("oura.sleep.total_sleep_duration", .number(4.2 * 3600),
-                     start: napStart, hours: 4.2),
-            rawSleep("oura.sleep.type", .text("late_nap"), start: napStart)
+                     start: reSleepStart, hours: 4.2),
+            rawSleep("oura.sleep.type", .text("late_nap"), start: reSleepStart),
+            rawSleep("oura.sleep.total_sleep_duration", .number(1.0 * 3600),
+                     start: siestaStart, hours: 1.0),
+            rawSleep("oura.sleep.type", .text("late_nap"), start: siestaStart)
         ]
         let text = export(samples: [], raw: raw)
         XCTAssertTrue(text.contains("Oura sleep segments"), text)
         XCTAssertTrue(text.contains("long_sleep"), text)
-        XCTAssertTrue(text.contains("late_nap"), text)
+        XCTAssertTrue(text.contains("yes — morning re-sleep"),
+                      "the 8 am block counts, and says why")
         XCTAssertTrue(text.contains("no — nap"),
-                      "the excluded segment says it was excluded")
-        XCTAssertTrue(text.contains("4.2 h"), "and carries the missing hours")
+                      "the siesta says it was left out")
+        XCTAssertTrue(text.contains("4.2 h"), text)
     }
 
     /// An ordinary single-segment night is not worth a row — the section only

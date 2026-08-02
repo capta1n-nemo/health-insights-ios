@@ -239,6 +239,8 @@ the place to look.
   - `VitalDeparturePanel` :109
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
+- `Signals/NightSleepDetail.swift`
+  - `NightSleepDetail` :17
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9
@@ -351,6 +353,8 @@ the place to look.
   - `MetricOverlayLegend` :11
 - `DesignSystem/MultiSourceChart.swift`
   - `MultiSourceChart` :37
+- `DesignSystem/NightSleepChart.swift`
+  - `NightSleepChart` :20
 - `DesignSystem/PeerStandingStrip.swift`
   - `PeerStandingStrip` :28
 - `DesignSystem/RecoveryScale.swift`
