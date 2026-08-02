@@ -102,7 +102,21 @@ final class VitalSignsTests: XCTestCase {
         let routine = result.driverLines.filter { $0.isNotable == false && scanned($0) }
         XCTAssertEqual(notable.count, 1)
         XCTAssertTrue(notable.first?.text.contains("Resting Heart Rate") ?? false)
-        XCTAssertEqual(routine.count, 2, "the normal vitals are kept, just folded away")
+
+        // **One ordinary line, not two, and that is a deliberate change.** Blood
+        // oxygen is a readiness *component*, so it already has a line of its own
+        // ("Blood oxygen: 97%"); the scan's "in your normal range" line for the
+        // same metric was a second row about one signal, and that duplication is
+        // why "What's driving this" counted nearly double what every other
+        // section on the card did. Heart rate is not a component, so the scan's
+        // line is the only thing naming it and it stays.
+        XCTAssertEqual(routine.count, 1, "only the unscored vital keeps a scan line")
+        XCTAssertTrue(routine.first?.text.contains("Heart Rate") ?? false)
+
+        // Nothing is *lost*, which is the principle this test exists for: the
+        // scored vital is still narrated, by its own component line.
+        XCTAssertTrue(result.driverLines.contains { $0.text.lowercased().contains("blood oxygen") },
+                      "the scored vital must still be named somewhere")
     }
 
     /// Notable lines come first, because the Today card previews `drivers.first`

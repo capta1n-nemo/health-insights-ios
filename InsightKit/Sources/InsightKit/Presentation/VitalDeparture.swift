@@ -195,6 +195,39 @@ public struct VitalDeparturePanel: Sendable, Equatable {
     /// `VitalReader`; the caller supplies them because only it holds the samples.
     /// A metric measured but without a baseline yet joins `unjudged` so it is
     /// named, not silently dropped.
+    /// The panel a card draws, computed from the card's own signals.
+    ///
+    /// **This is the whole rule in one place, and it is here rather than in the
+    /// view for the reason every such rule is**: a card's sections have to agree
+    /// about which signals they cover, and a view is the one place that claim
+    /// cannot be tested. `ContributorDepartureTests` runs it over every shipped
+    /// model.
+    ///
+    /// - `cardMetrics` narrows the clinical scan to the card's own signals
+    ///   (`nil` keeps all of it — Readiness, whose subject *is* the scan).
+    /// - `contributorMetrics` is what the card actually reports scoring, and
+    ///   **every one of them earns a row** — read against its own baseline where
+    ///   the clinical scan has no spec for it. That is what stops a scored signal
+    ///   (sleep duration on Readiness, steps on Fitness) being listed under "What
+    ///   goes into this" and missing from here.
+    public static func forCard(_ output: VitalSignsCheck.Output,
+                               cardMetrics: [MetricType]?,
+                               contributorMetrics: [MetricType],
+                               samples: [HealthMetricSample],
+                               now: Date = Date(),
+                               calendar: Calendar = .current) -> VitalDeparturePanel {
+        let extras = contributorMetrics
+            // The scan already speaks for these, with its clinical bounds.
+            .filter { !VitalSignsCheck.coveredMetrics.contains($0)
+                      // A modelled quantity is left out here as it is from the
+                      // peer comparison: "unusual for you" would read as a
+                      // measurement claim about something nothing measured.
+                      && !PeerStandingModel.isModelled($0) }
+            .compactMap { VitalReader.reading($0, from: samples, now: now,
+                                              calendar: calendar) }
+        return forCard(output, cardMetrics: cardMetrics, extraReadings: extras)
+    }
+
     public static func forCard(_ output: VitalSignsCheck.Output,
                                cardMetrics: [MetricType]?,
                                extraReadings: [VitalReading]) -> VitalDeparturePanel {

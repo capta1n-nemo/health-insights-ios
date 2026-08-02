@@ -46,7 +46,36 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**Consistency fixes off two screenshots (latest, 2026-08-02, night).**
+**Readiness section counts reconciled (latest, 2026-08-02, night).** The user
+counted one card's headers: drivers 20, What-goes-into 11, weighted 11, compare
+11, departure 10 — *"How is this possible and why!?"* **Measured rather than
+reasoned about** (a throwaway probe test printing every section's count on a
+fixture — the technique to reuse). Two distinct faults, both now fixed and
+canaried:
+
+1. **Departure was one short, and it was always `sleepDurationHours`** — scored
+   by Readiness at weight 0.20, but the clinical `VitalSignsCheck` has no spec
+   for it. The previous push's fix only fed extras to non-Readiness cards
+   (Readiness passes `cardMetrics: nil`, so the extras list was empty).
+   `VitalDeparturePanel.forCard(_:cardMetrics:contributorMetrics:samples:)` now
+   owns the whole rule **in InsightKit**, and every contributor earns a row.
+   `ContributorDepartureTests` runs it over all nine models.
+2. **"What's driving this" counted sentences and called them "signals"** — and
+   Readiness genuinely narrated scored metrics twice (its own component line plus
+   the scan's "in your normal range" line for the same metric). The duplicate
+   ordinary lines are suppressed at source (`componentMetrics`), and the header
+   now says **"notes"**, because one signal can legitimately earn more than one
+   line. The other four sections all count *signals* and now agree.
+
+**Two process lessons worth keeping:**
+- **A fixture that looks like it varies may not.** The first dedup test used
+  `(day * 3) % 3` as jitter — identically zero, so every series was flat, no
+  z-scores, no components, and the test passed while testing nothing. Probe the
+  premise (`XCTAssertFalse(normalAndScored.isEmpty)`) before asserting on it.
+- **Canary every new guard.** Reverting the fix and watching the test fail is
+  what proved it real; it had already been vacuous once in the same session.
+
+**Consistency fixes off two screenshots (previous, 2026-08-02, night).**
 
 - **"How far from your normal" now covers every card metric, not just clinical
   vitals.** Fitness showed 6 signals in "How you compare" and 2 in the departure

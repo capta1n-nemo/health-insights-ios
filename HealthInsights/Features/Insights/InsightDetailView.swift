@@ -461,8 +461,14 @@ struct InsightDetailView: View {
         // that judgement belongs.
         return InsightSection(
             title: "What's driving this",
+            // **"notes", not "signals".** These are sentences the model wrote,
+            // and one signal can legitimately earn more than one — a reading
+            // plus the event it raised. Calling them signals put a count here
+            // that disagreed with every other section's on the same card, and
+            // the reader had no way to know the two words meant different
+            // things. The other four sections all count signals and now agree.
             trailing: routine.isEmpty ? nil
-                : "\(lines.count) \(SectionCaveat.plural(lines.count, "signal"))",
+                : "\(lines.count) \(SectionCaveat.plural(lines.count, "note"))",
             caveat: .none,
             expansion: expansion(preview: placeholder?.headline)
         ) {
@@ -1207,19 +1213,18 @@ struct InsightDetailView: View {
             VitalSignsCheck.evaluate(samples: model.samples,
                                      events: model.vitalEvents)
         }
-        let cardMetrics = insightID == .readiness
-            ? nil : resolvedContributions(result).metrics
-        // The card's own metrics the clinical scan doesn't cover — steps, active
-        // energy, VO₂max, the sleep signals — read against their *own* baseline
-        // so the section lists the same signals "How you compare" does, not just
-        // the clinical vitals. A modelled quantity is left out, as it is from the
-        // peer comparison, because "unusual for you" reads as a measurement claim.
-        let extraReadings: [VitalReading] = (cardMetrics ?? [])
-            .filter { !VitalSignsCheck.coveredMetrics.contains($0)
-                      && !PeerStandingModel.isModelled($0) }
-            .compactMap { VitalReader.reading($0, from: model.samples) }
-        let panel = VitalDeparturePanel.forCard(scan, cardMetrics: cardMetrics,
-                                                extraReadings: extraReadings)
+        // Readiness's subject *is* the whole scan, so it keeps every scan row;
+        // every other card narrows to its own signals. Either way the card's
+        // **contributors** each earn a row — that is what stopped sleep duration
+        // (scored at 0.20 on Readiness, no clinical spec) being counted under
+        // "What goes into this" and missing here. The rule lives in InsightKit,
+        // where `ContributorDepartureTests` can hold it.
+        let contributionMetrics = resolvedContributions(result).metrics
+        let panel = VitalDeparturePanel.forCard(
+            scan,
+            cardMetrics: insightID == .readiness ? nil : contributionMetrics,
+            contributorMetrics: contributionMetrics,
+            samples: model.samples)
         var placeholder: SectionPlaceholder?
         if panel.isEmpty {
             placeholder = SectionPlaceholder.notComputable(

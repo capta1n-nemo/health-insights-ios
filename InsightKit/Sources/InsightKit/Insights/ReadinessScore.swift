@@ -231,7 +231,16 @@ public struct ReadinessInsight: InsightModel {
             // by the summariser well away from any screen disclaimer.
             extra.append(.notable("\(watch.leaning.count) signals are leaning the same way at once — individually inside the noise, together the pattern a body tends to show before an illness announces itself. An observation about your own numbers, not a diagnosis — if you feel unwell, treat that as the better information."))
         }
-        extra += scan.readings.filter { $0.status == .normal }
+        // A vital readiness already scored as a component has had its say —
+        // "HRV vs your baseline: 50 ms" — and the scan's ordinary-range line for
+        // the same metric adds nothing but a second row about one signal. That
+        // duplication is why "What's driving this" counted nearly twice what
+        // every other section did. Only the *ordinary* lines are dropped:
+        // flagged and unjudged readings carry news the component line doesn't,
+        // so they stay even when they name a scored metric.
+        let componentMetrics = Set(base.contributors.map(\.metric))
+        extra += scan.readings
+            .filter { $0.status == .normal && !componentMetrics.contains($0.metric) }
             .map { .routine(VitalSignsCheck.describe($0)) }
         extra += scan.stale.map { .routine(VitalSignsCheck.describe($0, now: now)) }
 
@@ -250,9 +259,10 @@ public struct ReadinessInsight: InsightModel {
         // `SupportingSignal.collectiveShare` between them, so eleven ordinary
         // vitals move the number a little and cannot swamp the six components
         // readiness weights on their own terms.
-        let scored = Set(base.contributors.map(\.metric))
+        // The same set the driver lines above de-duplicate against — one
+        // statement of "which metrics readiness scored itself".
         let supporting: [ScoreBlend.Term] = scan.readings
-            .filter { !scored.contains($0.metric) && $0.status != .insufficientHistory }
+            .filter { !componentMetrics.contains($0.metric) && $0.status != .insufficientHistory }
             .map { reading in
                 let spec = VitalSignsCheck.specs.first { $0.metric == reading.metric }
                 return ScoreBlend.Term(
