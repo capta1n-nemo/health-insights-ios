@@ -400,7 +400,50 @@ statement; the shares are what "How this is weighted" draws._
 | Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's exercise dose (0.20, `ActivityDoseModel`, WHO 2020) | strain, HR recovery, walking HR, resting HR, steps, active energy — plus exercise minutes only in a week with too few recorded days to judge a dose |
 | Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |
 | Blood Pressure | route-dependent — see below | | |
-| Body Composition | `weightedAverage` | body fat, or body mass through BMI | lean, muscle, bone, water |
+| Body Composition | `weightedAverage` | **a level, a rate and a quality** (2026-08-02): body fat vs the Gallagher band **0.45**, rate of change vs the goal's band **0.30**, lean share of that change **0.25** — see "Velocity" below | lean, bone, water — *not* muscle mass, which is lean counted twice and is charted at weight 0 with its reason on the row |
+
+### Velocity: what Body Composition's number is for
+
+_Set by the user 2026-08-02, and built the same day._ The card scored a
+**level** and nothing else, so a reader twelve kilograms down over three months
+scored exactly the same as one who had never moved. For anyone actually
+changing — which is most people who open it — the rate and the quality of the
+change *are* the subject.
+
+| Term | Weight | Basis |
+|---|---|---|
+| Body fat vs the age/sex healthy range | **0.45** | Gallagher et al. (2000) |
+| Rate of change vs the goal's band | **0.30** | 0.5–1.0 %/week published loss guidance |
+| Lean share of that change | **0.25** | lean is 20–30% of loss under good conditions |
+
+**0.45 is the user's own figure**, and it lands where the established scoring
+systems land: InBody's score moves on lean mass and fat mass roughly
+*symmetrically* against height-and-sex norms rather than treating fat as
+dominant. Here the other 0.55 expresses the same "lean matters as much as fat"
+judgement as *change* rather than as level.
+
+**The goal is a grounding fact, never inferred.** `GroundingKind.weightGoal`
+(lose / maintain / gain). Inferring it from the trend makes the score circular —
+a card that decides you must be trying to lose *because* you are losing can only
+congratulate you. **With no goal set, the rate is scored for safety alone**:
+anything inside ±1 %/week is unremarkable in either direction, and only a very
+fast change costs. That is the whole of what is defensible without knowing the
+intention, since −0.8 %/week is either excellent progress or an unexplained
+wasting and no sensor can tell them apart.
+
+Three shapes of wrong rate, deliberately not equally wrong
+(`CompositionVelocityModel.rateScore`): short of the ideal in the right
+direction is the most forgiving curve, past the ideal tightens (fast loss is
+what costs lean tissue), and the opposite direction entirely is tighter again.
+
+**The co-linearity fix rides along.** A BIA scale measures weight and impedance
+and *derives* the rest — lean = weight × (1 − fat%), muscle a fixed fraction of
+lean — so weighting lean, muscle and weight as three signals counted two
+measurements three times and called it breadth. One lean-tissue term stands for
+the tissue; weight's information now lives in the velocity, where it belongs.
+Muscle mass stays **charted at weight 0 with its reason on the row**, because a
+declared metric reported nowhere charts on no section of its own card, and
+`ContributorsTests` catches it the moment it happens.
 
 ### Harm reduction: what Substance Impact's number is for
 

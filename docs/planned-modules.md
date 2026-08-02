@@ -46,7 +46,20 @@ departures looked right while the absolute numbers were wrong.
 
 ---
 
-## 1. Dynamic weighting: velocity, and the end of the co-linear pool
+## 1. Dynamic weighting — **BUILT 2026-08-02**
+
+Shipped as designed, with the user's own weighting: level **0.45** (their
+figure), rate **0.30**, quality **0.25**. `CompositionVelocity` /
+`CompositionVelocityModel` in InsightKit (17 tests),
+`GroundingKind.weightGoal` + `WeightGoal`, and the co-linear pool collapsed —
+muscle mass is now charted at weight 0 with its reason on the row. The card's
+own account of it lives in `docs/card-sections.md` ▸ "Velocity". **TDEE is not
+built** — it needs dietary energy promoted out of the raw pile first, and stays
+scoped below.
+
+The design as written, kept for the parts not yet built:
+
+## 1a. Dynamic weighting: velocity, and the end of the co-linear pool
 
 **The brief:** make actual weight and **weight-loss velocity** high-priority, and
 have rapid loss propagate through body fat, lean mass and energy expenditure.

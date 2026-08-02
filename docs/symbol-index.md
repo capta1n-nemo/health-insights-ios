@@ -153,9 +153,10 @@ the place to look.
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
 - `Models/GroundingInput.swift`
-  - `GroundingInput` :99
+  - `GroundingInput` :148
   - `GroundingKind` :7
-  - `UserHealthProfile` :121
+  - `UserHealthProfile` :170
+  - `WeightGoal` :120
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :71
   - `MetricSource` :5
@@ -239,6 +240,9 @@ the place to look.
   - `VitalDeparturePanel` :109
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
+- `Signals/CompositionVelocity.swift`
+  - `CompositionVelocity` :23
+  - `CompositionVelocityModel` :49
 - `Signals/NightSleepDetail.swift`
   - `NightSleepDetail` :17
 - `Signals/SleepNights.swift`

@@ -59,6 +59,13 @@ struct GroundingEntryView: View {
         case .currentSmoker, .hasDiabetes, .onBPMedication:
             Picker("", selection: $choice) { Text("No").tag(0); Text("Yes").tag(1) }
                 .pickerStyle(.segmented)
+        case .weightGoal:
+            Picker("", selection: $choice) {
+                ForEach(WeightGoal.allCases) { goal in
+                    Text(goal.displayName).tag(Int(goal.rawValue))
+                }
+            }
+            .pickerStyle(.segmented)
         case .totalCholesterol, .hdlCholesterol:
             HStack {
                 TextField("Value", value: $number, format: .number)
@@ -82,6 +89,8 @@ struct GroundingEntryView: View {
             return "Use a real upper-arm cuff, seated and rested. This measured reading is what the app trusts."
         case .ascvdRaceGroup:
             return "Used only by the ASCVD risk equation, which publishes separate coefficients."
+        case .weightGoal:
+            return "Body Composition scores how fast your weight is moving, and a rate only means something against a direction you chose. Losing 0.8 kg a week is good progress or an unexplained loss, and nothing your phone can sense tells them apart. Until you set this, the card judges the speed for safety alone."
         default:
             return "This helps the validated models estimate your risk accurately."
         }

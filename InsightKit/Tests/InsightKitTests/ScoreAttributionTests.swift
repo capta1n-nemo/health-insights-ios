@@ -497,7 +497,7 @@ final class ScoreAttributionTests: XCTestCase {
                                  start: TestClock.day(day), source: .withings))
         }
         let terms = BodyCompositionInsight.supportingTerms(samples: samples, now: now,
-                                                           excluding: .bodyFatPercentage)
+                                                           excluding: [.bodyFatPercentage])
         let weight = try XCTUnwrap(terms.first { $0.metric == .bodyMass })
         XCTAssertGreaterThanOrEqual(weight.score, 65,
                                     "a weight below its own baseline is the good direction here")

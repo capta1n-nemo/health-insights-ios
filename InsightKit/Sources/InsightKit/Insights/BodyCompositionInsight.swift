@@ -18,7 +18,10 @@ public struct BodyCompositionInsight: InsightModel {
         [.init(kind: .dateOfBirth, isMandatory: false,
                rationale: "Healthy body-fat ranges are age-banded."),
          .init(kind: .biologicalSex, isMandatory: false,
-               rationale: "Healthy body-fat ranges differ substantially by sex.")]
+               rationale: "Healthy body-fat ranges differ substantially by sex."),
+         .init(kind: .weightGoal, isMandatory: false,
+               rationale: "The rate your weight is moving at is scored against "
+                   + "what you're aiming for — without it, only unsafe speeds count.")]
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
@@ -103,6 +106,8 @@ public struct BodyCompositionInsight: InsightModel {
         let bodyFat = samples.latestValue(.bodyFatPercentage)
         let dial = Self.score(bodyFat: bodyFat, bmi: bmi,
                               age: profile.age(asOf: now), sex: profile.sex)
+        let velocity = CompositionVelocityModel.evaluate(samples: samples, now: now)
+        let goal = profile.weightGoal
 
         // The header must lead with whatever the dial actually rests on. It was
         // built from BMI unconditionally, *before* the route above was chosen,
@@ -128,15 +133,46 @@ public struct BodyCompositionInsight: InsightModel {
             }
             explanation = lead
         }
-        let blend = dial.flatMap { dial in
-            ScoreBlend.blend(
-                primary: [.init(metric: dial.metric,
-                                higherIsBetter: dial.metric == .bodyFatPercentage ? false : nil,
-                                score: dial.value, weight: 1,
-                                detail: Self.formatted(dial.metric, samples: samples))],
-                supporting: Self.supportingTerms(samples: samples, now: now,
-                                                 excluding: dial.metric))
+        // **The primary pool is a level, a rate and a quality** — not a level
+        // alone. See `CompositionVelocity` for why: a reader twelve kilograms
+        // down scored identically to one who had never moved, because body fat
+        // on the day was the whole number.
+        //
+        // 0.45 to the level is the user's own figure (2026-08-02), and it sits
+        // where the published scoring systems sit: InBody's score moves on
+        // lean mass and fat mass roughly symmetrically against height-and-sex
+        // norms rather than treating fat as dominant. Here the other 0.55 is
+        // split between how fast the mass is moving and how much of what moves
+        // is lean tissue — which is the same "lean matters as much as fat"
+        // judgement, expressed as change rather than as level.
+        var terms: [ScoreBlend.Term] = []
+        if let dial {
+            terms.append(.init(metric: dial.metric,
+                                 higherIsBetter: dial.metric == .bodyFatPercentage ? false : nil,
+                                 score: dial.value, weight: Self.levelWeight,
+                                 detail: Self.formatted(dial.metric, samples: samples)))
         }
+        if let velocity {
+            terms.append(.init(
+                metric: .bodyMass, higherIsBetter: nil,
+                score: CompositionVelocityModel.rateScore(
+                    percentPerWeek: velocity.percentPerWeek, goal: goal),
+                weight: Self.rateWeight,
+                detail: CompositionVelocityModel.phrase(velocity, goal: goal),
+                isPublishedScale: goal != nil))
+            if let quality = CompositionVelocityModel.qualityScore(
+                leanShareOfChange: velocity.leanShareOfChange,
+                isLosing: velocity.kilogramsPerWeek < 0) {
+                terms.append(.init(
+                    metric: .leanBodyMass, higherIsBetter: true,
+                    score: quality, weight: Self.qualityWeight,
+                    detail: Self.qualityDetail(velocity)))
+            }
+        }
+        let blend = terms.isEmpty ? nil : ScoreBlend.blend(
+            primary: terms,
+            supporting: Self.supportingTerms(samples: samples, now: now,
+                                             excluding: Set(terms.map(\.metric))))
         return InsightResult(
             id: id, title: title, primaryValue: primary, headline: headline,
             score: blend?.score ?? dial?.value,
@@ -146,8 +182,26 @@ public struct BodyCompositionInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements(profile: profile, now: now),
-            contributors: blend?.contributions ?? [],
+            contributors: (blend?.contributions ?? []) + Self.trackedNotScored(samples: samples),
             weighting: dial == nil ? .unstated : .weightedAverage)
+    }
+
+    /// Signals this card draws but deliberately does not score.
+    ///
+    /// **Muscle mass, and it is charted rather than dropped.** It left the
+    /// weighted pool because a BIA scale derives it from lean mass, so scoring
+    /// both counted one tissue twice — but the reader still wants to see it,
+    /// and a metric that is declared and reported nowhere charts on no section
+    /// of its own card (`ContributorsTests`, which caught exactly this the
+    /// moment the weight was removed). A weight-0 row with its reason on it is
+    /// the shape this repo already uses for every other unscored signal.
+    static func trackedNotScored(samples: [HealthMetricSample]) -> [MetricContribution] {
+        guard let muscle = samples.latestValue(.muscleMass) else { return [] }
+        return [MetricContribution(
+            metric: .muscleMass, higherIsBetter: true, weight: 0,
+            detail: String(format: "%.1f kg — tracked, not scored: your scale works it "
+                           + "out from lean mass, which already carries a share, and "
+                           + "counting both would count one tissue twice", muscle))]
     }
 
     /// Everything a scale reports beyond the one measurement carrying the dial.
@@ -160,6 +214,31 @@ public struct BodyCompositionInsight: InsightModel {
     /// belongs. This is the one signal that left the card rather than earning a
     /// weight, and the alternative was a bar whose only honest label would be
     /// "this cannot change".
+    /// The level — body fat against its published range, or BMI in fallback.
+    /// The user's figure, 2026-08-02: *"I think it should be 45%, maybe 50%
+    /// max"*, and it matches where the established scoring systems sit.
+    static let levelWeight = 0.45
+    /// How fast the mass is moving, against the goal and the published bands.
+    static let rateWeight = 0.30
+    /// How much of what moved was lean tissue.
+    static let qualityWeight = 0.25
+
+    /// The row's own sentence about loss quality, in the reader's terms.
+    static func qualityDetail(_ velocity: CompositionVelocity) -> String {
+        guard let share = velocity.leanShareOfChange else { return "—" }
+        let losing = velocity.kilogramsPerWeek < 0
+        if losing && share <= 0 {
+            return "lean mass is holding while the weight comes off — the loss is fat"
+        }
+        let percent = Int((abs(share) * 100).rounded())
+        if losing {
+            return percent > Int(CompositionVelocityModel.leanShareConcern * 100)
+                ? "\(percent)% of what you're losing is lean tissue — above the 20–30% expected, so some of the loss is muscle"
+                : "\(percent)% of what you're losing is lean tissue, inside the expected 20–30%"
+        }
+        return "\(percent)% of what you're gaining is lean tissue"
+    }
+
     static let supportingMetrics: [(MetricType, Bool?)] = [
         (.bodyFatPercentage, false),
         // `false`, matching the judgement the drivers on this same card
@@ -172,16 +251,23 @@ public struct BodyCompositionInsight: InsightModel {
         // muscle mass below carry `true`, so loss that takes muscle with it
         // still costs, which is exactly the narrative's own warning.
         (.bodyMass, false),
+        // **Muscle mass is deliberately absent, and this is the co-linearity
+        // fix.** A BIA scale measures weight and impedance and *derives* the
+        // rest: lean = weight × (1 − fat%), and muscle is a fixed fraction of
+        // lean. Weighting lean mass, muscle mass and weight as three signals
+        // counted two measurements three times and called it breadth — an
+        // outside analysis of the user's export named it on 2026-08-02 and it
+        // was right. One lean-tissue term stands for the tissue; the level
+        // term and the velocity terms carry the rest.
         (.leanBodyMass, true),
-        (.muscleMass, true),
         (.boneMass, true),
         (.bodyWaterPercentage, nil)
     ]
 
     static func supportingTerms(samples: [HealthMetricSample], now: Date,
-                                excluding dial: MetricType) -> [ScoreBlend.Term] {
+                                excluding primary: Set<MetricType>) -> [ScoreBlend.Term] {
         supportingMetrics.compactMap { metric, higherIsBetter in
-            guard metric != dial,
+            guard !primary.contains(metric),
                   let reading = VitalReader.reading(metric, from: samples, now: now)
             else { return nil }
             return ScoreBlend.supporting(reading, higherIsBetter: higherIsBetter)

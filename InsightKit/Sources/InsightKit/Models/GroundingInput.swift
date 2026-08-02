@@ -16,6 +16,16 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
     case onBPMedication        // 0/1
     case cuffSystolic          // mmHg — measured by a real cuff
     case cuffDiastolic         // mmHg — measured by a real cuff
+    /// What the reader is trying to do with their weight — 0 lose, 1 maintain,
+    /// 2 gain. See `WeightGoal`.
+    ///
+    /// Body Composition scores the *rate* the weight is moving at, and a rate
+    /// has no meaning without a direction someone wanted: −0.8 %/week is
+    /// excellent progress or an unexplained wasting depending on nothing the
+    /// phone can sense. Deliberately **not defaulted** — with no goal set the
+    /// card scores the rate for safety alone (see
+    /// `CompositionVelocityModel.rateScore`), which assumes nothing.
+    case weightGoal
 
     public var displayName: String {
         switch self {
@@ -30,6 +40,7 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .onBPMedication: return "On blood-pressure medication"
         case .cuffSystolic: return "Cuff blood pressure reading"
         case .cuffDiastolic: return "Cuff blood pressure (diastolic)"
+        case .weightGoal: return "Weight goal"
         }
     }
 
@@ -73,6 +84,8 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
             return value >= 0.5 ? "Yes" : "No"
         case .cuffSystolic, .cuffDiastolic:
             return String(format: "%.0f mmHg", value)
+        case .weightGoal:
+            return WeightGoal(rawValue: value)?.displayName ?? "—"
         }
     }
 
@@ -89,6 +102,42 @@ public enum GroundingKind: String, Codable, Sendable, CaseIterable, Identifiable
             return 180 * 24 * 3600            // six months
         case .cuffSystolic, .cuffDiastolic:
             return 14 * 24 * 3600             // two weeks — BP is dynamic
+        case .weightGoal:
+            // A goal is a standing intention, not a measurement. Re-prompting
+            // every six months would read as the app forgetting; the reader
+            // changes it when it changes.
+            return nil
+        }
+    }
+}
+
+/// What the reader is trying to do with their weight.
+///
+/// Stored as a grounding fact rather than inferred from the trend, because
+/// inferring it makes the score circular: a card that decides you must be
+/// trying to lose weight *because* you are losing weight can only ever
+/// congratulate you.
+public enum WeightGoal: Double, Sendable, CaseIterable, Identifiable, Codable {
+    case lose = 0, maintain = 1, gain = 2
+
+    public var id: Double { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .lose: return "Lose weight"
+        case .maintain: return "Maintain"
+        case .gain: return "Gain weight"
+        }
+    }
+
+    /// The weekly change, as a share of body weight, this goal is aiming at.
+    /// Negative is loss. Published guidance: 0.5–1.0 %/week for loss, with
+    /// 0.75 the middle of it; lean gain is slower, around a third of a percent.
+    public var idealPercentPerWeek: Double {
+        switch self {
+        case .lose: return -0.75
+        case .maintain: return 0
+        case .gain: return 0.35
         }
     }
 }
@@ -169,4 +218,7 @@ public struct UserHealthProfile: Codable, Sendable, Equatable {
     public var hdlCholesterol: Double? { value(.hdlCholesterol) }
     public var cuffSystolic: Double? { value(.cuffSystolic) }
     public var cuffDiastolic: Double? { value(.cuffDiastolic) }
+
+    /// `nil` until the reader says. Never defaulted — see `GroundingKind.weightGoal`.
+    public var weightGoal: WeightGoal? { value(.weightGoal).flatMap(WeightGoal.init(rawValue:)) }
 }

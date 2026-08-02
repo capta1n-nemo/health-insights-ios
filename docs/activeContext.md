@@ -97,6 +97,31 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Sixth push — Body Composition scores velocity, not just a level.** The user's
+three answers came back: body fat **0.45** ("maybe 50% max", and asked what
+other systems do), a stated weight goal **yes**, the medication posture **yes**.
+
+- Researched before choosing: published loss guidance is **0.5–1.0 %/week**,
+  and lean is **20–30% of what is lost** under good conditions (adequate
+  protein, resistance training). **InBody** — the clinical standard — scores
+  from a baseline of 80 and moves it on lean mass *and* fat mass roughly
+  symmetrically against height/sex norms, rather than treating fat as
+  dominant. That supports 0.45 rather than the 0.55 originally proposed.
+- Pool is now level 0.45 / rate 0.30 / quality 0.25, all in
+  `CompositionVelocityModel` with an EWMA(0.10) + least-squares fit over 56
+  days. Quoted with `residualSD` like every other slope in this app.
+- `GroundingKind.weightGoal` (+ `WeightGoal`) — **never inferred**, because
+  inferring intent from the trend makes the score circular. **Unset scores the
+  rate for safety alone**, which is all that is defensible without knowing
+  what the reader wanted.
+- Muscle mass left the weighted pool (BIA derives it from lean — the outside
+  analysis's co-linearity point, and correct) but is **charted at weight 0
+  with its reason**; `ContributorsTests` caught the orphan the moment the
+  weight was removed, which is the second time this session a pre-existing
+  guardrail earned its keep on a widening/narrowing change.
+- Not built: TDEE (needs dietary energy promoted first) — still scoped in
+  `docs/planned-modules.md`, which now marks module 1 as built.
+
 **Fifth push — a real double-count, and four modules designed.** The user
 brought an outside (Gemini) analysis of their full export plus a brief for four
 new modules. Three of its claims were checked against the code before anything
