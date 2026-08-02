@@ -239,16 +239,28 @@ jobs:
             [ -f "$f" ] && LOGS="$LOGS $f"
           done
           : > /tmp/deploy-errors.txt
-          if [ -n "$LOGS" ]; then
-            # Signing and provisioning first — those name a capability and are
-            # the ones a reader can act on — then anything else that failed.
-            grep -hiE 'error:|does not support|provisioning profile|entitlement|codesign|no profiles|devicectl|unable to install|\*\* BUILD FAILED' \
-              $LOGS | tail -40 > /tmp/deploy-errors.txt || true
-            if [ ! -s /tmp/deploy-errors.txt ]; then
-              tail -30 $LOGS > /tmp/deploy-errors.txt
-            fi
-          else
-            echo "No build or install log was produced — the job failed before either step ran." > /tmp/deploy-errors.txt
+
+          # **Only lines that name a failure.** The first version grepped for
+          # "codesign", "entitlement" and "provisioning profile", which are
+          # ordinary words in a *successful* build log — so a failed install
+          # came back as forty lines of clang invocations with the actual cause
+          # nowhere in them. Match what breaks, not what is merely mentioned.
+          if [ -f "$RUNNER_TEMP/build.log" ]; then
+            grep -hE 'error:|\*\* BUILD FAILED|doesn'"'"'t include the|No profiles for|No Accounts' \
+              "$RUNNER_TEMP/build.log" | tail -20 >> /tmp/deploy-errors.txt || true
+          fi
+
+          # The install step's own tail, verbatim and last. `devicectl` reports
+          # a locked phone or an unreachable tunnel in prose that matches no
+          # pattern worth guessing at, and by this point the build either
+          # succeeded or has already had its say above.
+          if [ -f "$RUNNER_TEMP/install.log" ]; then
+            echo "--- install ---" >> /tmp/deploy-errors.txt
+            tail -25 "$RUNNER_TEMP/install.log" >> /tmp/deploy-errors.txt
+          fi
+
+          if [ ! -s /tmp/deploy-errors.txt ]; then
+            echo "The job failed before the build or install step ran, or produced no log." > /tmp/deploy-errors.txt
           fi
           blob=$(git hash-object -w /tmp/deploy-errors.txt)
           tree=$(printf '100644 blob %s\terrors.txt\n' "$blob" | git mktree)
