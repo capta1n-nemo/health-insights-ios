@@ -80,25 +80,107 @@ struct VitalsView: View {
                         description: Text("Connect Apple Health or a device in Settings, then pull to refresh."))
                 } else {
                     List {
-                        ForEach(groups) { group in
-                            Section(group.title) {
-                                ForEach(group.metrics, id: \.self) { metric in
-                                    NavigationLink {
-                                        MetricDetailView(metric: metric)
-                                    } label: {
-                                        row(for: metric)
-                                    }
-                                }
-                            }
+                        // **Exhaustive over `DataDomain`, and that is the
+                        // point.** This screen is the app's answer to "what do
+                        // you know about me", and it kept quietly failing to be
+                        // complete because each section was hand-written and
+                        // completeness relied on somebody remembering. A new
+                        // kind of data now fails to compile here until it has a
+                        // section. See `DataDomain`.
+                        ForEach(DataDomain.allCases) { domain in
+                            section(for: domain)
                         }
-                        bloodPressureSection
-                        substanceSection
-                        otherDataSection
                     }
                 }
             }
             .navigationTitle("Vitals")
             .refreshable { await model.refresh() }
+        }
+    }
+
+    /// One section per kind of data the app holds.
+    ///
+    /// A `switch` rather than a list of views: adding a `DataDomain` case
+    /// without a section here is a compile error, which is the whole mechanism
+    /// keeping this screen honest.
+    @ViewBuilder private func section(for domain: DataDomain) -> some View {
+        switch domain {
+        case .metrics: metricSections
+        case .bloodPressure: bloodPressureSection
+        case .substances: substanceSection
+        case .medication: medicationSection
+        case .sideEffects: sideEffectSection
+        case .unmodelled: otherDataSection
+        }
+    }
+
+    @ViewBuilder private var metricSections: some View {
+        ForEach(groups) { group in
+            Section(group.title) {
+                ForEach(group.metrics, id: \.self) { metric in
+                    NavigationLink {
+                        MetricDetailView(metric: metric)
+                    } label: {
+                        row(for: metric)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The medication regimen: what is on board now, and how many doses back it.
+    @ViewBuilder private var medicationSection: some View {
+        if let medication = model.activeMedication, let compound = medication.compound,
+           !medication.doses.isEmpty {
+            Section {
+                NavigationLink {
+                    InsightDetailView(insightID: .bodyComposition)
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(medication.brandName ?? compound.displayName)
+                            Spacer()
+                            Text(String(format: "%.2f mg on board",
+                                        PharmacokineticsModel.level(
+                                            at: Date(),
+                                            doses: medication.doses.map(\.administered),
+                                            compound: compound)))
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        if let latest = medication.doses.map(\.takenAt).max() {
+                            Text("\(medication.doses.count) doses · last \(latest.formatted(.relative(presentation: .named)))")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            } header: {
+                Text(DataDomain.medication.title)
+            }
+        }
+    }
+
+    /// Side effects the reader recorded — imported from Shotsy today.
+    @ViewBuilder private var sideEffectSection: some View {
+        let effects = model.sideEffects
+        if !effects.isEmpty {
+            Section {
+                ForEach(effects.prefix(6), id: \.persistentModelID) { effect in
+                    HStack {
+                        Text(effect.name)
+                        Spacer()
+                        Text("\(effect.severity)/10")
+                            .foregroundStyle(.secondary).monospacedDigit()
+                        Text("· \(effect.date.formatted(.relative(presentation: .named)))")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.sideEffects.title)
+            } footer: {
+                Text(effects.count > 6
+                     ? "The 6 most recent of \(effects.count). \(DataDomain.sideEffects.summary)"
+                     : DataDomain.sideEffects.summary)
+            }
         }
     }
 

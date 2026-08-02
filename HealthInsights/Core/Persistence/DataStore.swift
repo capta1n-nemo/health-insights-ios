@@ -14,7 +14,8 @@ final class DataStore {
                              IntegrationRecord.self, SubstanceEventRecord.self,
                              PredictionOutcomeRecord.self, FeedbackRecord.self,
                              InsightScoreRecord.self, SuggestionDismissalRecord.self,
-                             MedicationRecord.self, DoseLogRecord.self])
+                             MedicationRecord.self, DoseLogRecord.self,
+                             SideEffectRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -337,6 +338,30 @@ final class DataStore {
         }
         context.insert(record)
         try? context.save()
+    }
+
+    // MARK: - Side effects
+
+    func loadSideEffects() -> [SideEffectRecord] {
+        let descriptor = FetchDescriptor<SideEffectRecord>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// Store imported side effects, skipping any already held. Idempotent on
+    /// the source's own id, for the same reason the samples are.
+    func mergeSideEffects(_ effects: [ShotsyImport.SideEffect]) -> Int {
+        let existing = Set(loadSideEffects().compactMap(\.externalID))
+        var added = 0
+        for effect in effects {
+            let key = "\(effect.name)|\(Int(effect.date.timeIntervalSince1970))"
+            guard !existing.contains(key) else { continue }
+            context.insert(SideEffectRecord(name: effect.name, severity: effect.severity,
+                                            date: effect.date, externalID: key))
+            added += 1
+        }
+        if added > 0 { try? context.save() }
+        return added
     }
 
     /// Replace the regimen's dose history with an imported one.

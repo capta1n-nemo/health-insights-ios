@@ -124,6 +124,9 @@ final class AppModel {
                                            to: now)
     }
 
+    /// Side effects the reader has recorded, newest first.
+    var sideEffects: [SideEffectRecord] { dataStore.loadSideEffects() }
+
     /// Doses the app proposed and the reader has not yet confirmed.
     var unconfirmedDoseCount: Int {
         activeMedication?.doses.filter { $0.isInferred && $0.confirmedAt == nil }.count ?? 0

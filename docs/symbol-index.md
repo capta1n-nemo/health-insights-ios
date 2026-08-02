@@ -197,6 +197,8 @@ the place to look.
   - `ContributionRoute` :14
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
+- `Presentation/DataDomain.swift`
+  - `DataDomain` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
@@ -354,6 +356,7 @@ the place to look.
   - `ManualSampleRecord` :27
   - `MedicationRecord` :208
   - `PredictionOutcomeRecord` :145
+  - `SideEffectRecord` :264
   - `SubstanceEventRecord` :98
   - `SuggestionDismissalRecord` :127
 - `Core/State/AppModel.swift`
@@ -490,6 +493,6 @@ the place to look.
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :7
 - `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :196
+  - `OtherDataDetailView` :278
   - `VitalsView` :8
 

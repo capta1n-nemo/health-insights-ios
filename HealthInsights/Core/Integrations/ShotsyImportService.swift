@@ -93,7 +93,7 @@ struct ShotsyImportService {
         if !parsed.samples.isEmpty {
             summary.samples = dataStore.mergeImportedSamples(parsed.samples)
         }
-        summary.sideEffects = parsed.sideEffects.count
+        summary.sideEffects = dataStore.mergeSideEffects(parsed.sideEffects)
         return summary
     }
 

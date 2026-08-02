@@ -253,3 +253,28 @@ final class DoseLogRecord {
                          isInferred: isInferred && confirmedAt == nil)
     }
 }
+
+/// A side effect the reader recorded, with how strongly they felt it.
+///
+/// Imported from Shotsy, which tracks these against a 1–10 severity. They were
+/// parsed and then **thrown away** for a day — counted in the import summary
+/// and stored nowhere — which is precisely the gap `DataDomain` exists to
+/// close: data the app takes in and then cannot show you is data it has lost.
+@Model
+final class SideEffectRecord {
+    var name: String
+    /// Shotsy's own 1–10 scale, kept as recorded rather than rescaled — a
+    /// severity the reader chose means what they meant by it.
+    var severity: Int
+    var date: Date
+    /// Stable across re-imports, so sharing the same backup twice does not
+    /// double the record.
+    var externalID: String?
+
+    init(name: String, severity: Int, date: Date, externalID: String? = nil) {
+        self.name = name
+        self.severity = severity
+        self.date = date
+        self.externalID = externalID
+    }
+}

@@ -97,6 +97,40 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Twelfth push — the Vitals tab is generated from an enum, so it cannot go
+stale again.** The user: *"we've been importing more data, making new data,
+etc.. it should all be getting put into the vitals tab. Whenever we add new
+data, it must have an entry in that tab.. eg substances should have a section,
+medications, later when we do composition scans"*.
+
+- **The rule is now a compile error, not a habit.** `DataDomain` (InsightKit,
+  `Presentation/DataDomain.swift`) enumerates every *kind* of data the app
+  holds — `metrics`, `bloodPressure`, `substances`, `medication`,
+  `sideEffects`, `unmodelled` — each carrying its title and summary.
+  `VitalsView.body` is `ForEach(DataDomain.allCases)` into an **exhaustive**
+  `switch`, so a new domain does not build until it has a section. The app
+  target has no test target; the compiler is the only thing that can hold a
+  rule there, which is why this is an enum in InsightKit and not a list of
+  section builders in the view.
+- **`DataDomain` is not `MetricType`, deliberately.** A metric is one measured
+  series; a domain is a *shape* — a dated log, paired readings, a regimen with
+  a decay curve. Most of these are not series at all, which is precisely why
+  they kept falling out of a screen built around series. Composition scans add
+  a case when they land.
+- **Side effects were parsed and then dropped on the floor.** `ShotsyImport`
+  read `sideEffectRecords` correctly and `ShotsyImportService.persist` did
+  `summary.sideEffects = parsed.sideEffects.count` — it *counted* them into the
+  result alert and never stored one. Found only because the new
+  `DataDomain.sideEffects` case demanded something to render. There is now a
+  `SideEffectRecord` (`@Model`, `externalID` for idempotent re-import),
+  `DataStore.loadSideEffects()` / `mergeSideEffects(_:)`, and the summary
+  reports what was actually merged. **Generalises: a count assigned from
+  `parsed.x.count` with no corresponding merge call is the signature of this
+  bug** — the alert says "12 side effects" and means "12 seen", not "12 kept".
+- Medication's Vitals section shows mg on board (`PharmacokineticsModel.level`),
+  the dose count and the last dose; side effects show the six most recent with
+  severity out of 10.
+
 **Eleventh push — the new inputs are reachable, and the med chart obeys the
 rules.** Five things off the user's device, all real:
 

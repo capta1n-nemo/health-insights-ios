@@ -1,0 +1,72 @@
+import Foundation
+
+/// Every **kind** of data this app holds, whatever shape it takes.
+///
+/// ## Why this exists
+///
+/// The Vitals tab is the app's answer to "what does this thing actually know
+/// about me". That claim only holds if it is complete — and it kept not being,
+/// because each section was hand-written and staying complete depended on
+/// somebody remembering. The substance log was reachable only from a toolbar
+/// button for weeks; medication doses and imported side effects were added and
+/// listed nowhere. The user's rule, 2026-08-02: **"whenever we add new data, it
+/// must have an entry in that tab."**
+///
+/// A rule that depends on memory is not a rule, so this is the enforcement.
+/// `VitalsView` switches **exhaustively** over `allCases`, so a new domain is a
+/// compile error in the app target until it has a section. That is the same
+/// mechanism `MetricType`'s eight switches and `ContributionRoute` already use,
+/// and the reason it is an enum here rather than a list of section builders in
+/// the view: the app target has no test target, so the compiler is the only
+/// thing that can hold a rule there.
+///
+/// **Not the same as `MetricType`.** A metric is one measured series. A domain
+/// is a *shape* of data — a dated log, a set of paired readings, a regimen with
+/// a decay curve — and most of these are not series at all, which is exactly
+/// why they kept falling out of a screen built around series.
+public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
+    /// The canonical time-series vitals, in their category groups.
+    case metrics
+    /// Paired cuff readings, which are two numbers about one event.
+    case bloodPressure
+    /// The dated substance log.
+    case substances
+    /// A medication regimen and its doses.
+    case medication
+    /// Dated side-effect records — severity against a name.
+    case sideEffects
+    /// Everything imported but not yet modelled, from the raw catalogue.
+    case unmodelled
+
+    public var id: String { rawValue }
+
+    /// The section heading the Vitals tab uses.
+    public var title: String {
+        switch self {
+        case .metrics: return "Measurements"
+        case .bloodPressure: return "Blood pressure"
+        case .substances: return "Substances"
+        case .medication: return "Medication"
+        case .sideEffects: return "Side effects"
+        case .unmodelled: return "Other data"
+        }
+    }
+
+    /// What the reader is looking at, for a section that needs saying.
+    public var summary: String {
+        switch self {
+        case .metrics:
+            return "Everything measured as a series, grouped by what it is about."
+        case .bloodPressure:
+            return "Your cuff readings, and the experimental estimate between them."
+        case .substances:
+            return "What you logged, and the cardiovascular load still carried."
+        case .medication:
+            return "Your regimen, the doses logged, and how much is still active."
+        case .sideEffects:
+            return "What you recorded feeling, and how strongly."
+        case .unmodelled:
+            return "Imported and catalogued, but no card reads it yet."
+        }
+    }
+}

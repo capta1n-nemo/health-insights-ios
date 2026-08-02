@@ -730,8 +730,31 @@ old copy and stays hidden, so the placeholder-card rule survives. The
 Last-night tile joined the same truth: a stale night is titled "Yesterday's
 night" with a sync hint, not "Last night".
 | **Insights** | "Improve your health" · subtitle · score comparison · 5 trend tiles | `cadence == .trend && isWorthShowing` |
-| **Vitals** | 4 metric groups · Blood pressure · Substances · Other data | rows, not cards |
+| **Vitals** | `DataDomain.allCases`, in case order: 4 metric groups · Blood pressure · Substances · Medication · Side effects · Other data | rows, not cards |
 | **Settings ▸ Export my data** | inventory (Markdown) · full export (JSON) · browse the unmodelled | the development feedback loop |
+
+**Vitals is now generated from an enum, and that is the point.** The tab is the
+app's answer to *"what does this thing actually know about me"*, and that claim
+only holds if it is complete — which it kept not being, because each section was
+hand-written and completeness depended on somebody remembering. The substance
+log was reachable only from a toolbar button for weeks; medication doses and
+imported side effects were written to the store and listed nowhere. The user's
+rule, 2026-08-02: **"whenever we add new data, it must have an entry in that
+tab."**
+
+So `VitalsView.body` is `ForEach(DataDomain.allCases)` into an **exhaustive**
+`switch`, and `DataDomain` (InsightKit, `Presentation/DataDomain.swift`) carries
+the section's title and summary. A new kind of data is a compile error in the
+app target until it has a section. Same mechanism as `MetricType`'s eight
+switches and `ContributionRoute` — and the reason it is an enum rather than a
+list of section builders is that the app target has no test target, so the
+compiler is the only thing that can hold a rule there.
+
+`DataDomain` is deliberately **not** `MetricType`. A metric is one measured
+series; a domain is a *shape* of data — a dated log, a set of paired readings, a
+regimen with a decay curve — and most of these are not series at all, which is
+exactly why they kept falling out of a screen built around series. Composition
+scans, when they land, add a case and the build tells you where to put it.
 
 **Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
 listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as
