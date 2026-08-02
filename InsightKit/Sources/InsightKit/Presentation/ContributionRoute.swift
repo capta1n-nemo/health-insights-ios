@@ -25,11 +25,49 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// 2026-08-02, and it applies to the scans and photos still to come.
     case fileImport
 
+    /// A GLP-1 regimen and everything logged against it — the dose history and
+    /// the side effects recorded alongside it.
+    ///
+    /// **One route, three inputs**, because they are one conversation: you have
+    /// a regimen, you log doses against it, and you note what it did to you.
+    /// Splitting them would put three near-identical buttons on one card.
+    case medication
+    /// The reader's own read of their build, overriding the estimate.
+    ///
+    /// A route rather than a control buried in the somatotype chart, which is
+    /// where it lived until 2026-08-02 — and which is exactly the failure the
+    /// user found: *"there are things on the body comp page that are not in the
+    /// add and view.. body type, log a dose, import from file."* A card that
+    /// takes something from the reader has to say so in one place, and this is
+    /// the place.
+    case bodyType
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
     /// offers exactly what its own model asks for and nothing else.
     case groundingFacts([GroundingKind])
+}
+
+public extension ContributionRoute {
+    /// Every master-list entry this route covers.
+    ///
+    /// Exhaustive, and **plural** since 2026-08-02: `.medication` offers three
+    /// inputs behind one button, and a one-to-one mapping would have left two
+    /// of them reachable from a card while absent from the app's own list of
+    /// what a card offers. `InputKindTests` reads this to check the other
+    /// direction — that nothing which must be on a card has been left off every
+    /// card.
+    var inputKinds: [InputKind] {
+        switch self {
+        case .bloodPressureReadings: return [.cuffBloodPressure]
+        case .substanceLog: return [.substanceEvent]
+        case .fileImport: return [.fileImport]
+        case .groundingFacts: return [.profileFacts]
+        case .medication: return [.medicationRegimen, .medicationDose, .sideEffect]
+        case .bodyType: return [.bodyType]
+        }
+    }
 }
 
 public extension InsightModel {

@@ -274,6 +274,40 @@ if command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
     fi
 fi
 
+# --- Every input sheet is reachable from the master input list --------------
+#
+# The user's rule, 2026-08-02: *"if manual input is allowed on a card, it must
+# be in the View and add sub menu of the card, in the + master add button, in
+# the add or update section of the settings sub menu"*. The last two are
+# generated from `InputKind`, and `InputKindTests` holds the first — but all of
+# that only binds inputs that were *declared*. The failure that prompted the
+# rule was an input nobody declared at all: a build-override picker inside a
+# chart and a dose button inside a section, each opening a sheet that no list
+# knew about.
+#
+# So: any view whose name ends in `Sheet` under Features/ has to be named in
+# `AddDataView.swift`, which is where `InputSheet` switches over every
+# `InputKind`. Writing an input the master list cannot open is the thing that
+# stops building.
+if [ -d HealthInsights/Features ] && [ -f HealthInsights/Features/Inputs/AddDataView.swift ]; then
+    master=$(cat HealthInsights/Features/Inputs/AddDataView.swift)
+    unlisted=""
+    while IFS= read -r sheet; do
+        [ -z "$sheet" ] && continue
+        case "$master" in
+            *"$sheet"*) ;;
+            *) unlisted="$unlisted $sheet" ;;
+        esac
+    done <<EOF
+$(grep -rhoE 'struct [A-Za-z]+Sheet: View' HealthInsights/Features \
+    | sed -E 's/struct ([A-Za-z]+Sheet): View/\1/' | sort -u)
+EOF
+    if [ -n "$unlisted" ]; then
+        note "Input sheets the master list cannot open — add an InputKind case and a branch in AddDataView.swift's InputSheet:$unlisted"
+        fail=1
+    fi
+fi
+
 # --- No half-done markers in the roadmap -----------------------------------
 #
 # `- [~]` means "some clauses of this are done and some are not", and it is the

@@ -200,7 +200,8 @@ the place to look.
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
 - `Presentation/InputKind.swift`
-  - `InputGroup` :126
+  - `CardRequirement` :192
+  - `InputGroup` :203
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
@@ -449,15 +450,16 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddSection.swift`
-  - `GroundedSummary` :239
-  - `GroundingKindList` :264
+  - `GroundedSummary` :284
+  - `GroundingKindList` :309
   - `ViewAndAddSection` :44
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :19
-  - `AddInputMenu` :133
-  - `InputSheet` :168
-  - `PushedInSheet` :216
-  - `SideEffectEntrySheet` :242
+  - `AddInputMenu` :139
+  - `BodyTypeSheet` :251
+  - `InputSheet` :174
+  - `PushedInSheet` :224
+  - `SideEffectEntrySheet` :327
 - `Features/Insights/InsightDetailView.swift`
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`

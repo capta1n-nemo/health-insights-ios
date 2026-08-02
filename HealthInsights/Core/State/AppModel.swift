@@ -151,6 +151,87 @@ final class AppModel {
     /// Side effects the reader has recorded, newest first.
     var sideEffects: [SideEffectRecord] { dataStore.loadSideEffects() }
 
+    // MARK: - Build
+
+    /// The reader's own read of their build, if they set one.
+    ///
+    /// `@AppStorage`-backed rather than a grounding fact: nothing scores off it,
+    /// which is exactly why it can be a free choice. Read here rather than only
+    /// inside the somatotype card so that "View & add" and the master input list
+    /// can show where the reader stands on it — the input was reachable from one
+    /// picker inside one chart, which is the bug this whole change is about.
+    var buildOverride: Somatotype.Component? {
+        Somatotype.Component(
+            rawValue: UserDefaults.standard.string(forKey: Self.buildOverrideKey) ?? "")
+    }
+
+    func setBuildOverride(_ component: Somatotype.Component?) {
+        if let component {
+            UserDefaults.standard.set(component.rawValue, forKey: Self.buildOverrideKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.buildOverrideKey)
+        }
+    }
+
+    /// The same key `InsightDetailView`'s `@AppStorage` uses. Declared once here
+    /// so the two cannot drift into writing different keys for one setting.
+    static let buildOverrideKey = "somatotypeOverride"
+
+    var buildOverrideName: String? { buildOverride?.displayName }
+
+    /// What the app itself makes of the reader's build.
+    var estimatedBuildName: String? {
+        SomatotypeModel.estimate(
+            bodyFatPercentage: samples.latestValue(.bodyFatPercentage),
+            leanMassKg: samples.latestValue(.leanBodyMass),
+            weightKg: samples.latestValue(.bodyMass) ?? 0,
+            heightMetres: samples.latestValue(.height) ?? 0,
+            dimensions: nil,
+            age: profile.age() ?? 35,
+            sex: profile.sex ?? .male)?.dominant.displayName
+    }
+
+    /// **Which inputs the reader has ever used.**
+    ///
+    /// Feeds `SuggestionEngine.unusedInputs`, which is the fourth clause of the
+    /// user's rule: an input never used earns a dismissible row in "Improve your
+    /// health", and Today shows the top one. Exhaustive over `InputKind`, so a
+    /// new input has to say how "used" is decided for it rather than defaulting
+    /// to never-prompted (silently) or always-prompted (annoyingly).
+    var usedInputs: Set<InputKind> {
+        var used: Set<InputKind> = []
+        for kind in InputKind.allCases {
+            let hasBeenUsed: Bool
+            switch kind {
+            case .profileFacts:
+                hasBeenUsed = GroundingKind.directlyEntered.contains {
+                    profile.value($0) != nil
+                }
+            case .cuffBloodPressure:
+                hasBeenUsed = !bloodPressureReadings.isEmpty
+            case .substanceEvent:
+                hasBeenUsed = !substanceEvents.isEmpty
+            case .medicationRegimen:
+                hasBeenUsed = activeMedication != nil
+            case .medicationDose:
+                hasBeenUsed = !(activeMedication?.doses.isEmpty ?? true)
+            case .sideEffect:
+                hasBeenUsed = !sideEffects.isEmpty
+            case .bloodTestPhoto:
+                // No record is kept of *how* a cholesterol value arrived, so
+                // there is nothing to test. It never prompts, so this is only
+                // ever read as "don't ask".
+                hasBeenUsed = true
+            case .fileImport:
+                hasBeenUsed = ShotsyIntegration.lastImportDate != nil
+            case .bodyType:
+                hasBeenUsed = buildOverride != nil
+            }
+            if hasBeenUsed { used.insert(kind) }
+        }
+        return used
+    }
+
     /// The same records tallied by symptom, worst average first.
     var sideEffectTally: [MedicationResponse.SideEffectTally] {
         MedicationResponse.sideEffectTally(
@@ -361,7 +442,8 @@ final class AppModel {
         if let suggestionCache { return suggestionCache }
         let built = SuggestionEngine.suggestions(results: results, samples: samples,
                                                  profile: profile,
-                                                 substanceEvents: substanceEvents)
+                                                 substanceEvents: substanceEvents,
+                                                 usedInputs: usedInputs)
         suggestionCache = built
         return built
     }

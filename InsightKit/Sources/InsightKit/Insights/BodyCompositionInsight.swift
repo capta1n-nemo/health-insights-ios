@@ -28,8 +28,14 @@ public struct BodyCompositionInsight: InsightModel {
     /// body fat and lean mass, which is most of what this card reads. See
     /// `ContributionRoute.fileImport` for why an input has to be offered on the
     /// card rather than only in Settings.
+    /// **Everything this card takes from the reader, and it has to be all of
+    /// it.** The user, 2026-08-02, looking at the card: *"there are things on
+    /// the body comp page that are not in the add and view.. body type, log a
+    /// dose, import from file."* Two of those were offered by a button inside
+    /// a chart and named nowhere else, which is precisely the failure
+    /// `InputKind.cardRequirement` now makes checkable.
     public var contributions: [ContributionRoute] {
-        [.groundingFacts(requirements.map(\.kind)), .fileImport]
+        [.groundingFacts(requirements.map(\.kind)), .fileImport, .medication, .bodyType]
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {

@@ -894,6 +894,40 @@ app, also collapse this into a sub menu because it will get too long."*
 - Side effects became enterable by hand (`SideEffectEntrySheet`) — they could
   previously only arrive inside a Shotsy backup.
 
+**And the rule that binds all four surfaces, 2026-08-02.** The user found the
+gap the enum had not closed: *"there are things on the body comp page that are
+not in the add and view.. body type, log a dose, import from file"* — inputs
+offered by a button inside a chart and declared nowhere. `InputKind` guaranteed
+every *declared* input reached every surface; nothing guaranteed a card
+declared what it offered.
+
+`InputKind.cardRequirement` is that guarantee, exhaustive, with three answers:
+
+| | Meaning |
+|---|---|
+| `.offeredAndPrompted` | On a card's "View & add", **and** prompted for while never used |
+| `.offeredOnly` | On a card's "View & add", never nagged for |
+| `.settingsOnly(reason)` | Reachable from Settings alone, for a stated reason |
+
+Three checks hold it, and each catches a different half:
+
+1. **`InputKindTests`** — every `mustBeOfferedOnACard` kind appears in some
+   shipped model's `contributions`, and no `settingsOnly` kind does. This is
+   the check the user asked for.
+2. **`verify.sh`** — any `…Sheet` view under `Features/` must be named in
+   `AddDataView.swift`. The test above only binds inputs somebody *declared*;
+   this catches the ones nobody did, which is what actually happened.
+3. **`SuggestionEngine.unusedInputs`** — a `promptsWhenNeverUsed` kind that has
+   never been used becomes a dismissible "Improve your health" row, which is
+   what puts it on Today. Ranked *below* a grounding fact costing a card its
+   score (strength 0.15): "a feature you haven't tried" must never outrank
+   "this card cannot produce a number without it".
+
+`ContributionRoute` gained `.medication` (regimen, doses and side effects —
+one conversation, one button) and `.bodyType`, and its mapping to `InputKind`
+became **plural** so a route standing for three inputs cannot leave two of them
+undeclared.
+
 **Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
 listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as
 `.unlockAnInsight` — reaching the reader twice, through the dismissible

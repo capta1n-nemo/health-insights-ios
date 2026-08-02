@@ -58,7 +58,8 @@ final class ContributionRouteTests: XCTestCase {
                 case .groundingFacts(let kinds):
                     XCTAssertFalse(kinds.isEmpty,
                                    "\(model.id) offers an empty grounding route")
-                case .bloodPressureReadings, .substanceLog, .fileImport:
+                case .bloodPressureReadings, .substanceLog, .fileImport,
+                     .medication, .bodyType:
                     continue
                 }
             }

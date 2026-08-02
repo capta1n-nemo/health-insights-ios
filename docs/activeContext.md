@@ -97,6 +97,40 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Eighteenth push — the input rule now has three checks behind it.** The user
+found the hole `InputKind` had not closed: *"there are things on the body comp
+page that are not in the add and view.. body type, log a dose, import from
+file."* The enum guaranteed every **declared** input reached every surface;
+nothing guaranteed a card declared what it offered, and Body Composition offered
+a build-override picker inside a chart and a dose button inside a section.
+
+- **`InputKind.cardRequirement`** — exhaustive, three answers:
+  `.offeredAndPrompted`, `.offeredOnly`, `.settingsOnly(reason)`. A new input
+  has to say which.
+- **`InputKindTests`** checks the claim rather than trusting it: every
+  `mustBeOfferedOnACard` kind must appear in some shipped model's
+  `contributions`, and no `settingsOnly` kind may.
+- **A `verify.sh` lint** catches the half a test cannot: any `…Sheet` view under
+  `Features/` must be named in `AddDataView.swift`. The test binds inputs
+  somebody *declared*; this binds the ones nobody did — which is what actually
+  happened. Proven to fire by adding a throwaway `ProbeSheet` and watching it
+  fail.
+- **`SuggestionEngine.unusedInputs`** closes the last two clauses: a
+  never-used `promptsWhenNeverUsed` input becomes a dismissible row in "Improve
+  your health", and Today's dismissible suggestion card renders it for free.
+  Strength 0.15 — deliberately below every grounding gap, because "a feature you
+  haven't tried" must never outrank "this card cannot score without it".
+  Only three prompt: substances, medication, file import. The profile facts and
+  the cuff reading are already prompted *per fact* by `unlocks`, which knows
+  which card each is blocking; nobody is asked to have a side effect.
+- **`ContributionRoute` gained `.medication` and `.bodyType`**, and
+  `inputKinds` is **plural** — `.medication` stands for regimen, doses *and*
+  side effects, and a singular mapping would have left two of the three
+  undeclared while looking correct.
+- `AppModel.usedInputs` is an exhaustive switch too: a new input has to say how
+  "has this ever been used" is decided, rather than defaulting to silently
+  never-prompted or permanently nagging.
+
 **Seventeenth push — Weight management, and the app's first modelled metric.**
 Three asks, all the user's.
 

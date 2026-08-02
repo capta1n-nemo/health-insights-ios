@@ -54,6 +54,9 @@ struct ViewAndAddSection: View {
     @State private var showingGroundingDetail: GroundingKindList?
     @State private var showingImporter = false
     @State private var importMessage: String?
+    /// The two routes added on 2026-08-02, after the user found three inputs on
+    /// the Body Composition card that this section did not mention.
+    @State private var activeInput: InputKind?
 
     var body: some View {
         if !routes.isEmpty {
@@ -75,6 +78,9 @@ struct ViewAndAddSection: View {
                 GroundingDetailView(kinds: kinds.values,
                                     unmetRequirements: unmetRequirements)
             }
+            // The same sheets the master list and the `+` menu open. One switch
+            // for the whole app — see `View.inputSheet(_:)`.
+            .inputSheet($activeInput)
         }
     }
 
@@ -122,6 +128,8 @@ struct ViewAndAddSection: View {
         case .substanceLog: substanceRoute
         case .groundingFacts(let kinds): factsRoute(kinds)
         case .fileImport: fileImportRoute
+        case .medication: medicationRoute
+        case .bodyType: bodyTypeRoute
         }
     }
 
@@ -213,6 +221,43 @@ struct ViewAndAddSection: View {
             title: "View & add entries",
             summary: summary,
             add: { showingSubstanceLog = true },
+            link: { detailLink(summary) { EmptyView() } })
+    }
+
+    // MARK: - Medication
+
+    /// Regimen, doses and side effects behind one button.
+    ///
+    /// **This route is the fix for the reported bug.** Logging a dose was a
+    /// button inside the Weight-management chart and nowhere else, so the one
+    /// section that is supposed to answer "what does this card want from me"
+    /// did not mention it. The in-context button stays — it is the right place
+    /// to log a dose while you are looking at the curve — but it is no longer
+    /// the *only* place.
+    private var medicationRoute: some View {
+        let medication = model.activeMedication
+        let summary = ContributionSummary.medication(
+            hasRegimen: medication != nil,
+            doses: medication?.doses.count ?? 0,
+            sideEffects: model.sideEffects.count)
+        return routeBody(
+            title: "View & add medication",
+            summary: summary,
+            add: { activeInput = medication == nil ? .medicationRegimen : .medicationDose },
+            link: { detailLink(summary) { EmptyView() } })
+    }
+
+    // MARK: - Body type
+
+    /// The build override, which lived inside the somatotype chart and was
+    /// named nowhere else. Same story as the dose button above.
+    private var bodyTypeRoute: some View {
+        let summary = ContributionSummary.bodyType(
+            estimated: model.estimatedBuildName, override: model.buildOverrideName)
+        return routeBody(
+            title: "View & add your build",
+            summary: summary,
+            add: { activeInput = .bodyType },
             link: { detailLink(summary) { EmptyView() } })
     }
 

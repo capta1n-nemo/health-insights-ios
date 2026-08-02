@@ -42,6 +42,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     case bloodTestPhoto
     /// A backup file shared in from another app — today Shotsy's.
     case fileImport
+    /// The reader's own read of their build, overriding the app's estimate.
+    case bodyType
 
     public var id: String { rawValue }
 
@@ -55,6 +57,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .sideEffect: return "Side effect"
         case .bloodTestPhoto: return "Blood test (photo)"
         case .fileImport: return "File from another app"
+        case .bodyType: return "Your build"
         }
     }
 
@@ -78,6 +81,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Photograph a pathology report; the values are read on-device and you confirm them."
         case .fileImport:
             return "Shotsy's JSON backup — injections, weight and body composition in one file."
+        case .bodyType:
+            return "Override the app's read of your build if you disagree with it. It estimates from your own measurements; you know your frame."
         }
     }
 
@@ -91,6 +96,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .sideEffect: return "waveform.path.ecg.rectangle"
         case .bloodTestPhoto: return "doc.text.viewfinder"
         case .fileImport: return "square.and.arrow.down"
+        case .bodyType: return "figure.stand"
         }
     }
 
@@ -100,7 +106,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .profileFacts: return .aboutYou
         case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect:
             return .asItHappens
-        case .medicationRegimen: return .aboutYou
+        case .medicationRegimen, .bodyType: return .aboutYou
         case .bloodTestPhoto, .fileImport: return .bringItIn
         }
     }
@@ -116,10 +122,81 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
-             .sideEffect, .bloodTestPhoto, .fileImport:
+             .sideEffect, .bloodTestPhoto, .fileImport, .bodyType:
             return nil
         }
     }
+}
+
+public extension InputKind {
+    /// **Where this input has to be reachable from, and whether to ask for it.**
+    ///
+    /// The rule the user set on 2026-08-02, after finding three inputs on the
+    /// Body Composition card that its "View & add" section did not mention:
+    /// *"if manual input is allowed on a card, it must be in the View and add
+    /// sub menu of the card, in the + master add button, in the add or update
+    /// section of the settings sub menu; if it's missing, or hasn't been added
+    /// for the first time, it goes into the improve your health recommendation
+    /// that can be dismissed."*
+    ///
+    /// Two of those four are already structural — the `+` menu and the Settings
+    /// screen are both generated from `InputKind.allCases`, so an input cannot
+    /// be missing from either. This is the other two. It is exhaustive, so a new
+    /// input has to say which it is, and `InputKindTests` checks the claim
+    /// against every shipped model's `contributions` rather than trusting it.
+    var cardRequirement: CardRequirement {
+        switch self {
+        // Prompted per *fact* by `SuggestionEngine.unlocks`, which knows which
+        // card each one is blocking — a second, vaguer "add your details" would
+        // be the same nudge with less information.
+        case .profileFacts: return .offeredOnly
+        // Same: `cuffSystolic` is a grounding requirement, so the specific
+        // prompt already exists.
+        case .cuffBloodPressure: return .offeredOnly
+        case .substanceEvent: return .offeredAndPrompted
+        case .medicationRegimen: return .offeredAndPrompted
+        // Gated on a regimen existing — `unavailableReason` says so — and
+        // prompting for a dose before there is anything to dose is nonsense.
+        case .medicationDose: return .offeredOnly
+        // Nobody should be nudged into recording a side effect they have not
+        // had. It is offered wherever the medication is, and that is enough.
+        case .sideEffect: return .offeredOnly
+        case .bloodTestPhoto:
+            return .settingsOnly("It fills the same cholesterol facts the "
+                + "profile route already offers, so a card carrying both would "
+                + "ask twice for one number.")
+        case .fileImport: return .offeredAndPrompted
+        // An override of an estimate that already works without it. Offered, so
+        // a reader who disagrees can find it; never nagged for, because the app
+        // is not waiting on it.
+        case .bodyType: return .offeredOnly
+        }
+    }
+
+    /// Whether a card must offer it at all.
+    var mustBeOfferedOnACard: Bool {
+        switch cardRequirement {
+        case .offeredAndPrompted, .offeredOnly: return true
+        case .settingsOnly: return false
+        }
+    }
+
+    /// Whether never having used it earns a dismissible prompt.
+    var promptsWhenNeverUsed: Bool {
+        if case .offeredAndPrompted = cardRequirement { return true }
+        return false
+    }
+}
+
+/// Where an input has to be reachable from.
+public enum CardRequirement: Sendable, Equatable {
+    /// On a card's "View & add", and prompted for while it has never been used.
+    case offeredAndPrompted
+    /// On a card's "View & add", but never prompted — an override or a
+    /// refinement nobody should be nagged about.
+    case offeredOnly
+    /// Reachable from Settings alone, for the stated reason.
+    case settingsOnly(String)
 }
 
 /// The headings the master input list is organised under.
@@ -158,22 +235,6 @@ public enum InputGroup: String, Sendable, CaseIterable, Identifiable {
     }
 }
 
-public extension ContributionRoute {
-    /// The master-list entry this card route corresponds to.
-    ///
-    /// Exhaustive on purpose: a new `ContributionRoute` cannot be added without
-    /// naming its `InputKind`, so an input can never reach a card while being
-    /// absent from the app's one complete list of inputs. That was the exact
-    /// shape of the staleness the user reported.
-    var inputKind: InputKind {
-        switch self {
-        case .bloodPressureReadings: return .cuffBloodPressure
-        case .substanceLog: return .substanceEvent
-        case .fileImport: return .fileImport
-        case .groundingFacts: return .profileFacts
-        }
-    }
-}
 
 public extension GroundingKind {
     /// Whether this fact gets its own row in "Your details".

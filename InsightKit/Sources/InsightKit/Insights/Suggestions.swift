@@ -90,6 +90,10 @@ public enum SuggestionEngine {
                                    samples: [HealthMetricSample],
                                    profile: UserHealthProfile,
                                    substanceEvents: [SubstanceEvent] = [],
+                                   /// Which inputs the reader has ever used.
+                                   /// Anything `promptsWhenNeverUsed` and absent
+                                   /// from this earns a dismissible row.
+                                   usedInputs: Set<InputKind> = Set(InputKind.allCases),
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
@@ -101,6 +105,7 @@ public enum SuggestionEngine {
         out += overnightCharge(samples: samples, now: now, calendar: calendar)
         out += substanceResponse(events: substanceEvents, samples: samples, now: now)
         out += unlocks(results: results, profile: profile, now: now)
+        out += unusedInputs(used: usedInputs)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
         // as part of a pattern and once as an isolated fact, reads as two
@@ -360,6 +365,40 @@ public enum SuggestionEngine {
                 metric: nil,
                 strength: Swift.min(1, strength))
         }
+    }
+
+    /// **An input the reader has never used, once, dismissibly.**
+    ///
+    /// The fourth clause of the user's rule: *"if it's missing, or hasn't been
+    /// added for the first time, it goes into the improve your health
+    /// recommendation that can be dismissed"* — and the fifth follows from it
+    /// for free, because Today already renders the top suggestion with a
+    /// dismiss control and Insights renders the whole list.
+    ///
+    /// Only `promptsWhenNeverUsed` kinds, which is deliberately the short list.
+    /// The profile facts and the cuff reading are prompted *per fact* by
+    /// `unlocks` above, which knows which card each is blocking; a second,
+    /// vaguer row would be the same nudge carrying less. And nobody is asked to
+    /// record a side effect they have not had.
+    ///
+    /// **Weakest of the unlock rows on purpose.** A grounding fact that is
+    /// costing a card its score is a stronger claim than "here is a feature you
+    /// have not tried", and the ranking has to keep saying so.
+    static func unusedInputs(used: Set<InputKind>) -> [Suggestion] {
+        InputKind.allCases
+            .filter { $0.promptsWhenNeverUsed && !used.contains($0) }
+            .map { kind in
+                Suggestion(
+                    // Stable per kind, so a dismissal survives — and
+                    // `pruneResolvedSuggestions` clears it the moment the input
+                    // is used, because this stops emitting then.
+                    id: "input-\(kind.rawValue)",
+                    title: "Try \(kind.title.lowercased())",
+                    detail: kind.detail,
+                    basis: .unlockAnInsight,
+                    insight: nil, metric: nil,
+                    strength: 0.15)
+            }
     }
 
     /// Four sentences over two independent questions — is it costing a score,

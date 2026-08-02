@@ -120,6 +120,12 @@ struct AddDataView: View {
             return ShotsyIntegration.lastImportDate.map {
                 $0.formatted(.relative(presentation: .named))
             }
+        case .bodyType:
+            // The reader's word first, the app's estimate second and marked as
+            // such — the row must not read as though they chose something they
+            // didn't.
+            if let chosen = model.buildOverrideName { return chosen }
+            return model.estimatedBuildName.map { "\($0) (estimated)" }
         }
     }
 }
@@ -195,6 +201,8 @@ private struct InputSheet: View {
             PushedInSheet(title: "Import") { ImportLabView() }
         case .fileImport:
             PushedInSheet(title: "Shotsy") { ShotsyIntegrationView() }
+        case .bodyType:
+            BodyTypeSheet()
         }
     }
 
@@ -227,6 +235,83 @@ private struct PushedInSheet<Content: View>: View {
                     }
                 }
         }
+    }
+}
+
+/// Setting your own build, over the app's estimate.
+///
+/// This was a picker inside the somatotype chart and was named nowhere else —
+/// one of the three inputs the user found on the Body Composition card that its
+/// "View & add" did not mention. The picker stays where it is (changing your
+/// build while looking at the chart is the natural place to do it); what
+/// changed is that this is no longer the *only* way to reach it.
+///
+/// **Nothing scores off it**, which is why it can be a free choice rather than
+/// a grounding fact with a freshness window.
+struct BodyTypeSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var choice: Somatotype.Component?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Button {
+                        choice = nil
+                    } label: {
+                        row(title: "Use the app's estimate",
+                            detail: model.estimatedBuildName
+                                .map { "Currently \($0.lowercased())." }
+                                ?? "Needs a height and a recent weight first.",
+                            isSelected: choice == nil)
+                    }
+                    ForEach(Somatotype.Component.allCases) { component in
+                        Button {
+                            choice = component
+                        } label: {
+                            row(title: component.displayName,
+                                detail: component.meaning,
+                                isSelected: choice == component)
+                        }
+                    }
+                } header: {
+                    Text("Your build")
+                } footer: {
+                    Text("Nothing is scored off this — it changes how the app describes you, not what it measures. Set it if you disagree with the estimate.")
+                }
+            }
+            .navigationTitle("Your build")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        model.setBuildOverride(choice)
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear { choice = model.buildOverride }
+        }
+    }
+
+    private func row(title: String, detail: String, isSelected: Bool) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Theme.accent : Color.secondary)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).foregroundStyle(.primary)
+                Text(detail)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
     }
 }
 

@@ -83,6 +83,66 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// A GLP-1 regimen, its doses and the side effects logged against it.
+    ///
+    /// "Grounded" is having a regimen at all, not a dose count: the app can draw
+    /// the curve and read the weight trend from the first dose onward, and
+    /// setting a target number of injections would be this view inventing a
+    /// clinical opinion.
+    public static func medication(hasRegimen: Bool, doses: Int,
+                                  sideEffects: Int) -> ContributionSummary {
+        guard hasRegimen else {
+            return ContributionSummary(
+                isGrounded: false,
+                figure: "Not set up",
+                guidance: "If you're taking a GLP-1, setting it up lets the app draw "
+                    + "how much is still in your system between doses and read your "
+                    + "weight against it. Nothing here suggests a dose.",
+                progress: nil,
+                addLabel: "Set up medication",
+                detailLabel: nil)
+        }
+        let effects = sideEffects == 0 ? ""
+            : ", \(sideEffects) side \(SectionCaveat.plural(sideEffects, "effect"))"
+        return ContributionSummary(
+            isGrounded: true,
+            figure: "\(doses) \(SectionCaveat.plural(doses, "dose"))",
+            guidance: "\(doses) \(SectionCaveat.plural(doses, "dose")) logged\(effects). "
+                + "Log each injection and how you felt, and the card can read what "
+                + "changed against what you were on at the time.",
+            progress: nil,
+            addLabel: "Log a dose or side effect",
+            detailLabel: nil)
+    }
+
+    /// The reader's own read of their build, against the app's estimate.
+    ///
+    /// Never "grounded" in the sense the others are — the estimate works without
+    /// it, and an override is a correction rather than a missing input. So the
+    /// seal is on whenever the app has something to show, and the guidance says
+    /// what the override is *for* rather than asking for it.
+    public static func bodyType(estimated: String?, override: String?) -> ContributionSummary {
+        ContributionSummary(
+            isGrounded: estimated != nil,
+            figure: override ?? estimated ?? "No estimate yet",
+            guidance: {
+                if let override {
+                    return "You've told the app you're \(override.lowercased()). It uses "
+                        + "your word over its own estimate wherever the two differ."
+                }
+                if let estimated {
+                    return "Estimated as \(estimated.lowercased()) from your own "
+                        + "measurements. If you disagree, say so — the app takes your "
+                        + "word over its estimate."
+                }
+                return "Needs a height and a weight before it can estimate your build. "
+                    + "You can still set it yourself."
+            }(),
+            progress: nil,
+            addLabel: override == nil ? "Set your build" : "Change your build",
+            detailLabel: nil)
+    }
+
     /// Standing profile facts: one target, one count.
     public static func facts(set: Int, of total: Int) -> ContributionSummary {
         let complete = total > 0 && set >= total
