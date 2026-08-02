@@ -772,7 +772,7 @@ old copy and stays hidden, so the placeholder-card rule survives. The
 Last-night tile joined the same truth: a stale night is titled "Yesterday's
 night" with a sync hint, not "Last night".
 | **Insights** | "Improve your health" · subtitle · score comparison · 5 trend tiles | `cadence == .trend && isWorthShowing` |
-| **Data** (3rd tab) | `DataDomain.allCases`, in case order: 4 metric groups · Blood pressure · Substances · Medication · Side effects · Other data | rows, not cards |
+| **Data** (3rd tab) | search bar, then `DataDomain.allCases` in case order: 4 metric groups · Blood pressure · Substances · Medication · Side effects · Other data | rows, not cards |
 | **Settings ▸ Add or update data** | `InputGroup.allCases` → `InputKind` rows: About you · Log as it happens · Bring data in | the master input list |
 | **Settings ▸ Export my data** | inventory (Markdown) · full export (JSON) · browse the unmodelled | the development feedback loop |
 
@@ -806,6 +806,15 @@ series; a domain is a *shape* of data — a dated log, a set of paired readings,
 regimen with a decay curve — and most of these are not series at all, which is
 exactly why they kept falling out of a screen built around series. Composition
 scans, when they land, add a case and the build tells you where to put it.
+
+**Search narrows it, and never reorders it.** `DataTabView` is `.searchable`,
+and `isVisible(_ domain:)` is a second **exhaustive** switch over `DataDomain`
+— so a new kind of data has to say how it answers a search, rather than
+quietly never appearing in one. The query matches a row's name *and* its
+domain's title, because the section headings are the vocabulary a reader has
+actually seen: typing "medication" narrows to that section rather than to
+nothing. `MetricGroup` is identified by its title now; it defaulted to
+`UUID()`, which made every keystroke rebuild the whole list as new rows.
 
 **The input side got the same treatment: `InputKind`.** `DataDomain` guarantees
 every kind of data can be *seen*; `InputKind` (InsightKit,

@@ -97,6 +97,24 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Fifteenth push — the Data tab is searchable.** It lists every metric with
+data, every cuff reading, the substance log, the regimen, side effects and the
+whole unmodelled catalogue — several hundred rows on this phone — so "where is
+my resting heart rate" was a scroll.
+
+- `isVisible(_ domain:)` is a **second exhaustive switch** over `DataDomain`,
+  beside `section(for:)`. A new kind of data has to say how it answers a
+  search, instead of quietly never appearing in one.
+- The query matches a row's name **and** its domain's title, because section
+  headings are the vocabulary the reader has actually seen — "medication"
+  narrows to that section rather than to nothing. Same for metric group titles:
+  "sleep" keeps the whole Sleep & recovery group.
+- The unmodelled catalogue also matches on its **raw identifier**, since
+  `HKQuantityTypeIdentifier…` is what an export prints and this is where those
+  get looked up.
+- `MetricGroup.id` was `UUID()`, so every keystroke rebuilt the list as
+  entirely new rows. It is the title now.
+
 **Fourteenth push — "is it working": the medication section grew an engine.**
 The user, after showing Shotsy's Results tab: *"I want the medication board
 graph to be in this new Medication section, and for you to overlay weight, fat,

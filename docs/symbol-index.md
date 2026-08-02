@@ -435,7 +435,7 @@ the place to look.
   - `VitalsGlance` :234
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :286
+  - `OtherDataDetailView` :391
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`

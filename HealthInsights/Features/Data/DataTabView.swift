@@ -15,9 +15,16 @@ import InsightKit
 /// sources report it; tapping opens the multi-source overlay in `MetricDetailView`.
 struct DataTabView: View {
     @Environment(AppModel.self) private var model
+    @State private var query = ""
 
+    /// Identified by its title, not by a fresh `UUID()`.
+    ///
+    /// Searching rebuilds these groups on every keystroke, and a `UUID()`
+    /// default meant every rebuilt group was a *different* row to `ForEach` —
+    /// so the whole list tore down and re-created itself per character typed.
+    /// The title is the group's identity and always was.
     private struct MetricGroup: Identifiable {
-        let id = UUID()
+        var id: String { title }
         let title: String
         let metrics: [MetricType]
     }
@@ -51,7 +58,90 @@ struct DataTabView: View {
     private var otherGroups: [RawMetricGroup] { model.otherDataGroups }
     private var bloodPressure: [BloodPressureEstimator.Reading] { model.bloodPressureReadings }
 
-    /// The substance log's own row in Vitals.
+    // MARK: - Search
+
+    /// **Search is why this tab is usable at all now.** It lists every metric
+    /// with data, every cuff reading, the substance log, the regimen, side
+    /// effects *and* the whole unmodelled catalogue — which for this reader is
+    /// several hundred rows — so "where is my resting heart rate" was a scroll.
+    ///
+    /// It matches the domain's own name as well as the row's, so typing
+    /// "medication" narrows to that section rather than to nothing: the section
+    /// headings are the vocabulary a reader has actually seen.
+    private var trimmed: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func matches(_ candidates: String...) -> Bool {
+        guard !trimmed.isEmpty else { return true }
+        return candidates.contains {
+            $0.range(of: trimmed, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
+    }
+
+    /// Groups narrowed to the query. A group whose *title* matches keeps all of
+    /// its metrics — searching "sleep" wants the sleep section, not only the
+    /// four metrics with "sleep" in their name.
+    private var filteredGroups: [MetricGroup] {
+        guard !trimmed.isEmpty else { return groups }
+        return groups.compactMap { group in
+            if matches(group.title, DataDomain.metrics.title) { return group }
+            let hits = group.metrics.filter { matches($0.displayName) }
+            return hits.isEmpty ? nil : MetricGroup(title: group.title, metrics: hits)
+        }
+    }
+
+    private var filteredOtherGroups: [RawMetricGroup] {
+        guard !trimmed.isEmpty else { return otherGroups }
+        if matches(DataDomain.unmodelled.title, DataDomain.unmodelled.summary) {
+            return otherGroups
+        }
+        // The raw identifier as well as the display name: "HKQuantityType…" is
+        // what an export shows, and this screen is where those get looked up.
+        return otherGroups.filter { matches($0.displayName, $0.id) }
+    }
+
+    private var filteredSideEffects: [SideEffectRecord] {
+        let all = model.sideEffects
+        if trimmed.isEmpty || matches(DataDomain.sideEffects.title) { return all }
+        return all.filter { matches($0.name) }
+    }
+
+    /// Whether a domain has anything to show for the current query.
+    ///
+    /// Exhaustive, like `section(for:)` — a new `DataDomain` has to say how it
+    /// answers a search, and "it doesn't" is a decision somebody makes rather
+    /// than a row that quietly never appears.
+    private func isVisible(_ domain: DataDomain) -> Bool {
+        switch domain {
+        case .metrics:
+            return !filteredGroups.isEmpty
+        case .bloodPressure:
+            return !bloodPressure.isEmpty
+                && matches(domain.title, "blood pressure", "systolic", "diastolic", "mmHg")
+        case .substances:
+            return !model.substanceEvents.isEmpty
+                && (matches(domain.title, "cardiovascular load")
+                    || model.substanceEvents.contains { matches($0.substance.displayName) })
+        case .medication:
+            guard let medication = model.activeMedication, !medication.doses.isEmpty else {
+                return false
+            }
+            return matches(domain.title, "dose", "injection",
+                           medication.brandName ?? "",
+                           medication.compound?.displayName ?? "")
+        case .sideEffects:
+            return !filteredSideEffects.isEmpty
+        case .unmodelled:
+            return !filteredOtherGroups.isEmpty
+        }
+    }
+
+    private var visibleDomains: [DataDomain] {
+        DataDomain.allCases.filter { isVisible($0) }
+    }
+
+    /// The substance log's own row in the Data tab.
     ///
     /// It was reachable only from the Today toolbar, which meant the one screen
     /// listing everything the app measures about you didn't mention it. Shows the
@@ -83,9 +173,18 @@ struct DataTabView: View {
     var body: some View {
         NavigationStack {
             Group {
+                // Computed once per body pass. Each `isVisible` call reaches
+                // the store for the regimen, and asking twice — once for the
+                // empty check and once for the loop — doubled that on every
+                // keystroke.
+                let visible = visibleDomains
                 if groups.isEmpty && otherGroups.isEmpty && bloodPressure.isEmpty {
                     ContentUnavailableView("No data yet", systemImage: "waveform.path.ecg",
                         description: Text("Connect Apple Health or a device in Settings, then pull to refresh."))
+                } else if visible.isEmpty {
+                    // Only reachable with a query — every domain being empty
+                    // without one is the branch above.
+                    ContentUnavailableView.search(text: trimmed)
                 } else {
                     List {
                         // **Exhaustive over `DataDomain`, and that is the
@@ -95,13 +194,19 @@ struct DataTabView: View {
                         // completeness relied on somebody remembering. A new
                         // kind of data now fails to compile here until it has a
                         // section. See `DataDomain`.
-                        ForEach(DataDomain.allCases) { domain in
+                        //
+                        // Filtered by the search, but still walked in
+                        // `DataDomain` order: search narrows this screen, it
+                        // never reorders it, so a section stays where the
+                        // reader last saw it.
+                        ForEach(visible) { domain in
                             section(for: domain)
                         }
                     }
                 }
             }
             .navigationTitle("Data")
+            .searchable(text: $query, prompt: "Search your data")
             .refreshable { await model.refresh() }
         }
     }
@@ -123,7 +228,7 @@ struct DataTabView: View {
     }
 
     @ViewBuilder private var metricSections: some View {
-        ForEach(groups) { group in
+        ForEach(filteredGroups) { group in
             Section(group.title) {
                 ForEach(group.metrics, id: \.self) { metric in
                     NavigationLink {
@@ -169,7 +274,7 @@ struct DataTabView: View {
 
     /// Side effects the reader recorded — imported from Shotsy today.
     @ViewBuilder private var sideEffectSection: some View {
-        let effects = model.sideEffects
+        let effects = filteredSideEffects
         if !effects.isEmpty {
             Section {
                 ForEach(effects.prefix(6), id: \.persistentModelID) { effect in
@@ -220,9 +325,9 @@ struct DataTabView: View {
     /// Everything imported that we don't yet model as a first-class vital, so it
     /// can be reviewed and later promoted into proper metrics/insights.
     @ViewBuilder private var otherDataSection: some View {
-        if !otherGroups.isEmpty {
+        if !filteredOtherGroups.isEmpty {
             Section {
-                ForEach(otherGroups) { group in
+                ForEach(filteredOtherGroups) { group in
                     NavigationLink {
                         OtherDataDetailView(group: group)
                     } label: {
