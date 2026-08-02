@@ -16,6 +16,44 @@ this repo:
   Simulators ▸ "Connect via network"), so `devicectl` can reach it without a
   cable.
 
+### The share-sheet action extension is parked, and this is why
+
+`ShotsyImportAction` was built and reverted on 2026-08-02 (`aaf185c`, reverted
+in the commit after `74c4b44`). It is a clean revert — `git cherry-pick aaf185c`
+brings the whole thing back — and it is parked on **signing**, not on code. CI
+was green for it, because CI builds with `CODE_SIGNING_ALLOWED=NO`.
+
+The deploy Mac, verbatim:
+
+```
+No profiles for 'com.jasonsalway.healthinsights.ShotsyImportAction' were found
+Provisioning profile "iOS Team Provisioning Profile: com.jasonsalway.healthinsights"
+  doesn't include the App Groups capability
+No Accounts: Add a new account in Accounts settings
+```
+
+Two prerequisites, in order:
+
+1. **An Xcode account on the runner Mac.** The "No Accounts" line is why
+   `-allowProvisioningUpdates` could not mint a profile for the new bundle id.
+   The runner is a background service; Xcode ▸ Settings ▸ Accounts has to be
+   signed in as the user the runner runs as.
+2. **An Apple Developer Program membership.** App Groups is not among the
+   capabilities a free personal team can sign, and an extension has **no other
+   way** to hand a file to its containing app — it runs in its own sandbox, and
+   84 KB of JSON does not fit in a URL. There is no version of this feature that
+   avoids the entitlement.
+
+**Why it was reverted rather than left on `main`:** it turned a deploy *install*
+failure into a deploy *build* failure. An install failure means the phone missed
+one update; a build failure means `main` stops reaching the phone at all, and
+every later push inherits it. A red `main` is the one state this repo cannot sit
+in, because `main` is the only route to the device.
+
+Nothing else depends on the group. The top-row share sheet
+(`CFBundleDocumentTypes` + `UTImportedTypeDeclarations`) imports files with no
+entitlement at all and was never touched.
+
 ### Runner-keychain signing gotcha
 
 If the Actions runner is installed as a background service (not run

@@ -97,6 +97,42 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Sixteenth push, then reverted — the share sheet's bottom row.** *"why is it
+not in the bottom like other 3 apps that support actions, I want an action."*
+Built (`aaf185c`), CI green, and **refused at signing on the deploy Mac**. Now
+parked. `git cherry-pick aaf185c` brings it all back.
+
+- **The design is sound and the blocker is not code.** The bottom row is Action
+  Extensions, a different mechanism from the document type that put the app in
+  the row above. An extension runs in its own sandbox, so the only way it can
+  hand a file to the app is an **App Group** — and App Groups is not a
+  capability a free personal team can sign. `docs/deployment.md` has the exact
+  errors and the two prerequisites (an Xcode account on the runner, and a paid
+  Developer Program membership).
+- **Reverted rather than left on `main`** because it turned a deploy *install*
+  failure into a deploy *build* failure. An install failure costs one update; a
+  build failure means `main` reaches the phone not at all, and every later push
+  inherits it.
+- **CI could never have caught it**: it builds with `CODE_SIGNING_ALLOWED=NO`.
+  Green CI plus a signing failure is the expected shape of this class, and it is
+  the reason the push below exists.
+- What was built and is worth keeping in mind when it returns: `SharedInbox`
+  (the whole cross-process contract, 7 tests, container half behind
+  `#if canImport(Darwin)`), an extension that **copies bytes and nothing else**
+  because a full import in an extension is how one gets killed mid-write, an
+  activation rule matching `public.json` rather than "any file", and
+  `AppModel.drainSharedInbox()` on launch *and* foreground — coming back from a
+  share sheet resumes the app rather than launching it.
+
+**A deploy now records *why* it failed.** The verdict was a single bit, so "the
+phone was locked" and "signing refused a capability" looked identical. `ci.yml`
+has written `refs/ci/errors/<sha>` from the start; `deploy.yml` now writes
+`refs/deploy/errors/<sha>` the same way, and `./scripts/deploy-status.sh
+--errors` reads it. It answered the question above on its first run, for
+nothing. `deploy-status.sh` also stopped printing *"the build is fine — this is
+the install step"*, which was a guess dressed as a finding and is now sometimes
+false.
+
 **Fifteenth push — the Data tab is searchable.** It lists every metric with
 data, every cuff reading, the substance log, the regimen, side effects and the
 whole unmodelled catalogue — several hundred rows on this phone — so "where is
