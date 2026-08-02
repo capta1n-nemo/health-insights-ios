@@ -233,7 +233,7 @@ public enum PeerStandingModel {
     /// active medication level"; listing it as "no published norm yet" would
     /// imply one might arrive, which is false. Excluded from the comparison
     /// entirely rather than parked in a bucket.
-    static func isModelled(_ metric: MetricType) -> Bool {
+    public static func isModelled(_ metric: MetricType) -> Bool {
         metric == .activeMedicationLevel
     }
 
