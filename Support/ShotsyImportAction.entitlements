@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The only thing this extension needs, and the only way it can hand a
+         file to the app: an extension runs in its own sandbox and cannot write
+         into its container app's directory.
+
+         The identifier must match `SharedInbox.appGroupIdentifier` and the same
+         key in Support/HealthInsights.entitlements. A mismatch is not an error
+         anywhere — it is an inbox the app never finds anything in.
+
+         ⚠️ App Groups are **not available to free personal development teams**.
+         If signing fails on the deploy Mac naming this capability, that is the
+         cause, and the fix is to drop the extension rather than to work around
+         it — the top-row share sheet already imports files and needs no
+         entitlement at all. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.jasonsalway.healthinsights</string>
+    </array>
+</dict>
+</plist>

@@ -8,16 +8,22 @@
 
 /* Begin PBXBuildFile section */
 		AAAA0000000000000000AA0B /* InsightKit in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA0C /* InsightKit */; };
+		AAAA0000000000000000AA2A /* ShotsyImportAction.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AAAA0000000000000000AA20 /* ShotsyImportAction.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AAAA0000000000000000AA2E /* InsightKit in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA0000000000000000AA2D /* InsightKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		AAAA0000000000000000AA07 /* HealthInsights.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HealthInsights.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAAA0000000000000000AA0E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAAA0000000000000000AA0F /* HealthInsights.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HealthInsights.entitlements; sourceTree = "<group>"; };
+		AAAA0000000000000000AA20 /* ShotsyImportAction.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShotsyImportAction.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AAAA0000000000000000AA2F /* ShotsyImportAction-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ShotsyImportAction-Info.plist"; sourceTree = "<group>"; };
+		AAAA0000000000000000AA30 /* ShotsyImportAction.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShotsyImportAction.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AAAA0000000000000000AA05 /* HealthInsights */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HealthInsights; sourceTree = "<group>"; };
+		AAAA0000000000000000AA21 /* ShotsyImportAction */ = {isa = PBXFileSystemSynchronizedRootGroup; path = ShotsyImportAction; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +35,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AAAA0000000000000000AA24 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAAA0000000000000000AA2E /* InsightKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -36,6 +50,7 @@
 			isa = PBXGroup;
 			children = (
 				AAAA0000000000000000AA05 /* HealthInsights */,
+				AAAA0000000000000000AA21 /* ShotsyImportAction */,
 				AAAA0000000000000000AA04 /* Support */,
 				AAAA0000000000000000AA03 /* Products */,
 			);
@@ -45,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				AAAA0000000000000000AA07 /* HealthInsights.app */,
+				AAAA0000000000000000AA20 /* ShotsyImportAction.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -54,6 +70,8 @@
 			children = (
 				AAAA0000000000000000AA0E /* Info.plist */,
 				AAAA0000000000000000AA0F /* HealthInsights.entitlements */,
+				AAAA0000000000000000AA2F /* ShotsyImportAction-Info.plist */,
+				AAAA0000000000000000AA30 /* ShotsyImportAction.entitlements */,
 			);
 			path = Support;
 			sourceTree = "<group>";
@@ -68,10 +86,12 @@
 				AAAA0000000000000000AA08 /* Sources */,
 				AAAA0000000000000000AA09 /* Frameworks */,
 				AAAA0000000000000000AA0A /* Resources */,
+				AAAA0000000000000000AA29 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AAAA0000000000000000AA2B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AAAA0000000000000000AA05 /* HealthInsights */,
@@ -84,6 +104,29 @@
 			productReference = AAAA0000000000000000AA07 /* HealthInsights.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AAAA0000000000000000AA22 /* ShotsyImportAction */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAA0000000000000000AA26 /* Build configuration list for PBXNativeTarget "ShotsyImportAction" */;
+			buildPhases = (
+				AAAA0000000000000000AA23 /* Sources */,
+				AAAA0000000000000000AA24 /* Frameworks */,
+				AAAA0000000000000000AA25 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AAAA0000000000000000AA21 /* ShotsyImportAction */,
+			);
+			name = ShotsyImportAction;
+			packageProductDependencies = (
+				AAAA0000000000000000AA2D /* InsightKit */,
+			);
+			productName = ShotsyImportAction;
+			productReference = AAAA0000000000000000AA20 /* ShotsyImportAction.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -95,6 +138,9 @@
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					AAAA0000000000000000AA06 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					AAAA0000000000000000AA22 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -116,12 +162,34 @@
 			projectRoot = "";
 			targets = (
 				AAAA0000000000000000AA06 /* HealthInsights */,
+				AAAA0000000000000000AA22 /* ShotsyImportAction */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		AAAA0000000000000000AA29 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AAAA0000000000000000AA2A /* ShotsyImportAction.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXResourcesBuildPhase section */
 		AAAA0000000000000000AA0A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAAA0000000000000000AA25 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -138,7 +206,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AAAA0000000000000000AA23 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AAAA0000000000000000AA2B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAAA0000000000000000AA22 /* ShotsyImportAction */;
+			targetProxy = AAAA0000000000000000AA2C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		AAAA0000000000000000AA2C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAAA0000000000000000AA01 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAAA0000000000000000AA22;
+			remoteInfo = ShotsyImportAction;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin XCBuildConfiguration section */
 		AAAA0000000000000000AA11 /* Debug */ = {
@@ -239,6 +332,52 @@
 			};
 			name = Release;
 		};
+		AAAA0000000000000000AA27 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Support/ShotsyImportAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Support/ShotsyImportAction-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonsalway.healthinsights.ShotsyImportAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AAAA0000000000000000AA28 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Support/ShotsyImportAction.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Support/ShotsyImportAction-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonsalway.healthinsights.ShotsyImportAction;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -260,6 +399,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		AAAA0000000000000000AA26 /* Build configuration list for PBXNativeTarget "ShotsyImportAction" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA0000000000000000AA27 /* Debug */,
+				AAAA0000000000000000AA28 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -271,6 +419,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		AAAA0000000000000000AA0C /* InsightKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = InsightKit;
+		};
+		AAAA0000000000000000AA2D /* InsightKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = InsightKit;
 		};

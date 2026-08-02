@@ -46,6 +46,9 @@ the place to look.
   - `PromotionRuleSet` :116
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
+- `Ingestion/SharedInbox.swift`
+  - `SharedInbox` :30
+  - `SharedInboxError` :138
 - `Ingestion/ShotsyImport.swift`
   - `ShotsyImport` :26
   - `ShotsyUnit` :248
@@ -304,7 +307,7 @@ the place to look.
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
   - `RootView` :5
-  - `SyncActivityPill` :75
+  - `SyncActivityPill` :96
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`

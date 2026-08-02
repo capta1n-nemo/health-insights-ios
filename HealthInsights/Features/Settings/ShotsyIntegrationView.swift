@@ -56,7 +56,7 @@ struct ShotsyIntegrationView: View {
         Section {
             step(1, "Open Shotsy, then Settings ▸ Manage My Data.")
             step(2, "Tap Export JSON. Shotsy makes the file and opens the share sheet.")
-            step(3, "Choose Health Insights from the list. The import runs straight away.")
+            step(3, "Choose Health Insights from the app row at the top — the import runs straight away. Or use Health Insights in the actions list below it, which saves the file and imports it the moment you open the app.")
             Link(destination: URL(string: "shotsy://")!) {
                 Label("Open Shotsy", systemImage: "arrow.up.forward.app")
             }

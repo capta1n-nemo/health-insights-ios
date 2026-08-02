@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    The share sheet's bottom row.
+
+    Lives in Support/ rather than inside ShotsyImportAction/ for the same reason
+    the app's does: the target's sources are a PBXFileSystemSynchronizedRootGroup,
+    which sweeps every file in the folder into the build, and an Info.plist swept
+    in as a *resource* is copied into the bundle a second time.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <!-- What the reader sees in the bottom row of the share sheet. The app's
+         name, not the target's — "ShotsyImportAction" would be a build artifact
+         showing through. -->
+    <key>CFBundleDisplayName</key>
+    <string>Health Insights</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <!-- App extensions are XPC services, not applications. `APPL` here makes
+         the bundle fail validation at install time. -->
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <!-- Must match the containing app's, or the install is rejected. -->
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionAttributes</key>
+        <dict>
+            <!-- Offered for exactly one shared item whose type conforms to
+                 public.json.
+
+                 Not `NSExtensionActivationSupportsFileWithMaxCount`, which
+                 would put this app in the share sheet for a photo, a PDF and a
+                 contact — every one of which would open it only to be told the
+                 file isn't a Shotsy backup.
+
+                 The conformance is what makes it work for Shotsy's own type:
+                 `com.shotsy.json` conforms to `public.json`, and the imported
+                 declaration below is how this bundle knows that. Without the
+                 import the predicate would never match a .shotsyjson file, and
+                 the action would silently never appear — which is the exact
+                 failure this whole feature exists to fix. -->
+            <key>NSExtensionActivationRule</key>
+            <string>SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $attachment, ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.json").@count == 1).@count == 1</string>
+        </dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.ui-services</string>
+        <!-- No storyboard: the principal class builds its own view. `@objc`
+             on the Swift class is what makes this plain name resolvable. -->
+        <key>NSExtensionPrincipalClass</key>
+        <string>ActionViewController</string>
+    </dict>
+
+    <!-- The same import the app carries. An extension is its own bundle and
+         inherits nothing from its container, so a type declared only in the app
+         does not exist as far as this predicate is concerned. -->
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.shotsy.json</string>
+            <key>UTTypeDescription</key>
+            <string>Shotsy JSON Data</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>shotsyjson</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>
