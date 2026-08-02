@@ -130,7 +130,7 @@ that is not yet automated is the next thing to automate.
 | **The user having to prompt the handover by hand** | 3+ | ✅ trigger widened to intent; checks moved into `verify.sh` (2026-07-31) |
 | **A `[~]` half-done marker surviving a push** | 1 | ✅ `verify.sh` fails on any `- [~]` |
 | Not stating the open roadmap until asked | 3+ | ✅ `session-start` skill |
-| **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness |
+| **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness. **Hardened 2026-08-02**: the hook was invoked by a relative path and hook processes inherit the shell's *drifted* cwd, so a push issued after a `cd` skipped the gate silently (exit 127 is a non-blocking hook error). Now `$CLAUDE_PROJECT_DIR`-absolute, and `verify.sh` lints settings.json hook commands for relative paths (canaried) |
 | A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
 | A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
@@ -149,6 +149,8 @@ that is not yet automated is the next thing to automate.
 | **A card declaring an input and never reading it** | **1 (4 instances)** | ✅ automated — `testEveryDeclaredInputWithDataIsActuallyRead` (2026-08-01, session 17). Invisible rather than wrong, which is why it survived a session that audited every section: `ChartedContributions.resolve` substitutes the declared list *only* when a card reports nothing, so on a card reporting anything at all the input charts nowhere and links nowhere. The invariant's one allowed exception is genuine alternatives, expressed as `MetricType.interchangeableGroups` — two rows of data rather than a per-model exception list |
 | **A principle forbidding X used to justify not-Y** | **2** | ⬜ open — *"an invented weight is worse than none"* argued against **inventing** a weight and was used to justify not **attributing** one (session 17); *"that technique has a fatal flaw"* argued against Catmull-Rom and was read as an argument against curvature (session 9). No mechanical check. The rule: **when a principle is doing load-bearing work, check that the thing it forbids is the thing you are declining to do** |
 | **A weight, threshold or share written in the card rather than beside the model** | **2** | ✅ partly — Energy's 0.6/0.25/0.15 appeared nowhere in `EnergyModel` and became `Output.terms` (session 17); Sleep still restates nine coefficients twice in one function and is logged as gap 18. The mechanical half exists — `testContributorWeightsMatchTheWeightsTheScoreApplies` — and does not cover a weight that was never *derived* from anything |
+| **A nightly figure wrong because same-day sleep samples combine wrongly** | **3** | ⚠️ the *instances* are each fixed and tested — naps averaged into nights (session 13), midnight-crossing nights split in two (session 14), split-night periods averaged to half (session 19, found by the model-internals export's per-source nights table on its first use) — but the category is `bucketStatistic .mean` over `.sleepDurationHours` being wrong whenever one source emits two same-day samples, and nothing lints a *fourth* producer of that shape. The defence that generalises: any parser emitting nightly figures must emit **one sample per night per metric**, which `SleepNights` does by construction and `parseSleep` now does by grouping |
+| **A whole-model run inside a SwiftUI `body`, un-memoised** | 1 (5+ instances) | ⚠️ the instances are fixed — `AppModel.memoized(_:_:)` + `LazyVStack` (2026-08-02, session 19; body re-evaluates per scrub/pan, so each was re-running `VitalSignsCheck` et al. over 231k samples per frame-ish) — but no mechanical check exists: a grep-lint for `samples: model.samples` in view files drowns in legitimate cheap calls. The rule: **a full-sample model call in a view goes through `model.memoized`**, and the next slow-card report is the trigger to re-audit |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
@@ -190,6 +192,26 @@ One permission side-effect, handled: Claude Code splits compound commands on
 `&&` and checks each part, so the prefix needs its own allow entry —
 `Bash(cd /home/user/health-insights-ios)` — and every existing rule keeps
 matching its original part.
+
+### ✅ `verify.sh` lints hook commands for relative paths — session 19
+
+The finding above ("hook processes inherit the drifted cwd") made every
+relatively-pathed hook a silent no-op waiting to happen, and the pre-push gate
+was one. The rule went into `CLAUDE.md`; this is the tier-2 half: `verify.sh`
+fails when any `.claude/settings.json` hook command starts with `./` or
+`scripts/`, canaried at build time. The category — "a hook that silently does
+not run" — is retired for the path-shaped cause; a hook failing for any other
+reason still needs the sentinel-file test in the `update-config` procedure.
+
+### ⬜ The next category without a check: same-day sleep emission
+
+Three sessions, three causes, one arithmetic (`bucketStatistic .mean` over two
+same-day samples from one source). The instances are fixed; what does not exist
+is a check that a *future* sleep producer emits one sample per night per
+metric. A property test over the parsers' outputs — "no two `.sleepDurationHours`
+samples share a `(day, source)`" — would close the class for every current and
+future parser at once. Scoped, not built: it wants a shared fixture set the
+parser tests currently don't have.
 
 ### The original scoping, kept for the record
 
@@ -386,6 +408,35 @@ with guesses.
 | 17 | 2026-08-01 | 4 | **0** | 1 | 0 | 833 → 868 | **`ScoreWeighting` + `ScoreFactor`** — a card states how its number is formed rather than having it inferred from whether its weights are zero; **`ScoreBlend` + `SupportingSignal`** — one place for the two-step arithmetic every card was doing by hand, one constant for the judgement; **`RiskAttribution`** — attribution by *re-running* the published equation rather than decomposing it, so no coefficient is copied; `MetricType.interchangeableGroups`; `ContributorsFixture` shared by two suites; **three invariants that each found real instances while being written** — `testEveryDeclaredInputWithDataIsActuallyRead`, `testEveryScoringCardStatesHowItsNumberIsFormed`, `testAnUnweightedRowAlwaysSaysWhy`; `add-insight` carries all three | **Level with session 16 on the measured columns, slightly worse on rework.** 1 waste / 4 pushes = 0.25 against session 16's 0.08 and a 0.56 baseline; four pushes, four installs, zero red CI. **The one rework is a user-directed reversal, not a defect** — and the unmeasured column is worse than it looks: three more dead round trips to the shell's working directory, a tier-1 rule now failing for the **fifth** consecutive session |
 
 | 18 | 2026-08-01/02 | 7 (10 commits) | **0** | 1 | 1 (named below) | 868 → 902 | **`SampleCacheCodec`** — the cold-launch decode 965 ms → 4–6 ms, with a free one-way migration (the roadmap's named next item, closed); **`CardStateExport`** — the recalibration instrument, whose *first real use found five live miscalibrations*; `SleepInsight.Weight` one-table coefficients (gap 18); `ActivityDoseModel` + `exerciseMinutes` (data-opportunities #1); `sleepLatencyMinutes` via the nap-aware parser (#4); Withings bookkeeping excluded keyed on the typed parser's own map; `effectivePenalties` one pool for the substance dial and its shares; `comparisonWindowDays`, `minimumTrendSpanDays`, `judgementSamples` — each a category guard with a test shaped like the user's data | **Better than baseline, level with 17, behind 16.** 2 waste / 7 pushes = 0.29 against 0.56 baseline (16: 0.08, 17: 0.25). Zero red CI across seven pushes, seven installs. The rework is the sharpest lesson: the new export violated a *documented* trap on its own first use |
+
+| 19 | 2026-08-02 | 6 | **0** | 1 (named below) | 0 | 902 → 914 | **`scripts/bash-workdir-hook.sh`** — the ledger's six-session row, retired by the harness rather than by care, and its construction closed a silent pre-push-gate bypass (hook cwd inheritance) now also linted by `verify.sh`; **refresh coalescing** — concurrent pipelines join the running one; **`ModelInternalsExport`** — the third instrument, which *found a live parser defect on its first output* (Oura split nights); **`AppModel.memoized` + `LazyVStack` + detached export builds + breakdown prewarm + `SyncActivityPill`** — the performance/visibility pass; `VitalSignsCheck.Reading.historyDays`; `SplitNightTests` | **Better, and the first session with zero working-directory round trips after six sessions of them.** 1 waste / 6 pushes ≈ 0.17 against 18's 0.29 (16: 0.08). Zero red CI across six pushes, six installs, zero re-derivations. The rework is small and instructive: the export misquoted the 1.25 threshold as "1.2" — built and fixed the same day, caught by the user's first real export |
+
+### Session 19 notes
+
+**Red CI (0), six pushes, six installs.** Every push green first time. The
+`refs/ci/failed` glob for this session's six SHAs returns zero rows.
+
+**Rework (1), named.** `ModelInternalsExport`'s floors line printed
+`watchZ = 1.25` as "1.2" — the shared one-decimal formatter applied to a
+threshold, in the instrument that exists to quote thresholds. Introduced in
+`809ce84`, fixed in `8155740`, found by reading the user's first real export.
+
+**Re-derivations (0).** The audited docs were opened with work: the hook was
+built from the roadmap entry's own scoping (prepend, don't reject a path
+shape), and the substance/BP investigations started from what
+`activeContext.md` already recorded rather than re-establishing it.
+
+**The unmeasured column, finally at zero.** No dead round trips to the shell's
+working directory — the first such session since the row was opened. The hook
+did it; care did not.
+
+**What made the session cheap where it was cheap.** The instruments did the
+finding: the user's screenshots surfaced five display defects in one pass, the
+diagnostics log handed over the double-refresh with timestamps attached, and
+the model-internals export — built mid-session — caught the split-night parser
+defect *in its own first output*, plus settled the two-session-old "is 119
+Oura's?" question via the per-source split. Three of the six pushes were
+diagnosed almost entirely from artefacts the user could produce themselves.
 
 ### Session 18 notes
 

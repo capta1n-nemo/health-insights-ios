@@ -439,6 +439,34 @@ The Vitals Check fix, applied everywhere it was also true.
       inventory small enough to paste, plus a full JSON export, covering the
       unmodelled fields nobody working on the app has ever seen.
 
+### The hook-and-instruments session — done 2026-08-02 (`356e534` → `8155740`)
+
+Six pushes, all installed. Full narrative in `activeContext.md` ▸ "Current
+focus"; the shipped list:
+
+- [x] **The shell working-directory hook** (`scripts/bash-workdir-hook.sh`) —
+      the six-session standing ask, granted and built. Every `Bash` call is
+      anchored to the repo root by the harness. Its construction found and
+      closed a silent pre-push-gate bypass (hooks inherit the drifted cwd), and
+      `verify.sh` now lints hook commands for relative paths.
+- [x] **Five Vitals display defects** from the user's screenshots — doubled
+      units, cumulative metrics showing the latest sliver instead of the day's
+      total, Exercise Minutes missing from every Vitals category, a deviation
+      labelled as an absolute temperature, fitness-age arithmetic that failed
+      the reader's own subtraction.
+- [x] **Concurrent refreshes coalesce** — the diagnostics log showed two full
+      pipelines racing from launch, every provider fetched twice.
+- [x] **Settings ▸ Export my data ▸ Model internals** (`ModelInternalsExport`,
+      tested) — baselines with history-vs-floor, substance pool sizes, floors
+      quoted from constants, a month of nights per source.
+- [x] **Card-open and settings performance** — render-time model runs memoised
+      (`AppModel.memoized`), the card a `LazyVStack`, export documents built
+      detached behind per-section progress, breakdowns prewarmed off-main —
+      plus a `SyncActivityPill` naming background work on every tab.
+- [x] **Oura split nights combined** — the new export's first output caught
+      the third cause of "7.5 h reported as 4 h"; a night's periods now sum
+      (`SplitNightTests`). Proof item under "on the phone", below.
+
 ### Card consistency, Phase 2 — the remaining unique sections
 **Done 2026-08-01 (`dc5fae6`), bar the Body Composition scan entry, which the
 user deferred to a later session.**
@@ -727,33 +755,34 @@ not weighted, when almost every score should be weighted"*.
       that the Oura setup screen no longer raises the "Paste from your Mac?"
       prompt. (Vitals Check is no longer a card; its scan is a Readiness
       component.)
-- [ ] **The nap fix, proved from the data rather than by eye** (`c2afd04`).
-      Pull to refresh, then Settings ▸ Export my data ▸ inventory. Two numbers
-      settle it: `sleepDurationHours` median should rise from **5.62 h**, and
-      `restingHeartRate` max should fall from **119**. No re-sync is needed —
-      `sync()` pulls 730 days and the cache merge replaces a source's samples
-      wholesale, so an ordinary refresh rebuilds Oura's history.
-      **Attempted 2026-08-01 and it could not be settled either way**, which is
-      the finding. The export gives one merged distribution per signal, and
-      three sources feed `restingHeartRate`, so a maximum of 119 names nobody.
-      Fixed at the root: the inventory now carries a per-source breakdown for
-      every multi-source signal (`DataInventory.SourceStat`). **Re-export and
-      the two numbers become decidable** — read 119 off the *Oura* row, not the
-      merged one.
-- [ ] **The other half of the same defect, now fixed but not yet seen**
-      (this session). `HealthKitService.fetchSleep` keyed every nightly figure
-      on the calendar day each *segment* started, so a night crossing midnight
-      became two — the smaller a sliver. That is where the export's
-      `sleepDurationHours` **min of 0.01 h** and `sleepEfficiency` **min of 2%**
-      came from, and it is a second cause of the exact "7.5 h night reported as
-      4 h" symptom the Oura fix chased: Apple Health dated a night by its start
-      and Oura by its end, and `bucketStatistic` averages same-day samples, so
-      the two sources were a day apart and averaged into each other.
-      All of it now runs through `SleepNights` in InsightKit (14 tests), which
-      keys on `SleepOnset.night(of:)` — the rule the onset series already used,
-      and whose own doc comment had named the duration series as doing this
-      wrong. **After a refresh, expect the sleep median to rise and the 0.01 h
-      and 2% floors to disappear.**
+- [x] **The nap fix, proved from the data — settled 2026-08-02** by the
+      per-source inventory built for exactly this. `restingHeartRate` max 119
+      **is Oura's own row** (min 45 / median 55 / max 119), and Oura's raw
+      `lowest_heart_rate` carries the same 119 — so it is what the ring
+      reported for a real night, not parser contamination, and the earlier
+      ruling stands: the bound rejects the impossible, not the alarming.
+      `sleepDurationHours`' merged median rose 5.62 → 5.85. **Oura's own
+      median (4.94 vs Apple's 6.86) stayed low for a different reason** — the
+      split-night averaging found and fixed the same day, see below.
+- [x] **The midnight-crossing half, seen from data 2026-08-02.** The
+      `SleepNights` rewrite held — nights where both sources report agree
+      exactly in the model-internals nights table. The **0.01 h and 2% floors
+      persisted**, but the fresh per-source split shows both live on the
+      *Oura* rows, not Apple's — a 30-second type-`sleep` record (`oura.sleep.
+      total_sleep_duration` min = 30 s), which is the split-night class below,
+      not a HealthKit keying error. Clause outcome: median rose, floors traced
+      to a different cause and handed to the item that owns it.
+- [ ] **The split-night fix, proved from the next export** (`8155740`,
+      2026-08-02 — the third cause of "7.5 h reported as 4 h"; found by the
+      first model-internals export). Oura files a broken night as several
+      same-`day` records and the parser emitted each, so the day bucket
+      *averaged* them: four nights read at half of Apple's figure (07-31: 4.3
+      vs 8.7 h). `parseSleep` now sums a night's periods. After a refresh (or
+      Rebuild), re-export model internals: **the four nights (07-31, 07-29,
+      07-20, 07-11) should agree across sources**, Oura's duration median
+      should rise from **4.94 h**, and the 0.01 h duration / 2% efficiency
+      floors should go — a lone 30-second `sleep` record on a day with a real
+      night now sums into it rather than standing beside it.
 
 - [x] **A scrub line on every chart** (`4ba0c91`, installed). Only the energy
       curve had one. Added once inside `ScrollableMetricChart`, which seven charts
@@ -775,12 +804,11 @@ not weighted, when almost every score should be weighted"*.
       roadmap's top open item. `app-build` greps its own log and pushes the
       failing lines as a git ref; reading why CI went red is now a few hundred
       bytes instead of ~40 K tokens of build-step noise.
-- [ ] **On the phone, the sleep fix proved from data** — pull to refresh (or
-      Settings ▸ Troubleshooting ▸ **Rebuild data from providers**, which is
-      stronger), then export the inventory. Three things settle at once: whether
-      `sleepDurationHours`' median rises and its 0.01 h floor disappears, whether
-      `sleepEfficiency`'s 2% floor goes, and — from the **new per-source
-      breakdown** — whether `restingHeartRate`'s 119 was ever Oura's.
+- [x] **On the phone, the sleep fix proved from data — done 2026-08-02.** The
+      user ran Rebuild and exported: median rose (5.62 → 5.85 merged), the 119
+      is Oura's own (settled as real data), and the surviving 0.01 h / 2%
+      floors were traced to Oura split-night records — the successor item
+      above owns proving that fix.
 - [ ] **On the phone, the Body Composition card after the hatch change**
       (`df5140a`). `ImagePaint` inside a Swift Charts `AreaMark` compiles, but
       whether Charts tiles it as SwiftUI does is device-only. If the chart's water

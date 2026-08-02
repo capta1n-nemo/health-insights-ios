@@ -30,18 +30,89 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**A fourth export exists: Settings ▸ Export my data ▸ Model internals**
-(2026-08-02, built because the user asked what else a session needs). It answers
-*"what was the card's judgement made against?"* — the per-vital baseline table
-(value, baseline, z, **days of history vs the 7-day floor** — the
-diastolic-"not enough history" class), the substance comparison pools (**clean N
-vs after-use N** behind every "+X after use"), the floors and windows in force
-quoted from the constants, and the last month of nights per source (the layout
-that exposes date-keying bugs). `ModelInternalsExport` in InsightKit, tested.
-**Ask for it together with "card outputs" whenever the question is why a card
-judged something.**
+**The hook-and-instruments session (latest, 2026-08-02).** Six pushes
+(`356e534` → `8155740`), all CI-green first time, all installed. It opened with
+the user granting the six-session standing ask — the shell working-directory
+hook — and became a find-and-fix loop over their screenshots, diagnostics log
+and the new export's own first output.
 
-**The load-performance session (latest).** First half: `c0028f2`, CI green,
+### What shipped, in order
+
+1. **`scripts/bash-workdir-hook.sh`** — every `Bash` call is rewritten to
+   `cd <repo root> && …` by a `PreToolUse` hook. The cwd round-trip category is
+   retired by the harness. **Building it found a latent hole**: hook processes
+   inherit the shell's *drifted* cwd, so the relatively-pathed pre-push gate
+   could silently fail to run (exit 127 is non-blocking). Both hooks are now
+   `$CLAUDE_PROJECT_DIR`-absolute, the rule is in `CLAUDE.md`, and `verify.sh`
+   lints for relative hook commands (canaried).
+2. **Five Vitals display defects** from screenshots: doubled units ("99% %",
+   "1h 19m min", "185 cm m" — three call sites appending `metric.unit` by hand;
+   `MetricValueFormatter.detailedString` existed for this), cumulative metrics
+   showing the last *sample* instead of the day's total ("Steps: 10" at 3 pm),
+   Exercise Minutes in no Vitals category at all (promotion removed it from
+   Other data, nobody added the row), Readiness labelling a skin-temp deviation
+   "Body temperature", and fitness-age arithmetic that didn't survive the
+   reader's own subtraction (rounded vs unrounded difference).
+3. **Concurrent refreshes now coalesce.** The diagnostics log showed two full
+   pipelines racing from launch — every Oura GET issued twice. `RefreshGate`
+   can't stop it (it reads `lastRefreshedAt`, set at *completion*);
+   `refresh()` now records its running task and later callers join it. A
+   forced caller (rebuild, which just cleared caches) waits it out then runs.
+4. **Settings ▸ Export my data ▸ Model internals** — the third instrument:
+   per-vital baselines (value, baseline, z, **days of history vs the 7-day
+   floor**), substance pools (**clean N vs after-use N** behind every "+X after
+   use"), the floors quoted from the constants, and the last month of nights
+   per source. `VitalSignsCheck.Reading` now carries `historyDays` so the model
+   states the shortfall. **Ask for it beside "card outputs" whenever the
+   question is why a card judged something.**
+5. **Performance + visible progress** (user report: cards slow, settings hangs,
+   copy takes ages). Three real stalls: `InsightDetailView.body` ran whole
+   models over 231k samples *per render* (and re-ran them on every scrub) —
+   now `model.memoized(_:_:)` + a `LazyVStack`; the export screen built all
+   three documents synchronously in `body` — now detached with per-section
+   "Preparing…" rows; first-open breakdowns paid a full scan on main — now
+   prewarmed detached after `recompute()`, generation-guarded. Plus a
+   `SyncActivityPill` on every tab naming the running phase. **The rule that
+   generalises: a whole-sample model run has no business inside a SwiftUI
+   `body` un-memoised — body re-evaluates on every interaction.**
+6. **Oura split nights** — the new export's first real output caught the third
+   cause of "7.5 h reported as 4 h": Oura files a broken night as several
+   same-`day` records (`period` 0,1,2…), the parser emitted each, and the day
+   bucket *averages*. Four nights read at half of Apple's figure (07-31: 4.3 vs
+   8.7). `parseSleep` now groups by day: durations/stages sum, rates combine
+   sleep-time-weighted, efficiency in-bed-weighted (single-period nights keep
+   Oura's published figure exactly), latency is the *first* period's, RHR the
+   lowest low. `SplitNightTests`, shaped like the user's 07-31 night. No
+   migration: next sync rebuilds Oura's history through the corrected parser.
+
+### To verify on the device / next export
+
+- Cards should open near-instantly and scrub smoothly; Export my data opens
+  with spinners that resolve; the sync pill appears during pull-to-refresh.
+- Vitals rows read "99%", "1h 19m", "185 cm"; Steps/Active Energy show the
+  day's total; an Exercise Minutes row exists under Activity & mobility.
+- **Next model-internals export**: the four disagreeing nights (07-31, 07-29,
+  07-20, 07-11) should read the same from both sources, and the diagnostics
+  log should show one "Refresh started" per trigger (joiners log "joined the
+  one already running").
+
+### Open questions surfaced by the export, deliberately not built
+
+- **The cuff baseline starves on a source split**: systolic shows "1 of 28
+  days" of baseline despite 8 readings in 30 days, because the vitals scan
+  judges against one device and the readings are split across "Manual entry"
+  and "Health via Apple Health" — the same physical cuff under two labels.
+  Merging manual-ish sources for sparse clinical metrics is a design decision
+  for the user, not a session.
+- **Oura contributes no bedtime** (`sleepOnset` is Apple-Health-only — 127
+  nights vs Oura's 170), so consistency is judged on fewer nights than exist.
+  `bedtime_start` is already decoded; emitting onset from it needs the
+  timezone question answered (the parser resolves against `Calendar.current`).
+- Readiness's driver list duplicates signals (components + vitals scan, HRV
+  three times); Heart Health quotes two unlabelled values for one metric
+  (scored baseline vs latest centile). Both wording/design passes.
+
+**The load-performance session (previous).** First half: `c0028f2`, CI green,
 installed. "Work on load performance, fix bugs, best judgment": the two items
 taken were the roadmap's own top two — the cold-launch cache decode (see
 "Immediate next steps", now closed there: JSON → `SampleCacheCodec`,

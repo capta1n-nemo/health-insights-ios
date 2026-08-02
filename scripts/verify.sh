@@ -258,6 +258,22 @@ if [ -n "$uncommitted_scripts" ]; then
     fail=1
 fi
 
+# --- Hook commands must be absolute ------------------------------------------
+#
+# Hook processes inherit the Bash tool's *drifted* working directory, so a
+# relative `./scripts/foo.sh` in a hook fails with exit 127 — which is a
+# non-blocking hook error, not a denial, so the gate it implements is silently
+# skipped. Found 2026-08-02: the pre-push gate had exactly this hole, and the
+# workdir hook built to fix cwd drift was itself broken by it. The rule is in
+# CLAUDE.md; this is the check that survives a context reset.
+if command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
+    relative_hooks=$(jq -r '[.hooks // {} | .[][] | .hooks[]? | select(.type == "command") | .command | select(startswith("./") or startswith("scripts/"))] | join(", ")' .claude/settings.json 2>/dev/null || true)
+    if [ -n "$relative_hooks" ]; then
+        note "Hook commands in .claude/settings.json must be \$CLAUDE_PROJECT_DIR-absolute (they inherit the shell's drifted cwd and fail silently): $relative_hooks"
+        fail=1
+    fi
+fi
+
 # --- No half-done markers in the roadmap -----------------------------------
 #
 # `- [~]` means "some clauses of this are done and some are not", and it is the
