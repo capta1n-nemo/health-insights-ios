@@ -309,8 +309,8 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :54
-  - `HealthInsightsApp` :4
+  - `FileImportOutcome` :55
+  - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
   - `SyncActivityPill` :75

@@ -1,4 +1,5 @@
 import SwiftUI
+import InsightKit
 
 @main
 struct HealthInsightsApp: App {
