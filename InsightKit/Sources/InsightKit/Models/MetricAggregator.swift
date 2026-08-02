@@ -102,6 +102,8 @@ public extension SourceSeries {
 
         var order: [Date] = []
         var groups: [Date: [Double]] = [:]
+        // Per-path totals, for `.sum` only — see the `.sum` case below.
+        var totalsByPath: [Date: [String: Double]] = [:]
         // `Calendar.dateInterval(of:for:)` resolves timezone and DST rules, and
         // calling it once per sample was by far the most expensive thing in this
         // function: on a three-year heart-rate series (~78k readings) it was
@@ -131,6 +133,9 @@ public extension SourceSeries {
             }
             if groups[start] == nil { order.append(start) }
             groups[start, default: []].append(sample.value)
+            if statistic == .sum {
+                totalsByPath[start, default: [:]][sample.source.id, default: 0] += sample.value
+            }
         }
 
         return order.compactMap { start in
@@ -142,7 +147,24 @@ public extension SourceSeries {
             switch statistic {
             case .mean: value = mean
             case .median: value = median
-            case .sum: value = values.reduce(0, +)
+            // **The largest single path's total, not the sum of every reading.**
+            //
+            // A `SourceSeries` is one *device family*, and `deviceFamily`
+            // deliberately collapses the paths a device arrives by — so the
+            // "oura" series holds both Oura's own daily step total (one reading
+            // of ~4,400) and the same day mirrored into Apple Health as ~300
+            // interval readings that add to the same ~4,400. Adding them
+            // reported roughly double the steps the user took, and the same for
+            // active energy. Found 2026-08-02 in an outside analysis of the
+            // user's export, which spotted one path's median of 7 beside
+            // another's median of 4,435 for one metric.
+            //
+            // The max rather than a preferred path: when both paths are
+            // complete they agree, and when one is mid-sync it is short, so the
+            // larger is the more complete account of the day. Deduplication
+            // cannot catch this — the readings are neither the same minute nor
+            // the same value, they are a total and its parts.
+            case .sum: value = totalsByPath[start]?.values.max() ?? values.reduce(0, +)
             }
             return AggregatedPoint(date: start, value: value, mean: mean,
                                    median: median, min: sorted[0],

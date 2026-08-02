@@ -97,6 +97,31 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Fifth push — a real double-count, and four modules designed.** The user
+brought an outside (Gemini) analysis of their full export plus a brief for four
+new modules. Three of its claims were checked against the code before anything
+was acted on; the scorecard and the designs are in **`docs/planned-modules.md`**,
+which is now the architecture of record for that work.
+
+- **Confirmed defect, fixed: cumulative metrics double-counted.**
+  `deviceFamily` collapses the paths one device arrives by — right for a mean,
+  catastrophic for a sum. Oura writes one daily step total (~4,400) and Apple
+  Health mirrors the same day as ~300 intervals adding to the same ~4,400, and
+  `bucketed(statistic: .sum)` added both. **Steps and active energy read about
+  double** on the Vitals list and every day-or-wider chart. Now the largest
+  single path's total per bucket (`MetricAggregator`), and per source rather
+  than across sources in the Vitals row. `CumulativeDoubleCountTests`.
+  **Why it survived so long: z-scores were unharmed** — a doubled series has a
+  doubled baseline — so every departure looked right while the absolute
+  numbers were wrong. Worth remembering as a class: *a consistent scale error
+  is invisible to every relative measure in this app.*
+- **Wrong claim, rejected:** VO₂max does *not* mix Apple Watch and Oura;
+  `VitalReader` picks one series and never blends (`VitalReader.swift:109`).
+- **Cheap unlock found:** the Gallagher %BF table is already in the repo
+  (`BodyCompositionInsight.healthyBodyFatRange`), so "none of this card's
+  signals has a published norm" is one `PeerStandingModel` case away from
+  being false.
+
 **Fourth push — Substance Impact rebuilt as harm reduction (user ruling).**
 The user's words are quoted in full in `docs/card-sections.md` ▸ "Harm
 reduction"; the short version is that the dial must read **measured impact,

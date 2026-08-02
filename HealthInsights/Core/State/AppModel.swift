@@ -586,7 +586,7 @@ final class AppModel {
         var families: [MetricType: Set<String>] = [:]
         // Newest day's running total for cumulative metrics, tracked in the
         // same pass — the day it belongs to, and the sum of that day's samples.
-        var dayTotals: [MetricType: (day: Date, total: Double)] = [:]
+        var dayTotals: [MetricType: (day: Date, perSource: [String: Double])] = [:]
         let calendar = Calendar.current
         for sample in samples {
             if let current = latest[sample.type] {
@@ -595,16 +595,18 @@ final class AppModel {
                 latest[sample.type] = sample
             }
             families[sample.type, default: []].insert(sample.source.deviceFamily)
+            // Newest day's total **per source**, never across sources. Two
+            // phones and a ring all count the same walk, and one device's
+            // direct feed plus its Apple Health mirror count it twice over
+            // again — so this row read a multiple of the steps actually taken.
+            // The winner is picked below, once every source's own total is in.
             if sample.type.bucketStatistic == .sum {
                 let day = calendar.startOfDay(for: sample.start)
-                if let current = dayTotals[sample.type] {
-                    if day > current.day {
-                        dayTotals[sample.type] = (day, sample.value)
-                    } else if day == current.day {
-                        dayTotals[sample.type] = (day, current.total + sample.value)
-                    }
-                } else {
-                    dayTotals[sample.type] = (day, sample.value)
+                let known = dayTotals[sample.type]?.day
+                if known == nil || day > known! {
+                    dayTotals[sample.type] = (day, [sample.source.id: sample.value])
+                } else if day == known! {
+                    dayTotals[sample.type]?.perSource[sample.source.id, default: 0] += sample.value
                 }
             }
         }
@@ -612,7 +614,7 @@ final class AppModel {
             let total = dayTotals[sample.type]
             return VitalsSummary(latest: sample,
                                  sourceCount: families[sample.type]?.count ?? 1,
-                                 displayValue: total?.total ?? sample.value,
+                                 displayValue: total?.perSource.values.max() ?? sample.value,
                                  displayDate: total?.day ?? sample.start)
         }
         vitalsSummaryCache = built

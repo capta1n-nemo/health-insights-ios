@@ -98,6 +98,12 @@ So:
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
 - `docs/progress.md` -> Feature roadmap checklist.
+- `docs/planned-modules.md` -> **Designed, not built.** The architecture of
+  record for the four modules from the 2026-08-02 brief — dynamic
+  weighting/velocity, GLP-1 pharmacokinetics, LiDAR dimensions + BMI override,
+  somatotype: models, service interfaces, algorithms, UI shape, build order and
+  the open decisions. Also scores the outside analysis that prompted them,
+  claim by claim, so a wrong diagnosis isn't re-acted on.
 - `docs/card-sections.md` -> **What every card renders, and what each section
   does.** The nine-by-fourteen matrix, the order and the rationale behind it,
   the gate table, the per-section feature audit (arrives open or closed, empty

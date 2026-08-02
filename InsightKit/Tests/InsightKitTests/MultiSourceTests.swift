@@ -115,3 +115,81 @@ final class MultiSourceTests: XCTestCase {
         XCTAssertEqual(recent.mostRecent?.value, 58)
     }
 }
+
+/// The double-count an outside analysis of the user's export found on
+/// 2026-08-02: one metric arriving as a daily *total* down one path and as the
+/// same day's *intervals* down another, both from the same device.
+///
+/// `deviceFamily` deliberately collapses those paths into one series — which is
+/// right for a mean or a median and catastrophic for a sum, because the two
+/// paths are a total and its own parts. The export made it visible as one
+/// path's median of 7 steps beside another's median of 4,435.
+final class CumulativeDoubleCountTests: XCTestCase {
+
+    private let day = Calendar.current.startOfDay(
+        for: Date(timeIntervalSince1970: 1_780_000_000))
+
+    private func steps(_ value: Double, _ source: MetricSource,
+                       hour: Double) -> HealthMetricSample {
+        HealthMetricSample(type: .stepCount, value: value,
+                           start: day.addingTimeInterval(hour * 3600), source: source)
+    }
+
+    /// Oura's own daily total, plus the same day mirrored into Apple Health as
+    /// intervals adding to the same figure. One walk, not two.
+    private var oneDayTwoWays: [HealthMetricSample] {
+        let direct = MetricSource.oura
+        let mirrored = MetricSource(id: "apple_health/oura", displayName: "Oura via Apple Health")
+        var out = [steps(4_400, direct, hour: 23.5)]
+        for hour in 0..<22 {
+            out.append(steps(200, mirrored, hour: Double(hour)))
+        }
+        return out
+    }
+
+    func testADailyTotalIsNotAddedToItsOwnMirroredIntervals() throws {
+        let breakdown = MultiSource.breakdown(.stepCount, from: oneDayTwoWays)
+        // Both paths are one device, so this is deliberately a single series.
+        XCTAssertEqual(breakdown.sources.count, 1, "the same ring is one instrument")
+
+        let buckets = try XCTUnwrap(breakdown.sources.first)
+            .bucketed(by: .day, statistic: .sum)
+        let total = try XCTUnwrap(buckets.first).value
+        XCTAssertEqual(total, 4_400, accuracy: 1,
+                       "4,400 steps reported twice is still 4,400 steps — was 8,800")
+    }
+
+    /// A single path is untouched: the sum of a day's intervals is that day.
+    func testASinglePathStillSumsItsIntervals() throws {
+        let mirrored = MetricSource(id: "apple_health/oura", displayName: "Oura via Apple Health")
+        let samples = (0..<10).map { steps(100, mirrored, hour: Double($0)) }
+        let buckets = try XCTUnwrap(MultiSource.breakdown(.stepCount, from: samples)
+            .sources.first).bucketed(by: .day, statistic: .sum)
+        XCTAssertEqual(try XCTUnwrap(buckets.first).value, 1_000, accuracy: 1)
+    }
+
+    /// The partially-synced case: the fuller path is the day's account, so a
+    /// mid-sync mirror must not shrink a complete direct total.
+    func testTheMoreCompletePathWins() throws {
+        let direct = MetricSource.oura
+        let mirrored = MetricSource(id: "apple_health/oura", displayName: "Oura via Apple Health")
+        let samples = [steps(4_400, direct, hour: 23.5),
+                       steps(150, mirrored, hour: 1)]   // only one interval synced so far
+        let buckets = try XCTUnwrap(MultiSource.breakdown(.stepCount, from: samples)
+            .sources.first).bucketed(by: .day, statistic: .sum)
+        XCTAssertEqual(try XCTUnwrap(buckets.first).value, 4_400, accuracy: 1)
+    }
+
+    /// Averaged metrics are unaffected — the fix is scoped to sums, where a
+    /// total and its parts are the only readings that can be added twice.
+    func testMeanMetricsAreUnaffected() throws {
+        let direct = MetricSource.oura
+        let samples = [HealthMetricSample(type: .restingHeartRate, value: 50,
+                                          start: day, source: direct),
+                       HealthMetricSample(type: .restingHeartRate, value: 60,
+                                          start: day.addingTimeInterval(3600), source: direct)]
+        let buckets = try XCTUnwrap(MultiSource.breakdown(.restingHeartRate, from: samples)
+            .sources.first).bucketed(by: .day, statistic: .mean)
+        XCTAssertEqual(try XCTUnwrap(buckets.first).value, 55, accuracy: 0.001)
+    }
+}
