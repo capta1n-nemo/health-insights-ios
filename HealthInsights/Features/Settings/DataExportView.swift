@@ -66,7 +66,9 @@ struct DataExportView: View {
                     pendingHistories: pending, samples: samples, profile: profile,
                     buildStamp: stamp, now: Date()),
                 modelInternals: ModelInternalsExport.markdown(
-                    samples: samples, events: events, buildStamp: stamp, now: Date()),
+                    samples: samples, events: events,
+                    raw: rawGroups.flatMap(\.samples),
+                    buildStamp: stamp, now: Date()),
                 signalCount: DataInventory.rows(samples: samples, rawGroups: rawGroups).count)
         }.value
         documents = built

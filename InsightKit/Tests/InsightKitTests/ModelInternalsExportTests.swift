@@ -17,9 +17,54 @@ final class ModelInternalsExportTests: XCTestCase {
     }
 
     private func export(samples: [HealthMetricSample],
-                        events: [SubstanceEvent] = []) -> String {
-        ModelInternalsExport.markdown(samples: samples, events: events,
+                        events: [SubstanceEvent] = [],
+                        raw: [RawMetricSample] = []) -> String {
+        ModelInternalsExport.markdown(samples: samples, events: events, raw: raw,
                                       buildStamp: "test-build", now: now)
+    }
+
+    private func rawSleep(_ identifier: String, _ value: RawValue,
+                          start: Date, hours: Double = 4) -> RawMetricSample {
+        RawMetricSample(id: UUID(), identifier: identifier,
+                        displayName: identifier, value: value, unit: "",
+                        start: start, end: start.addingTimeInterval(hours * 3600),
+                        source: .oura)
+    }
+
+    /// The instrument for a night the two sources cannot agree on: the raw
+    /// segments, typed, with whether each counted. Shaped like 2026-07-29 —
+    /// a 4.3 h `long_sleep` plus a 4.2 h `late_nap` that Apple Health counts
+    /// into the night and Oura's own typing excludes.
+    func testDisagreeingNightExportsItsSegmentsWithTypes() {
+        let nightStart = daysAgo(3, hour: 2)
+        let napStart = daysAgo(3, hour: 8)
+        let raw = [
+            rawSleep("oura.sleep.total_sleep_duration", .number(4.3 * 3600),
+                     start: nightStart, hours: 4.3),
+            rawSleep("oura.sleep.type", .text("long_sleep"), start: nightStart),
+            rawSleep("oura.sleep.total_sleep_duration", .number(4.2 * 3600),
+                     start: napStart, hours: 4.2),
+            rawSleep("oura.sleep.type", .text("late_nap"), start: napStart)
+        ]
+        let text = export(samples: [], raw: raw)
+        XCTAssertTrue(text.contains("Oura sleep segments"), text)
+        XCTAssertTrue(text.contains("long_sleep"), text)
+        XCTAssertTrue(text.contains("late_nap"), text)
+        XCTAssertTrue(text.contains("no — nap"),
+                      "the excluded segment says it was excluded")
+        XCTAssertTrue(text.contains("4.2 h"), "and carries the missing hours")
+    }
+
+    /// An ordinary single-segment night is not worth a row — the section only
+    /// lists the days that need explaining, and vanishes entirely when none do.
+    func testOrdinaryNightsProduceNoSegmentsSection() {
+        let raw = [
+            rawSleep("oura.sleep.total_sleep_duration", .number(7.5 * 3600),
+                     start: daysAgo(2, hour: 1), hours: 7.5),
+            rawSleep("oura.sleep.type", .text("long_sleep"), start: daysAgo(2, hour: 1))
+        ]
+        let text = export(samples: [], raw: raw)
+        XCTAssertFalse(text.contains("Oura sleep segments"), text)
     }
 
     /// The floors section quotes the constants in force rather than restating

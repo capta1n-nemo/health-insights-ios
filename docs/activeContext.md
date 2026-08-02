@@ -97,6 +97,7 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+- ~~F8 split nights~~ **rebuilt and re-exported on build 177: still split, values byte-identical** — the grouping fix is not the story. Diagnosis narrowed: the missing halves are almost certainly records Oura itself types `late_nap`/`rest` (a morning re-sleep), which `isNight` excludes while Apple Health's path sums every segment. The internals export now prints the raw Oura segments (type, hours, counted-or-not) for any day with several segments or a nap — the next export settles it, and the remaining question is a CONVENTION (should a morning re-sleep join the night, matching our Apple path, or stay a nap, matching Oura's own app?) — the user's call, since it moves the Sleep score materially on those nights.
 - The review's full ledger with file:line references survives only in this
   entry — the scratchpad findings file dies with the container.
 

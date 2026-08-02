@@ -431,8 +431,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :217
-  - `OtherDataListView` :230
+  - `FullExport` :219
+  - `OtherDataListView` :232
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

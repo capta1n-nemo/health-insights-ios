@@ -30,6 +30,7 @@ public enum ModelInternalsExport {
 
     public static func markdown(samples: [HealthMetricSample],
                                 events: [SubstanceEvent],
+                                raw: [RawMetricSample] = [],
                                 buildStamp: String,
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> String {
@@ -47,6 +48,7 @@ public enum ModelInternalsExport {
         out.append(contentsOf: baselineSection(samples: samples, now: now, calendar: calendar))
         out.append(contentsOf: substanceSection(samples: samples, events: events, now: now))
         out.append(contentsOf: nightsSection(samples: samples, now: now, calendar: calendar))
+        out.append(contentsOf: ouraSegmentsSection(raw: raw, now: now, calendar: calendar))
         return out.joined(separator: "\n")
     }
 
@@ -191,6 +193,72 @@ public enum ModelInternalsExport {
         return out
     }
 
+    /// The raw Oura sleep records behind the derived nights above — only the
+    /// days that need explaining: more than one segment, or any segment the
+    /// night parser excludes as a nap.
+    ///
+    /// Written for the four nights (07-31, 07-29, 07-20, 07-11) that read half
+    /// from Oura and whole from Apple Health *after* the same-day-period fix
+    /// was installed and the history rebuilt — values byte-identical across a
+    /// re-parse, which rules the grouping out and leaves the type filter. The
+    /// hypothesis this table settles: those nights' missing hours are records
+    /// Oura itself types `late_nap`/`rest` (a morning re-sleep), which
+    /// `OuraResponseParser.isNight` excludes by design while Apple Health's
+    /// path sums every segment of the night. If that is what the export shows,
+    /// the disagreement is two vendors defining "the night" differently — a
+    /// convention to choose, not a parser to fix.
+    private static func ouraSegmentsSection(raw: [RawMetricSample], now: Date,
+                                            calendar: Calendar) -> [String] {
+        let cutoff = now.addingTimeInterval(-Double(nightsTailDays) * 86_400)
+        let durations = raw.filter {
+            $0.identifier == "oura.sleep.total_sleep_duration" && $0.start >= cutoff
+        }
+        guard !durations.isEmpty else { return [] }
+        // Fields of one record share the record's start instant, which is the
+        // only join the raw pile keeps.
+        let typeByStart = Dictionary(
+            raw.filter { $0.identifier == "oura.sleep.type" && $0.start >= cutoff }
+                .compactMap { s -> (Date, String)? in
+                    guard case .text(let t) = s.value else { return nil }
+                    return (s.start, t)
+                },
+            uniquingKeysWith: { first, _ in first })
+
+        struct Segment { let start: Date; let hours: Double; let type: String }
+        let byDay = Dictionary(grouping: durations.compactMap { s -> Segment? in
+            guard let seconds = s.numericValue else { return nil }
+            return Segment(start: s.start, hours: seconds / 3600,
+                           type: typeByStart[s.start] ?? "?")
+        }) { calendar.startOfDay(for: $0.start) }
+
+        let needsExplaining = byDay.filter { _, segments in
+            segments.count > 1
+                || segments.contains { !OuraResponseParser.isNight($0.type) }
+        }
+        guard !needsExplaining.isEmpty else { return [] }
+
+        var out = ["### Oura sleep segments — days with more than one, or with naps"]
+        out.append("_The raw records behind the Oura rows above. `long_sleep` and "
+                   + "`sleep` count toward the night; `late_nap` and `rest` are naps "
+                   + "and deliberately do not. A night that reads shorter from Oura "
+                   + "than from Apple Health usually has its missing hours sitting "
+                   + "here under a nap type — Oura calling a morning re-sleep a nap "
+                   + "where Apple counts it into the night._")
+        out.append("| starts | type | asleep | counted as night? |")
+        out.append("|---|---|---|---|")
+        for (_, segments) in needsExplaining.sorted(by: { $0.key > $1.key }) {
+            for segment in segments.sorted(by: { $0.start < $1.start }) {
+                let counted = OuraResponseParser.isNight(segment.type) ? "yes" : "no — nap"
+                out.append("| \(timestamp(segment.start, calendar: calendar)) "
+                           + "| \(segment.type) "
+                           + "| \(String(format: "%.1f h", segment.hours)) "
+                           + "| \(counted) |")
+            }
+        }
+        out.append("")
+        return out
+    }
+
     // MARK: - Formatting, kept Linux-safe (no DateFormatter)
 
     private static func num(_ value: Double) -> String {
@@ -202,6 +270,13 @@ public enum ModelInternalsExport {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d",
                       parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    private static func timestamp(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(format: "%04d-%02d-%02d %02d:%02d",
+                      parts.year ?? 0, parts.month ?? 0, parts.day ?? 0,
+                      parts.hour ?? 0, parts.minute ?? 0)
     }
 
     private static func daysAgo(_ date: Date, now: Date) -> String {
