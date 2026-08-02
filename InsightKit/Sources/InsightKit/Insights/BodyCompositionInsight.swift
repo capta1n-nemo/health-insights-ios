@@ -415,16 +415,25 @@ public struct BodyCompositionInsight: InsightModel {
     /// height. Both are needed to compute it, but height is a constant here: it
     /// is the only thing on this card that cannot change between two readings,
     /// so it is what the score is measured *against* rather than something
-    /// moving it. It stays a charted input at weight 0.
-    /// **Three routes now, and the middle one is new** (2026-08-02): a measured
-    /// fat fraction, then an estimate from the reader's own *dimensions*, then
-    /// BMI. `build` is the waist-and-height estimate — see `BuildAssessment`.
+    /// moving it. **It is therefore not a contributor at all** — this doc used
+    /// to say it "stays a charted input at weight 0", and it never was one:
+    /// `trackedNotScored` emits muscle mass and the medication level, and has
+    /// never emitted height. The words claimed a row the code does not draw.
     ///
-    /// The ordering is the same "prefer the better instrument" argument that
-    /// put fat ahead of BMI in the first place. Relative Fat Mass is validated
-    /// against DXA and BMI is not validated against anything except itself, so
-    /// where a waist measurement exists it displaces BMI — and where a scale
-    /// reports fat directly, that still wins over both.
+    /// **Three routes: a measured fat fraction, an estimate from the reader's
+    /// own dimensions, then BMI.** The ordering is the same "prefer the better
+    /// instrument" argument that put fat ahead of BMI: Relative Fat Mass is
+    /// validated against DXA and BMI is validated against nothing but itself.
+    ///
+    /// ⚠️ **The middle route is unreachable today, and not because of a
+    /// mis-wiring.** It needs a waist measurement, and nothing in this app can
+    /// yet produce one — `BodyDimensions` is a type with no input, no storage
+    /// and no source, because the LiDAR capture it was designed around is a
+    /// roadmap note (`docs/planned-modules.md`). So `build` is always nil at the
+    /// one call site, and the route is dead code that a reader of the audit
+    /// reasonably mistook for a bug. It is kept, and kept **tested**, so that it
+    /// works the day a waist arrives rather than being rediscovered then; what
+    /// is fixed here is the comment claiming it already displaces BMI.
     static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?,
                       build: BuildAssessment? = nil)
         -> (value: Double, metric: MetricType)? {

@@ -353,6 +353,35 @@ EOF
     fi
 fi
 
+# --- A test that asserts nothing is worse than no test ---------------------
+#
+# `ZZProbeTests` sat in the suite for several sessions: a scratch diagnostic
+# that printed four numbers, asserted nothing, and passed every run. It cost
+# build time on every push and protected nothing, while reading in the test
+# count as though it did.
+#
+# That is the same failure as the two vacuous fixtures caught on 2026-08-02
+# (jitter `(day * 3) % 3`, which is identically zero) — a test that cannot
+# fail. The general form is uncatchable by grep; a whole *file* with no
+# assertion in it is not, and it is the cheap end of the same category.
+#
+# XCTAssert*, XCTUnwrap, XCTFail and swift-testing's #expect/#require all
+# count. A file that has none of them is not testing anything.
+if [ -d InsightKit/Tests ]; then
+    noassert=""
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        grep -qE 'XCTAssert|XCTUnwrap|XCTFail|#expect|#require' "$f" || \
+            noassert="$noassert $(basename "$f")"
+    done <<EOF
+$(grep -rlE '(final )?class [A-Za-z]+: XCTestCase|@Test' InsightKit/Tests 2>/dev/null)
+EOF
+    if [ -n "$noassert" ]; then
+        note "Test files that assert nothing — a test that cannot fail proves nothing and still costs a build. Give it an assertion or delete it:$noassert"
+        fail=1
+    fi
+fi
+
 # --- No half-done markers in the roadmap -----------------------------------
 #
 # `- [~]` means "some clauses of this are done and some are not", and it is the
