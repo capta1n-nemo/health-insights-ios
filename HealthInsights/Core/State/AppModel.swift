@@ -232,29 +232,6 @@ final class AppModel {
         return summary.sentence
     }
 
-    /// Import anything the share-sheet **action** left in the App Group inbox.
-    ///
-    /// The action extension can copy bytes and nothing more — it has its own
-    /// sandbox, its own memory ceiling, and no reach into SwiftData — so it
-    /// stages the file and tells the reader to open the app. This is the other
-    /// end of that: called on launch and on every return to the foreground,
-    /// running the *same* `importSharedFile` path a directly-shared file takes.
-    /// One importer, two doors.
-    ///
-    /// Silent when there is nothing waiting, which is almost always. It returns
-    /// the last summary so a caller can surface it, and the file is removed
-    /// only after the import has run — a crash mid-import leaves the file to be
-    /// retried, and `ShotsyImportService` is idempotent, so retrying is free.
-    @discardableResult
-    func drainSharedInbox() async -> String? {
-        var last: String?
-        for url in SharedInbox.pending() {
-            last = await importSharedFile(at: url)
-            SharedInbox.remove(url)
-        }
-        return last
-    }
-
     /// True while a shared file is being read, so the UI can say so.
     private(set) var isImporting = false
 

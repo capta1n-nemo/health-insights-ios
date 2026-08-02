@@ -97,39 +97,6 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
-**Sixteenth push — the share sheet's bottom row.** *"why is it not in the
-bottom like other 3 apps that support actions, I want an action."*
-
-- **It is a different mechanism from the row above.** The top app row was
-  solved by declaring the type; the bottom list is **Action Extensions**, which
-  run in their own process. `ShotsyImportAction` is that target — the first
-  time this project has had more than one.
-- **The extension copies bytes and nothing else.** It has its own memory
-  ceiling, and a Shotsy backup is several hundred SwiftData inserts plus a full
-  re-score; doing that in an extension is how one gets killed mid-write. It
-  stages the file into the App Group container and says *"open Health Insights
-  and it will be imported"* — which is true, and is what the copy must not
-  overclaim.
-- **`SharedInbox`** (InsightKit, 7 tests) is the whole contract: the group id,
-  the directory, the staged file name and the drain order. The container half
-  is behind `#if canImport(Darwin)`; everything decidable without a container
-  is tested — including that a traversal-shaped name can't become a dotfile,
-  which `ordered` skips and would have staged a file the app then never saw.
-- `AppModel.drainSharedInbox()` runs on launch **and** on every return to the
-  foreground — coming back from a share sheet resumes the app rather than
-  launching it — and calls the same `importSharedFile` a direct share takes.
-  One importer, two doors.
-- ⚠️ **The one thing that can break the deploy.** App Groups are not available
-  to free personal development teams. CI cannot see this (it builds with
-  `CODE_SIGNING_ALLOWED=NO`), so a green CI and a signing failure naming that
-  capability is the expected shape of the failure. `docs/deployment.md` has the
-  two-step removal, and nothing else depends on the group.
-- **File renames and new targets are cheap here**: the project uses
-  `PBXFileSystemSynchronizedRootGroup`, so the extension's folder needs no
-  per-file `pbxproj` entries. Its Info.plist and entitlements live in
-  `Support/` for exactly that reason — a plist swept into a synchronized group
-  is copied into the bundle a second time as a resource.
-
 **Fifteenth push — the Data tab is searchable.** It lists every metric with
 data, every cuff reading, the substance log, the regimen, side effects and the
 whole unmodelled catalogue — several hundred rows on this phone — so "where is

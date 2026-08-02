@@ -9,22 +9,5 @@
          available to free personal development teams. -->
     <key>com.apple.developer.healthkit</key>
     <true/>
-
-    <!-- Shared with the ShotsyImportAction extension, which is the share
-         sheet's bottom row. The extension copies a shared backup into this
-         container and the app drains it on launch and on foreground; an
-         extension has no other way to hand bytes to its containing app.
-
-         Must match `SharedInbox.appGroupIdentifier` and the same key in
-         Support/ShotsyImportAction.entitlements. A mismatch produces no error —
-         just an inbox that is always empty.
-
-         ⚠️ Not available to free personal development teams. If signing starts
-         failing on the deploy Mac and names this capability, remove the
-         extension target and both of these keys; nothing else depends on it. -->
-    <key>com.apple.security.application-groups</key>
-    <array>
-        <string>group.com.jasonsalway.healthinsights</string>
-    </array>
 </dict>
 </plist>

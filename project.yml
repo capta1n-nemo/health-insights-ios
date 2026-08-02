@@ -24,10 +24,6 @@ targets:
       - path: HealthInsights
     dependencies:
       - package: InsightKit
-      # The share sheet's bottom row. Embedded into the app, which is what
-      # makes it install alongside it.
-      - target: ShotsyImportAction
-        embed: true
     info:
       path: Support/Info.plist
     settings:
@@ -41,34 +37,4 @@ targets:
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
-        SWIFT_EMIT_LOC_STRINGS: YES
-
-  # The share sheet's *bottom* row — Action Extensions, which is a different
-  # mechanism from the document type that put the app in the row above. It
-  # copies a shared Shotsy backup into the App Group container; the app drains
-  # it on launch and on foreground. See `SharedInbox`.
-  #
-  # Its Info.plist and entitlements live in Support/ rather than beside the
-  # source, because the sources are a synchronized folder and a plist swept in
-  # as a resource is copied into the bundle twice.
-  ShotsyImportAction:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: ShotsyImportAction
-    dependencies:
-      - package: InsightKit
-    info:
-      path: Support/ShotsyImportAction-Info.plist
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jasonsalway.healthinsights.ShotsyImportAction
-        PRODUCT_NAME: ShotsyImportAction
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
-        CODE_SIGN_ENTITLEMENTS: Support/ShotsyImportAction.entitlements
-        SWIFT_VERSION: "5.9"
-        TARGETED_DEVICE_FAMILY: "1"
-        GENERATE_INFOPLIST_FILE: NO
-        SKIP_INSTALL: YES
         SWIFT_EMIT_LOC_STRINGS: YES

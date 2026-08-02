@@ -16,31 +16,6 @@ this repo:
   Simulators ▸ "Connect via network"), so `devicectl` can reach it without a
   cable.
 
-### The App Group, and the one thing that could break signing
-
-`ShotsyImportAction` (the share sheet's bottom row, added 2026-08-02) needs
-`com.apple.security.application-groups` on **both** the app and the extension —
-an extension has no other way to hand bytes to its containing app. The group is
-`group.com.jasonsalway.healthinsights`, declared in
-`SharedInbox.appGroupIdentifier` and repeated in the two entitlements files.
-
-**App Groups are not available to free personal development teams.** If a
-deploy starts failing at the signing step and names that capability, that is
-the cause and the fix is to remove the extension, not to work around it:
-
-1. Drop the `ShotsyImportAction` target from `project.yml` and
-   `HealthInsights.xcodeproj/project.pbxproj` (all the `AAAA…AA2x` objects).
-2. Remove `com.apple.security.application-groups` from
-   `Support/HealthInsights.entitlements`.
-
-Nothing else depends on it. The top-row share sheet — `CFBundleDocumentTypes`
-plus `UTImportedTypeDeclarations` — imports files with no entitlement at all
-and keeps working.
-
-CI cannot tell you about this: `xcodebuild` runs there with
-`CODE_SIGNING_ALLOWED=NO`, so a green CI and a red deploy is the expected shape
-of this particular failure.
-
 ### Runner-keychain signing gotcha
 
 If the Actions runner is installed as a background service (not run

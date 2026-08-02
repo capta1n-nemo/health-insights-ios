@@ -4,11 +4,7 @@ import InsightKit
 /// Shows onboarding until complete, then the main tabbed experience.
 struct RootView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.scenePhase) private var scenePhase
     @State private var showOnboarding = false
-    /// The result of an import that arrived through the share sheet's action
-    /// extension, shown once the app is back in front of the reader.
-    @State private var sharedImportMessage: String?
 
     var body: some View {
         ZStack {
@@ -62,24 +58,7 @@ struct RootView: View {
             // already see — which is where it ran before the launch screen
             // existed, and putting it back in front was the regression.
             await model.hydrate()
-            // Before the sync, not after: a file the reader shared while the
-            // app was closed is the reason they opened it, and making them wait
-            // out a provider round trip to see it land is backwards.
-            sharedImportMessage = await model.drainSharedInbox()
             await model.refresh()
-        }
-        // The action extension stages a file into the App Group container and
-        // tells the reader to open the app — which, coming back from the share
-        // sheet, usually means *resuming* it rather than launching it. Without
-        // this the backup would sit in the inbox until the next cold start.
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, !model.isLaunching else { return }
-            Task { sharedImportMessage = await model.drainSharedInbox() }
-        }
-        .alert("Import", isPresented: .constant(sharedImportMessage != nil)) {
-            Button("OK") { sharedImportMessage = nil }
-        } message: {
-            Text(sharedImportMessage ?? "")
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView(isPresented: $showOnboarding)
