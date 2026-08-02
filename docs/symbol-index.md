@@ -199,6 +199,10 @@ the place to look.
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
+- `Presentation/BalanceWeb.swift`
+  - `BalanceWebGeometry` :39
+  - `BalanceWebSnapshot` :113
+  - `WebPoint` :10
 - `Presentation/ChartedContributions.swift`
   - `ChartedContributions` :26
 - `Presentation/ContributionRoute.swift`
@@ -422,6 +426,12 @@ the place to look.
   - `PeerStandingStrip` :28
 - `DesignSystem/RecoveryScale.swift`
   - `RecoveryScale` :22
+- `DesignSystem/ScoreBalanceWeb.swift`
+  - `ScoreBalanceWeb` :41
+  - `ScoreBalanceWebSkeleton` :343
+  - `WebPolygonShape` :245
+  - `WebReferenceTicksShape` :296
+  - `WebSpokesShape` :273
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :40
 - `DesignSystem/ScoreComparisonChart.swift`
@@ -497,12 +507,16 @@ the place to look.
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18
+- `Features/Insights/InsightsHeroModel.swift`
+  - `InsightsHeroModel` :31
 - `Features/Insights/InsightsListView.swift`
-  - `InsightsListView` :7
+  - `InsightsListView` :33
 - `Features/Insights/MedicationSection.swift`
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
   - `MedicationSetupSheet` :285
+- `Features/Insights/ScoreComparisonDetailView.swift`
+  - `ScoreComparisonDetailView` :20
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`

@@ -76,7 +76,56 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**Score discontinuities: a defect class, swept and closed (latest, 2026-08-02,
+**The Insights tab's hero stopped costing a replay (latest, 2026-08-02).**
+
+The user reported "How your scores compare" as laggy. It was, and the cause was
+not rendering:
+
+- **`InsightsListView.comparisonSeries` called `AppModel.scoreHistory(for:)`
+  from inside a view body, for every scored insight.** Each of those is a 90-day
+  replay walking the sample set once per replayed day —
+  `AppModel.maxConcurrentReplays` already records the four-to-six second scroll
+  freezes that came of starting them all at once. The card also needed two
+  histories finished before it would draw at all, so the hero was blank for
+  seconds and then shoved the feed downward when it filled.
+- **The replacement reads only what is already in memory.**
+  `BalanceWebSnapshot` (InsightKit, 16 tests) is built from `InsightResult.score`
+  — computed by `recompute()` — and the cached `ScoreChange`, which comes from
+  *stored* score rows rather than a replay. **Opening the tab now starts no
+  replays.** That is the whole performance claim; the detached build in
+  `InsightsHeroModel` is the seam and the skeleton, not the win, and saying
+  otherwise would credit the wrong change.
+- **The old chart is kept whole, one tap away** in `ScoreComparisonDetailView`.
+  It answers something the web cannot — whether the scores are moving as one
+  thing or pulling apart *over months* — so deleting it would have cost a real
+  question. Behind a tap its replays cost only the reader who asked, and nothing
+  is competing for the CPU while they run.
+
+**What the web claims, and what it refuses to.** Radius is the score, linear,
+no inner floor. Hue is the **score band** (`Theme.color(forScore:)`, the same
+rule the dials use) rather than insight identity — identity is the label and the
+angle, which is both safer and forced: nine insights against eight validated
+hues means `InsightPalette.slots` collides at nine spokes. The fill is flat,
+because `Theme.scoreFill(peak:)` is a vertical ramp and `add-chart` §7 is that a
+gradient resolves against its mark's own box — on a polygon that shades by which
+spoke happens to point up, which encodes nothing. The reference outline is
+**solid**, because dash means "not measured" and a stored score row is measured.
+
+⚠️ **A radar's enclosed area is not a quantity** — it is the sum of
+`½·r₁·r₂·sin θ` over adjacent pairs, so it depends on which spokes are
+neighbours. Two consequences are enforced rather than hoped for: the order is
+fixed to `InsightID.colourSlot` (tested), and nothing in the UI reads the area
+out — the summary sentence quotes the **spread**, which is a fact about the
+reader. The time axis is genuinely given up here rather than faked; that is why
+the old chart survives behind the link.
+
+Two bugs caught while writing it, both worth the shape rather than the instance:
+`BalanceWebGeometry.point` clamps to the outer ring (correct for a score past
+100, wrong for a *label*, which is not a score — all nine were landing on the
+gridline), and a `navigationDestination` registered inside a `LazyVStack` goes
+away with the row that declared it.
+
+**Score discontinuities: a defect class, swept and closed (2026-08-02,
 overnight).**
 
 This is the highest-value finding of the session and it is *audited* — every

@@ -5,6 +5,31 @@ about confidence.**
 
 ## Shipped
 
+### The Insights-hero session (2026-08-02)
+
+- [x] **The Insights tab opens without starting a single replay.** Its hero was
+      `ScoreComparisonChart`, whose series were built by calling
+      `AppModel.scoreHistory(for:)` — a 90-day replay per insight — from inside
+      a view body, for every scored card. `ScoreBalanceWeb` reads
+      `InsightResult.score` and the cached `ScoreChange` instead, both already
+      in memory, so the hero draws on the first frame.
+- [x] **The comparison chart is kept, not deleted** —
+      `ScoreComparisonDetailView`, one tap away, where the replays cost only the
+      reader who asked for them and nothing competes with them for the CPU. It
+      is the only screen in the app that still asks for every history at once,
+      and it says so.
+- [x] **`BalanceWebSnapshot` + `BalanceWebGeometry`** in InsightKit, 16 tests:
+      the polar geometry, the fixed spoke order, the three-spoke floor, the
+      complete-reference rule, and the summary sentence. In InsightKit because
+      the app target has no test target and this is the only place the hero's
+      layout can be falsified at all.
+- [x] **A skeleton that holds the card's height** (`ScoreBalanceWebSkeleton`,
+      nine-sided, grid drawn for real) so the feed does not reflow when the
+      snapshot lands, and `InsightsHeroModel` builds detached with a generation
+      guard — the same discard-on-arrival rule `AppModel` uses for its replays.
+- [x] **The tab is three named sections** — suggestions drawer, hero, card feed
+      — with every existing trend card preserved in full and unchanged.
+
 ### The overnight session (2026-08-02)
 
 - [x] **Score discontinuities swept as a class.** Body Composition's `49 · 15 ·
