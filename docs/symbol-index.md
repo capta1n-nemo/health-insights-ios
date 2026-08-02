@@ -273,6 +273,8 @@ the place to look.
   - `SleepSegment` :9
 - `Signals/SleepOnset.swift`
   - `SleepOnset` :23
+- `Signals/SleepOnsetModel.swift`
+  - `SleepOnsetModel` :34
 - `Signals/Somatotype.swift`
   - `Somatotype` :15
   - `SomatotypeModel` :78
@@ -417,6 +419,8 @@ the place to look.
   - `ScrollableMetricChart` :13
 - `DesignSystem/ScrubIndicator.swift`
   - `ScrubIndicator` :24
+- `DesignSystem/SleepOnsetChart.swift`
+  - `SleepOnsetChart` :19
 - `DesignSystem/SleepOnsetStripChart.swift`
   - `SleepOnsetStripChart` :38
 - `DesignSystem/SourceBreakdownCard.swift`

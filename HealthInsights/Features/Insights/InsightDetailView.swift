@@ -652,6 +652,81 @@ struct InsightDetailView: View {
                         plural: "nights with recorded bedtimes"))
                 }
             }
+
+            Divider()
+            sleepOnsetSection
+        }
+    }
+
+    /// "How fast you fall asleep" — the reader's own request: a graph of nightly
+    /// sleep latency with its drift, and a deep-dive on what moves it, from the
+    /// four things the app can actually see (substances, medication, temperature,
+    /// how active the day was). What it can't see is named rather than left as a
+    /// silent gap.
+    @ViewBuilder private var sleepOnsetSection: some View {
+        // `sleepOnsetAnalysis()` caches in the model, so no render-memo wrapper.
+        let analysis = model.sleepOnsetAnalysis()
+        NestedInsightSection(
+            title: "How fast you fall asleep",
+            trailing: analysis.map { "\(Int($0.medianMinutes.rounded())) min typical" },
+            caveat: .associationsNotCauses
+        ) {
+            if let analysis {
+                Text(onsetTrendSentence(analysis))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                SleepOnsetChart(points: analysis.nights, trend: analysis.trend)
+
+                if analysis.drivers.isEmpty {
+                    Text("Nothing the app can see stood out as moving it over this stretch — not your substances, medication, temperature or how active the day was. That is the usual answer, and a reassuring one.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("What looks like it's moving it")
+                        .font(.caption.weight(.medium))
+                    ForEach(analysis.drivers) { driver in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: onsetDriverIcon(driver.factor))
+                                .font(.caption).foregroundStyle(Theme.accent)
+                                .frame(width: 16)
+                            Text(driver.sentence)
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+
+                Text("Can't see: \(analysis.unseenFactors.joined(separator: ", ")). These matter for a lot of people and aren't on your phone, so they're not in the picture above — worth keeping in mind before blaming what is.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                emptySection(SectionPlaceholder.needsMore(
+                    subject: "How fast you fall asleep",
+                    have: model.sleepOnsetAnalysis()?.nightsAnalysed ?? 0,
+                    need: SleepOnsetModel.minimumNights,
+                    noun: "night with a recorded sleep-onset time",
+                    plural: "nights with recorded sleep-onset times"))
+            }
+        }
+    }
+
+    private func onsetTrendSentence(_ analysis: SleepOnsetModel.Output) -> String {
+        guard let trend = analysis.trend, trend.isMeaningful else {
+            return "Around \(Int(analysis.medianMinutes.rounded())) minutes to fall asleep on a typical night, steady over the last while — no clear drift up or down."
+        }
+        let perWeek = abs(trend.slopePerWeek)
+        let direction = trend.slopePerWeek > 0 ? "longer" : "shorter"
+        return String(format: "Taking about %.0f min %@ to fall asleep each week over this window — days scatter about %.0f min either side of that line, so it's a drift, not a promise.",
+                      perWeek, direction, trend.residualSD)
+    }
+
+    private func onsetDriverIcon(_ factor: SleepOnsetModel.Factor) -> String {
+        switch factor {
+        case .substances: return "wineglass"
+        case .medication: return "pills"
+        case .temperature: return "thermometer.medium"
+        case .eveningExertion: return "figure.run"
         }
     }
 

@@ -84,6 +84,7 @@ final class AppModel {
         energyCache = nil
         circadianCache = nil
         sleepNightsCache = nil
+        sleepOnsetCache = nil
         scoreChangeCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -448,6 +449,51 @@ final class AppModel {
         circadianCache = built
         return built
     }
+
+    /// The sleep-onset deep-dive: how long you take to fall asleep, whether that
+    /// is drifting, and which of the four things the app can see moves it.
+    ///
+    /// Assembles the latency series and the driver series it holds against it —
+    /// substances logged that evening, the medication curve, skin temperature
+    /// deviation (the too-hot/too-cold question), and the day's active energy —
+    /// and hands them to the tested `SleepOnsetModel`. Cached as a double
+    /// optional: the outer `nil` means "not computed", the inner means "computed,
+    /// and there isn't enough to say" — so a card without enough nights doesn't
+    /// rebuild the analysis on every redraw.
+    func sleepOnsetAnalysis() -> SleepOnsetModel.Output? {
+        if let cached = sleepOnsetCache { return cached }
+        let cal = Calendar.current
+
+        let latency = samples.samples(of: .sleepLatencyMinutes)
+            .map { SleepOnsetModel.Sample(date: $0.start, value: $0.value) }
+        guard !latency.isEmpty else { sleepOnsetCache = .some(nil); return nil }
+
+        let substances = substanceLoadSeries()
+            .map { SleepOnsetModel.Sample(date: $0.date, value: $0.load) }
+        let medication = medicationCurve()
+            .map { SleepOnsetModel.Sample(date: $0.date, value: $0.level) }
+        let temperature = samples.samples(of: .skinTemperatureDeviation)
+            .map { SleepOnsetModel.Sample(date: $0.start, value: $0.value) }
+        // Active energy is cumulative, so the day's total is its sum — the same
+        // reading the Data tab shows for it.
+        var energyByDay: [Date: Double] = [:]
+        for s in samples.samples(of: .activeEnergyBurned) {
+            energyByDay[cal.startOfDay(for: s.start), default: 0] += s.value
+        }
+        let exertion = energyByDay.map { SleepOnsetModel.Sample(date: $0.key, value: $0.value) }
+
+        var factors: [(SleepOnsetModel.Factor, [SleepOnsetModel.Sample])] = []
+        if !substances.isEmpty { factors.append((.substances, substances)) }
+        if !medication.isEmpty { factors.append((.medication, medication)) }
+        if !temperature.isEmpty { factors.append((.temperature, temperature)) }
+        if !exertion.isEmpty { factors.append((.eveningExertion, exertion)) }
+
+        let out = SleepOnsetModel.analyse(latency: latency, factors: factors, calendar: cal)
+        sleepOnsetCache = .some(out)
+        return out
+    }
+
+    @ObservationIgnored private var sleepOnsetCache: SleepOnsetModel.Output??
 
     /// "Improve your health", recomputed with the results and cached.
     ///

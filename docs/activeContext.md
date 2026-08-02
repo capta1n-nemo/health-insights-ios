@@ -46,7 +46,31 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**The cross-card data-consistency audit (latest, 2026-08-02, night).** The user:
+**Sleep onset deep-dive (latest, 2026-08-02, night).** The user wanted "a pretty
+graph and deep dive" on how long they take to fall asleep — is it drifting, and
+why (drugs? tech? eating? too hot/cold?). Shipped as a nested Sleep section,
+"How fast you fall asleep":
+
+- **`SleepOnsetModel`** (InsightKit, 7 tests) — nightly latency trend (reusing
+  `ScoreTrend` for the fitted drift + scatter) plus a **contrast-based** driver
+  analysis over the four things the app can see: substances that evening,
+  medication level, skin-temperature deviation, and the day's active energy.
+  Median-split contrast per driver (not raw Pearson r), and **temperature is
+  three-way** (warm/cool/neutral) because both extremes worsen onset and a line
+  through the middle finds nothing — the reader's own example. Every driver
+  sentence says "association, not proof". `unseenFactors` names what it *can't*
+  see (screen time, meal timing) so their absence isn't read as "nothing else
+  matters".
+- **`SleepOnsetChart`** (add-chart compliant): a scatter of nightly latency
+  (measured → solid points, no connecting line so no between-night value is
+  invented) with the fitted drift dashed (inferred). Wraps
+  `ScrollableMetricChart`.
+- Wired into `sleepNightCard` after "Your fortnight"; `AppModel.sleepOnsetAnalysis()`
+  assembles the series and caches (double-optional). Only builds with
+  `SleepOnsetModel.minimumNights` (10) recorded onset nights — needs an Oura-style
+  source, since latency comes only from the nap-aware parser.
+
+**The cross-card data-consistency audit (previous, 2026-08-02, night).** The user:
 *"I need consistent data consumption and storage in the data tab in EVERY card.
 Do a full review of every card."* A nine-card audit (three parallel agents) found
 one structural defect and several follow-ons.
