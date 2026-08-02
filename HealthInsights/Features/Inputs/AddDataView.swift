@@ -348,9 +348,84 @@ struct ScreenTimeEntrySheet: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var isScanning = false
     @State private var scanOutcome: String?
+    /// A week read off a screenshot, waiting for the reader to confirm it.
+    /// Nothing is written until they do — a week import writes seven days at
+    /// once, six of which they never asked about.
+    @State private var pendingWeek: PendingWeek?
     private let scanner = DocumentScanService()
 
+    /// Seven estimated days from one Week screenshot.
+    struct PendingWeek: Equatable {
+        let weekStart: Date
+        let totalMinutes: Double
+        let days: [ScreenTimeWeekBreakdown.Day]
+        /// Nil when the screenshot carried no capture date and today was
+        /// assumed — the reader has to be told, because a relative heading
+        /// ("Last Week") resolved against the wrong anchor is silently wrong.
+        let capturedAt: Date?
+    }
+
     private var total: Double { Double(hours) * 60 + Double(minutes) }
+
+    /// The seven days a Week screenshot implies, shown before any of them is
+    /// written.
+    ///
+    /// The week's **total is exact** — it was printed on the screen and read as
+    /// text. Each day's share of it is measured off the bar heights, so it is an
+    /// estimate, and every row says so. Screenshotting a single day replaces
+    /// that day's estimate with the real figure and the estimate never comes
+    /// back, however many times the week is re-imported.
+    @ViewBuilder private var pendingWeekSection: some View {
+        if let week = pendingWeek {
+            Section {
+                ForEach(week.days, id: \.date) { day in
+                    LabeledContent {
+                        Text(durationLabel(day.minutes)).monospacedDigit()
+                    } label: {
+                        Text(day.date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                    }
+                }
+                LabeledContent("Week total") {
+                    Text(durationLabel(week.totalMinutes))
+                        .monospacedDigit().foregroundStyle(.primary)
+                }
+                Button {
+                    let written = model.importScreenTime(week.days.map {
+                        ScreenTimeEntry(day: $0.date, minutes: $0.minutes,
+                                        provenance: .weekEstimate, recordedAt: Date())
+                    })
+                    pendingWeek = nil
+                    scanOutcome = written == 0
+                        ? "Those seven days already have better figures — nothing changed."
+                        : "Saved \(written) day\(written == 1 ? "" : "s")."
+                } label: {
+                    Label("Save these 7 days", systemImage: "square.and.arrow.down")
+                }
+                Button("Discard", role: .destructive) { pendingWeek = nil }
+            } header: {
+                Text("Week of \(week.weekStart.formatted(.dateTime.day().month(.wide)))")
+            } footer: {
+                Text(weekFooter(week))
+            }
+        }
+    }
+
+    private func weekFooter(_ week: PendingWeek) -> String {
+        var text = "The week's total is exact — it was printed on the screenshot. "
+            + "Each day is estimated from the height of its bar, so the seven add up "
+            + "to the total but any one day may be out. Screenshot a single day to "
+            + "replace it with the real figure."
+        if week.capturedAt == nil {
+            text += "\n\n⚠️ This image carried no date, so today was assumed when working "
+                + "out which week it is. Check the dates above before saving."
+        }
+        return text
+    }
+
+    private func durationLabel(_ minutes: Double) -> String {
+        let whole = Int(minutes.rounded())
+        return "\(whole / 60)h \(whole % 60)m"
+    }
 
     var body: some View {
         NavigationStack {
@@ -396,8 +471,10 @@ struct ScreenTimeEntrySheet: View {
                 } header: {
                     Text("Or read it off a screenshot")
                 } footer: {
-                    Text("Screenshot Settings ▸ Screen Time and pick it here. The text is read on your device — nothing is uploaded — and the figures land in the pickers above for you to check before saving. A daily *average* is never taken as a day's total.")
+                    Text("Screenshot Settings ▸ Screen Time and pick it here — the Week view works too. The text is read on your device, nothing is uploaded, and everything lands for you to check before saving. A daily *average* is never taken as a day's total.")
                 }
+
+                pendingWeekSection
 
                 Section {
                     Text("Apple doesn't let apps read Screen Time, so this is the way in. A Shortcuts automation can fill it each morning if you'd rather not type it.")
@@ -443,6 +520,7 @@ private extension ScreenTimeEntrySheet {
     func scan(_ item: PhotosPickerItem) async {
         isScanning = true
         scanOutcome = nil
+        pendingWeek = nil
         defer { isScanning = false }
 
         guard let data = try? await item.loadTransferable(type: Data.self),
@@ -450,7 +528,22 @@ private extension ScreenTimeEntrySheet {
             scanOutcome = "Couldn't read that image."
             return
         }
-        let result = await scanner.extractScreenTime(from: image)
+
+        // **When the picture was taken, not when it was imported.** Every
+        // relative phrase on that screen — "Today", "Last Week" — is relative to
+        // capture, so a screenshot from three weeks ago read against `Date()`
+        // files itself into this week. This is the whole of retrospective
+        // import.
+        let capturedAt = ImageCaptureDate.read(from: data)
+        let scan = await scanner.extractScreenTimeWeek(from: image,
+                                                       capturedAt: capturedAt ?? Date())
+        let result = scan.result
+
+        if case let .week(weekStart) = result.period {
+            weekScanned(result, weekStart: weekStart, barHeights: scan.barHeights,
+                        capturedAt: capturedAt)
+            return
+        }
 
         if let day = result.dayTotal {
             hours = Int(day.minutes) / 60
@@ -473,6 +566,44 @@ private extension ScreenTimeEntrySheet {
         } else {
             scanOutcome = "No screen-time figures found in that image."
         }
+    }
+
+    /// A Week screenshot: an exact weekly total, and seven bars to split it by.
+    ///
+    /// Three outcomes, all of which have to be sayable — the reader is owed the
+    /// difference between "I could not find the week", "I found the week but not
+    /// its days", and "here are seven estimates".
+    func weekScanned(_ result: ScreenTimeScreenshotParser.Result,
+                     weekStart: Date, barHeights: [Double]?, capturedAt: Date?) {
+        guard let weekly = result.readings.first(where: { $0.kind == .weeklyTotal }) else {
+            // The heading gave a week but no total was read off it. Nothing to
+            // apportion, and an average times seven is a different number from
+            // the total on the screen often enough not to substitute it.
+            scanOutcome = "That looks like the week of "
+                + "\(weekStart.formatted(.dateTime.day().month(.wide))), but no weekly "
+                + "total could be read. Try a screenshot that includes the "
+                + "\"Total Screen Time\" row."
+            return
+        }
+
+        guard let barHeights,
+              let days = ScreenTimeWeekBreakdown.split(weekStart: weekStart,
+                                                       totalMinutes: weekly.minutes,
+                                                       barHeights: barHeights) else {
+            // **No flat fallback.** Writing the daily average onto all seven
+            // days would sum correctly and assert every day was identical,
+            // which the chart in the reader's own hand visibly contradicts.
+            scanOutcome = "Read the week of "
+                + "\(weekStart.formatted(.dateTime.day().month(.wide))) — "
+                + "\(durationLabel(weekly.minutes)) in total — but its seven bars "
+                + "couldn't be measured, so there is nothing to file per day. "
+                + "Screenshot individual days to record them exactly."
+            return
+        }
+
+        pendingWeek = PendingWeek(weekStart: weekStart, totalMinutes: weekly.minutes,
+                                  days: days, capturedAt: capturedAt)
+        scanOutcome = nil
     }
 }
 

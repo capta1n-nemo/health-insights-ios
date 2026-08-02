@@ -16,6 +16,14 @@ the place to look.
   - `VitalReading` :24
 - `Documents/LabReportParser.swift`
   - `LabReportParser` :12
+- `Documents/ScreenTimeChartGeometry.swift`
+  - `BarChartMask` :15
+  - `ScreenTimeChartGeometry` :59
+- `Documents/ScreenTimeImport.swift`
+  - `ScreenTimeEntry` :57
+  - `ScreenTimePrecedence` :88
+  - `ScreenTimeProvenance` :10
+  - `ScreenTimeWeekBreakdown` :145
 - `Documents/ScreenTimeScreenshotParser.swift`
   - `ScreenTimeScreenshotParser` :26
 - `Feedback/Feedback.swift`
@@ -167,7 +175,7 @@ the place to look.
   - `UserHealthProfile` :170
   - `WeightGoal` :120
 - `Models/HealthMetricSample.swift`
-  - `HealthMetricSample` :95
+  - `HealthMetricSample` :106
   - `MetricSource` :5
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
@@ -328,6 +336,10 @@ the place to look.
   - `DiagnosticsLog` :18
 - `Core/Documents/DocumentScanService.swift`
   - `DocumentScanService` :18
+  - `ScreenTimeWeekScan` :89
+- `Core/Documents/ScreenTimeChartReader.swift`
+  - `ImageCaptureDate` :183
+  - `ScreenTimeChartReader` :35
 - `Core/HealthData/HealthKitService.swift`
   - `HealthKitService` :12
 - `Core/Integrations/AppleHealthProvider.swift`
@@ -377,17 +389,17 @@ the place to look.
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
-  - `DoseLogRecord` :233
-  - `FeedbackRecord` :178
+  - `DoseLogRecord` :259
+  - `FeedbackRecord` :204
   - `GroundingRecord` :9
-  - `InsightScoreRecord` :57
-  - `IntegrationRecord` :84
+  - `InsightScoreRecord` :83
+  - `IntegrationRecord` :110
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :208
-  - `PredictionOutcomeRecord` :145
-  - `SideEffectRecord` :265
-  - `SubstanceEventRecord` :98
-  - `SuggestionDismissalRecord` :127
+  - `MedicationRecord` :234
+  - `PredictionOutcomeRecord` :171
+  - `SideEffectRecord` :291
+  - `SubstanceEventRecord` :124
+  - `SuggestionDismissalRecord` :153
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -503,7 +515,7 @@ the place to look.
   - `InputSheet` :178
   - `PushedInSheet` :230
   - `ScreenTimeEntrySheet` :336
-  - `SideEffectEntrySheet` :488
+  - `SideEffectEntrySheet` :619
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18

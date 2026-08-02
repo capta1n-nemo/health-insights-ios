@@ -296,18 +296,40 @@ final class AppModel {
     /// adding to it, so correcting a typo cannot leave two figures for one day
     /// averaging into a number the reader never saw.
     func logScreenTime(minutes: Double, on date: Date) {
-        let day = Calendar.current.startOfDay(for: date)
-        dataStore.replaceManualSamples(of: .screenTimeMinutes, on: day, with: [
-            HealthMetricSample(type: .screenTimeMinutes, value: minutes,
-                               start: day, source: .manual)
-        ])
-        samples = (samples.filter {
-            !($0.type == .screenTimeMinutes
-              && Calendar.current.isDate($0.start, inSameDayAs: day))
-        } + dataStore.loadManualSamples().filter { $0.type == .screenTimeMinutes })
+        recordScreenTime([ScreenTimeEntry(day: date, minutes: minutes,
+                                          provenance: .manual, recordedAt: Date())])
+    }
+
+    /// File screen-time figures read off a screenshot, at whatever days they
+    /// belong to — which is very often not today.
+    ///
+    /// - Returns: how many days were actually written. Days already carrying
+    ///   something better are skipped, so importing the same screenshot twice
+    ///   reports zero rather than churning the store.
+    @discardableResult
+    func importScreenTime(_ entries: [ScreenTimeEntry]) -> Int {
+        recordScreenTime(entries)
+    }
+
+    /// The one write path, so precedence is applied exactly once.
+    @discardableResult
+    private func recordScreenTime(_ entries: [ScreenTimeEntry]) -> Int {
+        var written = 0
+        for entry in entries where dataStore.recordScreenTime(entry) { written += 1 }
+        guard written > 0 else { return 0 }
+
+        // Reload the whole metric rather than patching the days that changed:
+        // a rejected entry leaves the old row in place, so a per-day splice
+        // would have to know which of them were skipped to stay in step.
+        samples = (samples.filter { $0.type != .screenTimeMinutes }
+                   + dataStore.loadManualSamples().filter { $0.type == .screenTimeMinutes })
             .partitionedVitals().kept
         recompute()
+        return written
     }
+
+    /// Stored screen-time figures with their provenance, newest first.
+    func screenTimeEntries() -> [ScreenTimeEntry] { dataStore.screenTimeEntries() }
 
     /// Doses the app proposed and the reader has not yet confirmed.
     var unconfirmedDoseCount: Int {

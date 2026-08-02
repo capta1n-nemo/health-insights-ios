@@ -76,7 +76,70 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**The Insights tab's hero stopped costing a replay (latest, 2026-08-02).**
+**Screen Time screenshots file themselves retrospectively (latest, 2026-08-02).**
+
+The user imports screenshots of weeks *past* — "not only last week, but weeks
+before it" — and they were all landing in the week they were imported.
+
+- **The cause was one parameter name.** `ScreenTimeScreenshotParser.parse` took
+  `now:` and every caller passed `Date()`, so "Today", "Yesterday" and a bare
+  weekday resolved against **import** time. It is `capturedAt:` now, with no
+  default, read from the image's own EXIF/TIFF metadata (`ImageCaptureDate`) —
+  no PhotoKit permission, because the picker already handed over the bytes.
+  The rename is the fix that retires the category: a caller passing `Date()` to
+  something called `capturedAt` is visibly wrong.
+- **Week headings are parsed**: relative ("Last Week's Average", "This Week")
+  and explicit ("20–27 Jul", "20 - 26 Jul", "Jul 20 – 26"). Anchored on the
+  **start** and always seven days — Apple's own end is ambiguous (the user's
+  screenshot reads "20–27 Jul" for a week whose average is its total ÷ 7, and
+  20 Jul 2026 is a Monday), so the end is only a plausibility check.
+- **A Week view relabels every total on it.** "Total Screen Time 99h 33m" is a
+  *week*, and the words are identical to the Day view's — so the parser was
+  ready to offer ninety-nine hours as one day. Reclassified in a post-pass,
+  because `classify` sees one line and cannot know which side of the segmented
+  control it is on.
+
+**Per-day figures come from the bars, and the split is the honest part.** The
+seven bars are pixels, not text, so OCR cannot read Monday. What it *can* read
+is the exact weekly total; `ScreenTimeChartReader` measures the relative bar
+heights and `ScreenTimeWeekBreakdown` apportions the total across them by
+largest remainder. **The week therefore sums exactly however badly the bars were
+measured** — only the split is estimated, and every row says so. The rejected
+alternative was writing the daily average onto all seven days, which also sums
+correctly and asserts every day was identical, which the chart it came from
+visibly contradicts. When the bars cannot be measured the answer is **no days at
+all**, never a flat fill.
+
+⚠️ **Known limit, tested and recorded**: a day with no screen time draws no bar,
+so the chart yields six clusters and is refused. The week still imports with its
+exact total. Inferring which of the seven was missing from the gaps is guessing
+at the one number nobody can see.
+
+**Precedence is the reader's rule, in their words** — *"the screenshot is actual
+me, manual is manual"*. `ScreenTimePrecedence`: an exact Day screenshot beats a
+week estimate beats manual, **except** a manual entry recorded *after* the
+import wins, because that is the reader correcting the app on purpose. An exact
+day is never demoted by a newer week estimate, which happens the moment an old
+week screenshot is imported after a precise day. `ManualSampleRecord` gained
+optional `provenanceRaw` and `recordedAt` (optional for migration; a nil
+`recordedAt` reads as `.distantPast`, so a figure typed before this existed
+loses to a screenshot imported now — correct, the reader had not seen it yet).
+
+Two things the geometry got wrong first, both caught by tests worth keeping:
+the dashed green "avg" rule covers only ~half the width so it survives the
+full-width gridline filter, and where it crosses the tall bars its row carries
+*more* ink than the baseline — so "the widest row is the baseline" picked the
+dash line. Baseline is now the **lowest** substantially-inked row, clusters are
+found at the baseline itself, and a bar's height is an **unbroken** run upward
+so a detached dash cannot lift a short bar.
+
+⚠️ **`verify.sh` fails its first run after any new top-level type is added** —
+it regenerates `docs/symbol-index.md`, notes it was stale, and exits non-zero.
+The second run is clean. This session mistook that for a `swift test --parallel`
+flake and reported it as unexplained; it is neither unexplained nor a flake.
+Regenerate and commit the index, then re-run.
+
+**The Insights tab's hero stopped costing a replay (2026-08-02).**
 
 The user reported "How your scores compare" as laggy. It was, and the cause was
 not rendering:

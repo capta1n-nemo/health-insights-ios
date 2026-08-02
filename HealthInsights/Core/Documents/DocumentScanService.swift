@@ -55,11 +55,42 @@ final class DocumentScanService {
     /// The classification of *which* figure is which lives in
     /// `ScreenTimeScreenshotParser`, where it is tested — a daily average read
     /// as a day's total would quietly bias everything compared against it.
+    ///
+    /// - Parameter capturedAt: when the **picture** was taken — `PHAsset
+    ///   .creationDate` for a library pick. Deliberately has no default: every
+    ///   relative phrase on that screen ("Today", "Last Week") is relative to
+    ///   the moment of capture, and this parameter used to be called `now` with
+    ///   a `Date()` default, which filed every retrospective screenshot into the
+    ///   week it happened to be imported in.
     func extractScreenTime(from image: PlatformImage,
-                           now: Date = Date()) async -> ScreenTimeScreenshotParser.Result {
+                           capturedAt: Date) async -> ScreenTimeScreenshotParser.Result {
         let text = await recognizeText(in: image)
-        return ScreenTimeScreenshotParser.parse(text, now: now)
+        return ScreenTimeScreenshotParser.parse(text, capturedAt: capturedAt)
     }
+
+    /// OCR a Week screenshot **and** measure its seven bars, so the week's exact
+    /// total can be split across its days.
+    ///
+    /// The two halves are deliberately separate types: the text half is tested
+    /// on Linux in InsightKit, and the pixel half cannot be — see
+    /// `ScreenTimeChartReader`.
+    func extractScreenTimeWeek(from image: PlatformImage,
+                               capturedAt: Date) async -> ScreenTimeWeekScan {
+        let result = await extractScreenTime(from: image, capturedAt: capturedAt)
+        guard case .week = result.period else {
+            return ScreenTimeWeekScan(result: result, barHeights: nil)
+        }
+        let bars = ScreenTimeChartReader.barHeights(in: image)
+        return ScreenTimeWeekScan(result: result, barHeights: bars)
+    }
+}
+
+/// A Week screenshot's text and its bar geometry together.
+struct ScreenTimeWeekScan {
+    let result: ScreenTimeScreenshotParser.Result
+    /// Seven relative bar heights, or nil where the chart could not be found.
+    /// Nil means the week is recorded with no per-day split, never a flat fill.
+    let barHeights: [Double]?
 }
 
 #if canImport(UIKit)

@@ -25,6 +25,26 @@ import Foundation
 /// testable on Linux like `LabReportParser` beside it.
 public enum ScreenTimeScreenshotParser {
 
+    /// What span of time a screenshot is about.
+    ///
+    /// The Screen Time screen has a Week/Day segmented control, and which side
+    /// it is on changes what every number on it means — most sharply "Total
+    /// Screen Time", which is a day on one and a week on the other.
+    public enum Period: Sendable, Equatable {
+        /// One named day, at its start.
+        case day(Date)
+        /// Seven days beginning at this date.
+        case week(start: Date)
+
+        /// The first day either way, for filing.
+        public var start: Date {
+            switch self {
+            case let .day(date): return date
+            case let .week(start): return start
+            }
+        }
+    }
+
     public struct Reading: Sendable, Equatable, Identifiable {
         public enum Kind: String, Sendable, Equatable {
             /// One day's total — the number worth recording.
@@ -67,9 +87,23 @@ public enum ScreenTimeScreenshotParser {
         /// Times the phone was picked up, where the screenshot shows it.
         public var pickups: Int?
         public var notifications: Int?
-        /// A day named on the screen ("Today", "Tuesday"), resolved against
-        /// `now`. Nil when the screenshot names no day.
+        /// A day named on the screen ("Today", "Tuesday"), resolved against the
+        /// **capture** date. Nil when the screenshot names no day.
         public var date: Date?
+        /// The first day of the week a Week-view screenshot is about, from an
+        /// explicit range ("20–27 Jul") or a relative phrase ("Last Week").
+        public var weekStart: Date?
+
+        /// Which span this screenshot is about, if it could be established.
+        ///
+        /// A week wins over a day: a Week-view screenshot has weekday letters
+        /// down its axis (M Tu W Th…) and `namedDay` will happily resolve one of
+        /// them, which would file a whole week's figures onto a single Tuesday.
+        public var period: Period? {
+            if let weekStart { return .week(start: weekStart) }
+            if let date { return .day(date) }
+            return nil
+        }
 
         public var isEmpty: Bool { readings.isEmpty }
 
@@ -89,7 +123,16 @@ public enum ScreenTimeScreenshotParser {
 
     // MARK: - Parsing
 
-    public static func parse(_ text: String, now: Date = Date(),
+    /// Read a screenshot's text.
+    ///
+    /// - Parameter capturedAt: **when the screenshot was taken**, not when it is
+    ///   being imported. Every relative phrase on this screen — "Today",
+    ///   "Yesterday", "Last Week", a bare weekday — is relative to the moment
+    ///   the picture was taken, so anchoring to import time files a screenshot
+    ///   from three weeks ago into this week. The parameter is named for the
+    ///   thing it must be, because it previously read `now` and every caller
+    ///   dutifully passed `Date()`.
+    public static func parse(_ text: String, capturedAt: Date,
                             calendar: Calendar = .current) -> Result {
         var result = Result()
         let lines = text.split(whereSeparator: \.isNewline)
@@ -107,7 +150,12 @@ public enum ScreenTimeScreenshotParser {
                 result.notifications = firstInteger(in: line)
                     ?? nextLineInteger(lines, after: index)
             }
-            if result.date == nil, let day = namedDay(in: lower, now: now, calendar: calendar) {
+            if result.weekStart == nil,
+               let week = weekStart(in: line, capturedAt: capturedAt, calendar: calendar) {
+                result.weekStart = week
+            }
+            if result.date == nil,
+               let day = namedDay(in: lower, capturedAt: capturedAt, calendar: calendar) {
                 result.date = day
             }
 
@@ -119,6 +167,20 @@ public enum ScreenTimeScreenshotParser {
             result.readings.append(Reading(kind: classify(context),
                                            minutes: minutes,
                                            label: labelText(line, previous: index > 0 ? lines[index - 1] : nil)))
+        }
+
+        // A Week view relabels every total on it. "Total Screen Time 99h 33m" is
+        // a **week** there, and `classify` reads it as a day because the words
+        // are identical to the Day view's — so on a real weekly screenshot the
+        // parser would have offered ninety-nine hours as one day's screen time.
+        // Reclassified here rather than in `classify`, which sees one line at a
+        // time and cannot know which side of the segmented control it is on.
+        if result.weekStart != nil {
+            result.readings = result.readings.map { reading in
+                reading.kind == .dailyTotal
+                    ? Reading(kind: .weeklyTotal, minutes: reading.minutes, label: reading.label)
+                    : reading
+            }
         }
         return result
     }
@@ -197,20 +259,164 @@ public enum ScreenTimeScreenshotParser {
     }
 
     /// "Today" or a weekday name, resolved to an actual date.
-    static func namedDay(in lower: String, now: Date, calendar: Calendar) -> Date? {
-        if lower.contains("today") { return calendar.startOfDay(for: now) }
+    ///
+    /// Relative to **capture**, so a screenshot taken on a Tuesday three weeks
+    /// ago and imported today still means that Tuesday.
+    static func namedDay(in lower: String, capturedAt: Date, calendar: Calendar) -> Date? {
+        if lower.contains("today") { return calendar.startOfDay(for: capturedAt) }
         if lower.contains("yesterday") {
-            return calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))
+            return calendar.date(byAdding: .day, value: -1,
+                                 to: calendar.startOfDay(for: capturedAt))
         }
         let names = ["sunday", "monday", "tuesday", "wednesday",
                      "thursday", "friday", "saturday"]
         guard let index = names.firstIndex(where: { lower.contains($0) }) else { return nil }
-        // The most recent occurrence of that weekday, today included — a Screen
-        // Time screenshot is always about the past.
+        // The most recent occurrence of that weekday, capture day included — a
+        // Screen Time screenshot is always about the past.
         let target = index + 1                    // Calendar weekdays are 1-based
-        let today = calendar.startOfDay(for: now)
-        let current = calendar.component(.weekday, from: today)
+        let captureDay = calendar.startOfDay(for: capturedAt)
+        let current = calendar.component(.weekday, from: captureDay)
         let back = (current - target + 7) % 7
-        return calendar.date(byAdding: .day, value: -back, to: today)
+        return calendar.date(byAdding: .day, value: -back, to: captureDay)
+    }
+
+    // MARK: - Weeks
+
+    /// The first day of the week a line is about, from either shape Screen Time
+    /// uses for its heading.
+    ///
+    /// - **Relative**: "Last Week's Average", "This Week".
+    /// - **Explicit**: "20–27 Jul Average", "20 - 26 Jul", "Jul 20 – 26".
+    ///
+    /// Anchored on the **start** day and always seven days long. Apple's own
+    /// label is ambiguous about its end — the user's screenshot reads
+    /// "20–27 Jul" for a week whose average is its total ÷ 7, and 20 Jul 2026 is
+    /// a Monday, so the 27 is an exclusive end. Rather than guess which
+    /// convention a given iOS build uses, the end is read only as a
+    /// plausibility check: six or seven days past the start is a week, anything
+    /// else is not a range this understands.
+    static func weekStart(in line: String, capturedAt: Date,
+                          calendar: Calendar) -> Date? {
+        let lower = line.lowercased()
+        if lower.contains("last week") {
+            guard let thisWeek = startOfWeek(containing: capturedAt, calendar: calendar) else {
+                return nil
+            }
+            return calendar.date(byAdding: .day, value: -7, to: thisWeek)
+        }
+        if lower.contains("this week") {
+            return startOfWeek(containing: capturedAt, calendar: calendar)
+        }
+        return explicitRange(lower, capturedAt: capturedAt, calendar: calendar)
+    }
+
+    /// The week's first day under the calendar's own `firstWeekday`.
+    ///
+    /// Not hard-coded to Monday even though the screenshots show M first: that
+    /// is a fact about the reader's locale, and the calendar already carries it.
+    static func startOfWeek(containing date: Date, calendar: Calendar) -> Date? {
+        let day = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: day)
+        let back = (weekday - calendar.firstWeekday + 7) % 7
+        return calendar.date(byAdding: .day, value: -back, to: day)
+    }
+
+    /// English month names, which is what these screenshots are in. A locale
+    /// whose Screen Time renders another language returns nil here and falls
+    /// back to the reader confirming the week by hand — wrong is worse than
+    /// absent for something that files a fortnight of data.
+    private static let months = ["jan", "feb", "mar", "apr", "may", "jun",
+                                 "jul", "aug", "sep", "oct", "nov", "dec"]
+
+    private static func explicitRange(_ lower: String, capturedAt: Date,
+                                      calendar: Calendar) -> Date? {
+        let found = monthOccurrences(lower)
+        guard let firstMonth = found.first else { return nil }
+        let numbers = integers(in: lower).filter { $0 >= 1 && $0 <= 31 }
+        // **A single date is not a range.** "Tuesday, 5 August" is the Day
+        // view's heading, and reading it as a week relabels that day's total as
+        // a week's — which is exactly the confusion the reclassification pass
+        // above exists to create, pointed the wrong way.
+        guard numbers.count >= 2 else { return nil }
+
+        guard let start = resolve(day: numbers[0], month: firstMonth,
+                                  onOrBefore: capturedAt, calendar: calendar) else { return nil }
+        // A range can cross a month ("28 Dec – 3 Jan"), in which case the second
+        // month name belongs to the end.
+        let endMonth = found.count >= 2 ? found[1] : firstMonth
+        guard let end = resolve(day: numbers[1], month: endMonth,
+                                onOrAfter: start, calendar: calendar),
+              let span = calendar.dateComponents([.day], from: start, to: end).day,
+              span == 6 || span == 7 else { return nil }
+        return start
+    }
+
+    /// Months named in a line, **in the order they appear in the text**.
+    ///
+    /// Scanning `months` in calendar order instead reads "28 Dec – 3 Jan" as
+    /// January, because `firstIndex` finds whichever month comes first in the
+    /// *array* rather than in the sentence.
+    private static func monthOccurrences(_ lower: String) -> [Int] {
+        months.enumerated()
+            .compactMap { index, name -> (position: Int, month: Int)? in
+                guard let range = lower.range(of: name) else { return nil }
+                return (lower.distance(from: lower.startIndex, to: range.lowerBound), index + 1)
+            }
+            .sorted { $0.position < $1.position }
+            .map(\.month)
+    }
+
+    /// A day and month resolved to the most recent such date at or before a
+    /// bound — the year is not printed on this screen and a Screen Time
+    /// screenshot is never about the future.
+    private static func resolve(day: Int, month: Int, onOrBefore bound: Date,
+                                calendar: Calendar) -> Date? {
+        let boundDay = calendar.startOfDay(for: bound)
+        let year = calendar.component(.year, from: boundDay)
+        for candidateYear in [year, year - 1] {
+            guard let date = build(day: day, month: month, year: candidateYear,
+                                   calendar: calendar) else { continue }
+            if date <= boundDay { return date }
+        }
+        return nil
+    }
+
+    /// The same, forwards — used for a range's end, which may be in the year
+    /// after its start.
+    private static func resolve(day: Int, month: Int, onOrAfter bound: Date,
+                                calendar: Calendar) -> Date? {
+        let year = calendar.component(.year, from: bound)
+        for candidateYear in [year, year + 1] {
+            guard let date = build(day: day, month: month, year: candidateYear,
+                                   calendar: calendar) else { continue }
+            if date >= bound { return date }
+        }
+        return nil
+    }
+
+    private static func build(day: Int, month: Int, year: Int,
+                              calendar: Calendar) -> Date? {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        guard let date = calendar.date(from: components) else { return nil }
+        // `date(from:)` rolls an impossible date (31 Feb) into the next month.
+        guard calendar.component(.day, from: date) == day,
+              calendar.component(.month, from: date) == month else { return nil }
+        return calendar.startOfDay(for: date)
+    }
+
+    /// Every integer in a string, in order. Hand-rolled for the same reason
+    /// `duration(in:)` is — identical behaviour on Linux, where these run.
+    static func integers(in text: String) -> [Int] {
+        var out: [Int] = []
+        var digits = ""
+        for character in text {
+            if character.isNumber { digits.append(character) }
+            else if !digits.isEmpty { out.append(Int(digits) ?? 0); digits = "" }
+        }
+        if !digits.isEmpty { out.append(Int(digits) ?? 0) }
+        return out
     }
 }

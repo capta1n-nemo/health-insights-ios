@@ -30,11 +30,37 @@ final class ManualSampleRecord {
     var date: Date
     var sourceID: String
 
-    init(metricRaw: String, value: Double, date: Date, sourceID: String) {
+    /// How this figure got here — see `ScreenTimeProvenance`. Optional so
+    /// SwiftData migrates the rows written before provenance existed; nil reads
+    /// as `.manual`, which is what every one of them was.
+    var provenanceRaw: String?
+    /// When the row was **written**, as opposed to the day it describes.
+    ///
+    /// What makes "a screenshot beats manual, unless I manually override it
+    /// again" decidable. Optional for the same migration reason, and a nil
+    /// reads as `.distantPast` — deliberately, so a figure entered before this
+    /// existed loses to a screenshot imported now, which is the right answer:
+    /// the reader had not seen the screenshot when they typed it.
+    var recordedAt: Date?
+
+    init(metricRaw: String, value: Double, date: Date, sourceID: String,
+         provenance: ScreenTimeProvenance = .manual, recordedAt: Date = Date()) {
         self.metricRaw = metricRaw
         self.value = value
         self.date = date
         self.sourceID = sourceID
+        self.provenanceRaw = provenance.rawValue
+        self.recordedAt = recordedAt
+    }
+
+    var provenance: ScreenTimeProvenance {
+        provenanceRaw.flatMap(ScreenTimeProvenance.init(rawValue:)) ?? .manual
+    }
+
+    /// This row as a precedence candidate.
+    var screenTimeEntry: ScreenTimeEntry {
+        ScreenTimeEntry(day: date, minutes: value, provenance: provenance,
+                        recordedAt: recordedAt ?? .distantPast)
     }
 
     var sample: HealthMetricSample? {

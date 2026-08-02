@@ -1,0 +1,267 @@
+import XCTest
+@testable import InsightKit
+
+/// Filing a Screen Time screenshot to the right days and weeks, retrospectively.
+///
+/// Built from the reader's own screenshots (2026-08-02): a Week view headed
+/// "Last Week's Average 14h 13m" with "Total Screen Time 99h 33m", and another
+/// headed "20–27 Jul Average 9h 10m" with "Total Screen Time 64h 16m". Both were
+/// taken on the same morning and describe **different weeks**, neither of them
+/// the week they were imported in.
+final class ScreenTimeImportTests: XCTestCase {
+
+    /// Monday-first, UTC — the locale the screenshots were taken in draws M
+    /// first, and every date here is pinned rather than read from the machine.
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.firstWeekday = 2          // Monday
+        return calendar
+    }()
+
+    private func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day))!
+    }
+
+    /// The morning both screenshots were taken: Sunday 2 August 2026.
+    private var captured: Date { date(2026, 8, 2) }
+
+    private func parse(_ text: String, capturedAt: Date? = nil) -> ScreenTimeScreenshotParser.Result {
+        ScreenTimeScreenshotParser.parse(text, capturedAt: capturedAt ?? captured,
+                                         calendar: calendar)
+    }
+
+    // MARK: - The bug this was built to fix
+
+    /// **The whole point.** A screenshot taken three weeks ago and imported
+    /// today must land in the week it was taken, not the week it was imported.
+    ///
+    /// The parser used to take a parameter called `now`, and every caller passed
+    /// `Date()`.
+    func testRelativeWeeksAnchorToCaptureNotImport() throws {
+        let text = "Last Week's Average\n14h 13m\nTotal Screen Time 99h 33m"
+
+        // Captured Sun 2 Aug → "last week" is Mon 20 Jul.
+        let atCapture = try XCTUnwrap(parse(text).weekStart)
+        XCTAssertEqual(atCapture, date(2026, 7, 20))
+
+        // The same picture imported three weeks later must not move.
+        let atImport = try XCTUnwrap(
+            parse(text, capturedAt: captured).weekStart)
+        XCTAssertEqual(atImport, atCapture)
+
+        // And a screenshot genuinely taken later means a later week — proving
+        // the anchor is being read at all rather than hard-coded.
+        let laterCapture = try XCTUnwrap(
+            parse(text, capturedAt: date(2026, 8, 23)).weekStart)
+        XCTAssertEqual(laterCapture, date(2026, 8, 10))
+    }
+
+    /// A weekday named on a Day screenshot resolves backwards from capture.
+    func testANamedDayResolvesFromCapture() throws {
+        let result = parse("Tuesday\nTotal Screen Time\n4h 32m",
+                           capturedAt: date(2026, 7, 9))   // a Thursday
+        let day = try XCTUnwrap(result.date)
+        XCTAssertEqual(day, date(2026, 7, 7), "the Tuesday before that Thursday")
+    }
+
+    // MARK: - Week ranges
+
+    /// The reader's second screenshot. 20 Jul 2026 is a Monday and the average
+    /// is the total ÷ 7, so the range is seven days from the 20th — whatever
+    /// convention Apple's "27" follows.
+    func testAnExplicitRangeIsRead() throws {
+        let result = parse("20–27 Jul Average\n9h 10m\nTotal Screen Time 64h 16m")
+        XCTAssertEqual(try XCTUnwrap(result.weekStart), date(2026, 7, 20))
+    }
+
+    /// The inclusive spelling of the same week has to give the same answer.
+    func testAnInclusiveRangeGivesTheSameWeek() throws {
+        XCTAssertEqual(try XCTUnwrap(parse("20 - 26 Jul").weekStart), date(2026, 7, 20))
+        XCTAssertEqual(try XCTUnwrap(parse("Jul 20 – 26").weekStart), date(2026, 7, 20))
+    }
+
+    /// A range that is not a week is not a week. Two dates ten days apart is
+    /// something this parser does not understand, and guessing would file ten
+    /// days of data onto seven.
+    func testANonWeekRangeIsRejected() {
+        XCTAssertNil(parse("20 – 30 Jul Average\n9h 10m").weekStart)
+    }
+
+    /// December read in January is last year's December, not a date in the
+    /// future. The year is never printed on this screen.
+    func testAMonthThatHasNotHappenedYetRollsBackAYear() throws {
+        let result = parse("28 Dec – 3 Jan", capturedAt: date(2026, 1, 15))
+        XCTAssertEqual(try XCTUnwrap(result.weekStart), date(2025, 12, 28))
+    }
+
+    func testThisWeekResolvesToTheCaptureWeek() throws {
+        // Captured Sun 2 Aug, Monday-first → this week began Mon 27 Jul.
+        XCTAssertEqual(try XCTUnwrap(parse("This Week\nTotal 40h").weekStart),
+                       date(2026, 7, 27))
+    }
+
+    // MARK: - What a week's numbers mean
+
+    /// **A Week view relabels every total on it.** "Total Screen Time 99h 33m"
+    /// is the week, and the words are identical to the Day view's — so without
+    /// this the parser offers ninety-nine hours as one day's screen time.
+    func testTotalScreenTimeOnAWeekViewIsNotADay() {
+        let result = parse("Last Week's Average\n14h 13m\nTotal Screen Time 99h 33m")
+        XCTAssertNil(result.dayTotal, "no figure on a week view is a day's total")
+        XCTAssertTrue(result.readings.contains { $0.kind == .weeklyTotal && $0.minutes == 5973 })
+    }
+
+    /// The Day view is untouched by that rule.
+    func testTotalScreenTimeOnADayViewIsStillADay() throws {
+        let result = parse("Today\nTotal Screen Time\n4h 32m")
+        XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 272)
+    }
+
+    /// A week wins over a day: the weekday letters down a Week chart's axis
+    /// (M Tu W Th F Sa Su) will resolve, and filing a week onto one Tuesday is
+    /// the worst available outcome.
+    func testAWeekBeatsAWeekdayLetterFromTheAxis() {
+        let result = parse("20–27 Jul Average\n9h 10m\nM Tu W Th F Sa Su\nMonday")
+        guard case let .week(start) = result.period else {
+            return XCTFail("expected a week, got \(String(describing: result.period))")
+        }
+        XCTAssertEqual(start, date(2026, 7, 20))
+    }
+
+    // MARK: - Splitting a week across its days
+
+    /// The guarantee: however rough the bar measurement, the week still sums to
+    /// the exact total that was printed on the screen.
+    func testTheSplitPreservesTheWeeklyTotalExactly() throws {
+        let total = 5973.0                                  // 99h 33m
+        let bars = [3.0, 5.5, 5.0, 7.5, 9.0, 9.5, 13.0]     // the reader's shape
+        let days = try XCTUnwrap(ScreenTimeWeekBreakdown.split(
+            weekStart: date(2026, 7, 20), totalMinutes: total,
+            barHeights: bars, calendar: calendar))
+        XCTAssertEqual(days.count, 7)
+        XCTAssertEqual(days.map(\.minutes).reduce(0, +), total, accuracy: 0.0001)
+    }
+
+    /// Proportions are respected: the tallest bar gets the most minutes.
+    func testTheSplitFollowsTheBarHeights() throws {
+        let days = try XCTUnwrap(ScreenTimeWeekBreakdown.split(
+            weekStart: date(2026, 7, 20), totalMinutes: 700,
+            barHeights: [1, 1, 1, 1, 1, 1, 8], calendar: calendar))
+        XCTAssertEqual(days.last?.minutes ?? 0, 400, accuracy: 1)
+        XCTAssertEqual(days.first?.minutes ?? 0, 50, accuracy: 1)
+    }
+
+    /// Days run from the week's first day, in order.
+    func testTheSplitDatesTheDaysFromTheWeekStart() throws {
+        let days = try XCTUnwrap(ScreenTimeWeekBreakdown.split(
+            weekStart: date(2026, 7, 20), totalMinutes: 700,
+            barHeights: Array(repeating: 1, count: 7), calendar: calendar))
+        XCTAssertEqual(days.first?.date, date(2026, 7, 20))
+        XCTAssertEqual(days.last?.date, date(2026, 7, 26))
+    }
+
+    /// A day with no screen time is a real answer and keeps its place.
+    func testAZeroBarIsADayWithNoScreenTime() throws {
+        let days = try XCTUnwrap(ScreenTimeWeekBreakdown.split(
+            weekStart: date(2026, 7, 20), totalMinutes: 600,
+            barHeights: [0, 1, 1, 1, 1, 1, 1], calendar: calendar))
+        XCTAssertEqual(days.first?.minutes, 0)
+        XCTAssertEqual(days.map(\.minutes).reduce(0, +), 600, accuracy: 0.0001)
+    }
+
+    /// **Nil, not a flat fill.** If the bars could not be measured, the honest
+    /// outcome is a week with no days — not seven identical ones asserting a
+    /// flatness the chart contradicts.
+    func testUnmeasurableBarsProduceNoDaysAtAll() {
+        let start = date(2026, 7, 20)
+        XCTAssertNil(ScreenTimeWeekBreakdown.split(weekStart: start, totalMinutes: 700,
+                                                   barHeights: [], calendar: calendar))
+        XCTAssertNil(ScreenTimeWeekBreakdown.split(weekStart: start, totalMinutes: 700,
+                                                   barHeights: Array(repeating: 0, count: 7),
+                                                   calendar: calendar))
+        XCTAssertNil(ScreenTimeWeekBreakdown.split(weekStart: start, totalMinutes: 700,
+                                                   barHeights: [1, 2, 3], calendar: calendar))
+    }
+
+    // MARK: - Precedence
+
+    private func entry(_ provenance: ScreenTimeProvenance, minutes: Double,
+                       recordedAt: Date) -> ScreenTimeEntry {
+        ScreenTimeEntry(day: date(2026, 7, 21), minutes: minutes,
+                        provenance: provenance, recordedAt: recordedAt)
+    }
+
+    /// "The screenshot is actual me — manual is manual."
+    func testAScreenshotBeatsAnEarlierManualEntry() {
+        let winner = ScreenTimePrecedence.winner(among: [
+            entry(.manual, minutes: 120, recordedAt: date(2026, 7, 22)),
+            entry(.dayExact, minutes: 272, recordedAt: date(2026, 8, 2))
+        ])
+        XCTAssertEqual(winner?.provenance, .dayExact)
+        XCTAssertEqual(winner?.minutes, 272)
+    }
+
+    /// "…unless I manually override over the top of it again."
+    func testAManualEntryMadeAfterTheImportWins() {
+        let winner = ScreenTimePrecedence.winner(among: [
+            entry(.dayExact, minutes: 272, recordedAt: date(2026, 8, 2)),
+            entry(.manual, minutes: 300, recordedAt: date(2026, 8, 3))
+        ])
+        XCTAssertEqual(winner?.provenance, .manual)
+        XCTAssertEqual(winner?.minutes, 300)
+    }
+
+    /// A screenshot older than the manual entry still loses — authority does not
+    /// rescue it, because the reader corrected the app after seeing it.
+    func testAuthorityDoesNotOverrideADeliberateCorrection() {
+        let winner = ScreenTimePrecedence.winner(among: [
+            entry(.weekEstimate, minutes: 200, recordedAt: date(2026, 8, 1)),
+            entry(.dayExact, minutes: 272, recordedAt: date(2026, 8, 1)),
+            entry(.manual, minutes: 300, recordedAt: date(2026, 8, 5))
+        ])
+        XCTAssertEqual(winner?.provenance, .manual)
+    }
+
+    /// **An exact day is never clobbered by a week estimate, even a newer one.**
+    /// Re-importing an old week screenshot must not degrade a day the reader
+    /// screenshotted precisely.
+    func testAnExactDayOutranksALaterWeekEstimate() {
+        let winner = ScreenTimePrecedence.winner(among: [
+            entry(.dayExact, minutes: 272, recordedAt: date(2026, 8, 1)),
+            entry(.weekEstimate, minutes: 200, recordedAt: date(2026, 8, 9))
+        ])
+        XCTAssertEqual(winner?.provenance, .dayExact)
+        XCTAssertEqual(winner?.minutes, 272)
+    }
+
+    /// Re-importing the same week screenshot replaces its own estimate rather
+    /// than piling up beside it.
+    func testANewerWeekEstimateReplacesAnOlderOne() {
+        let winner = ScreenTimePrecedence.winner(among: [
+            entry(.weekEstimate, minutes: 200, recordedAt: date(2026, 8, 1)),
+            entry(.weekEstimate, minutes: 210, recordedAt: date(2026, 8, 9))
+        ])
+        XCTAssertEqual(winner?.minutes, 210)
+    }
+
+    func testNothingInNothingOut() {
+        XCTAssertNil(ScreenTimePrecedence.winner(among: []))
+    }
+
+    /// The importer's own question: is this row worth writing at all?
+    func testWouldWinMatchesTheResolver() {
+        let existing = [entry(.dayExact, minutes: 272, recordedAt: date(2026, 8, 1))]
+        XCTAssertFalse(ScreenTimePrecedence.wouldWin(
+            entry(.weekEstimate, minutes: 200, recordedAt: date(2026, 8, 9)), over: existing))
+        XCTAssertTrue(ScreenTimePrecedence.wouldWin(
+            entry(.manual, minutes: 300, recordedAt: date(2026, 8, 9)), over: existing))
+    }
+
+    /// Estimated and exact must stay tellable apart on every surface.
+    func testOnlyTheWeekSplitCallsItselfAnEstimate() {
+        XCTAssertTrue(ScreenTimeProvenance.weekEstimate.isEstimate)
+        XCTAssertFalse(ScreenTimeProvenance.dayExact.isEstimate)
+        XCTAssertFalse(ScreenTimeProvenance.manual.isEstimate)
+    }
+}

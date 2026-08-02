@@ -18,6 +18,17 @@ public struct MetricSource: Codable, Sendable, Hashable {
     public static let hume = MetricSource(id: "hume", displayName: "Hume")
     public static let manual = MetricSource(id: "manual", displayName: "Manual entry")
     public static let document = MetricSource(id: "document", displayName: "Imported document")
+
+    /// Read off a screenshot of the reader's own device — Screen Time today.
+    ///
+    /// Its own source rather than `manual` or `document`: the reader neither
+    /// typed these nor handed over a file, and the distinction is load-bearing
+    /// rather than cosmetic. A screenshot is the device's own accounting, which
+    /// is why it *outranks* a hand-typed figure (see `ScreenTimePrecedence`),
+    /// and a per-source breakdown claiming the reader typed a fortnight of
+    /// screen time would misdescribe where every one of those numbers came from.
+    public static let screenshot = MetricSource(id: "screenshot",
+                                                displayName: "Read from a screenshot")
     /// A Shotsy JSON backup shared into the app. Its own source, not
     /// `document`, so a reader can see which of their weigh-ins came from the
     /// GLP-1 tracker and `MultiSource` can keep it as its own series.

@@ -92,6 +92,50 @@ final class DataStore {
         return records.compactMap(\.sample)
     }
 
+    /// Record one day's screen time **only if it outranks what is already
+    /// stored** for that day.
+    ///
+    /// The reader's rule: a screenshot is the device's own accounting and beats
+    /// a typed figure, *unless* they have since typed over it on purpose. And an
+    /// exact Day screenshot is never demoted by a week-split estimate, even a
+    /// newer one — which happens the moment an old week screenshot is imported
+    /// after a precise day. `ScreenTimePrecedence` owns the whole rule and is
+    /// tested in InsightKit; this is the write path that obeys it.
+    ///
+    /// - Returns: whether the entry was written. False means something better
+    ///   was already there, which is a successful no-op rather than a failure —
+    ///   re-importing the same screenshot twice must change nothing.
+    @discardableResult
+    func recordScreenTime(_ entry: ScreenTimeEntry,
+                          calendar: Calendar = .current) -> Bool {
+        let raw = MetricType.screenTimeMinutes.rawValue
+        let day = calendar.startOfDay(for: entry.day)
+        let all = (try? context.fetch(FetchDescriptor<ManualSampleRecord>(
+            predicate: #Predicate { $0.metricRaw == raw }))) ?? []
+        let sameDay = all.filter { calendar.isDate($0.date, inSameDayAs: day) }
+
+        guard ScreenTimePrecedence.wouldWin(entry, over: sameDay.map(\.screenTimeEntry)) else {
+            return false
+        }
+        for record in sameDay { context.delete(record) }
+        context.insert(ManualSampleRecord(
+            metricRaw: raw, value: entry.minutes, date: day,
+            sourceID: entry.provenance == .manual ? MetricSource.manual.id
+                                                  : MetricSource.screenshot.id,
+            provenance: entry.provenance, recordedAt: entry.recordedAt))
+        try? context.save()
+        return true
+    }
+
+    /// Every stored screen-time figure with its provenance, newest day first —
+    /// so a data page can say which days are estimates.
+    func screenTimeEntries(calendar: Calendar = .current) -> [ScreenTimeEntry] {
+        let raw = MetricType.screenTimeMinutes.rawValue
+        let all = (try? context.fetch(FetchDescriptor<ManualSampleRecord>(
+            predicate: #Predicate { $0.metricRaw == raw }))) ?? []
+        return all.map(\.screenTimeEntry).sorted { $0.day > $1.day }
+    }
+
     /// Replace whatever manual samples exist for one metric on one day.
     ///
     /// An **upsert**, unlike `saveBloodPressureReading`, and deliberately: a

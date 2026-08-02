@@ -5,6 +5,35 @@ about confidence.**
 
 ## Shipped
 
+### Retrospective Screen Time import (2026-08-02)
+
+- [x] **Screenshots file to the week they were taken, not the week they were
+      imported.** `parse(_:now:)` became `parse(_:capturedAt:)` with no default,
+      anchored on the image's own EXIF/TIFF date via `ImageCaptureDate` — no
+      photo-library permission needed.
+- [x] **Week headings are read** — relative ("Last Week's Average") and explicit
+      ("20–27 Jul"), anchored on the start and always seven days.
+- [x] **"Total Screen Time" on a Week view is a week**, not a day. It was one
+      reclassification away from recording 99h 33m as a single day.
+- [x] **Per-day estimates from the bar chart.** `ScreenTimeChartReader` (app,
+      CoreGraphics) measures relative bar heights; `ScreenTimeChartGeometry` and
+      `ScreenTimeWeekBreakdown` (InsightKit, tested) find the bars and apportion
+      the **exact** weekly total across them by largest remainder — so the week
+      sums exactly and only the split is an estimate. No flat fallback: an
+      unreadable chart records the week and no days.
+- [x] **`ScreenTimePrecedence`** — exact day > week estimate > manual, except a
+      manual entry made *after* an import wins. `ManualSampleRecord` carries
+      `provenance` and `recordedAt`; `DataStore.recordScreenTime` applies the
+      rule at write time, so re-importing a screenshot is a no-op.
+- [x] **Nothing is written without confirmation** — a Week screenshot fills a
+      seven-row preview with its dates and figures, and says which are estimates
+      and that the image carried no date when it didn't.
+- [ ] **Not yet device-verified**: the bar measurement is the half CI cannot
+      check. `ScreenTimeChartReader` finds the plot by looking for the tallest
+      band of rows carrying saturated pixels, which is untested against a real
+      screenshot — the confirmation preview exists so a bad read is caught by
+      the reader rather than saved.
+
 ### The Insights-hero session (2026-08-02)
 
 - [x] **The Insights tab opens without starting a single replay.** Its hero was

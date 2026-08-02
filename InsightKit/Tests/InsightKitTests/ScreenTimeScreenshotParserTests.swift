@@ -11,7 +11,7 @@ final class ScreenTimeScreenshotParserTests: XCTestCase {
     private var now: Date { TestClock.now }
 
     private func parse(_ text: String) -> ScreenTimeScreenshotParser.Result {
-        ScreenTimeScreenshotParser.parse(text, now: now, calendar: cal)
+        ScreenTimeScreenshotParser.parse(text, capturedAt: now, calendar: cal)
     }
 
     // MARK: - Durations
