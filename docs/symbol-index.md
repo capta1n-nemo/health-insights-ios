@@ -463,9 +463,9 @@ the place to look.
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
 - `Features/Insights/MedicationSection.swift`
-  - `DoseEntrySheet` :300
+  - `DoseEntrySheet` :304
   - `MedicationSection` :36
-  - `MedicationSetupSheet` :245
+  - `MedicationSetupSheet` :249
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`

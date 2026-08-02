@@ -131,6 +131,23 @@ relevant stats onto it.. so I can see how well it's working."*
   energy arrives in the import but is not a `MetricType` yet — see
   `pendingNutritionKinds`.
 
+**Two things this push cost, both now retired as categories:**
+
+- **A `public struct` in InsightKit has an *internal* memberwise init.** The
+  app target could not construct `MedicationResponse.Analysis`, and the
+  InsightKit tests could — `@testable import` sees internal. So local green,
+  CI red, and the diagnostic names the *call site* in the app rather than the
+  declaration missing the init. **Write the `public init` in the same edit as
+  any public struct the app constructs.** Now in the `verify-before-push`
+  skill. A lint was prototyped and dropped: 47 public structs in InsightKit
+  have no public init and most are legitimately InsightKit-only, so the check
+  needs qualified-name resolution to be worth having. Left as roadmap.
+- **`ci.yml` has always written the compile errors to `refs/ci/errors/<sha>`**,
+  and this session went to the GitHub Actions API to read one line of them.
+  That call returned 446 KB. `./scripts/ci-status.sh --errors` now fetches the
+  blob — usually under a kilobyte — and `CLAUDE.md` and both shipping skills
+  say so.
+
 **Thirteenth push — the Data tab, and the master input list.** Three things the
 user asked for after seeing the twelfth on the phone.
 

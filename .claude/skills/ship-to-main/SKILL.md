@@ -93,9 +93,12 @@ most.
 ## Reading CI
 
 `./scripts/ci-status.sh [sha|--wait]` reads a git ref pushed by `ci.yml`'s
-`record-status` job. **Never use the GitHub Actions API for this** — its
-smallest run listing is ~450 KB, over 100K tokens, and checking six times in a
-session costs more than the work being verified.
+`record-status` job, and `./scripts/ci-status.sh --errors` reads the compile
+errors from `refs/ci/errors/<sha>`. **Never use the GitHub Actions API for
+either** — its smallest run listing is ~450 KB, over 100K tokens, and checking
+six times in a session costs more than the work being verified. The errors ref
+has existed the whole time; on 2026-08-02 a session paid the 446 KB anyway to
+read one line of it.
 
 Local green covers InsightKit only. The app target needs the iOS SDK, so
 SwiftUI/HealthKit/SwiftData code is compiled only by CI — a green local run and

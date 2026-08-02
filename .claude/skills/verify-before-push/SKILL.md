@@ -54,12 +54,28 @@ check is already scoped this way: the three integration services in
 ## 4. After pushing
 
 ```bash
-./scripts/ci-status.sh --wait
+./scripts/ci-status.sh --wait      # 0 passed / 1 failed / 2 no verdict yet
+./scripts/ci-status.sh --errors    # on a red: the compile errors themselves
 ```
 
-Exits 0 passed / 1 failed / 2 no verdict yet. **Never** reach for the GitHub
-Actions API to answer this — its smallest response is over 100K tokens.
+**Never** reach for the GitHub Actions API for either — its smallest response
+is over 100K tokens. `ci.yml` already writes the grepped errors to
+`refs/ci/errors/<sha>`, and `--errors` fetches that blob; on 2026-08-02 an
+Actions API call returned 446 KB to deliver one line of compile error that was
+sitting in a git ref the whole time.
 
 The app target still needs CI: `xcodebuild` requires the iOS SDK, so SwiftUI
 and HealthKit code is only compiled there. Local green means *InsightKit* is
 green.
+
+### The class of error CI catches and `swift test` never will
+
+**An InsightKit type constructed from the app target needs an explicit
+`public init`.** A `public struct`'s memberwise initialiser is *internal*, and
+the InsightKit tests use `@testable import`, so they can build the type and the
+app cannot. Local green, CI red, every time — and the diagnostic
+("initializer is inaccessible due to 'internal' protection level") names the
+call site in the app, not the declaration that is missing the init.
+
+If you add a public struct to InsightKit and construct it anywhere under
+`HealthInsights/`, write the `public init` in the same edit.

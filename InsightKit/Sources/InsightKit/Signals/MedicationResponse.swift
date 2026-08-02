@@ -49,6 +49,16 @@ public enum MedicationResponse {
 
         public var days: Double { end.timeIntervalSince(start) / 86_400 }
 
+        public init(milligrams: Double, site: String?, start: Date, end: Date,
+                    startWeight: Double?, endWeight: Double?) {
+            self.milligrams = milligrams
+            self.site = site
+            self.start = start
+            self.end = end
+            self.startWeight = startWeight
+            self.endWeight = endWeight
+        }
+
         /// Kilograms gained (positive) or lost (negative) across the period.
         public var change: Double? {
             guard let startWeight, let endWeight else { return nil }
@@ -71,6 +81,16 @@ public enum MedicationResponse {
         public let perWeek: Double
 
         public var id: String { label }
+
+        public init(label: String, milligrams: Double?, doseCount: Int, days: Int,
+                    totalChange: Double, perWeek: Double) {
+            self.label = label
+            self.milligrams = milligrams
+            self.doseCount = doseCount
+            self.days = days
+            self.totalChange = totalChange
+            self.perWeek = perWeek
+        }
     }
 
     /// The whole regimen in five numbers — Shotsy's header tiles.
@@ -78,6 +98,12 @@ public enum MedicationResponse {
         public let startWeight: Double
         public let latestWeight: Double
         public let weeks: Double
+
+        public init(startWeight: Double, latestWeight: Double, weeks: Double) {
+            self.startWeight = startWeight
+            self.latestWeight = latestWeight
+            self.weeks = weeks
+        }
 
         public var totalChange: Double { latestWeight - startWeight }
         public var percentChange: Double {
@@ -95,6 +121,14 @@ public enum MedicationResponse {
         public let periods: [Period]
 
         public var isEmpty: Bool { byDose.isEmpty && overall == nil }
+
+        public init(overall: Overall?, byDose: [Group], bySite: [Group],
+                    periods: [Period]) {
+            self.overall = overall
+            self.byDose = byDose
+            self.bySite = bySite
+            self.periods = periods
+        }
     }
 
     /// Attribute the weight record to the dose history.
@@ -236,6 +270,12 @@ public enum MedicationResponse {
 
         public var id: String { kind.rawValue }
         public var latest: ResponsePoint? { points.last }
+
+        public init(kind: Kind, points: [ResponsePoint], baseline: Double) {
+            self.kind = kind
+            self.points = points
+            self.baseline = baseline
+        }
     }
 
     /// A standardised point that remembers whether it was measured.
@@ -339,6 +379,14 @@ public enum MedicationResponse {
         public let latest: Date
 
         public var id: String { name }
+
+        public init(name: String, occurrences: Int, averageSeverity: Double,
+                    latest: Date) {
+            self.name = name
+            self.occurrences = occurrences
+            self.averageSeverity = averageSeverity
+            self.latest = latest
+        }
     }
 
     /// Tally recorded side effects by name, worst-average first.

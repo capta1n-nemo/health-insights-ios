@@ -38,8 +38,12 @@ inherit the shell's drifted cwd, and a relative hook path fails silently
   six files at once.)
   Two Darwin-only Foundation APIs used to prevent it and are now behind
   `#if canImport(Darwin)`.
-- After pushing: `./scripts/ci-status.sh --wait`. Never use the GitHub Actions
-  API for this; its smallest response is over 100K tokens.
+- After pushing: `./scripts/ci-status.sh --wait`, and on a red,
+  **`./scripts/ci-status.sh --errors`** — `ci.yml` writes the grepped compile
+  errors to `refs/ci/errors/<sha>`, usually under a kilobyte. **Never use the
+  GitHub Actions API for either.** Its smallest response is over 100K tokens;
+  on 2026-08-02 one was spent to read a single-line compile error that
+  `--errors` prints for nothing.
 - Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
   (the app target needs the iOS SDK, so CI is still the only gate for it).
 

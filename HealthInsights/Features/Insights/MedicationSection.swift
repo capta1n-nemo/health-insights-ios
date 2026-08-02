@@ -93,7 +93,11 @@ struct MedicationSection: View {
         NestedInsightSection(
             title: "Medication",
             trailing: points.last.map { String(format: "%.2f mg on board", $0.level) },
-            caveat: response.overall == nil ? .none : .doseAttribution
+            // Spelt out rather than `.none`: a bare `.none` in a position the
+            // compiler could read as `Optional` is a well-worn way to get a
+            // confusing diagnostic, and `SectionCaveat.none` is a real answer
+            // here, not an absent one.
+            caveat: response.overall == nil ? SectionCaveat.none : .doseAttribution
         ) {
             if let overall = response.overall {
                 // A fixed-column grid rather than a wrapping stack: four figures
