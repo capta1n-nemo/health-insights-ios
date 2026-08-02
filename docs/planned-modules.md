@@ -184,11 +184,22 @@ in the export (107 readings, MyFitnessPal). Without intake the service returns
 so it cannot emit a NaN), `TitrationEngine` and `MedicationScanPayload` are in
 InsightKit with 18 tests. `MedicationRecord` / `DoseLogRecord` persist it,
 `MedicationCurveChart` draws it — **dashed wherever the line rests on a dose
-the app inferred** — and `MedicationSection` carries the confirm-or-remove step
-in Body Composition's bespoke slot. **Not built:** the Vision OCR scanner
-behind `MedicationScanner` (the seam and its text-parsing half are, and are
-tested); and `MetricType.activeMedicationLevel`, which stays out until the
-curve has been trusted on real doses, because it is the expensive registration.
+the app inferred** — and `MedicationSection` carries the confirm-or-remove step.
+
+**Updated 2026-08-02, later the same day — the module grew past this
+description.** `MedicationResponse` (16 tests) attributes the weight record to
+the dose history: per dose-step and per injection-site tables, four overall
+figures, a side-effect tally, and a standardised "is it working" overlay.
+It moved out of Body Composition's shared bespoke slot into a **second**
+top-level bespoke section, **Weight management**. `MetricType.activeMedicationLevel`
+**is registered** — it was held back until the curve had been trusted on real
+doses, and the user asked for it on the contributors chart; it carries
+`MetricSource.calculated`, its own `MetricFamily.pharmacology`, weight 0 and no
+reference range (see `docs/architecture.md` ▸ Rule 3). "On board" is gone from
+every surface, replaced by "in your system".
+
+**Still not built:** the Vision OCR scanner behind `MedicationScanner` — the
+seam and its text-parsing half are, and are tested.
 
 Two bugs the tests caught, worth keeping: the titration walk emitted a dose on
 both sides of every step boundary, which sorted into a ladder that appeared to
@@ -425,8 +436,14 @@ documents for fat over BMI.
 continuous Heath–Carter components from body fat (against the same Gallagher
 band the dial uses), fat-free mass index, the ponderal index, and a
 shoulder-to-waist lift where a tape or a scan provides it. `isBalanced` exists
-because most people are mixtures and the card must be able to say so. **The
-card and the user override are not built yet.**
+because most people are mixtures and the card must be able to say so.
+
+**Updated 2026-08-02: the card and the override are both built.**
+`SomatotypeCard` renders the three components inside Body Composition's first
+bespoke section, and the override is a first-class input —
+`InputKind.bodyType`, `ContributionRoute.bodyType`, `BodyTypeSheet`, reachable
+from the card's "View & add", the Today `+` menu and Settings. It is
+`.offeredOnly`: nothing scores off it, so nobody is nagged for it.
 
 The design as written:
 

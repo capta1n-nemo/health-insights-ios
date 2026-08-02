@@ -179,7 +179,18 @@ The Vitals Check fix, applied everywhere it was also true.
       Share action.
 
 ### App structure
-- [x] Four-tab layout: Today / Vitals / Insights / Settings.
+- [x] Four-tab layout: **Today / Insights / Data / Settings** (the third tab was
+      "Vitals" and second until 2026-08-02 — renamed because it holds the
+      substance log, the regimen, side effects and the raw imported catalogue,
+      none of which is a vital sign, and reordered so the tabs read as *now →
+      what it means → everything underneath*).
+- [x] **The Data tab is complete by construction** — `DataDomain`, exhaustive.
+      A new kind of data does not build until it has a section *and* an answer
+      to search. See `docs/architecture.md` ▸ "The structural invariants".
+- [x] **Every input reaches every input surface** — `InputKind`, exhaustive,
+      generating the Today `+` menu and Settings ▸ Add or update data, with
+      `cardRequirement` and three checks binding a card to declare what it
+      takes.
 - [x] Multi-source overlay charts with provenance badges (direct API vs.
       Apple Health bridge vs. Apple Watch).
 - [x] Adjustable timeframe (D/W/M/6M/Y/All) with correct chart scaling at every
@@ -670,6 +681,49 @@ not weighted, when almost every score should be weighted"*.
       share" for the per-card numbers, and `docs/activeContext.md` for why the
       original rule could not support the work it was doing.
 
+### The screenshot-review session — 2026-08-02 (`d96ada1` → `456ad61`, all installed)
+
+Driven end to end by screenshots and exports off the phone. Twenty-four commits,
+one red CI. What it established, so nothing here is re-derived:
+
+- [x] **The Data tab** — Vitals renamed and moved to third (Today · Insights ·
+      Data · Settings). The name had stopped being true: it holds the substance
+      log, the regimen, side effects and the raw imported catalogue.
+      `VitalsView` → `DataTabView`, in `Features/Data/`.
+- [x] **`DataDomain`** — every kind of data has a Data-tab section or the app
+      does not build. Two exhaustive switches: what it renders, and how it
+      answers a search.
+- [x] **Search on the Data tab**, matching row names *and* section headings.
+- [x] **`InputKind`** — the master input list, generating the Today `+` menu and
+      Settings ▸ Add or update data, with one switch saying what each opens.
+- [x] **`InputKind.cardRequirement` and its three checks** — the rule that a
+      card offering an input must declare it. Found and fixed three inputs on
+      Body Composition that its "View & add" did not mention.
+- [x] **Side effects are stored** (`SideEffectRecord`) and enterable by hand.
+      They were parsed from Shotsy, counted into the import alert and thrown
+      away.
+- [x] **`MedicationResponse`** — dose-step and injection-site attribution, the
+      four overall figures, the side-effect tally, and the standardised
+      "is it working" overlay.
+- [x] **Weight management** as Body Composition's *second* bespoke section, and
+      "on board" replaced everywhere by "in your system".
+- [x] **`MetricType.activeMedicationLevel`** — the app's first modelled metric,
+      on the contributors chart at weight 0. See `docs/architecture.md` ▸ Rule 3
+      for the three guards that keep it from reading as a measurement.
+- [x] **`RenderMemo`** — the sticky-nil fix. `dict[key] as? Optional<T>` always
+      succeeds, so every optional-typed render memo returned nil on its first
+      ask and never computed.
+- [x] **Shotsy import** — the share sheet, the integration entry, the UTI that
+      was blocking it, and the async import with a progress overlay.
+- [x] **`ci-status.sh --errors`, `deploy-status.sh --errors` and `--fresh`** —
+      a red is now readable for a few hundred bytes instead of a 446 KB API call.
+- [ ] **The share-sheet *action* extension is parked on signing**, not on code
+      (`aaf185c`, reverted). App Groups need a paid Developer Program membership
+      and an Xcode account on the runner Mac. `git cherry-pick aaf185c` restores
+      it; `docs/deployment.md` has the errors verbatim.
+- [ ] **Calories from the Shotsy import are still unmodelled** — dietary energy
+      arrives in the file and is not a `MetricType`; see `pendingNutritionKinds`.
+
 ## In progress / not yet device-verified
 
 - [x] **The card-consistency session (2026-08-01), all twelve pushes installed
@@ -964,27 +1018,29 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 
 ### The master add button (user request, 2026-08-02)
-- [ ] **One "+" on all three main tabs — Today, Vitals, Insights — as the
-      single way to put data into the app.** Today it is a toolbar button on
-      the Today tab only (`DashboardView.swift:49`), hardwired to
-      `SubstanceLogView`. The user's direction: it becomes a master add
-      button offering **manual entry and camera-based input (AI + LiDAR)**
-      for many kinds of data — test results, body-composition scans, food
-      for nutrition reporting, and whatever comes after.
-
-      Scoping notes for whoever picks it up:
-      - **The menu, not the capture, is the first build.** A tapped "+"
-        presents the routes: log a substance, enter a reading (BP cuff,
-        grounding facts), scan a document, scan your body, log food. Each
-        route already has or needs its own surface; the button is the one
-        front door. `ContributionRoute` is the existing per-card version of
-        this idea — the master button is the app-wide union of those routes,
-        so derive the menu from the models rather than hand-listing it (a
-        sixth hand-written switch over inputs is how lists drift).
-      - **Placement**: three tabs means one shared component, not three
-        copies. Today's toolbar slot works everywhere; whether it stays a
-        toolbar item or becomes a floating button is a device-only judgement
-        call — decide it on the phone, not in the sandbox.
+- [x] **The menu is built, and it is generated rather than hand-listed.**
+      `InputKind` (InsightKit) is the app-wide list of every way in;
+      `AddInputMenu` is the Today `+`, `AddDataView` is Settings ▸ Add or
+      update data, and `InputSheet` is the one switch saying what each opens.
+      Nine inputs: your details, cuff reading, substance, medication, dose,
+      side effect, blood-test photo, shared file, your build. See
+      `docs/architecture.md` ▸ "The structural invariants" and the
+      `add-data-or-input` skill.
+- [x] **A card must declare what it takes.** `ContributionRoute.inputKinds`
+      (plural) maps a card's routes onto the master list, and
+      `InputKind.cardRequirement` says whether an input must be on a card and
+      whether a never-used one earns a dismissible prompt. Three checks
+      enforce it — `InputKindTests`, a `verify.sh` lint on `…Sheet` views the
+      master list cannot open, and `SuggestionEngine.unusedInputs`.
+- [ ] **The `+` is still on Today only.** Insights and Data have no add
+      affordance. One shared component, not three copies — `AddInputMenu` is
+      already that component, so this is a placement decision rather than a
+      build. Whether it stays a toolbar item or becomes a floating button is
+      a device-only judgement call.
+- [ ] **Camera-based input (AI + LiDAR) is still the open half** — test
+      results beyond the shipped blood-test photo, body-composition scans,
+      food for nutrition reporting.
+      Scoping notes for the open half:
       - **Existing pieces it unifies**: blood-test photo import (shipped:
         on-device OCR → confirmed grounding values), the VisionKit live
         scanner (open, below), Foundation Models lab-analyte extraction

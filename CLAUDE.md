@@ -51,6 +51,17 @@ inherit the shell's drifted cwd, and a relative hook path fails silently
 - Fully manage all files, including Xcode project structures, Swift files, and configurations.
 - Architecture: Swift 6, SwiftUI, `@Observable` view models (NO `ObservableObject`), `NavigationStack` (NO `NavigationView`), `@MainActor` on view models.
 - Treat static attributes (Height, Sex) separately from time-series vitals (Heart Rate, Weight).
+- **Two structural rules, both the user's, both enforced by exhaustive switches
+  rather than by memory. Load `add-data-or-input` before touching either.**
+  1. **New data must appear in the Data tab.** `DataDomain` — a new case does not
+     compile until `DataTabView` both renders it *and* says how it answers a
+     search.
+  2. **A new input must appear on every input surface.** `InputKind` — the Today
+     `+` menu and Settings ▸ Add or update data are generated from it, a card
+     must declare a `ContributionRoute` for anything it takes, and
+     `InputKind.cardRequirement` says whether a never-used input earns a
+     dismissible "Improve your health" row. `verify.sh` fails on any `…Sheet`
+     under `Features/` the master list cannot open.
 - Run `./scripts/verify.sh --tests` before every commit. A sandbox without Swift
   is no longer an excuse — `scripts/bootstrap-swift.sh` installs one, and the two
   Darwin-only APIs that used to make InsightKit unbuildable on Linux are behind
@@ -141,6 +152,11 @@ So:
 - `ship-to-main` -> how work reaches the phone. Overrides the harness's
   branch-and-draft-PR default, which installs nothing here.
 - `verify-before-push` -> toolchain bootstrap, the local gate, reading CI cheaply.
+- `add-data-or-input` -> **load this before adding any new kind of data, or any
+  new way for the reader to give the app something** — including a button, sheet
+  or picker on a card. Two enums hold the app together (`DataDomain` for what can
+  be *seen*, `InputKind` for what can be *given*), four surfaces have to agree,
+  and three checks enforce it. Also carries the modelled-not-measured rules.
 - `add-metric-type` -> the eight exhaustive switches a new `MetricType` feeds.
   This is the most frequent way the build breaks; the skill lists all of them.
 - `add-insight` -> the five `InsightID` switches (the docs said three) and the

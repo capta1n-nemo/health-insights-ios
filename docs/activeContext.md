@@ -28,6 +28,22 @@ The column that matters is **compounding**: being careful does not survive a
 context reset, but a lint, a skill or a self-healing script does. When a problem
 appears, ask whether the fix retires the *instance* or the *category*.
 
+## Read this before writing code
+
+**The app's structural invariants are in `docs/architecture.md` ▸ "The
+structural invariants — the enums that hold the app together".** Four rules,
+each held by an exhaustive switch rather than by memory:
+
+1. **New data appears in the Data tab** — `DataDomain`.
+2. **A new input appears on every input surface** — `InputKind`, and a card must
+   declare a `ContributionRoute` for anything it takes.
+3. **Modelled is never dressed as measured** — `MetricSource.calculated`, its
+   own family, weight 0, no reference range.
+4. **One axis, standardised, never two.**
+
+**Load the `add-data-or-input` skill before touching 1 or 2**, and `add-chart`
+before touching a chart. Both were written from shipped defects.
+
 ## Current focus
 
 **The screenshot-review session (latest, 2026-08-02, afternoon).** The user
@@ -94,9 +110,12 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
   attributes the same 150/89 to Stage 2 hypertension at face value.
 - F14: Readiness's supporting-only weighted shares renormalise four wildly
   unequal signals (one is a single manual BP reading) to 25% each.
-- F15: score history stores days below the two-contributor floor (Heart Health
-  2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
-  at draw and why they're stored.
+- ~~F15~~ — **closed, and the answer is worth keeping.** `ScoreHistory` applies
+  `minimumContributors = 2` to days it **reconstructs**; days the app actually
+  scored at the time are stored and kept as they were shown, because a stored
+  point is the record of what the reader was told. `SectionCaveat.scoreFloor`
+  says exactly that. The old copy claimed sub-floor days "aren't shown", which
+  the user's own export contradicted the same week.
 **Eighteenth push — the input rule now has three checks behind it.** The user
 found the hole `InputKind` had not closed: *"there are things on the body comp
 page that are not in the add and view.. body type, log a dose, import from
@@ -470,9 +489,13 @@ carrying ~28% of the level — the test was wrong, not the code.
 
 **Still not built, deliberately:** the LiDAR capture (ARKit, unexercisable from
 a sandbox), the Vision OCR scanner behind `MedicationScanner` (the seam and its
-text parsing are built and tested), `MetricType.activeMedicationLevel` (the
-expensive registration — wait until the curve is trusted on real doses), and
-TDEE (needs dietary energy promoted out of the raw pile).
+text parsing are built and tested), and TDEE (needs dietary energy promoted out
+of the raw pile — the Shotsy import now supplies it, unmodelled).
+
+⚠️ **`MetricType.activeMedicationLevel` was on that list and no longer is** —
+registered later the same day at the user's request so the level could appear on
+the contributors chart. See the seventeenth push above for the three guards that
+keep a modelled metric from reading as a measurement.
 
 **Sixth push — Body Composition scores velocity, not just a level.** The user's
 three answers came back: body fat **0.45** ("maybe 50% max", and asked what

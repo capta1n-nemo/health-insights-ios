@@ -102,6 +102,105 @@ people feel, and both are careful about the same three things:
 their lighter ones, from a single source so a walk isn't counted twice) and falls
 back to general training evidence, with `Lever.isPersonal` marking which is which.
 
+## The structural invariants — the enums that hold the app together
+
+_Added 2026-08-02, after two consecutive sessions where a shipped feature
+reached one screen and was invisible on every other. Both failures had the same
+shape: **a rule that depended on somebody remembering.** The app target has no
+test target, so the compiler is the only thing that can hold a rule there — and
+that is why each of these is an enum with exhaustive switches at its surfaces
+rather than a convention, a comment or a checklist._
+
+**Load the `add-data-or-input` skill before touching any of them.**
+
+| Invariant | Type | Guarantees | Surfaces that switch on it |
+| --- | --- | --- | --- |
+| Every kind of data can be **seen** | `DataDomain` | the Data tab is complete | `DataTabView.section(for:)`, `DataTabView.isVisible(_:)` |
+| Every kind of data can be **given** | `InputKind` | all four input surfaces agree | `AddDataView`, `AddInputMenu`, `InputSheet`, `AddDataView.standing(_:)`, `AppModel.usedInputs` |
+| A card says what it takes | `ContributionRoute` | "View & add" is the card's whole answer | `ViewAndAddSection.section(for:)`, `ContributionRoute.inputKinds` |
+| A metric is fully described | `MetricType` | eight decisions per metric | see the `add-metric-type` skill |
+| A section says what it inferred | `SectionCaveat` | `caveat:` has no default value | every `InsightSection` call site |
+| A card's sections have one order | — | `card-map.sh --check` | `InsightDetailView.body` |
+
+### Rule 1 — new data appears in the Data tab
+
+> *"whenever we add new data, it must have an entry in that tab.. eg substances
+> should have a section, medications, later when we do composition scans"*
+> — the user, 2026-08-02
+
+The Data tab (called Vitals until that day) is the app's answer to *"what do you
+actually know about me"*, and that claim only holds if it is complete. It kept
+not being: the substance log was reachable only from a toolbar button for weeks,
+and medication doses and imported side effects were written to the store and
+listed nowhere.
+
+`DataTabView.body` is `ForEach(DataDomain.allCases)` into an exhaustive switch,
+and `isVisible(_:)` is a **second** exhaustive switch saying how each domain
+answers a search. A new kind of data does not build until it has answered both.
+
+**A domain is not a `MetricType`.** A metric is one measured series; a domain is
+a *shape* — a dated log, paired readings, a regimen with a decay curve. Most are
+not series at all, which is precisely why they kept falling out of a screen
+built around series.
+
+### Rule 2 — a new input appears on every input surface
+
+> *"if manual input is allowed on a card, it must be in the View and add sub
+> menu of the card, in the + master add button, in the add or update section of
+> the settings sub menu; if it's missing, or hasn't been added for the first
+> time, it goes into the improve your health recommendation that can be
+> dismissed"* — the user, 2026-08-02
+
+Four surfaces, two of them free:
+
+| Surface | How it stays current |
+| --- | --- |
+| Today's `+` menu (`AddInputMenu`) | generated from `InputKind.allCases` |
+| Settings ▸ Add or update data (`AddDataView`) | generated from `InputKind.allCases` |
+| A card's "View & add" (`ViewAndAddSection`) | the model must declare a `ContributionRoute` |
+| "Improve your health" | `SuggestionEngine.unusedInputs`, from `InputKind.cardRequirement` |
+
+`InputKind.cardRequirement` is the rule made checkable — `.offeredAndPrompted`,
+`.offeredOnly`, or `.settingsOnly(reason)` — and **three** checks hold it, each
+catching a different half:
+
+1. `InputKindTests` — every kind that must be on a card is in some shipped
+   model's `contributions`, and no Settings-only kind is.
+2. `verify.sh` — any `…Sheet` under `Features/` must be named in
+   `AddDataView.swift`. *The test binds inputs somebody declared; this binds the
+   ones nobody did*, which is the failure that actually happened: a
+   build-override picker inside a chart and a dose button inside a section.
+3. `SuggestionEngine.unusedInputs` — the dismissible prompt, at strength 0.15,
+   deliberately below every grounding gap.
+
+`ContributionRoute.inputKinds` is **plural**: `.medication` stands for the
+regimen, the doses *and* the side effects, and a one-to-one mapping would have
+left two of the three undeclared while looking correct.
+
+### Rule 3 — modelled is never dressed as measured
+
+One metric is computed rather than sensed (`activeMedicationLevel`, from logged
+doses and a published half-life). Three guards keep it honest, and a second
+modelled metric must copy all three:
+
+- **`MetricSource.calculated`** on every sample — the overlay legend, the
+  per-source breakdown and the export all say *"Worked out by this app"*.
+- **Its own `MetricFamily`.** Sharing a family with what it is drawn against
+  would suppress the pair as a tautology, hiding the one relationship it exists
+  to show.
+- **Weight 0 with the reason on the row, and no `referenceRange`.** A weight
+  asserts that more or less of the thing is better; a reference band on a
+  prescribed drug level reads as a target dose.
+
+### Rule 4 — one axis, standardised, never two
+
+`MetricOverlayChart` and `MedicationResponseChart` both put unlike units on a
+single axis as z-scores against each series' own window mean, and print the real
+values in the scrub read-out. **Two y-axes is how any two lines can be slid
+until they appear to agree**, and no chart in this app does it. See the
+`add-chart` skill for the rest of the charting rules — every line of it is a
+shipped defect.
+
 ## Extensibility
 
 - **New data source**: implement `HealthIntegration` and register it. Insights

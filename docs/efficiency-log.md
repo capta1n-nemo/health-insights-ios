@@ -151,6 +151,11 @@ that is not yet automated is the next thing to automate.
 | **A weight, threshold or share written in the card rather than beside the model** | **2** | ✅ partly — Energy's 0.6/0.25/0.15 appeared nowhere in `EnergyModel` and became `Output.terms` (session 17); Sleep still restates nine coefficients twice in one function and is logged as gap 18. The mechanical half exists — `testContributorWeightsMatchTheWeightsTheScoreApplies` — and does not cover a weight that was never *derived* from anything |
 | **A nightly figure wrong because same-day sleep samples combine wrongly** | **3** | ⚠️ the *instances* are each fixed and tested — naps averaged into nights (session 13), midnight-crossing nights split in two (session 14), split-night periods averaged to half (session 19, found by the model-internals export's per-source nights table on its first use) — but the category is `bucketStatistic .mean` over `.sleepDurationHours` being wrong whenever one source emits two same-day samples, and nothing lints a *fourth* producer of that shape. The defence that generalises: any parser emitting nightly figures must emit **one sample per night per metric**, which `SleepNights` does by construction and `parseSleep` now does by grouping |
 | **A whole-model run inside a SwiftUI `body`, un-memoised** | 1 (5+ instances) | ⚠️ the instances are fixed — `AppModel.memoized(_:_:)` + `LazyVStack` (2026-08-02, session 19; body re-evaluates per scrub/pan, so each was re-running `VitalSignsCheck` et al. over 231k samples per frame-ish) — but no mechanical check exists: a grep-lint for `samples: model.samples` in view files drowns in legitimate cheap calls. The rule: **a full-sample model call in a view goes through `model.memoized`**, and the next slow-card report is the trigger to re-audit |
+| **A feature reaching one screen and being invisible on every other** | **3** | ✅ automated (2026-08-02, session 20) — `DataDomain` for what can be *seen*, `InputKind` for what can be *given*, both exhaustively switched at their surfaces. Fired as: the substance log reachable only from a toolbar button; medication doses and imported side effects stored and listed nowhere; a build-override picker and a dose button offered on a card that declared neither. The third one is the instructive one — **the enum only binds inputs somebody declared**, so it needed a `verify.sh` lint on `…Sheet` views the master list cannot open, which binds the ones nobody did |
+| **A `public struct` in InsightKit the app target cannot construct** | 1 | ⚠️ ruled, not linted — a public struct's memberwise init is *internal*, and `@testable import` means the tests build it happily. Green locally, red in CI, and the diagnostic names the call site rather than the missing init. In `verify-before-push`; a lint was prototyped and dropped because 47 public structs have no public init and most are legitimately InsightKit-only, so the check needs qualified-name resolution to be worth having |
+| **Reach for the GitHub Actions API to read a *deploy* failure** | 1 | ✅ automated (2026-08-02, session 20) — `refs/deploy/errors/<sha>` + `deploy-status.sh --errors`, mirroring what `ci.yml` had from the start. It answered "signing refused the App Group" vs "the phone is unreachable" on its first run, for nothing, after a 446 KB API call had been spent on the CI side of the same question |
+| **A status script answering a *re-run* with the previous run's verdict** | 1 | ✅ automated (2026-08-02) — the verdict ref is keyed on the sha alone, so `--wait` returned instantly with a failure that had not happened yet. `deploy-status.sh --fresh` baselines what is recorded and waits for it to change. Worse than no answer, because it looks like a result |
+| **A count assigned from `parsed.x.count` with no merge call** | 1 | ⬜ open — the import alert said "12 side effects" and meant "12 seen", not "12 kept". Found only because a new `DataDomain` case demanded something to render. The grep shape is recorded in the `add-data-or-input` skill; no lint, because the assignment is legitimate wherever a merge really did happen |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
@@ -202,6 +207,21 @@ fails when any `.claude/settings.json` hook command starts with `./` or
 `scripts/`, canaried at build time. The category — "a hook that silently does
 not run" — is retired for the path-shaped cause; a hook failing for any other
 reason still needs the sentinel-file test in the `update-config` procedure.
+
+### ✅ The four input surfaces cannot drift apart — done (session 20)
+
+The ledger's new top row. `InputKind` generates the Today `+` menu and the
+Settings input screen; `ContributionRoute` binds a card to declare what it
+takes; `InputKind.cardRequirement` decides whether a never-used input earns a
+dismissible prompt; and three checks hold it — `InputKindTests`, a `verify.sh`
+lint on `…Sheet` views the master list cannot open, and
+`SuggestionEngine.unusedInputs`.
+
+**The lint is the part worth keeping.** The test binds inputs somebody
+*declared*; the failure that prompted all of this was an input nobody declared
+at all. A rule that only checks the declarations cannot see the gap it exists to
+find, and that distinction generalises to every "must be registered" invariant
+in this repo.
 
 ### ⬜ The next category without a check: same-day sleep emission
 
@@ -410,6 +430,79 @@ with guesses.
 | 18 | 2026-08-01/02 | 7 (10 commits) | **0** | 1 | 1 (named below) | 868 → 902 | **`SampleCacheCodec`** — the cold-launch decode 965 ms → 4–6 ms, with a free one-way migration (the roadmap's named next item, closed); **`CardStateExport`** — the recalibration instrument, whose *first real use found five live miscalibrations*; `SleepInsight.Weight` one-table coefficients (gap 18); `ActivityDoseModel` + `exerciseMinutes` (data-opportunities #1); `sleepLatencyMinutes` via the nap-aware parser (#4); Withings bookkeeping excluded keyed on the typed parser's own map; `effectivePenalties` one pool for the substance dial and its shares; `comparisonWindowDays`, `minimumTrendSpanDays`, `judgementSamples` — each a category guard with a test shaped like the user's data | **Better than baseline, level with 17, behind 16.** 2 waste / 7 pushes = 0.29 against 0.56 baseline (16: 0.08, 17: 0.25). Zero red CI across seven pushes, seven installs. The rework is the sharpest lesson: the new export violated a *documented* trap on its own first use |
 
 | 19 | 2026-08-02 | 6 | **0** | 1 (named below) | 0 | 902 → 914 | **`scripts/bash-workdir-hook.sh`** — the ledger's six-session row, retired by the harness rather than by care, and its construction closed a silent pre-push-gate bypass (hook cwd inheritance) now also linted by `verify.sh`; **refresh coalescing** — concurrent pipelines join the running one; **`ModelInternalsExport`** — the third instrument, which *found a live parser defect on its first output* (Oura split nights); **`AppModel.memoized` + `LazyVStack` + detached export builds + breakdown prewarm + `SyncActivityPill`** — the performance/visibility pass; `VitalSignsCheck.Reading.historyDays`; `SplitNightTests` | **Better, and the first session with zero working-directory round trips after six sessions of them.** 1 waste / 6 pushes ≈ 0.17 against 18's 0.29 (16: 0.08). Zero red CI across six pushes, six installs, zero re-derivations. The rework is small and instructive: the export misquoted the 1.25 threshold as "1.2" — built and fixed the same day, caught by the user's first real export |
+
+| 20 | 2026-08-02 | 23 (24 commits) | **1** | 4 | 2 (named below) | 914 → 1067 | **`DataDomain`** — every kind of data has a Data-tab section or it does not build; **`InputKind` + `cardRequirement` + three checks** — the four input surfaces cannot drift apart, and the `verify.sh` lint binds the inputs *nobody declared*; **`add-data-or-input` skill** + `docs/architecture.md` ▸ "The structural invariants"; **`refs/deploy/errors/<sha>` + `deploy-status.sh --errors/--fresh`**; `ci-status.sh --errors`; `MedicationResponse` (+16), `SharedInbox` (+7, reverted with the extension), `MedicationLevelMetricTests` (+11), `InputKindTests` (+12), `SharedInbox`/dose tests; `RenderMemo`; `MetricSource.calculated` and the modelled-metric guards | **Worse than 19 on the ratio, and the biggest session recorded.** 7 waste / 23 pushes = 0.30, against 19's 0.17 and a 0.56 baseline — better than baseline, behind the last three. The honest sting is elsewhere: **ten deploys installed nothing**, and two of those were mine |
+
+### Session 20 notes
+
+**The session in one line:** the user drove it from screenshots and exports, and
+it turned into the largest single session in this log — 24 commits, +153 tests,
+two structural invariants, and one feature built and reverted.
+
+**Red CI (1).** `MedicationResponse.Analysis` is constructed from the app target,
+and a `public struct`'s memberwise initialiser is **internal**. The InsightKit
+tests build it happily because `@testable import` sees internal, so this class is
+green locally and red in CI every time, and the diagnostic names the *call site*
+in the app rather than the declaration missing the init. Ruled into
+`verify-before-push`. A lint was prototyped and dropped: 47 public structs in
+InsightKit have no public init and most are legitimately InsightKit-only, so the
+check needs qualified-name resolution before it is worth having.
+
+**Rework (4).**
+1. `f15403e` — the public-init fix above.
+2. `c141fc3` — reverting the share-sheet action extension. **Not a defect**: CI
+   was green and the code is sound; the deploy Mac refused the App Group, which
+   is unavailable to free personal development teams. Reverted rather than left
+   on `main` because it turned a deploy *install* failure into a deploy *build*
+   failure, and a red `main` means the phone gets nothing at all.
+3. `ae26d78` — restoring the docs the revert took with it.
+4. `2ef065a` — the first deploy error blob grepped for "codesign", "entitlement"
+   and "provisioning profile", which are ordinary words in a *successful* build
+   log, so the first failure it captured came back as forty lines of clang
+   invocations with the cause nowhere in them. **Match what breaks, not what is
+   mentioned.**
+
+**Re-derivations (2), both of them documented traps walked into anyway.**
+1. **Read a compile error through the GitHub Actions API.** `CLAUDE.md` bans it
+   by name, and `ci.yml` had been writing the grepped errors to
+   `refs/ci/errors/<sha>` from the start. The call returned 446 KB to deliver one
+   line that a `git fetch` already held. What was missing was only the *reader* —
+   `ci-status.sh --errors` now exists, and `deploy-status.sh --errors` with it.
+2. **`git checkout main` on the container's stale local `main`.** The
+   `ship-to-main` skill documents this trap verbatim, including that the working
+   tree silently swaps to a months-old snapshot. It happened anyway, and the
+   recovery (`git branch -f`) is the one thing that skill explicitly says not to
+   reach for. The push itself was fine — ancestry was checked first — but the
+   detour was pure waste.
+
+**Ten failed deploys, and only two were mine.** The App Group refusal accounts
+for two; the other eight were the Wi-Fi tunnel to the phone dropping and then
+the Mac's runner going offline. That is why the ratio above uses waste rather
+than deploy failures — but it is worth recording that **more than a third of
+this session's pushes installed nothing**, which no amount of code quality
+addresses.
+
+**What was automated so it cannot recur:**
+- `DataDomain` and `InputKind`, with exhaustive switches at every surface — the
+  ledger's new top row, a failure seen three times.
+- The `verify.sh` lint on `…Sheet` views the master list cannot open. **This is
+  the one worth remembering**: the tests bind inputs somebody *declared*, and
+  the failure that prompted the whole change was an input nobody declared at
+  all. A check over the declarations cannot see the gap it exists to find.
+- `refs/deploy/errors/<sha>` + `--errors`, mirroring what CI already had.
+- `--fresh`, so a re-run is never answered with the previous run's verdict.
+- The `add-data-or-input` skill and `docs/architecture.md` ▸ "The structural
+  invariants", which is the answer to the user's closing ask: *"ensure app
+  structures are documented, rules for ensuring new data is always added to the
+  data tab, when there are new input types it's added to all the relevant card
+  view and add sections."*
+
+**Still open, named so the next session does not re-derive them:** F8 (split
+nights on the device — needs a rebuild-from-providers and a fresh export), F11
+(the substance systolic pool floor — a scoring decision the user has not made),
+F14 (Readiness's supporting-only renormalisation), the action extension parked
+on a paid Developer Program membership, and dietary energy from the Shotsy
+import still unmodelled.
 
 ### Session 19 notes
 
