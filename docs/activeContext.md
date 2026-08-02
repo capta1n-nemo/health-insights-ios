@@ -355,10 +355,25 @@ number.
    `Energy.swift:~85`, `:481`. Give it weight 0 with a note, or drop it.
 5. **"How you compare" is empty on Sleep** (no sleep metric has a published norm)
    and thin elsewhere — a literature gap. Candidate norms need research per metric.
-6. **candidateMetrics/contributors asymmetry:** Sleep's 2 unused temperature
-   metrics, Heart Health's unused HRV flavour, and Body Comp's
-   `activeMedicationLevel` (a contributor but absent from `candidateMetrics`, so
-   missing from "How far from normal"). Align the two lists per card.
+6. ~~**candidateMetrics/contributors asymmetry:** Sleep's 2 unused temperature
+   metrics, Heart Health's unused HRV flavour.~~ **Both suspicions were wrong —
+   settled 2026-08-02 by `CandidateReachabilityTests`, which found no dead
+   declaration on any of the nine cards.** They are *fallbacks*: each becomes its
+   own card's contributor when the preferred sibling is absent
+   (`SleepInsight.swift:159`, `HeartHealth:186`), which is a fact about the
+   reader's device. Body Comp's `activeMedicationLevel` was the real one and was
+   fixed earlier; `ContributorCandidateTests` guards that direction and this
+   guards the reverse.
+
+   ⚠️ **Worth keeping: shadowing is per-model, and checking it across the union
+   of all models hides it.** The first version of that test unioned contributors
+   over every card and concluded body temperature was not a fallback at all —
+   because Vital Signs charts it unconditionally while Sleep only falls back to
+   it. Both statements are true; only the per-model one answers the question.
+   The same version also reported all 27 of Substance Impact's candidates as
+   dead, because `InsightEngine().models` hands out an **event-less** substance
+   model — the log is bound by `withSubstanceLog`, and a card whose whole input
+   is a log reports nothing without one.
 
 **The data-conventions session (previous, 2026-08-02, evening).** From a Data-tab
 screenshot: the domain rows opened the wrong places and a side effect had gone
