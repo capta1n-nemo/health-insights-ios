@@ -42,6 +42,13 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// the place.
     case bodyType
 
+    /// A day's screen time, entered by hand or from a Shortcuts automation.
+    ///
+    /// On the Sleep card because that is where it earns its keep: it turns
+    /// *"is it tech time?"* — which `SleepOnsetModel` otherwise has to list as
+    /// something it cannot see — into a contrast it can actually draw.
+    case screenTime
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
@@ -66,6 +73,7 @@ public extension ContributionRoute {
         case .groundingFacts: return [.profileFacts]
         case .medication: return [.medicationRegimen, .medicationDose, .sideEffect]
         case .bodyType: return [.bodyType]
+        case .screenTime: return [.screenTime]
         }
     }
 }

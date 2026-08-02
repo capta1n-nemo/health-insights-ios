@@ -7,16 +7,20 @@ import Foundation
 ///
 /// The reader's own question was *"is it the drugs? is it tech time? am I eating
 /// too late? am I too hot or too cold?"* — and honesty about which of those the
-/// app can see is the whole point. It can see four things and it says so:
+/// app can see is the whole point. It can see:
 ///
 /// - **substances** you logged that evening,
 /// - **medication** still in your system (the GLP-1 curve),
 /// - **temperature** — how far your skin ran from its own baseline, warm *or*
 ///   cool, which is the "too hot / too cold" question,
-/// - **evening exertion** — how active the day was.
+/// - **evening exertion** — how active the day was,
+/// - **screen time** — *"is it tech time?"*, once the reader is entering it.
+///   Apple sandboxes Screen Time so no app can read it automatically (see
+///   `MetricType.screenTimeMinutes`), so this factor appears only on the days
+///   it was supplied, and `unseenFactors` keeps naming it until then.
 ///
-/// It **cannot** see screen time or when you last ate, and `unseenFactors` names
-/// those rather than letting their absence read as "nothing else matters".
+/// It still **cannot** see when you last ate, and `unseenFactors` names what is
+/// missing rather than letting its absence read as "nothing else matters".
 ///
 /// ## Why a contrast, not a single correlation
 ///
@@ -46,7 +50,7 @@ public enum SleepOnsetModel {
 
     /// The four things the app can hold up against your sleep onset.
     public enum Factor: String, Sendable, CaseIterable {
-        case substances, medication, temperature, eveningExertion
+        case substances, medication, temperature, eveningExertion, screenTime
 
         public var displayName: String {
             switch self {
@@ -54,6 +58,7 @@ public enum SleepOnsetModel {
             case .medication: return "Medication in your system"
             case .temperature: return "Skin temperature"
             case .eveningExertion: return "How active the day was"
+            case .screenTime: return "Screen time"
             }
         }
 
@@ -64,6 +69,7 @@ public enum SleepOnsetModel {
             case .medication: return "Is it the medication?"
             case .temperature: return "Were you too hot or too cold?"
             case .eveningExertion: return "Is it how hard the day was?"
+            case .screenTime: return "Is it tech time?"
             }
         }
 
@@ -154,10 +160,17 @@ public enum SleepOnsetModel {
         }
         drivers.sort { $0.deltaMinutes > $1.deltaMinutes }
 
+        // What the app still cannot see. Screen time drops off this list the
+        // moment the reader is actually entering it — the honesty runs both
+        // ways, and naming a factor as unseen while charting it would be its
+        // own kind of lie.
+        var unseen = ["how late you ate"]
+        if !factors.contains(where: { $0.0 == .screenTime }) {
+            unseen.insert("screen or phone time before bed", at: 0)
+        }
         return Output(nights: nights, trend: trend, medianMinutes: median,
                       nightsAnalysed: nights.count, drivers: drivers,
-                      unseenFactors: ["screen or phone time before bed",
-                                      "how late you ate"])
+                      unseenFactors: unseen)
     }
 
     // MARK: - Contrasts
@@ -222,6 +235,7 @@ public enum SleepOnsetModel {
         case .substances: lead = "On your higher-use evenings"
         case .medication: lead = "On nights with more medication in your system"
         case .eveningExertion: lead = "After your more active days"
+        case .screenTime: lead = "On your heavier screen days"
         case .temperature: lead = "On your warmer nights"   // unreachable (signed)
         }
         return "\(lead) you fell asleep about \(mins) min \(dir), over \(nights) "

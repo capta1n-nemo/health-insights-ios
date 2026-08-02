@@ -41,6 +41,11 @@ public enum MetricFamily: String, Sendable, CaseIterable {
     case metabolic, mobility, body, activity, sleep
     /// Medication the reader is taking. Only `activeMedicationLevel`.
     case pharmacology
+    /// What the reader does rather than what their body does — screen time
+    /// today. **Its own family on purpose**: filed under `.activity` beside
+    /// steps, the pattern finder would suppress "more screen time, fewer steps"
+    /// as a tautology, and that is precisely the relationship worth surfacing.
+    case behaviour
 
     public var displayName: String {
         switch self {
@@ -54,6 +59,7 @@ public enum MetricFamily: String, Sendable, CaseIterable {
         case .body: return "Body composition"
         case .activity: return "Activity"
         case .sleep: return "Sleep"
+        case .behaviour: return "Behaviour"
         case .pharmacology: return "Medication"
         }
     }
@@ -84,6 +90,7 @@ public extension MetricType {
         // would hide the one relationship this metric exists to make visible:
         // what the drug level does while the weight moves.
         case .activeMedicationLevel: return .pharmacology
+        case .screenTimeMinutes: return .behaviour
         }
     }
 
@@ -161,6 +168,7 @@ public extension MetricType {
         // list to 0..<count. Its usual chart is Body Composition's overlay,
         // where hues resolve per chart anyway.
         case .activeMedicationLevel: return 37
+        case .screenTimeMinutes: return 38
         }
     }
 
@@ -246,6 +254,9 @@ public extension MetricType {
         case .stepCount, .activeEnergyBurned, .exerciseMinutes:
             return .cumulativeTotal
 
+        case .screenTimeMinutes:
+            return .fluctuatingRange
+
         case .bloodPressureSystolic, .bloodPressureDiastolic:
             return .discreteBivariate
 
@@ -281,6 +292,8 @@ public extension MetricType {
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             // One figure a day, so two days apart is a gap like any other.
+             .screenTimeMinutes,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
@@ -313,6 +326,10 @@ public extension MetricType {
         typealias R = MetricReferenceRange
         typealias B = MetricReferenceRange.Band
         switch self {
+        // No published "healthy" daily screen time exists — the guidance that
+        // circulates is for children, and none of it is a clinical band for an
+        // adult. Drawing one would invent a target the literature has not set.
+        case .screenTimeMinutes: return nil
         case .oxygenSaturation:
             return R(normal: B(low: 95, high: 100),
                      cautionBelow: B(low: 90, high: 95),

@@ -59,7 +59,7 @@ final class ContributionRouteTests: XCTestCase {
                     XCTAssertFalse(kinds.isEmpty,
                                    "\(model.id) offers an empty grounding route")
                 case .bloodPressureReadings, .substanceLog, .fileImport,
-                     .medication, .bodyType:
+                     .medication, .bodyType, .screenTime:
                     continue
                 }
             }
@@ -67,8 +67,13 @@ final class ContributionRouteTests: XCTestCase {
     }
 
     /// A model with nothing to ask for offers nothing — no empty section.
+    ///
+    /// `.sleep` joined the overriders on 2026-08-02: it declares no standing
+    /// facts but does take **screen time**, which Apple's sandbox means no app
+    /// can read for itself, and which is the only way the onset deep-dive can
+    /// answer "is it tech time?".
     func testModelsWithoutRequirementsOfferNothingUnlessTheyOverride() {
-        let overriders: Set<InsightID> = [.substanceImpact]
+        let overriders: Set<InsightID> = [.substanceImpact, .sleep]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,

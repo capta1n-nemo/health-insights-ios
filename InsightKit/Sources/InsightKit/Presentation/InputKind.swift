@@ -44,6 +44,13 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     case fileImport
     /// The reader's own read of their build, overriding the app's estimate.
     case bodyType
+    /// A day's screen time, in minutes.
+    ///
+    /// **Entered rather than sensed, and that is forced.** Apple sandboxes the
+    /// Screen Time API so no third-party app can read the figure into its own
+    /// model — see `MetricType.screenTimeMinutes`. The reader reads it off
+    /// Settings ▸ Screen Time, or has a Shortcuts automation supply it.
+    case screenTime
 
     public var id: String { rawValue }
 
@@ -58,6 +65,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bloodTestPhoto: return "Blood test (photo)"
         case .fileImport: return "File from another app"
         case .bodyType: return "Your build"
+        case .screenTime: return "Screen time"
         }
     }
 
@@ -83,6 +91,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Shotsy's JSON backup — injections, weight and body composition in one file."
         case .bodyType:
             return "Override the app's read of your build if you disagree with it. It estimates from your own measurements; you know your frame."
+        case .screenTime:
+            return "Yesterday's total from Settings ▸ Screen Time. Apple won't let an app read it, so this is the way in — and it lets the sleep card ask whether tech time is what's keeping you up."
         }
     }
 
@@ -97,6 +107,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bloodTestPhoto: return "doc.text.viewfinder"
         case .fileImport: return "square.and.arrow.down"
         case .bodyType: return "figure.stand"
+        case .screenTime: return "iphone"
         }
     }
 
@@ -104,7 +115,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     public var group: InputGroup {
         switch self {
         case .profileFacts: return .aboutYou
-        case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect:
+        case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect,
+             .screenTime:
             return .asItHappens
         case .medicationRegimen, .bodyType: return .aboutYou
         case .bloodTestPhoto, .fileImport: return .bringItIn
@@ -122,7 +134,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
-             .sideEffect, .bloodTestPhoto, .fileImport, .bodyType:
+             .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime:
             return nil
         }
     }
@@ -170,6 +182,10 @@ public extension InputKind {
         // a reader who disagrees can find it; never nagged for, because the app
         // is not waiting on it.
         case .bodyType: return .offeredOnly
+        // Offered on the Sleep card, and prompted for while never used: it is
+        // the one input that turns "is it tech time?" from a question the model
+        // names as unanswerable into one it can actually contrast.
+        case .screenTime: return .offeredAndPrompted
         }
     }
 

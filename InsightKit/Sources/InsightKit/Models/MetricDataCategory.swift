@@ -54,7 +54,7 @@ public extension MetricType {
              .dayStrain:
             return .sleepRecovery
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
-             .walkingSteadiness, .walkingAsymmetry:
+             .walkingSteadiness, .walkingAsymmetry, .screenTimeMinutes:
             return .activity
         case .bloodPressureSystolic, .bloodPressureDiastolic, .activeMedicationLevel:
             return .ownDomain

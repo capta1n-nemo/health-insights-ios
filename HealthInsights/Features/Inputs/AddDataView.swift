@@ -126,6 +126,9 @@ struct AddDataView: View {
             // didn't.
             if let chosen = model.buildOverrideName { return chosen }
             return model.estimatedBuildName.map { "\($0) (estimated)" }
+        case .screenTime:
+            let days = model.screenTimeDaysRecorded
+            return days == 0 ? nil : "\(days) \(days == 1 ? "day" : "days")"
         }
     }
 }
@@ -203,6 +206,8 @@ private struct InputSheet: View {
             PushedInSheet(title: "Shotsy") { ShotsyIntegrationView() }
         case .bodyType:
             BodyTypeSheet()
+        case .screenTime:
+            ScreenTimeEntrySheet()
         }
     }
 
@@ -312,6 +317,84 @@ struct BodyTypeSheet: View {
             Spacer(minLength: 0)
         }
         .contentShape(Rectangle())
+    }
+}
+
+/// A day's screen time, entered by hand.
+///
+/// **This exists because Apple will not let an app read Screen Time.** The
+/// `DeviceActivityReport` extension is sandboxed read-only so its figures cannot
+/// reach the containing app at all — App Groups and shared files are blocked by
+/// design — the entitlement needs a paid team, and the licence forbids the data
+/// leaving the device. Researched 2026-08-02; see `docs/activeContext.md` before
+/// anyone tries an automatic integration again.
+///
+/// So the reader supplies it, and the sheet is built to make that a five-second
+/// job: hours and minutes, defaulting to yesterday, which is the figure Settings
+/// shows as a completed day.
+struct ScreenTimeEntrySheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    /// Yesterday: today's total is still climbing, and a partial day compared
+    /// against complete ones is the "Steps: 224 at breakfast" bug in another
+    /// costume.
+    @State private var date = Calendar.current.date(byAdding: .day, value: -1,
+                                                    to: Date()) ?? Date()
+    @State private var hours = 4
+    @State private var minutes = 0
+
+    private var total: Double { Double(hours) * 60 + Double(minutes) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("Day", selection: $date,
+                               in: ...Date(), displayedComponents: .date)
+                    HStack {
+                        Picker("Hours", selection: $hours) {
+                            ForEach(0...24, id: \.self) { Text("\($0) h").tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(maxWidth: .infinity)
+                        Picker("Minutes", selection: $minutes) {
+                            ForEach([0, 15, 30, 45], id: \.self) { Text("\($0) m").tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(maxWidth: .infinity)
+                    }
+                    .frame(height: 110)
+                } header: {
+                    Text("Screen time")
+                } footer: {
+                    Text("From Settings ▸ Screen Time — the daily total. Re-entering a day replaces it, so fixing a typo is just entering it again.")
+                }
+
+                Section {
+                    Text("Apple doesn't let apps read Screen Time, so this is the way in. A Shortcuts automation can fill it each morning if you'd rather not type it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if model.screenTimeDaysRecorded > 0 {
+                        LabeledContent("Days recorded",
+                                       value: "\(model.screenTimeDaysRecorded)")
+                    }
+                } footer: {
+                    Text("With \(SleepOnsetModel.minimumNights) days the Sleep card can contrast your heavier screen days against the lighter ones — an association, never a cause.")
+                }
+            }
+            .navigationTitle("Screen time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        model.logScreenTime(minutes: total, on: date)
+                        dismiss()
+                    }
+                    .disabled(total <= 0)
+                }
+            }
+        }
     }
 }
 

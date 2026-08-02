@@ -244,6 +244,8 @@ final class AppModel {
                 hasBeenUsed = ShotsyIntegration.lastImportDate != nil
             case .bodyType:
                 hasBeenUsed = buildOverride != nil
+            case .screenTime:
+                hasBeenUsed = !samples.samples(of: .screenTimeMinutes).isEmpty
             }
             if hasBeenUsed { used.insert(kind) }
         }
@@ -268,6 +270,42 @@ final class AppModel {
 
     func deleteSideEffect(_ record: SideEffectRecord) {
         dataStore.deleteSideEffect(record)
+        recompute()
+    }
+
+    // MARK: - Screen time
+
+    /// How many days of screen time the reader has supplied.
+    var screenTimeDaysRecorded: Int {
+        Set(samples.samples(of: .screenTimeMinutes)
+            .map { Calendar.current.startOfDay(for: $0.start) }).count
+    }
+
+    var lastScreenTimeEntry: Date? {
+        samples.samples(of: .screenTimeMinutes).map(\.start).max()
+    }
+
+    /// Record a day's screen time.
+    ///
+    /// Stored as a manual sample like a cuff reading, because that is what it
+    /// is — the reader's own figure, read off Settings ▸ Screen Time or handed
+    /// over by a Shortcut. Apple gives an app no way to sense it; see
+    /// `MetricType.screenTimeMinutes`.
+    ///
+    /// **Upserts by day**: re-entering a date replaces that day rather than
+    /// adding to it, so correcting a typo cannot leave two figures for one day
+    /// averaging into a number the reader never saw.
+    func logScreenTime(minutes: Double, on date: Date) {
+        let day = Calendar.current.startOfDay(for: date)
+        dataStore.replaceManualSamples(of: .screenTimeMinutes, on: day, with: [
+            HealthMetricSample(type: .screenTimeMinutes, value: minutes,
+                               start: day, source: .manual)
+        ])
+        samples = (samples.filter {
+            !($0.type == .screenTimeMinutes
+              && Calendar.current.isDate($0.start, inSameDayAs: day))
+        } + dataStore.loadManualSamples().filter { $0.type == .screenTimeMinutes })
+            .partitionedVitals().kept
         recompute()
     }
 
@@ -487,6 +525,11 @@ final class AppModel {
         if !medication.isEmpty { factors.append((.medication, medication)) }
         if !temperature.isEmpty { factors.append((.temperature, temperature)) }
         if !exertion.isEmpty { factors.append((.eveningExertion, exertion)) }
+        // "Is it tech time?" — only once the reader has been entering it, which
+        // is why `unseenFactors` keeps naming it until then.
+        let screen = samples.samples(of: .screenTimeMinutes)
+            .map { SleepOnsetModel.Sample(date: $0.start, value: $0.value) }
+        if !screen.isEmpty { factors.append((.screenTime, screen)) }
 
         let out = SleepOnsetModel.analyse(latency: latency, factors: factors, calendar: cal)
         sleepOnsetCache = .some(out)

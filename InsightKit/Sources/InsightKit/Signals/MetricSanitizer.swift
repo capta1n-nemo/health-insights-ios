@@ -11,6 +11,9 @@ public extension MetricType {
     /// sleep duration) — or signed (skin-temperature deviation) — are excluded.
     var requiresPositiveValue: Bool {
         switch self {
+        // A day with no screen time is a real day, not a missing reading —
+        // the same reason steps and active energy are excluded.
+        case .screenTimeMinutes: return false
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD, .vo2Max,
              .vascularAge,
@@ -121,6 +124,9 @@ public extension MetricType {
         // it plateaus. 200 mg is not reachable by any regimen this app models,
         // so anything past it is a unit error rather than a body.
         case .activeMedicationLevel: return 0...200
+        // A day has 1440 minutes, so this ceiling is arithmetic rather than
+        // clinical. Zero is legitimate — a day away from the phone.
+        case .screenTimeMinutes: return 0...1440
         // No honest ceiling, or none needed. Sleep duration is bounded by the
         // day; a very long recorded sleep is usually a real illness or a real
         // device error, and the app should show it rather than hide it.

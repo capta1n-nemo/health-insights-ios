@@ -132,6 +132,14 @@ struct ContributionRouteStatus {
             title = "Your build"
             summary = .bodyType(estimated: model.estimatedBuildName,
                                 override: model.buildOverrideName)
+        case .screenTime:
+            title = "Screen time"
+            summary = .screenTime(
+                daysRecorded: model.screenTimeDaysRecorded,
+                needed: SleepOnsetModel.minimumNights,
+                lastEntered: model.lastScreenTimeEntry.map {
+                    $0.formatted(.relative(presentation: .named))
+                })
         }
     }
 }

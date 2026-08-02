@@ -202,8 +202,8 @@ the place to look.
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :192
-  - `InputGroup` :203
+  - `CardRequirement` :208
+  - `InputGroup` :219
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
@@ -217,7 +217,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :486
+  - `MetricPalette` :503
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -276,7 +276,7 @@ the place to look.
 - `Signals/SleepOnset.swift`
   - `SleepOnset` :23
 - `Signals/SleepOnsetModel.swift`
-  - `SleepOnsetModel` :34
+  - `SleepOnsetModel` :38
 - `Signals/Somatotype.swift`
   - `Somatotype` :15
   - `SomatotypeModel` :78
@@ -467,19 +467,20 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :230
+  - `GroundingKindList` :239
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :142
+  - `GroundedSummary` :150
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :19
-  - `AddInputMenu` :139
-  - `BodyTypeSheet` :251
-  - `InputSheet` :174
-  - `PushedInSheet` :224
-  - `SideEffectEntrySheet` :327
+  - `AddInputMenu` :142
+  - `BodyTypeSheet` :256
+  - `InputSheet` :177
+  - `PushedInSheet` :229
+  - `ScreenTimeEntrySheet` :335
+  - `SideEffectEntrySheet` :410
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18

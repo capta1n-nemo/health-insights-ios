@@ -20,6 +20,12 @@ public struct SleepInsight: InsightModel {
     public let title = "Sleep"
     public init() {}
     public var requirements: [GroundingRequirement] { [] }
+
+    /// Sleep asks for nothing standing, but it does take one thing from the
+    /// reader: their screen time, which is the only way the onset deep-dive can
+    /// answer "is it tech time?". Declared here so it reaches the card's
+    /// "View & add", the `+` menu and Settings alike.
+    public var contributions: [ContributionRoute] { [.screenTime] }
     /// `sleepOnset` arrives with the regularity component. The two absolute
     /// temperatures are new: the card already read the *deviation*, but Whoop
     /// and Oura report absolutes too and nothing was reading them — a night's

@@ -108,6 +108,7 @@ struct ViewAndAddHubView: View {
         case .fileImport: fileImportSection(status)
         case .medication: medicationSection(status)
         case .bodyType: bodyTypeSection(status)
+        case .screenTime: screenTimeSection(status)
         }
     }
 
@@ -184,6 +185,14 @@ struct ViewAndAddHubView: View {
 
     private func bodyTypeSection(_ status: ContributionRouteStatus) -> some View {
         sectionBody(status, addAction: { activeInput = .bodyType })
+    }
+
+    // MARK: - Screen time
+
+    /// `ScreenTimeEntrySheet` is the whole route — Apple gives an app no way to
+    /// read the figure, so there is nothing to link to but the entry.
+    private func screenTimeSection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(status, addAction: { activeInput = .screenTime })
     }
 
     // MARK: - Grounding facts

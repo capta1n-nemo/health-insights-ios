@@ -89,12 +89,22 @@ callbacks — usage ≈ callbacks × interval. Approximate (±5–10 min), **no 
 backfill**, 6 MB budget, and **actively regressed on iOS 26** (thresholds firing
 at interval start or not at all; reported since June 2025, unfixed).
 
-**Recommended instead: screen time as a first-class *manual/Shortcuts* input** —
-zero entitlement, exact numbers, works today. It plugs straight into
-`SleepOnsetModel`, which already names "screen or phone time before bed" in its
-`unseenFactors`. That needs a `MetricType` + an `InputKind` (load
-`add-data-or-input` and `add-metric-type`). **Not yet built — awaiting the
-user's call on the route.**
+**Built instead, at the user's choice: screen time as a first-class
+*manual/Shortcuts* input.** Zero entitlement, exact numbers, works today.
+`MetricType.screenTimeMinutes` (source `.manual`, its **own** `MetricFamily
+.behaviour` so a "more screen time, fewer steps" pattern is not suppressed as a
+tautology against the activity metrics), `InputKind.screenTime`
+(`.offeredAndPrompted`), `ContributionRoute.screenTime` — **Sleep's first
+contribution route**, since it declares no grounding facts — and
+`ScreenTimeEntrySheet` (defaults to *yesterday*: today's total is still climbing,
+and a partial day against complete ones is the "Steps: 224 at breakfast" bug in
+another costume). `DataStore.replaceManualSamples(of:on:with:)` **upserts by
+day**, so re-entering a date is a correction rather than a second reading.
+`SleepOnsetModel` gained a `.screenTime` factor and now drops it from
+`unseenFactors` once the reader is actually supplying it.
+
+**Still worth building: an `AppIntent`** so a Shortcuts automation can fill it
+each morning without typing. Not done.
 
 Other device integrations worth having, researched at the same time and ranked
 by value ÷ friction: **under-used HealthKit types** (`HKStateOfMind` valence/

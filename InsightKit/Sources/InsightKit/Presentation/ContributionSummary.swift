@@ -178,6 +178,44 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// A day's screen time.
+    ///
+    /// `lastEntered` is a formatted phrase and `daysRecorded` the count, so this
+    /// stays testable without pinning a locale — the same shape `fileImport`
+    /// uses. "Grounded" is having enough days for the sleep model to contrast
+    /// on; below that the app has readings but cannot yet answer the question
+    /// they were entered for, and saying "all set" would be a promise it can't
+    /// keep.
+    public static func screenTime(daysRecorded: Int, needed: Int,
+                                  lastEntered: String?) -> ContributionSummary {
+        let enough = daysRecorded >= needed
+        return ContributionSummary(
+            isGrounded: enough,
+            figure: daysRecorded == 0 ? "None yet"
+                : "\(daysRecorded) \(SectionCaveat.plural(daysRecorded, "day"))",
+            guidance: {
+                guard daysRecorded > 0 else {
+                    return "Apple won't let an app read your Screen Time, so this "
+                        + "is the way in: read yesterday's total off Settings ▸ "
+                        + "Screen Time, or have a Shortcut do it. With enough "
+                        + "days the sleep card can ask whether tech time is what "
+                        + "keeps you up."
+                }
+                if enough {
+                    return "\(daysRecorded) days recorded\(lastEntered.map { ", last \($0)" } ?? ""). "
+                        + "The sleep card contrasts your heavier screen days "
+                        + "against the lighter ones — an association, never a cause."
+                }
+                return "\(daysRecorded) of \(needed) days needed before this can be "
+                    + "read against how fast you fall asleep. Keep adding them and "
+                    + "it starts on its own."
+            }(),
+            progress: enough || needed == 0 ? nil
+                : Swift.min(1, Double(daysRecorded) / Double(needed)),
+            addLabel: daysRecorded == 0 ? "Add a day" : "Add today's screen time",
+            detailLabel: nil)
+    }
+
     /// Standing profile facts: one target, one count.
     public static func facts(set: Int, of total: Int) -> ContributionSummary {
         let complete = total > 0 && set >= total

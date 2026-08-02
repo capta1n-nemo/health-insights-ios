@@ -95,6 +95,20 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// rather than a device, and it is scored at **weight 0** on the one card
     /// that reads it. See `BodyCompositionInsight.trackedNotScored`.
     case activeMedicationLevel     // mg of GLP-1 still active — modelled
+    /// Minutes of screen time in a day.
+    ///
+    /// **Entered, not sensed, and it cannot be otherwise.** Apple sandboxes
+    /// Screen Time deliberately: `DeviceActivityReportExtension` runs read-only
+    /// so its numbers cannot reach the containing app (App Groups and shared
+    /// files all fail by design), the entitlement needs a paid team, and the
+    /// licence forbids the data leaving the device. Researched 2026-08-02 — see
+    /// `docs/activeContext.md` before attempting an automatic integration.
+    ///
+    /// So the reader supplies it, by hand or from a Shortcuts automation, and
+    /// the source is `.manual`. It earns a `MetricType` because it is a real
+    /// daily series the sleep-onset model reads as a driver — the reader's own
+    /// question, "is it tech time?".
+    case screenTimeMinutes         // min/day — entered by the reader
 
     /// Human-readable label for UI.
     public var displayName: String {
@@ -142,6 +156,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         // just better."* "In your system" rather than "in your blood" because
         // the model is a whole-body compartment, not a plasma assay.
         case .activeMedicationLevel: return "Medication In Your System"
+        case .screenTimeMinutes: return "Screen Time"
         }
     }
 
@@ -168,6 +183,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .sleepOnset: return ""
         case .sleepEfficiency: return "%"
         case .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return "min"
+        case .screenTimeMinutes: return "min"
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,

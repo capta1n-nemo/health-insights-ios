@@ -92,6 +92,29 @@ final class DataStore {
         return records.compactMap(\.sample)
     }
 
+    /// Replace whatever manual samples exist for one metric on one day.
+    ///
+    /// An **upsert**, unlike `saveBloodPressureReading`, and deliberately: a
+    /// day's screen time is one figure, so re-entering it is a correction, not
+    /// a second reading. Inserting instead would leave two values for the day
+    /// to be averaged into a number the reader never saw.
+    func replaceManualSamples(of metric: MetricType, on day: Date,
+                              with samples: [HealthMetricSample],
+                              calendar: Calendar = .current) {
+        let raw = metric.rawValue
+        let existing = (try? context.fetch(FetchDescriptor<ManualSampleRecord>(
+            predicate: #Predicate { $0.metricRaw == raw }))) ?? []
+        for record in existing where calendar.isDate(record.date, inSameDayAs: day) {
+            context.delete(record)
+        }
+        for sample in samples {
+            context.insert(ManualSampleRecord(metricRaw: sample.type.rawValue,
+                                              value: sample.value, date: sample.start,
+                                              sourceID: sample.source.id))
+        }
+        try? context.save()
+    }
+
     // MARK: - Synced-sample cache
     //
     // HealthKit and wearable samples are fetched live and held in memory. So the

@@ -105,6 +105,7 @@ struct CardDataView: View {
         case .medication: medicationSection
         case .fileImport: importSection
         case .bodyType: bodyTypeSection
+        case .screenTime: screenTimeSection
         case .groundingFacts(let kinds): factsSection(kinds)
         }
     }
@@ -208,6 +209,23 @@ struct CardDataView: View {
                     Text(model.buildOverrideName != nil ? "Your build" : "Estimated build")
                     Spacer()
                     Text(build).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var screenTimeSection: some View {
+        let days = model.screenTimeDaysRecorded
+        if days > 0 {
+            Section("Screen time") {
+                NavigationLink {
+                    MetricDetailView(metric: .screenTimeMinutes)
+                } label: {
+                    HStack {
+                        Text("Days recorded")
+                        Spacer()
+                        Text("\(days)").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
         }
