@@ -44,6 +44,37 @@ public struct CompositionVelocity: Sendable, Equatable {
 
     /// Whether the weight is moving enough to describe at all.
     public var isMoving: Bool { abs(percentPerWeek) >= CompositionVelocityModel.stableBandPercent }
+
+    /// How much to trust that the mass is genuinely moving — 0 inside the
+    /// stable band, ramping to 1 at a rate nobody would call noise.
+    ///
+    /// **This exists because a hard threshold on a fitted slope put a cliff in
+    /// the score-over-time chart.** From the reader's export: `49 · 15 · 15 ·
+    /// 55` on four consecutive days, on a card whose subject moves by grams a
+    /// week. Reproduced in `BodyCompositionStabilityTests` as `36 · 50 · 46 ·
+    /// 37` from a body losing a perfectly steady 0.02 kg/day.
+    ///
+    /// The mechanism: a real scale carries a kilogram or two of water swing, so
+    /// the fitted `percentPerWeek` wobbles — here across −0.127, −0.096, −0.068,
+    /// −0.162 — and `stableBandPercent` sits at 0.1 in the middle of that
+    /// wobble. Each crossing switched `leanShareOfChange` from nil to a value,
+    /// which switched a quality term **scoring 4 out of 100** into the blend at
+    /// its full 25% weight and back out again. The chart was plotting threshold
+    /// crossings, not the reader.
+    ///
+    /// A ramp fixes it because the cliff, not the threshold, was the defect:
+    /// where the evidence that the weight is moving is marginal, the term that
+    /// depends on it carries a marginal weight. It also disarms the sign flip in
+    /// `qualityScore(leanShareOfChange:isLosing:)` for free — losing and gaining
+    /// read the same ratio in opposite directions, up to a 96-point swing, and
+    /// a slope can only change sign by passing through zero, where this is 0.
+    public var changeConfidence: Double {
+        let magnitude = abs(percentPerWeek)
+        let floor = CompositionVelocityModel.stableBandPercent
+        let ceiling = CompositionVelocityModel.confidentChangePercent
+        guard magnitude > floor else { return 0 }
+        return Swift.min(1, (magnitude - floor) / (ceiling - floor))
+    }
 }
 
 public enum CompositionVelocityModel {
@@ -69,6 +100,16 @@ public enum CompositionVelocityModel {
     /// moving — and `leanShareOfChange` stays `nil`, because its denominator
     /// would be noise.
     public static let stableBandPercent = 0.1
+
+    /// The weekly percentage at which a change is taken at face value, and the
+    /// top of `CompositionVelocity.changeConfidence`'s ramp.
+    ///
+    /// 0.4 %/week is roughly 0.45 kg a week for a 110 kg reader — four times the
+    /// stable band, comfortably outside the one-to-two kilograms of water swing
+    /// a scale carries, and still well inside the 0.5–1.0 %/week that published
+    /// guidance calls a normal rate of loss. So a deliberate change reaches full
+    /// weight quickly, and only the genuinely marginal ones are discounted.
+    public static let confidentChangePercent = 0.4
 
     /// The upper end of published loss guidance. Above it, lean loss climbs.
     public static let safeLossPercentPerWeek = 1.0

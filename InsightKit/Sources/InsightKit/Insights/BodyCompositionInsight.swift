@@ -186,9 +186,15 @@ public struct BodyCompositionInsight: InsightModel {
             if let quality = CompositionVelocityModel.qualityScore(
                 leanShareOfChange: velocity.leanShareOfChange,
                 isLosing: velocity.kilogramsPerWeek < 0) {
+                // Scaled by how confidently the mass is moving at all. At full
+                // weight the instant `percentPerWeek` crossed the stable band,
+                // this term put a cliff in the score-over-time chart — see
+                // `CompositionVelocity.changeConfidence`, which carries the
+                // measurement and the reasoning.
                 terms.append(.init(
                     metric: .leanBodyMass, higherIsBetter: true,
-                    score: quality, weight: Self.qualityWeight,
+                    score: quality,
+                    weight: Self.qualityWeight * velocity.changeConfidence,
                     detail: Self.qualityDetail(velocity)))
             }
         }

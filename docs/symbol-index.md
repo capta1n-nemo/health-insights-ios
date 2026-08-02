@@ -261,7 +261,7 @@ the place to look.
   - `BuildAssessmentModel` :64
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
-  - `CompositionVelocityModel` :49
+  - `CompositionVelocityModel` :80
 - `Signals/MedicationResponse.swift`
   - `MedicationResponse` :25
 - `Signals/NightSleepDetail.swift`
