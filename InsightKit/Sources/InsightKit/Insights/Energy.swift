@@ -338,11 +338,38 @@ public enum EnergyModel {
             let thisHour = Swift.max(0, spent - previousDrain)
             previousDrain = spent
             // A quiet hour gives a little back; a busy one takes.
-            level += thisHour > 0.5 ? -thisHour : trickleRechargePerHour
+            level += hourlyChange(thisHour)
             level = Swift.max(0, Swift.min(100, level))
             out.append(Point(date: mark, level: level, drained: spent))
         }
         return out
+    }
+
+    /// The drain at which an hour is fully an *active* hour and stops earning
+    /// any of the trickle recharge.
+    ///
+    /// One point of drain — about eleven kilocalories of work, or five minutes
+    /// above resting. Below it an hour is partly rest and gets partly rewarded.
+    static let restfulHourCeiling = 1.0
+
+    /// What one hour does to the reservoir, as a continuous function of what it
+    /// cost.
+    ///
+    /// **It used to be `thisHour > 0.5 ? -thisHour : trickleRechargePerHour`**,
+    /// which is a three-point discontinuity at half a point of drain: the hour
+    /// either handed back 2.5 or took 0.5, with nothing in between. Half a point
+    /// is only about five and a half kilocalories, or two and a half minutes
+    /// above resting, so an ordinary light-activity hour sits right on it — and
+    /// `curve` runs one of these per hour since midnight, so a day of marginal
+    /// hours compounds the step a dozen times into the number on the card.
+    ///
+    /// Now the recharge fades out as the drain fades in, meeting where the hour
+    /// stops being restful. The two ends are unchanged: an idle hour still
+    /// returns the full trickle, and a genuinely active hour still costs exactly
+    /// what it cost.
+    static func hourlyChange(_ thisHour: Double) -> Double {
+        let activity = Swift.min(1, Swift.max(0, thisHour / restfulHourCeiling))
+        return trickleRechargePerHour * (1 - activity) - thisHour * activity
     }
 
     /// Points spent between two instants, from work done and time spent above

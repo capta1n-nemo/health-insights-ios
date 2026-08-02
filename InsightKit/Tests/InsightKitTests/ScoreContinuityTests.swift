@@ -157,4 +157,58 @@ final class ScoreContinuityTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - Vital signs
+
+    /// The hard-bound override, swept **through** the bound. `boundNormality`
+    /// used to cap at 35 regardless of distance, so crossing a clinical bound by
+    /// a thousandth of a unit dropped a reading's normality by up to 65 points.
+    func testTheHardBoundOverrideIsContinuous() {
+        let spec = VitalSignsCheck.specs.first { $0.metric == .oxygenSaturation }
+        guard let spec, let hardLow = spec.hardLow else {
+            return XCTFail("blood oxygen must have a hard low to sweep")
+        }
+        // The reading's own curve value, held fixed, so the sweep isolates the
+        // override rather than the Gaussian underneath it.
+        let fromTheCurve = 82.0
+        assertContinuous("boundNormality", over: (hardLow - spec.hardTolerance * 1.5)...(hardLow + 2)) { value in
+            value < hardLow
+                ? VitalSignsCheck.boundNormality(fromTheCurve,
+                                                 distance: hardLow - value, spec: spec)
+                : fromTheCurve
+        }
+    }
+
+    /// And the relative floor, which fires on HRV — the noisiest series here,
+    /// and the one whose readers have the widest spreads.
+    func testTheRelativeFloorIsContinuous() {
+        let floor = 30.0   // an HRV median of 50 against the 0.6 relative floor
+        assertContinuous("relativeFloorNormality", over: 10...40) { value in
+            value < floor
+                ? VitalSignsCheck.relativeFloorNormality(82, value: value, floor: floor)
+                : 82
+        }
+    }
+
+    // MARK: - Energy
+
+    /// One hour's effect on the reservoir. This one **compounds**: `curve` runs
+    /// a bucket per hour since midnight, so a three-point step per bucket
+    /// reached the card multiplied by a dozen.
+    func testTheHourlyEnergyChangeIsContinuous() {
+        assertContinuous("EnergyModel.hourlyChange", over: 0...5) {
+            // Scaled into score units: the reservoir is 0–100 and this is a
+            // change in it, so the same one-point tolerance applies directly.
+            EnergyModel.hourlyChange($0)
+        }
+    }
+
+    /// The ends are unchanged — an idle hour still returns the full trickle, an
+    /// active one still costs exactly what it cost.
+    func testTheHourlyEnergyChangeKeepsItsEnds() {
+        XCTAssertEqual(EnergyModel.hourlyChange(0), EnergyModel.trickleRechargePerHour,
+                       accuracy: 1e-9)
+        XCTAssertEqual(EnergyModel.hourlyChange(4), -4, accuracy: 1e-9)
+        XCTAssertLessThan(EnergyModel.hourlyChange(2), 0, "an active hour must cost")
+    }
 }

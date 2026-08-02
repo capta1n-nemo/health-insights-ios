@@ -15,8 +15,9 @@ about confidence.**
       pressure ladders, and the three Sleep band tables. `ScoreCurve.through` is
       the shared replacement, `ScoreContinuityTests` sweeps every enrolled curve
       at 4000 points, and `verify.sh` fails on a reintroduced `case 6..<7:
-      return 65`. **Three instances remain open and are ranked in
-      `activeContext.md`** — do not re-derive the sweep, it is written down.
+      return 65`. **All seven are fixed and all seven are guarded** — the sweep
+      and its verified-continuous list are in `activeContext.md`; do not
+      re-derive them.
 - [x] **Blood pressure scored both numbers.** The band came from systolic *and*
       diastolic, the position within it from systolic alone — 90/79.9 scored
       100 and 90/80.0 scored 60. Each axis now has its own continuous ladder and

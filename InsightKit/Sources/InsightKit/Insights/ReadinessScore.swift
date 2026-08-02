@@ -128,10 +128,17 @@ public enum ReadinessScore {
         // feel it. Small weight: it's a narrow signal, and most nights it says
         // nothing. Absolute floor as well as a personal one, because a baseline
         // built from consistently low saturation would normalise the problem.
+        // Both of these were steps until 2026-08-02: the no-baseline fallback
+        // read `spo2.value >= 95 ? 85 : 60`, and the absolute floor applied its
+        // whole effect the instant the value crossed 92. A pulse oximeter's own
+        // resolution is a percentage point, so both lines were reachable by
+        // rounding. The floor is still a floor and still bites hard — it just
+        // arrives over the two points below 92 rather than all at once.
         if let spo2 = fresh(.oxygenSaturation) {
             let component = spo2.zScore.map { zScoreToScore($0, polarity: 1) }
-                ?? (spo2.value >= 95 ? 85 : 60)
-            let floored = spo2.value < 92 ? min(component, 40) : component
+                ?? ScoreCurve.through([(92, 60), (95, 85)], at: spo2.value)
+            let severity = Swift.min(1, Swift.max(0, (92 - spo2.value) / 2))
+            let floored = component * (1 - severity) + min(component, 40) * severity
             comps.append(.init(name: "Blood oxygen", score: floored, weight: 0.05,
                                detail: String(format: "%.0f%%", spo2.value),
                                metric: .oxygenSaturation, higherIsBetter: true))

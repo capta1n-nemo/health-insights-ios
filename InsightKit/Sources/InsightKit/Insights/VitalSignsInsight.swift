@@ -390,22 +390,28 @@ public enum VitalSignsCheck {
         if let hardLow = spec.hardLow, value < hardLow {
             status = .unusual
             note = "below the usual healthy range"
-            normality = Swift.min(normality, boundNormality(distance: hardLow - value, spec: spec))
+            normality = boundNormality(normality, distance: hardLow - value, spec: spec)
         }
         if let hardHigh = spec.hardHigh, value > hardHigh {
             status = .unusual
             note = "above the usual healthy range"
-            normality = Swift.min(normality, boundNormality(distance: value - hardHigh, spec: spec))
+            normality = boundNormality(normality, distance: value - hardHigh, spec: spec)
         }
 
         // The relative floor, for metrics whose baseline can drift downward
         // with the very decline being looked for.
+        // Ramped for the same reason the hard bounds are, and it matters more
+        // here: this fires on HRV, the noisiest series in the app. `min(…, 25)`
+        // the instant the value crossed `median × 0.6` was a 57-point step for a
+        // reader with a wide spread — and a wide spread is exactly who has one.
         if let fraction = spec.relativeFloor,
            let median = Baseline.quantile(0.5, of: history),
            median > 0, value < median * fraction {
             status = .unusual
             note = "well below your usual level"
-            normality = Swift.min(normality, 25)
+            let floor = median * fraction
+            normality = Swift.min(normality,
+                                  relativeFloorNormality(normality, value: value, floor: floor))
         }
 
         // A reading we cannot judge is not a clean one. Held at a middling
@@ -434,10 +440,52 @@ public enum VitalSignsCheck {
 
     /// Normality for a value already outside a hard bound, falling to zero at
     /// the spec's tolerance.
-    static func boundNormality(distance: Double, spec: Spec) -> Double {
+    ///
+    /// **It scales what the curve gave rather than capping at a constant**, and
+    /// that is a fix. It used to be `min(normality, 35 * (1 - severity))`, which
+    /// returns 35 at a distance of zero — so crossing the bound by a thousandth
+    /// of a unit dropped a reading's normality from whatever the Gaussian said
+    /// straight to 35. For blood oxygen with a baseline of 95 that is 82 → 35 in
+    /// one step, and 100 → 35 for a reader whose baseline sits on the bound
+    /// itself. Sixty-five points for a number a pulse oximeter cannot even
+    /// resolve.
+    ///
+    /// Scaling is continuous by construction: at distance 0 the factor is 1 and
+    /// this returns exactly what it was handed, so the bound stops being a step
+    /// and starts being a slope that reaches 0 at the spec's tolerance.
+    ///
+    /// **The safety intent survives, and it was never carried by the number.**
+    /// The point of a hard bound is that a baseline built from consistently low
+    /// oxygen must not normalise it — and what says so on screen is `status`
+    /// flipping to `.unusual` with "below the usual healthy range" beside it,
+    /// which happens at the bound exactly as before. What changed is only that a
+    /// reading a hair past the line is no longer scored as though it were half
+    /// way to the tolerance.
+    static func boundNormality(_ normality: Double, distance: Double, spec: Spec) -> Double {
         guard spec.hardTolerance > 0 else { return 0 }
         let severity = Swift.min(1, Swift.max(0, distance / spec.hardTolerance))
-        return 35 * (1 - severity)
+        return normality * (1 - severity)
+    }
+
+    /// How far below `median × relativeFloor` a reading has to fall before the
+    /// floor takes the whole of its normality.
+    ///
+    /// A further 40% of the floor. The floor is already `median × 0.6`, so on an
+    /// HRV median of 50 the cap starts biting at 30 and is total at 18 — a
+    /// range nobody reaches by noise, which is the point. The old version
+    /// applied its whole effect at 30 exactly.
+    static let relativeFloorSpan = 0.4
+
+    /// The relative floor's cap, ramped rather than applied all at once.
+    ///
+    /// Continuous at the floor by construction: the factor is 1 there, so this
+    /// returns what it was handed and the `min` is a no-op.
+    static func relativeFloorNormality(_ normality: Double, value: Double,
+                                       floor: Double) -> Double {
+        guard floor > 0 else { return normality }
+        let span = floor * relativeFloorSpan
+        let severity = Swift.min(1, Swift.max(0, (floor - value) / span))
+        return normality * (1 - severity)
     }
 
     /// The overall figure.

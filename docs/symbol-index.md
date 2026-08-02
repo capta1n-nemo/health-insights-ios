@@ -69,7 +69,7 @@ the place to look.
 - `Insights/CircadianConsistency.swift`
   - `CircadianConsistencyModel` :29
 - `Insights/Energy.swift`
-  - `EnergyInsight` :365
+  - `EnergyInsight` :392
   - `EnergyModel` :29
 - `Insights/FitnessAgeModel.swift`
   - `FitnessAgeModel` :18
@@ -117,7 +117,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :188
+  - `ReadinessInsight` :195
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45

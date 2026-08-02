@@ -63,7 +63,7 @@ claim below was measured with a test, not read off the code.
   blend at 25%.
 - **The class.** *A term's presence or weight flipping discontinuously on a
   boolean derived from a continuous, noisy quantity.* A sweep of all 17 models
-  found seven instances. Four are fixed; three remain, ranked below.
+  found seven instances. **All seven are fixed and all seven are guarded.**
 
 ### What replaced them
 
@@ -91,24 +91,29 @@ Two lessons, both paid for:
   put it there" directly above a line that read only `systolic`. It had been
   wrong the whole time and read as correct.
 
-### Still open from that sweep, ranked
+### The other three, also closed
 
-1. **`VitalSignsInsight` hard-bound override** (`:390-399`, `:437-441`).
-   `boundNormality(distance: 0)` returns 35, which does not meet the Gaussian
-   curve it caps — a 47-point step in a reading's normality (65 for a reader
-   whose baseline sits on the bound). Realised impact is small (~1–2.5 pts)
-   because it reaches cards only as a Readiness supporting term, but
-   `VitalSignsCheck.score` itself would move 65 points. The relative-HRV floor
-   at `:403-409` (`min(normality, 25)` below `median × 0.6`) is the same shape on
-   the noisiest series in the app.
-2. **`EnergyModel.curve`** (`Energy.swift:341`) — `thisHour > 0.5 ? -thisHour :
-   trickleRechargePerHour` is a 3.0-point discontinuity *per hourly bucket*, and
-   the buckets compound across a day. 0.5 points is only ~5.5 kcal, so
-   light-activity hours do sit on it.
-3. **`ReadinessScore`** blood-oxygen fallback (`:131-137`) — `spo2.value >= 95 ?
-   85 : 60` is a 25-point step on the no-baseline path, worth ~1 point of card.
-   The `< 92` floor beside it is a deliberate absolute safety gate and arguably
-   should stay discrete.
+4. **`VitalSignsCheck.boundNormality`** capped at a constant 35, which does not
+   meet the Gaussian it caps — up to 65 points of a reading's normality for
+   crossing a clinical bound by a thousandth of a unit. It now **scales** what
+   the curve gave (`normality * (1 - severity)`), which is 1 at the bound and so
+   continuous by construction. **The safety intent was never carried by the
+   number**: `status` still flips to `.unusual` with "below the usual healthy
+   range" at the bound exactly as before. The relative floor beside it
+   (`min(normality, 25)` below `median × 0.6`) got the same treatment, ramped
+   over a further 40% of the floor — it fires on HRV, and a wide spread is
+   exactly who trips it.
+5. **`EnergyModel.hourlyChange`** — `thisHour > 0.5 ? -thisHour :
+   trickleRechargePerHour` was a 3.0-point step *per hourly bucket*, and `curve`
+   runs one per hour since midnight, so it compounded a dozen times into the
+   card. Half a point of drain is ~5.5 kcal, so ordinary light-activity hours sat
+   on it. The recharge now fades out as the drain fades in; both ends are
+   unchanged.
+6. **`ReadinessScore`** blood-oxygen — the no-baseline fallback `spo2.value >= 95
+   ? 85 : 60` is a `ScoreCurve` ramp, and the `< 92` absolute floor arrives over
+   the two points below 92 rather than all at once. A pulse oximeter's own
+   resolution is a percentage point, so both lines were reachable by rounding.
+   The floor still bites hard; it just no longer bites all at once.
 
 Verified continuous, so **do not re-derive**: `latencyScore`, `restorativeScore`,
 `HealthWatchModel.score`, `SubstanceResponseAnalyzer.severity`,
