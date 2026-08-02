@@ -1,6 +1,20 @@
 import SwiftUI
 import InsightKit
 
+/// A non-metric input to a card — a grounding fact or a derived figure — shaped
+/// for the two contributor sections that were metric-only. See
+/// `InsightDetailView.auxiliaryInputs`.
+private struct AuxInput: Identifiable {
+    let id: String
+    let name: String
+    let detail: String
+    /// Its share of the score, where it carries one.
+    let share: Double?
+    /// Where a tap goes, for a grounding fact; `nil` for a derived figure.
+    let groundingKind: GroundingKind?
+    let isModifiable: Bool
+}
+
 struct InsightDetailView: View {
     let insightID: InsightID
     @Environment(AppModel.self) private var model
@@ -1529,7 +1543,46 @@ struct InsightDetailView: View {
                     selection: Binding(
                         get: { chartSelection ?? OverlaySelection.defaultSelection(series) },
                         set: { chartSelection = $0 }))
+
+                // The inputs that aren't measured series — a lab value, the
+                // weight goal, a decaying substance load. They can't be a chart
+                // line, but this is the section that answers "what goes into
+                // this", so they belong on it, listed rather than plotted.
+                auxiliaryInputsList(auxiliaryInputs(result))
             }
+        }
+    }
+
+    /// The non-charted inputs, under "What goes into this" and shaped like the
+    /// legend rows above them: a name, its value, and its share where it carries
+    /// one. This is what stops a grounding fact or a derived figure driving the
+    /// number while appearing nowhere the reader looks for what drives it.
+    @ViewBuilder private func auxiliaryInputsList(_ inputs: [AuxInput]) -> some View {
+        if !inputs.isEmpty {
+            Divider()
+            Text("Also feeding this — not a measured series")
+                .font(.caption.weight(.medium))
+            ForEach(inputs) { input in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: input.isModifiable ? "circle.fill" : "lock.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 10)
+                    Text(input.name).font(.subheadline)
+                    Spacer(minLength: 6)
+                    Text(input.detail)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                    if let share = input.share {
+                        Text("\(Int((share * 100).rounded()))%")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.accent)
+                    }
+                }
+            }
+            Text("These carry a share of the score without being something the app charts over time. A lab value, a goal you set, or a figure the app works out — shown here so nothing that moves the number is left off this section.")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1555,6 +1608,57 @@ struct InsightDetailView: View {
     private func resolvedContributions(_ result: InsightResult) -> ChartedContributions {
         .resolve(reported: result.contributors,
                  declaredInputs: candidateMetrics(for: insightID))
+    }
+
+    /// The inputs that feed this card but are **not** measured series — grounding
+    /// facts (age, cholesterol, weight goal) and derived quantities (a decaying
+    /// substance load).
+    ///
+    /// They drive the number exactly as a metric does, but being non-metric they
+    /// were absent from every section keyed on `MetricType` — "What goes into
+    /// this", "Full history", "How you compare", the Data tab. So a card listed
+    /// its blood pressure and silently dropped the cholesterol that moved its
+    /// risk more, and Substance Impact hid the recent-load figure that can carry
+    /// most of its score. This gathers them so the two contributor sections can
+    /// be complete on every card at once, rather than each model re-declaring
+    /// what it already states in `otherFactors` and `requirements`.
+    private func auxiliaryInputs(_ result: InsightResult) -> [AuxInput] {
+        var out: [AuxInput] = []
+        var coveredKinds = Set<GroundingKind>()
+        var seenNames = Set<String>()
+
+        // 1. Non-metric factors the model actually emitted, with their shares —
+        //    cholesterol and smoking on the risk card, the substance load.
+        for factor in result.weightedFactors + result.unweightedFactors
+        where factor.metric == nil {
+            guard seenNames.insert(factor.name).inserted else { continue }
+            var kind: GroundingKind?
+            if case .grounding(let k) = factor.source { kind = k; coveredKinds.insert(k) }
+            out.append(AuxInput(id: factor.name, name: factor.name, detail: factor.detail,
+                                share: factor.weight > 0 ? factor.weight : nil,
+                                groundingKind: kind, isModifiable: factor.isModifiable))
+        }
+        // Age and sex always travel together in this app, so if either is already
+        // a factor (the risk card's "Age and sex" row) don't also list the raw
+        // pair beneath it.
+        if coveredKinds.contains(.dateOfBirth) || coveredKinds.contains(.biologicalSex) {
+            coveredKinds.insert(.dateOfBirth); coveredKinds.insert(.biologicalSex)
+        }
+        // 2. Grounding requirements the model did *not* emit as a factor — age and
+        //    sex on the cards that scale their references by them (Fitness, Heart
+        //    Health, Body Composition emit no factors at all), the weight goal on
+        //    Body Composition. Listed as context, valued from the profile, so a
+        //    score-driving fact the reader supplied is never invisible.
+        let requirements = model.engine.models.first { $0.id == insightID }?.requirements ?? []
+        for req in requirements where !coveredKinds.contains(req.kind) {
+            coveredKinds.insert(req.kind)
+            let detail = model.profile.value(req.kind).map { req.kind.formatted($0) }
+                ?? "Not set"
+            out.append(AuxInput(id: req.kind.rawValue, name: req.kind.displayName,
+                                detail: detail, share: nil, groundingKind: req.kind,
+                                isModifiable: true))
+        }
+        return out
     }
 
     private func candidateMetrics(for id: InsightID) -> [MetricType] {
@@ -1793,9 +1897,15 @@ struct InsightDetailView: View {
     /// ever reached the one metric this screen used to chart.
     @ViewBuilder private func contributorLinksCard(_ result: InsightResult) -> some View {
         let metrics = resolvedContributions(result).metrics
-        if !metrics.isEmpty {
+        // The grounding-fact inputs get a row too — tapping opens the sheet that
+        // sets them, which is their "history": the value and when it was
+        // entered. Derived figures (a substance load) are listed but not linked,
+        // because there is nowhere to send a tap yet.
+        let aux = auxiliaryInputs(result)
+        if !metrics.isEmpty || !aux.isEmpty {
+            let total = metrics.count + aux.count
             InsightSection(title: "Full history",
-                           trailing: "\(metrics.count) \(SectionCaveat.plural(metrics.count, "signal"))",
+                           trailing: "\(total) \(SectionCaveat.plural(total, "signal"))",
                            caveat: .none) {
                 let slots = MetricPalette.slots(for: metrics)
                 ForEach(metrics, id: \.self) { metric in
@@ -1814,8 +1924,43 @@ struct InsightDetailView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                if !aux.isEmpty {
+                    if !metrics.isEmpty { Divider() }
+                    ForEach(aux) { input in
+                        auxHistoryRow(input)
+                    }
+                }
             }
         }
+    }
+
+    /// A grounding fact opens its entry sheet; a derived figure is a plain row.
+    @ViewBuilder private func auxHistoryRow(_ input: AuxInput) -> some View {
+        if let kind = input.groundingKind {
+            Button {
+                groundingKind = kind
+            } label: {
+                auxHistoryLabel(input, chevron: "chevron.right")
+            }
+            .buttonStyle(.plain)
+        } else {
+            auxHistoryLabel(input, chevron: nil)
+        }
+    }
+
+    private func auxHistoryLabel(_ input: AuxInput, chevron: String?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: input.isModifiable ? "circle" : "lock.fill")
+                .font(.system(size: 8)).foregroundStyle(.tertiary).frame(width: 9)
+            Text(input.name).font(.subheadline)
+            Spacer()
+            Text(input.detail).font(.caption).foregroundStyle(.secondary)
+                .lineLimit(1)
+            if let chevron {
+                Image(systemName: chevron).font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     // Discreet, only-in-detail feedback loop: rate accuracy and (optionally)

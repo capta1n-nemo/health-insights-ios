@@ -472,7 +472,8 @@ the place to look.
   - `PushedInSheet` :224
   - `SideEffectEntrySheet` :327
 - `Features/Insights/InsightDetailView.swift`
-  - `InsightDetailView` :4
+  - `AuxInput` :7
+  - `InsightDetailView` :18
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
 - `Features/Insights/MedicationSection.swift`

@@ -46,7 +46,64 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**The data-conventions session (latest, 2026-08-02, evening).** From a Data-tab
+**The cross-card data-consistency audit (latest, 2026-08-02, night).** The user:
+*"I need consistent data consumption and storage in the data tab in EVERY card.
+Do a full review of every card."* A nine-card audit (three parallel agents) found
+one structural defect and several follow-ons.
+
+### The structural defect
+
+**Five of the six per-card sections are keyed on `MetricType`/`contributors`;
+only "How this is weighted" can render a non-metric input** (via `otherFactors`
+as a `.grounding`/`.derived` `ScoreFactor`). So every grounding fact (cholesterol,
+weight goal, age/sex) and every derived quantity (substance load, risk %, sleep
+debt) is structurally excluded from "What goes into this", "Full history", "How
+you compare", "How far from your normal", and the Data tab. Blood Pressure is the
+only clean card — all its inputs happen to be stored metrics.
+
+### Fixed this push (the shared-renderer fix)
+
+`InsightDetailView.auxiliaryInputs(_:)` gathers a card's non-metric inputs from
+`weightedFactors`/`unweightedFactors` (the emitted factors, with shares) **plus**
+its `requirements` (grounding facts the model didn't emit — age/sex on Fitness,
+Heart Health, Body Comp; the weight goal). "What goes into this" now lists them
+under *"Also feeding this — not a measured series"* with their share, and "Full
+history" gives each a row (grounding → its entry sheet; derived → plain row).
+**One change, all nine cards** — cholesterol on the risk card and the recent-load
+figure on Substance Impact now appear where the reader looks for what drives the
+number.
+
+### Still open — the audit's remaining gaps, ranked (next session)
+
+1. **Derived scores are not in the Data tab** (user asked explicitly: "your ASCVD
+   or SCORE2 etc scores"). SCORE2/ASCVD/consensus risk %, heart age, fitness age
+   are computed and shown but stored nowhere as data. History already exists
+   (`ageHistory`, `scoreHistories`). **Build a `DataDomain` for derived scores
+   with a `DomainDataScaffold` detail page** (reuse `ScoreHistoryChart`/
+   `AgeHistoryChart`). Follows the data-conventions this repo now enforces.
+2. **"How far from your normal" is vitals-only.** It runs `VitalSignsCheck`,
+   whose specs cover no `sleep*` metric and not `activeEnergyBurned` — so
+   sleep duration (drives Readiness 0.20, Sleep, Energy) and active energy can't
+   appear there though they drive the score. Extend the departure section to any
+   metric with enough baseline, or state the limit.
+3. **Two real bugs on Body Composition** (`BodyCompositionInsight.swift`):
+   - **The RFM/build scoring route is dead.** `evaluate` calls
+     `Self.score(bodyFat:bmi:age:sex:)` **without `build:`** (~L121), so the
+     waist-derived Relative Fat Mass override (the `score(..., build:)` overload,
+     ~L420) never runs — even though `.bodyType` is offered as an input route.
+   - **Height doc/code contradiction:** the dial doc (~L409) says height "stays a
+     charted input at weight 0", but no height contributor is ever emitted.
+4. **Inverse inconsistency on Energy:** resting HR is a *weighted* contributor row
+   but is explicitly not a scoring term (only sets the exertion threshold) —
+   `Energy.swift:~85`, `:481`. Give it weight 0 with a note, or drop it.
+5. **"How you compare" is empty on Sleep** (no sleep metric has a published norm)
+   and thin elsewhere — a literature gap. Candidate norms need research per metric.
+6. **candidateMetrics/contributors asymmetry:** Sleep's 2 unused temperature
+   metrics, Heart Health's unused HRV flavour, and Body Comp's
+   `activeMedicationLevel` (a contributor but absent from `candidateMetrics`, so
+   missing from "How far from normal"). Align the two lists per card.
+
+**The data-conventions session (previous, 2026-08-02, evening).** From a Data-tab
 screenshot: the domain rows opened the wrong places and a side effect had gone
 missing. One push.
 
