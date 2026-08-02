@@ -1,46 +1,37 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import InsightKit
 
-/// "View & add" — one section, one anatomy, on every card that takes something
-/// from the user.
-///
-/// Before this there were three unrelated experiences: a one-fact sheet behind
-/// "Add these for a better estimate", a blood-pressure chart and add-button
-/// hidden behind a link to a different screen, and a substance log reachable
-/// only from a toolbar button on a tab that never mentions it. Body composition
-/// had no route at all.
+/// "View & add" — one section, **one button**, on every card that takes
+/// something from the user.
 ///
 /// What each card offers comes from its model's `contributions`
 /// (`ContributionRoute` in InsightKit), which is derived from the requirements
 /// the model already declares — so this view never decides *what* a card takes,
 /// only how it looks.
 ///
-/// ## The anatomy, and what it stopped being
+/// ## Why the card shows status and a single way in
 ///
-/// The doc comment here used to claim the anatomy was fixed whatever the route.
-/// It was not. Blood pressure had a grounded summary and the other two did not;
-/// the grounding-facts route had no add button at all, so its rows were the only
-/// way in; the "all readings" link appeared only once there were more than
-/// three; and all three routes **previewed their own contents** on the card —
-/// three readings, three events, and every fact with its value.
+/// The first version of this section rendered every route at full size — a
+/// header, a summary sentence, a prominent button and sometimes a link, per
+/// route. On a card with one route that read fine. Body Composition has four,
+/// and grew four stacked blocks with four identical red buttons — the user,
+/// from a screenshot of it: *"It should just be one add button, and this should
+/// show you the ability to add new data and view all previous data and
+/// inputs."*
 ///
-/// It is now, everywhere:
+/// So the split is now:
 ///
-/// 1. A header, and one figure saying where you are.
-/// 2. The grounded / not-grounded summary — a seal, a sentence, and a bar while
-///    there is something left to fill.
-/// 3. One prominent button into the sub-menu that holds adding *and* what has
-///    been added.
-/// 4. A link to the fuller screen, where one exists beyond that sub-menu. Only
-///    blood pressure has one; see `ContributionSummary.detailLabel`.
+/// - **The card** says where you stand: one status line per route — a seal and
+///   the route's figure — and one button.
+/// - **The button opens `ViewAndAddHubView`**, which holds the full anatomy for
+///   every route: the guidance, the add affordances, and the way into what has
+///   already been given.
 ///
-/// **No previews.** A card is for where you stand; the sub-menu is for what you
-/// gave. Listing the last three readings on the card duplicated the first rows
-/// of the screen the button opens, and the fact values did the same for the
-/// grounding list. The state — how many, how recent, whether that is enough — is
-/// the part that belongs out here, and `ContributionSummary` computes it in
-/// InsightKit where it is tested.
+/// The card grows a *line* per new kind of data, not a block — which is what
+/// keeps this extensible as doses, goals, scans and whatever comes next each
+/// add a route. A new `ContributionRoute` case fails to build until
+/// `ContributionRouteStatus` says what its row shows and the hub says what its
+/// section offers.
 struct ViewAndAddSection: View {
     let routes: [ContributionRoute]
     /// Carried so a missing fact can show the model's own reason for wanting it,
@@ -49,238 +40,99 @@ struct ViewAndAddSection: View {
     let unmetRequirements: [GroundingRequirement]
 
     @Environment(AppModel.self) private var model
-    @State private var addingBloodPressure = false
-    @State private var showingSubstanceLog = false
-    @State private var showingGroundingDetail: GroundingKindList?
-    @State private var showingImporter = false
-    @State private var importMessage: String?
-    /// The two routes added on 2026-08-02, after the user found three inputs on
-    /// the Body Composition card that this section did not mention.
-    @State private var activeInput: InputKind?
+    @State private var showingHub = false
 
     var body: some View {
         if !routes.isEmpty {
             Card {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(routes.enumerated()), id: \.offset) { index, route in
-                        if index > 0 { Divider() }
-                        section(for: route)
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("View & add", systemImage: "plus.circle")
+                        .font(.headline)
+                    ForEach(Array(routes.enumerated()), id: \.offset) { _, route in
+                        statusRow(ContributionRouteStatus(
+                            route: route, model: model,
+                            unmetRequirements: unmetRequirements))
                     }
+                    Button {
+                        showingHub = true
+                    } label: {
+                        Label("Add or view your data", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
                 }
             }
-            .sheet(isPresented: $addingBloodPressure) {
-                AddBloodPressureView { systolic, diastolic, date in
-                    model.logBloodPressure(systolic: systolic, diastolic: diastolic, at: date)
-                }
+            .sheet(isPresented: $showingHub) {
+                ViewAndAddHubView(routes: routes, unmetRequirements: unmetRequirements)
             }
-            .sheet(isPresented: $showingSubstanceLog) { SubstanceLogView() }
-            .sheet(item: $showingGroundingDetail) { kinds in
-                GroundingDetailView(kinds: kinds.values,
-                                    unmetRequirements: unmetRequirements)
-            }
-            // The same sheets the master list and the `+` menu open. One switch
-            // for the whole app — see `View.inputSheet(_:)`.
-            .inputSheet($activeInput)
         }
     }
 
-    /// Bringing a file in from another app — today a Shotsy backup.
-    ///
-    /// On the card rather than only in Settings because that is what this
-    /// section is *for*: it answers "what does this card want from me", and an
-    /// input the reader can only find by going looking is one they will not
-    /// find. The same will be true of scans and photos.
-    @ViewBuilder private var fileImportRoute: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Import from another app", systemImage: "square.and.arrow.down")
-                .font(.subheadline.weight(.medium))
-            Text("Shotsy holds your injections, weight and body composition. Export its JSON and share it here — or pick a file you've already saved.")
+    /// One line per route: the seal, the name, the figure. The figure is the
+    /// thing that makes the section worth glancing at when there is nothing to
+    /// add; everything longer than a line lives in the hub.
+    private func statusRow(_ status: ContributionRouteStatus) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: status.summary.isGrounded ? "checkmark.seal.fill" : "target")
+                .font(.footnote)
+                .foregroundStyle(status.summary.isGrounded ? Theme.good : Theme.accent)
+            Text(status.title)
+                .font(.subheadline)
+            Spacer(minLength: 8)
+            Text(status.summary.figure)
                 .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let lastImport = ShotsyIntegration.lastImportDate {
-                Text("Last file received \(lastImport.formatted(date: .abbreviated, time: .shortened)).")
-                    .font(.caption2).foregroundStyle(.tertiary)
-            }
-            Button("Choose a file") { showingImporter = true }
-                .font(.caption.weight(.medium))
-            if let importMessage {
-                Text(importMessage)
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: ShotsyIntegrationView.acceptedTypes,
-                      allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                Task { importMessage = await model.importSharedFile(at: url) }
-            case .failure(let error):
-                importMessage = "Couldn't open that file: \(error.localizedDescription)"
-            }
+                .monospacedDigit()
         }
     }
+}
 
-    @ViewBuilder private func section(for route: ContributionRoute) -> some View {
+/// A route's name and its tested state, resolved against the model — the one
+/// switch both the card's status rows and the hub's sections read, so the two
+/// can never describe the same route differently.
+///
+/// Exhaustive over `ContributionRoute`: a new kind of data does not build until
+/// it says what its row is called and where its numbers come from.
+struct ContributionRouteStatus {
+    let title: String
+    let summary: ContributionSummary
+
+    @MainActor
+    init(route: ContributionRoute, model: AppModel,
+         unmetRequirements: [GroundingRequirement]) {
         switch route {
-        case .bloodPressureReadings: bloodPressureRoute
-        case .substanceLog: substanceRoute
-        case .groundingFacts(let kinds): factsRoute(kinds)
-        case .fileImport: fileImportRoute
-        case .medication: medicationRoute
-        case .bodyType: bodyTypeRoute
+        case .groundingFacts(let kinds):
+            let unmetKinds = Set(unmetRequirements.map(\.kind))
+            title = "Your details"
+            summary = .facts(set: kinds.filter { !unmetKinds.contains($0) }.count,
+                             of: kinds.count)
+        case .bloodPressureReadings:
+            title = "Cuff readings"
+            summary = .bloodPressure(model.bloodPressureCalibration)
+        case .substanceLog:
+            title = "Substance log"
+            summary = .substances(logged: model.substanceEvents.count)
+        case .fileImport:
+            title = "Import from another app"
+            summary = .fileImport(lastReceived: ShotsyIntegration.lastImportDate?
+                .formatted(.relative(presentation: .named)))
+        case .medication:
+            let medication = model.activeMedication
+            title = "Medication"
+            summary = .medication(hasRegimen: medication != nil,
+                                  doses: medication?.doses.count ?? 0,
+                                  sideEffects: model.sideEffects.count)
+        case .bodyType:
+            title = "Your build"
+            summary = .bodyType(estimated: model.estimatedBuildName,
+                                override: model.buildOverrideName)
         }
-    }
-
-    // MARK: - The one anatomy
-
-    /// Every route is this. The only per-route parts are the destination the
-    /// button opens and the destination the link pushes.
-    private func routeBody<Link: View>(
-        title: String,
-        summary: ContributionSummary,
-        add: @escaping () -> Void,
-        @ViewBuilder link: () -> Link
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header(title, status: summary.figure)
-            GroundedSummary(summary: summary)
-
-            Button(action: add) {
-                Label(summary.addLabel, systemImage: "plus.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-
-            link()
-        }
-    }
-
-    /// The same header everywhere: what this is, and one figure saying where you
-    /// are. The figure is the thing that makes the section worth looking at when
-    /// there is nothing to add.
-    private func header(_ title: String, status: String?) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Label(title, systemImage: "plus.circle")
-                .font(.headline)
-            Spacer()
-            if let status {
-                Text(status)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        }
-    }
-
-    private func detailLink<Destination: View>(
-        _ summary: ContributionSummary,
-        @ViewBuilder destination: () -> Destination
-    ) -> some View {
-        Group {
-            if let label = summary.detailLabel {
-                NavigationLink(destination: destination()) {
-                    HStack(spacing: 4) {
-                        Text(label).font(.caption.weight(.medium))
-                        Image(systemName: "chevron.right").font(.caption2)
-                    }
-                    .foregroundStyle(Theme.accent)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    // MARK: - Blood pressure
-
-    /// The one route with somewhere further to go: the sheet takes a reading,
-    /// the metric screen holds the dated history, the chart and the calibration
-    /// detail. The link used to appear only past three readings, so the screen
-    /// was unreachable from here exactly while a user was learning the feature.
-    private var bloodPressureRoute: some View {
-        let summary = ContributionSummary.bloodPressure(model.bloodPressureCalibration)
-        return routeBody(
-            title: "View & add readings",
-            summary: summary,
-            add: { addingBloodPressure = true },
-            link: {
-                detailLink(summary) { MetricDetailView(subject: .bloodPressure) }
-            })
-    }
-
-    // MARK: - Substance log
-
-    /// `SubstanceLogView` is already both halves — the chips add, and the
-    /// entries below can be re-timed or removed — so the button is the whole
-    /// route and there is nothing for a link to reach past it.
-    private var substanceRoute: some View {
-        let summary = ContributionSummary.substances(logged: model.substanceEvents.count)
-        return routeBody(
-            title: "View & add entries",
-            summary: summary,
-            add: { showingSubstanceLog = true },
-            link: { detailLink(summary) { EmptyView() } })
-    }
-
-    // MARK: - Medication
-
-    /// Regimen, doses and side effects behind one button.
-    ///
-    /// **This route is the fix for the reported bug.** Logging a dose was a
-    /// button inside the Weight-management chart and nowhere else, so the one
-    /// section that is supposed to answer "what does this card want from me"
-    /// did not mention it. The in-context button stays — it is the right place
-    /// to log a dose while you are looking at the curve — but it is no longer
-    /// the *only* place.
-    private var medicationRoute: some View {
-        let medication = model.activeMedication
-        let summary = ContributionSummary.medication(
-            hasRegimen: medication != nil,
-            doses: medication?.doses.count ?? 0,
-            sideEffects: model.sideEffects.count)
-        return routeBody(
-            title: "View & add medication",
-            summary: summary,
-            add: { activeInput = medication == nil ? .medicationRegimen : .medicationDose },
-            link: { detailLink(summary) { EmptyView() } })
-    }
-
-    // MARK: - Body type
-
-    /// The build override, which lived inside the somatotype chart and was
-    /// named nowhere else. Same story as the dose button above.
-    private var bodyTypeRoute: some View {
-        let summary = ContributionSummary.bodyType(
-            estimated: model.estimatedBuildName, override: model.buildOverrideName)
-        return routeBody(
-            title: "View & add your build",
-            summary: summary,
-            add: { activeInput = .bodyType },
-            link: { detailLink(summary) { EmptyView() } })
-    }
-
-    // MARK: - Grounding facts
-
-    /// The route that had no button. Its rows were the only way to reach a
-    /// value, which meant the "add" half of "View & add" was a thing you had to
-    /// already know was there.
-    private func factsRoute(_ kinds: [GroundingKind]) -> some View {
-        let unmetKinds = Set(unmetRequirements.map(\.kind))
-        let setCount = kinds.filter { !unmetKinds.contains($0) }.count
-        let summary = ContributionSummary.facts(set: setCount, of: kinds.count)
-        return routeBody(
-            title: "View & add details",
-            summary: summary,
-            add: { showingGroundingDetail = GroundingKindList(values: kinds) },
-            link: { detailLink(summary) { EmptyView() } })
     }
 }
 
 /// The green seal, the sentence, and a bar while there is something left to
 /// fill. Modelled on `CalibrationProgress`, which was the one route that had
-/// this and is now what all three look like.
+/// this and is now what all routes look like.
 struct GroundedSummary: View {
     let summary: ContributionSummary
 
@@ -299,14 +151,4 @@ struct GroundedSummary: View {
         }
         .padding(.vertical, 2)
     }
-}
-
-/// `sheet(item:)` needs an `Identifiable`, and `[GroundingKind]` is not one.
-///
-/// A wrapper rather than a retroactive conformance on `Array`: conforming a
-/// standard-library type to a protocol it does not own is a change every other
-/// file in the target inherits, for one sheet's benefit.
-struct GroundingKindList: Identifiable {
-    let values: [GroundingKind]
-    var id: String { values.map(\.rawValue).joined(separator: "|") }
 }

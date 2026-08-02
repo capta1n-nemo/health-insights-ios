@@ -449,10 +449,14 @@ the place to look.
   - `GroundingEntryView` :6
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
+- `Features/Grounding/ViewAndAddHubView.swift`
+  - `GroundingKindList` :332
+  - `MedicationHistoryView` :259
+  - `ViewAndAddHubView` :29
 - `Features/Grounding/ViewAndAddSection.swift`
-  - `GroundedSummary` :284
-  - `GroundingKindList` :309
-  - `ViewAndAddSection` :44
+  - `ContributionRouteStatus` :96
+  - `GroundedSummary` :136
+  - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :19
   - `AddInputMenu` :139

@@ -578,7 +578,7 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
 | 9 | What changed | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `periodContrast` | — |
 | 10 | Full history | all 9 | open | ○ | `n` signals | `.none` | — |
-| 11 | View & add | 6 | open, **not closable** | ○ | — | own | — |
+| 11 | View & add | 6 | open, **not closable** | ○ | per route | own | — |
 | 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
 
 **Every section on every card now has an empty state**, bespoke included, as of
@@ -928,6 +928,29 @@ one conversation, one button) and `.bodyType`, and its mapping to `InputKind`
 became **plural** so a route standing for three inputs cannot leave two of them
 undeclared.
 
+**And the section collapsed to one button, 2026-08-02 (evening).** Rendering
+every route at full size was right for one route and wrong for four: Body
+Composition stacked four blocks with four identical prominent buttons down its
+card. The user, from a screenshot: *"It should just be one add button, and this
+should show you the ability to add new data and view all previous data and
+inputs."* The split is now:
+
+- **The card** (`ViewAndAddSection`) carries one status line per route — seal,
+  name, figure — and **one** button, so a new kind of data costs the card a
+  line, not a block.
+- **The button opens `ViewAndAddHubView`**, a sheet holding the full anatomy
+  per route: guidance, the add affordances, and the way into what has already
+  been given. Its `section(for:)` is the exhaustive switch over
+  `ContributionRoute` now; `ContributionRouteStatus` is the one place a route's
+  name and `ContributionSummary` are resolved, read by card rows and hub
+  sections alike so the two can never disagree.
+- **Every route can show its history.** Medication was the gap — doses were
+  visible only as aggregates in the Weight-management tables — and gained
+  `MedicationHistoryView` (every dose and side effect, newest first, estimated
+  doses labelled), reached through `ContributionSummary.medication`'s new
+  `detailLabel`. `.fileImport` gained a summary factory so it renders through
+  the same anatomy as everything else.
+
 **Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
 listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as
 `.unlockAnInsight` — reaching the reader twice, through the dismissible
@@ -1025,13 +1048,15 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    separable model, so it got a shared table rather than Energy's
    `Output.terms` — same category of fix (the duplicate is impossible, not
    merely tested), smaller mechanism.
-10. **Body Composition's "view & add" scan entry** — a fourth
+10. **Body Composition's "view & add" scan entry** — a further
    `ContributionRoute`. Deferred by the user on 2026-08-01 to its own session.
    The capture it points at is the camera + LiDAR body scan, which is
    deliberately a roadmap note and is ARKit, so it cannot be exercised from a
-   sandbox at all. Adding the case touches `ContributionRoute`, the exhaustive
-   switch in `ViewAndAddSection.section(for:)`, an override on
-   `BodyCompositionInsight` returning *two* routes, and the skip list in
+   sandbox at all. Adding the case touches `ContributionRoute`,
+   `ContributionRouteStatus`, the exhaustive switch in
+   `ViewAndAddHubView.section(for:)`, an override on
+   `BodyCompositionInsight` (which already returns four routes), and the skip
+   list in
    `ContributionRouteTests.testGroundingFactsAreDerivedFromTheModelsOwnRequirements`.
 
 11. ~~**The legend under "What goes into this" stated one fact out of three.**~~

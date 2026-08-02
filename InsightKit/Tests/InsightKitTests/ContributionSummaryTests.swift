@@ -55,14 +55,55 @@ final class ContributionSummaryTests: XCTestCase {
     }
 
     /// Two controls for one destination is the thing this section exists to
-    /// remove. Only blood pressure has a screen beyond its own sub-menu — the
-    /// dated history, the chart and the calibration detail — so only blood
-    /// pressure gets a second control.
+    /// remove. A route gets a second control only when there is a screen beyond
+    /// its own entry sheet: blood pressure's dated history and calibration
+    /// detail, and medication's dose and side-effect history.
     func testOnlyARouteWithSomewhereFurtherToGoOffersALink() {
         XCTAssertNil(ContributionSummary.facts(set: 2, of: 5).detailLabel)
         XCTAssertNil(ContributionSummary.substances(logged: 9).detailLabel)
+        XCTAssertNil(ContributionSummary.fileImport(lastReceived: "yesterday").detailLabel)
         XCTAssertNotNil(ContributionSummary
             .bloodPressure(.init(totalReadings: 4, recentReadings: 2)).detailLabel)
+        XCTAssertNotNil(ContributionSummary
+            .medication(hasRegimen: true, doses: 3, sideEffects: 0).detailLabel)
+    }
+
+    // MARK: - Medication
+
+    /// The history link exists exactly while there is history — and it survives
+    /// the odd corner where side effects arrived in an import before any dose
+    /// was logged.
+    func testTheMedicationLinkIsWordedForWhatExists() {
+        XCTAssertNil(ContributionSummary
+            .medication(hasRegimen: false, doses: 0, sideEffects: 0).detailLabel)
+        XCTAssertNil(ContributionSummary
+            .medication(hasRegimen: true, doses: 0, sideEffects: 0).detailLabel)
+        XCTAssertEqual(ContributionSummary
+            .medication(hasRegimen: true, doses: 1, sideEffects: 0).detailLabel,
+            "All 1 dose and side effects")
+        XCTAssertEqual(ContributionSummary
+            .medication(hasRegimen: true, doses: 24, sideEffects: 2).detailLabel,
+            "All 24 doses and side effects")
+        XCTAssertEqual(ContributionSummary
+            .medication(hasRegimen: true, doses: 0, sideEffects: 2).detailLabel,
+            "All 2 side effects")
+    }
+
+    // MARK: - File import
+
+    /// The route reads its state from the phrase the caller formatted: a figure
+    /// while a file has arrived, an invitation while none has.
+    func testFileImportIsGroundedOnceAFileHasArrived() {
+        let never = ContributionSummary.fileImport(lastReceived: nil)
+        XCTAssertFalse(never.isGrounded)
+        XCTAssertEqual(never.figure, "None yet")
+        XCTAssertNil(never.progress)
+
+        let received = ContributionSummary.fileImport(lastReceived: "2 days ago")
+        XCTAssertTrue(received.isGrounded)
+        XCTAssertEqual(received.figure, "2 days ago")
+        XCTAssertTrue(received.guidance.contains("2 days ago"))
+        XCTAssertNil(received.progress)
     }
 
     // MARK: - Blood pressure defers rather than re-deciding
@@ -147,7 +188,12 @@ final class ContributionSummaryTests: XCTestCase {
         [.facts(set: 0, of: 3), .facts(set: 3, of: 3),
          .substances(logged: 0), .substances(logged: 5),
          .bloodPressure(.init(totalReadings: 0, recentReadings: 0)),
-         .bloodPressure(.init(totalReadings: 9, recentReadings: 9))]
+         .bloodPressure(.init(totalReadings: 9, recentReadings: 9)),
+         .medication(hasRegimen: false, doses: 0, sideEffects: 0),
+         .medication(hasRegimen: true, doses: 24, sideEffects: 2),
+         .bodyType(estimated: nil, override: nil),
+         .bodyType(estimated: "Mesomorph", override: nil),
+         .fileImport(lastReceived: nil), .fileImport(lastReceived: "yesterday")]
     }
 
     /// Every route has a header figure, a sentence and exactly one prominent way

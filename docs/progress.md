@@ -420,6 +420,14 @@ The Vitals Check fix, applied everywhere it was also true.
       "Add these for a better estimate", which could only ever show what was
       *missing* — so a fully-grounded card lost the section and with it any way
       to correct a mistyped value.
+- [x] **One button, however many routes (2026-08-02).** Full-size per-route
+      blocks scaled to four stacked red buttons on Body Composition; the card
+      now carries one status line per route and a single button into
+      `ViewAndAddHubView`, which holds the full add-and-view anatomy for every
+      route — including `MedicationHistoryView`, the previously missing dated
+      view of doses and side effects. `ContributionRouteStatus` is the one
+      exhaustive resolver of a route's name and summary, so a new kind of data
+      (dose, goal, scan…) costs the card a line and cannot skip the hub.
 - [x] **Blood pressure's chart moved onto its own card**, as a shared
       `BloodPressureChart` drawn by both the insight and the metric screen. The
       metric screen keeps the calibration detail and the full dated history.

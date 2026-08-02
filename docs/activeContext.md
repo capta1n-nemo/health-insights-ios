@@ -46,7 +46,37 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**The screenshot-review session (latest, 2026-08-02, afternoon).** The user
+**The one-add-button session (latest, 2026-08-02, evening).** The user, from a
+screenshot of Body Composition's "View & add" running four full-size route
+blocks with four identical red buttons: *"It should just be one add button, and
+this should show you the ability to add new data and view all previous data and
+inputs"* — and it must stay extensible as new kinds of data arrive (dose, body
+type, weight-loss goal…). One push:
+
+- **`ViewAndAddSection` collapsed to one button.** The card carries one status
+  line per route (seal, name, figure) and a single "Add or view your data"
+  button — a new route costs the card a *line*, not a block.
+- **`ViewAndAddHubView`** (new, Features/Grounding) is the sheet behind it: the
+  full per-route anatomy — guidance, add affordances, history links — moved
+  there wholesale, along with all the sheet plumbing and the file importer. Its
+  `section(for:)` is now the exhaustive switch over `ContributionRoute`.
+- **`ContributionRouteStatus`** is the one resolver of a route's title +
+  `ContributionSummary`, read by both card rows and hub sections, so the two
+  surfaces cannot describe a route differently. New route case → compile error
+  here and in the hub.
+- **`MedicationHistoryView`** — the previously missing "view all previous
+  inputs" for medication: every dose (estimated ones labelled) and side effect,
+  newest first, view-only. Reached via `ContributionSummary.medication`'s new
+  `detailLabel` ("All 24 doses and side effects"); its `addLabel` is now "Log a
+  dose" and the hub carries a separate "Record a side effect" button, so the
+  button no longer claims a destination it doesn't open.
+- **`ContributionSummary.fileImport(lastReceived:)`** — the import route
+  renders through the same anatomy as every other route instead of a bespoke
+  block; takes a formatted phrase, not a `Date`, so tests pin no locale.
+- Docs brought forward: `card-sections.md` (redesign block + gap 10 references
+  now name the hub), `progress.md`, symbol index regenerated.
+
+**The screenshot-review session (previous, 2026-08-02, afternoon).** The user
 supplied nine screenshots and all three exports (card outputs, data inventory,
 model internals — build `d96ada1`, which is HEAD) for a full is-our-work-right
 pass. The review produced sixteen findings; one push fixed the seven confirmed

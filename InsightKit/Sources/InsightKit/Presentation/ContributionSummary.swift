@@ -111,7 +111,42 @@ public struct ContributionSummary: Sendable, Equatable {
                 + "Log each injection and how you felt, and the card can read what "
                 + "changed against what you were on at the time.",
             progress: nil,
-            addLabel: "Log a dose or side effect",
+            addLabel: "Log a dose",
+            detailLabel: {
+                // The dated history — every dose and every side effect — is a
+                // screen past the entry sheet, so this route earns a link the
+                // moment there is anything for that screen to show.
+                if doses > 0 {
+                    return "All \(doses) \(SectionCaveat.plural(doses, "dose")) and side effects"
+                }
+                if sideEffects > 0 {
+                    return "All \(sideEffects) side \(SectionCaveat.plural(sideEffects, "effect"))"
+                }
+                return nil
+            }())
+    }
+
+    /// A file brought in from another app — today a Shotsy backup.
+    ///
+    /// `lastReceived` is a formatted phrase ("2 days ago"), not a `Date`: how a
+    /// date reads belongs to the surface showing it, and keeping it a string is
+    /// what lets this be tested without pinning a locale.
+    ///
+    /// "Grounded" is having ever received one. A log-shaped route with no
+    /// target, like substances: inventing a cadence for re-importing a backup
+    /// would be this view holding an opinion the model does not.
+    public static func fileImport(lastReceived: String?) -> ContributionSummary {
+        ContributionSummary(
+            isGrounded: lastReceived != nil,
+            figure: lastReceived ?? "None yet",
+            guidance: lastReceived.map {
+                "Last file received \($0). Sharing a fresh export keeps the "
+                    + "imported history current — re-importing the same file is safe."
+            } ?? "Shotsy holds your injections, weight and body composition. "
+                + "Export its JSON and share it here — or pick a file you've "
+                + "already saved.",
+            progress: nil,
+            addLabel: "Choose a file",
             detailLabel: nil)
     }
 
