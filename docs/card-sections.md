@@ -35,15 +35,16 @@ appendices.**_
 | 3 | Score over time | How it is trending. |
 | 4 | What changed | Deltas, before any of the machinery behind them. |
 | 5 | *the bespoke section* | The card's own picture of its own subject. |
-| 6 | What goes into this | Which sources feed the score. |
-| 7 | How this is weighted | The deep dive on those weightings, for the reader who wants the science. |
-| 8 | How you compare | You against everyone else. |
-| 9 | How far from your normal | You against you. |
-| 10 | Patterns worth a look | What the app noticed across the inputs. |
-| 11 | What comes first | What runs ahead of the score. |
-| 12 | Full history | An appendix — one link per input. |
-| 13 | View & add | What the card asks *of* you. |
-| 14 | Was this accurate? | The other thing asked of you. |
+| 6 | *the second bespoke section* | Only Body Composition has one — see below. |
+| 7 | What goes into this | Which sources feed the score. |
+| 8 | How this is weighted | The deep dive on those weightings, for the reader who wants the science. |
+| 9 | How you compare | You against everyone else. |
+| 10 | How far from your normal | You against you. |
+| 11 | Patterns worth a look | What the app noticed across the inputs. |
+| 12 | What comes first | What runs ahead of the score. |
+| 13 | Full history | An appendix — one link per input. |
+| 14 | View & add | What the card asks *of* you. |
+| 15 | Was this accurate? | The other thing asked of you. |
 
 **Two things are not sections and are not in that list.** The *disclaimer* is
 chrome and is always last. The *timeframe picker* has no position at all: it is
@@ -66,9 +67,17 @@ disclaimer, while an inset shortens the scrollable area by the bar's own height
 so everything can still be scrolled clear of it. The inset also stacks above the
 tab bar's own safe area with no hard-coded guess at its height.
 
-**6 before 7 is deliberate**: the overview of what feeds the score, then the
-arithmetic. **8 before 9** for the same shape — the outside comparison, then the
-personal one.
+**7 before 8 is deliberate**: the overview of what feeds the score, then the
+arithmetic. **9 before 10** for the same shape — the outside comparison, then
+the personal one.
+
+**Position 6 is new, 2026-08-02, and it is one card's.** Body Composition's
+bespoke slot had grown to hold two genuinely different questions — *what your
+body is made of* and *what you are doing about it* — and the second had five
+sub-sections filed under a heading that said nothing about them. The user:
+*"I want to actually put the medication on its own section, called weight
+management. Meaning body comp will have two bespoke sections."* Every other
+card renders `EmptyView` there, which costs no spacing.
 
 ### The generated map
 
@@ -86,15 +95,16 @@ file having been brought along.
 | 3 | `scoreHistoryCard` | Score over time |
 | 4 | `periodContrastCard` | What changed |
 | 5 | `bespokeSection` | *(one `switch`, per card — see the matrix)* |
-| 6 | `contributorsCard` | What goes into this |
-| 7 | `weightedContributionCard` | How this is weighted |
-| 8 | `peerStandingSection` | How you compare |
-| 9 | `vitalDepartureSection` | How far from your normal |
-| 10 | `patternsCard` | Patterns worth a look |
-| 11 | `laggedCard` | What comes first |
-| 12 | `contributorLinksCard` | Full history |
-| 13 | `ViewAndAddSection` | View & add |
-| 14 | `feedbackCard` | Was this accurate? |
+| 6 | `secondaryBespokeSection` | *(untitled)* |
+| 7 | `contributorsCard` | What goes into this |
+| 8 | `weightedContributionCard` | How this is weighted |
+| 9 | `peerStandingSection` | How you compare |
+| 10 | `vitalDepartureSection` | How far from your normal |
+| 11 | `patternsCard` | Patterns worth a look |
+| 12 | `laggedCard` | What comes first |
+| 13 | `contributorLinksCard` | Full history |
+| 14 | `ViewAndAddSection` | View & add |
+| 15 | `feedbackCard` | Was this accurate? |
 | — | `disclaimerCard` | *(chrome, not a section)* |
 | — | `timeframeBar` | *(screen control, pinned above the tab bar)* |
 
@@ -118,15 +128,16 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | 3 | `ScrHx` | "Score over time" | **always** |
 | 4 | `Chg` | "What changed" — period contrast | **always** |
 | 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
-| 6 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
-| 7 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
-| 8 | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
-| 9 | `Nrm` | "How far from your normal" — against your own baseline | **always** |
-| 10 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
-| 11 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
-| 12 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
-| 13 | `V&A` | "View & add" | the model's `contributions` is non-empty |
-| 14 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
+| 6 | *bespoke 2* | "Weight management" | Body Composition only; `EmptyView` elsewhere |
+| 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
+| 8 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
+| 9 | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
+| 10 | `Nrm` | "How far from your normal" — against your own baseline | **always** |
+| 11 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
+| 12 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
+| 13 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
+| 14 | `V&A` | "View & add" | the model's `contributions` is non-empty |
+| 15 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
 | — | `Disc` | disclaimer | always |
 
 **Every gate above that says "always" was `◐` at the start of 2026-08-01.** The
@@ -166,24 +177,29 @@ three: closed by the reader, opened by the reader, and not yet asked.
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
-| Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" + "Medication" (5 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
-**The bespoke slot is still one slot.** Four cards draw two things in it
-(Body Composition, Fitness, Heart Attack & Stroke Risk, and — since 2026-08-02
-— Sleep), separated by a `Divider()` and wrapped in `NestedInsightSection` —
-the pattern Body Composition established. A second *top-level* section would
-have needed a second placement rule, and the one placement rule is the thing
-Phase 1 bought.
+**The bespoke slot is one slot, and there is now a second one.** Four cards
+draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
+& Stroke Risk, and — since 2026-08-02 — Sleep), separated by a `Divider()` and
+wrapped in `NestedInsightSection` — the pattern Body Composition established.
+
+That stopped being enough for Body Composition on 2026-08-02. **"Weight
+management" is a second top-level bespoke section**, at the user's request, and
+it needed no new placement rule: it is a fixed position 6 for every card, and
+`EmptyView` on the eight that have nothing to put there. The thing Phase 1
+bought — one placement rule, not one per card — survives, because the rule is
+still positional and not per-insight.
 
 **Sleep's second picture is "Last night in stages"** (`NightSleepChart`,
 backed by `NightSleepDetail` in InsightKit): one lane per source, stage bands
@@ -550,11 +566,13 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
 | 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
 | 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
-| 5n | Medication | BodyC | open (closed when empty) | ● | mg on board | `doseAttribution` | — (four figures) |
-| 5n·1 | Is it working | BodyC | nested in 5n | ● | — | `.none` | `MedicationResponseChart` |
-| 5n·2 | By dose | BodyC | nested in 5n, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
-| 5n·3 | By injection site | BodyC | nested in 5n, if recorded | ● | — | `doseAttribution` | — (grid) |
-| 5n·4 | Side effects | BodyC | nested in 5n, if any | ● | — | `.none` | — (worst avg first) |
+| 6a | **Weight management** | BodyC | open (closed when empty) | ● | mg in your system | `.none` | — (the section) |
+| 6a·1 | Since you started | BodyC | nested in 6a | ● | — | `doseAttribution` | — (four figures) |
+| 6a·2 | Medication in your system | BodyC | nested in 6a | ● | mg | `.none` | `MedicationCurveChart` |
+| 6a·3 | Is it working | BodyC | nested in 6a | ● | — | `.none` | `MedicationResponseChart` |
+| 6a·4 | By dose | BodyC | nested in 6a, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
+| 6a·5 | By injection site | BodyC | nested in 6a, if recorded | ● | — | `doseAttribution` | — (grid) |
+| 6a·6 | Side effects | BodyC | nested in 6a, if any | ● | — | `.none` | — (worst avg first) |
 | 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
 | 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
 | 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
@@ -641,7 +659,45 @@ one beat-to-beat stream and only agreement between them is evidence.
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |
 
-### The medication section is now five sections
+### "Weight management" is a section of its own, and the level is a metric
+
+**Two changes on 2026-08-02, both the user's.** The medication moved out of
+"What you're made of" into its own top-level bespoke section — *"I want to
+actually put the medication on its own section, called weight management.
+Meaning body comp will have two bespoke sections"* — and **"on board" is gone**
+from every surface. It was the pharmacology's own jargon; the reader asked for
+*"medication in your blood or something just better"*. It is **"in your
+system"**, not "in your blood", because the model is a whole-body compartment
+and not a plasma assay — saying blood would claim a measurement nobody took.
+
+**`MetricType.activeMedicationLevel` is the app's only modelled metric.** The
+same request: *"I also want that data point to go into the 'what goes into
+this' chart."* That chart, the baseline machinery and the whole contributor
+pipeline speak `MetricType` and `HealthMetricSample`, so nothing else could
+carry the level onto it. `PharmacokineticsModel.dailySamples` emits one point a
+day, `AppModel.refreshMedicationLevelSamples` folds them into `samples` on every
+recompute (idempotently — the previous derivation is stripped first), and it
+lands as a contributor via `BodyCompositionInsight.trackedNotScored`.
+
+Three things keep it from being read as a measurement:
+
+- **`MetricSource.calculated`** on every sample, so the overlay legend, the
+  per-source breakdown and the export all say *"Worked out by this app"*.
+- **Its own `MetricFamily.pharmacology`.** `.body` would have put it in weight's
+  family, and same-family pairs are suppressed as tautologies — hiding the one
+  relationship the metric exists to show.
+- **Weight 0, not 2%.** The user offered it a small weight so it would appear
+  on the chart. The chart draws `contributors` rather than weights, so weight 0
+  gets it there anyway — and a weight would assert that more or less of a
+  prescribed drug is *better*, which is meaningless and is the opposite of what
+  this app says about medication everywhere else. What the drug is doing is
+  already scored: that is `rateWeight`, the speed the weight is moving at.
+
+It is deliberately **not** in the Data tab's metric categories. It already has a
+home there under `DataDomain.medication`, and listing it beside measured vitals
+would be the one place the distinction blurs.
+
+### The medication section is now six sections
 
 `MedicationSection` began as one chart of milligrams on board. That answers a
 question about the *drug* and none about the reader — the user, after showing

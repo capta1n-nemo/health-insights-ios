@@ -38,6 +38,11 @@ public enum MetricValueFormatter {
         // branch would render −1.5 as "-2".
         case .sleepOnset:
             return clockString(hoursFromMidnight: value)
+        // Two decimals: between two weekly doses the level moves by tenths of a
+        // milligram, and the `default:` branch below would round the whole
+        // decay curve into a staircase of integers.
+        case .activeMedicationLevel:
+            return String(format: "%.2f", value)
         default:
             return "\(Int(value.rounded()))"
         }

@@ -147,6 +147,13 @@ struct InsightDetailView: View {
                     periodContrastCard(result)
                     // 5. The card's own picture of its own subject.
                     bespokeSection
+                    // 5b. A second one, where the subject has two halves that
+                    // are genuinely different questions. Only Body Composition
+                    // has one: *what your body is made of* and *what you are
+                    // doing about it* were sharing a slot, and the medication
+                    // half had grown five sub-sections inside somebody else's
+                    // heading. The user's call, 2026-08-02.
+                    secondaryBespokeSection
                     // 6. What feeds the score, then 7. how much each counts —
                     // the overview before the arithmetic, for the reader who
                     // wants the science behind it.
@@ -1360,13 +1367,29 @@ struct InsightDetailView: View {
             }
         }
 
-        // Your build, and what you are taking — both are pictures of this
-        // card's own subject, so they share its one bespoke slot rather than
-        // each claiming a placement rule of their own.
+        // Your build belongs with what you are made of. The medication moved
+        // out to `weightManagementCard` — see `secondaryBespokeSection`.
         Divider()
         somatotypeSection
-        Divider()
-        MedicationSection(window: window(spanning: nil))
+    }
+
+    /// The second bespoke slot: **Weight management**.
+    ///
+    /// Split out of "What you're made of" on 2026-08-02 at the user's request.
+    /// The two halves answer different questions — one is a measurement of the
+    /// body, the other is an intervention and its effect — and the medication
+    /// half had grown to five sub-sections under a heading that said nothing
+    /// about it.
+    ///
+    /// `EmptyView` for every other card, and it costs them nothing: a `switch`
+    /// in a `@ViewBuilder` with an `EmptyView` arm contributes no spacing.
+    @ViewBuilder private var secondaryBespokeSection: some View {
+        switch insightID {
+        case .bodyComposition:
+            MedicationSection(window: window(spanning: nil))
+        default:
+            EmptyView()
+        }
     }
 
     /// `@AppStorage` cannot hold an optional enum, so it round-trips through

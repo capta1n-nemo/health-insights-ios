@@ -81,6 +81,20 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case heartRateRecovery         // bpm drop one minute after exertion
     case walkingSteadiness         // % — Apple's fall-risk measure
     case walkingAsymmetry          // % of walking time with uneven gait
+    /// mg of GLP-1 still active, from the reader's logged doses and the
+    /// compound's published half-life.
+    ///
+    /// **Modelled, not measured, and the only metric here that is.** Nothing
+    /// on the phone can sense a drug level; `PharmacokineticsModel` computes
+    /// this from doses the reader entered and a published half-life. It earns a
+    /// `MetricType` anyway because the reader asked to see it *against* their
+    /// weight and body fat on the one chart that draws contributors — and that
+    /// chart, the baseline machinery and the overlay all speak `MetricType`.
+    ///
+    /// Two things keep it honest: every sample carries `MetricSource.calculated`
+    /// rather than a device, and it is scored at **weight 0** on the one card
+    /// that reads it. See `BodyCompositionInsight.trackedNotScored`.
+    case activeMedicationLevel     // mg of GLP-1 still active — modelled
 
     /// Human-readable label for UI.
     public var displayName: String {
@@ -122,6 +136,12 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRateRecovery: return "Heart Rate Recovery"
         case .walkingSteadiness: return "Walking Steadiness"
         case .walkingAsymmetry: return "Walking Asymmetry"
+        // "On board" was the pharmacology jargon and nobody outside it reads
+        // that as "still in you". The user, 2026-08-02: *"renamed to something
+        // more understandable, like 'medication in your blood' or something
+        // just better."* "In your system" rather than "in your blood" because
+        // the model is a whole-body compartment, not a plasma assay.
+        case .activeMedicationLevel: return "Medication In Your System"
         }
     }
 
@@ -152,6 +172,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .walkingSteadiness, .walkingAsymmetry: return "%"
+        case .activeMedicationLevel: return "mg"
         case .heartRateRecovery: return "bpm"
         }
     }

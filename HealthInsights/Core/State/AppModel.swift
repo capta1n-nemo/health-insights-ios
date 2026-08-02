@@ -1091,7 +1091,36 @@ final class AppModel {
                   detail: lines.joined(separator: "\n"))
     }
 
+    /// Fold the modelled medication level into `samples` as a real series.
+    ///
+    /// It has to be *in* `samples` rather than passed to the engine separately,
+    /// because the overlay chart, the baseline machinery and the contributor
+    /// pipeline all read that one array — see
+    /// `PharmacokineticsModel.dailySamples` for why it earns a `MetricType`.
+    ///
+    /// Idempotent: the previous derivation is stripped before the new one goes
+    /// in, so recomputing twice does not stack two curves. It is rebuilt rather
+    /// than cached because it ends at *now*, and a level that stopped updating
+    /// would be the one thing on this card that silently went stale.
+    private func refreshMedicationLevelSamples(now: Date = Date()) {
+        var derived: [HealthMetricSample] = []
+        if let medication = activeMedication, let compound = medication.compound,
+           !medication.doses.isEmpty {
+            let start = max(medication.startedOn,
+                            now.addingTimeInterval(-365 * 86_400))
+            derived = PharmacokineticsModel.dailySamples(
+                doses: medication.doses.map(\.administered), compound: compound,
+                from: start, to: now)
+        }
+        let hadDerived = samples.contains { $0.type == .activeMedicationLevel }
+        guard hadDerived || !derived.isEmpty else { return }
+        samples = samples.filter { $0.type != .activeMedicationLevel } + derived
+    }
+
     private func recompute() {
+        // Before the evaluation, so the card that reads it sees it in the same
+        // pass rather than one recompute later.
+        refreshMedicationLevelSamples()
         // The substance model reads a log that isn't in `samples`, so it is
         // rebound before every evaluation. Idempotent — it replaces rather than
         // appends — and it is what puts Substance Impact in front of score

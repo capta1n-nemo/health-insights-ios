@@ -39,6 +39,8 @@ public enum MetricPresentation: String, Sendable, CaseIterable {
 public enum MetricFamily: String, Sendable, CaseIterable {
     case cardiac, autonomic, respiratory, thermal, circulatory
     case metabolic, mobility, body, activity, sleep
+    /// Medication the reader is taking. Only `activeMedicationLevel`.
+    case pharmacology
 
     public var displayName: String {
         switch self {
@@ -52,6 +54,7 @@ public enum MetricFamily: String, Sendable, CaseIterable {
         case .body: return "Body composition"
         case .activity: return "Activity"
         case .sleep: return "Sleep"
+        case .pharmacology: return "Medication"
         }
     }
 }
@@ -76,6 +79,11 @@ public extension MetricType {
              .dayStrain: return .activity
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return .sleep
+        // Its own family, deliberately. `.body` would put it in the same family
+        // as weight, and same-family pairs are suppressed as tautologies — which
+        // would hide the one relationship this metric exists to make visible:
+        // what the drug level does while the weight moves.
+        case .activeMedicationLevel: return .pharmacology
         }
     }
 
@@ -149,6 +157,10 @@ public extension MetricType {
         // overlay, where hues resolve per chart anyway.
         case .exerciseMinutes: return 35
         case .sleepLatencyMinutes: return 36
+        // Appended, like every case since 30: the contiguity test pins this
+        // list to 0..<count. Its usual chart is Body Composition's overlay,
+        // where hues resolve per chart anyway.
+        case .activeMedicationLevel: return 37
         }
     }
 
@@ -220,7 +232,11 @@ public extension MetricType {
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
-             .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry:
+             .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry,
+             // A level that rises after each dose and decays between them. Not
+             // a total: adding up "mg still active" across a month would be a
+             // number with no meaning at all.
+             .activeMedicationLevel:
             // Sleep belongs here, not with the daily totals: it already arrives
             // as one value per night, so summing it is a no-op, and "total hours
             // slept this month" is not a number anyone wants — "average 7.1 h,
@@ -274,6 +290,11 @@ public extension MetricType {
              // publishes them irregularly, so a fortnight is not a gap.
              .walkingSteadiness, .walkingAsymmetry:
             return 14 * day
+        // Synthesised one point per day, so anything past two days is a stretch
+        // where the app itself produced nothing — which happens either side of
+        // the regimen and must not be joined across.
+        case .activeMedicationLevel:
+            return 2 * day
         }
     }
 
@@ -406,6 +427,11 @@ public extension MetricType {
         // `BloodPressureEstimator.Category` — and `BloodPressureSections` draws
         // them from there. Two copies of a clinical threshold is one too many.
         case .bloodPressureSystolic, .bloodPressureDiastolic: return nil
+        // There is no normal band for how much of a drug is in you: the answer
+        // is entirely a function of the dose somebody was prescribed. Drawing a
+        // band would read as a target, and this app does not tell anyone what
+        // dose to be on.
+        case .activeMedicationLevel: return nil
         // Age- and sex-dependent. `HeartHealthScore` already holds reference
         // tables for these and a fixed band here would contradict them.
         case .vo2Max, .bodyFatPercentage: return nil

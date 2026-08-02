@@ -1,9 +1,10 @@
 import SwiftUI
 import InsightKit
 
-/// Body Composition's medication picture: what is on board, whether it is
-/// working, and — where the app filled a history in — a plain request to
-/// confirm it.
+/// **Weight management** — Body Composition's *second* bespoke section.
+///
+/// What is still in you, whether it is working, and — where the app filled a
+/// history in — a plain request to confirm it.
 ///
 /// ## What this grew into, and why
 ///
@@ -15,8 +16,9 @@ import InsightKit
 /// in order:
 ///
 /// 1. **Since you started** — the whole regimen in four numbers.
-/// 2. **Is it working** — on board, weight and body fat standardised onto one
-///    axis (`MedicationResponseChart`).
+/// 2. **Medication in your system**, then **Is it working** — the level on its
+///    own, then the level, weight and body fat standardised onto one axis
+///    (`MedicationResponseChart`).
 /// 3. **By dose** — total change and weekly rate for each rung of the ladder.
 /// 4. **By injection site** — the same, where sites were recorded.
 /// 5. **Side effects** — worst average first.
@@ -26,6 +28,13 @@ import InsightKit
 /// tested. **The attribution is by timing, not cause** — see
 /// `SectionCaveat.doseAttribution`, which every table here carries rather than
 /// each writing its own gentler version.
+///
+/// **"On board" is gone.** It was the pharmacology's own jargon and read as
+/// nothing to anybody outside it. The user, 2026-08-02: *"renamed to something
+/// more understandable, like 'medication in your blood' or something just
+/// better."* It is **"in your system"** rather than "in your blood", because
+/// the model is a whole-body compartment and not a plasma assay — saying blood
+/// would claim a measurement nobody took.
 ///
 /// **The confirm step is the module's safety posture made visible.**
 /// `TitrationEngine` proposes a titration history from a current dose, because
@@ -48,9 +57,17 @@ struct MedicationSection: View {
         if let medication = model.activeMedication, let compound = medication.compound {
             let points = model.medicationCurve(days: days)
             let response = model.medicationResponse
-            VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
-                overallSection(response, compound: compound, points: points)
+            InsightSection(
+                title: "Weight management",
+                trailing: points.last.map {
+                    String(format: "%.2f mg in your system", $0.level)
+                },
+                caveat: .none
+            ) {
+                overallSection(response, compound: compound)
                 if !points.isEmpty {
+                    Divider()
+                    levelSection(points: points, compound: compound)
                     Divider()
                     responseSection
                 }
@@ -72,8 +89,8 @@ struct MedicationSection: View {
                 doseRow(compound: compound)
             }
         } else {
-            NestedInsightSection(title: "Medication", trailing: nil, caveat: .none) {
-                Text("If you're taking a GLP-1 medication, logging it lets the app draw how much is still active between doses and read your weight trend against it.")
+            InsightSection(title: "Weight management", trailing: nil, caveat: .none) {
+                Text("If you're taking a GLP-1 medication, logging it lets the app draw how much is still in your system between doses and read your weight trend against it.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Set up medication") { showingStart = true }
@@ -85,14 +102,14 @@ struct MedicationSection: View {
 
     // MARK: - Since you started
 
-    /// The four figures Shotsy leads with, and the one this app can add: how
-    /// much is on board right now.
+    /// The four figures Shotsy leads with. The level itself moved to its own
+    /// sub-section below — it is a different quantity from "what has changed
+    /// since you started", and it was sharing this heading's one figure slot.
     private func overallSection(_ response: MedicationResponse.Analysis,
-                                compound: GLPCompound,
-                                points: [ActiveCompoundPoint]) -> some View {
+                                compound: GLPCompound) -> some View {
         NestedInsightSection(
-            title: "Medication",
-            trailing: points.last.map { String(format: "%.2f mg on board", $0.level) },
+            title: "Since you started",
+            trailing: nil,
             // Spelt out rather than `.none`: a bare `.none` in a position the
             // compiler could read as `Optional` is a well-worn way to get a
             // confusing diagnostic, and `SectionCaveat.none` is a real answer
@@ -129,6 +146,25 @@ struct MedicationSection: View {
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .gridColumnAlignment(.leading)
+    }
+
+    // MARK: - Medication in your system
+
+    /// The decay curve on its own, in real milligrams.
+    ///
+    /// Separate from "Is it working" because that chart standardises everything
+    /// onto one axis to compare *shapes*, and the actual number — how much is in
+    /// you right now, and how far it falls before the next dose — is the thing a
+    /// reader on a weekly injectable actually asks. One question per chart.
+    private func levelSection(points: [ActiveCompoundPoint],
+                              compound: GLPCompound) -> some View {
+        NestedInsightSection(
+            title: "Medication in your system",
+            trailing: points.last.map { String(format: "%.2f mg", $0.level) },
+            caveat: .none
+        ) {
+            MedicationCurveChart(points: points, compound: compound, window: window)
+        }
     }
 
     // MARK: - Is it working

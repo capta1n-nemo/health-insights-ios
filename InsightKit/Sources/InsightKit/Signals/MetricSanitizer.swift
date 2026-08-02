@@ -40,7 +40,10 @@ public extension MetricType {
              .skinTemperatureDeviation,
              // Zero is the *good* value for both of these: no time in atrial
              // fibrillation, and a perfectly symmetric gait.
-             .atrialFibrillationBurden, .walkingAsymmetry:
+             .atrialFibrillationBurden, .walkingAsymmetry,
+             // Zero is the honest reading before the first dose and long after
+             // the last — dropping it would make the curve start mid-air.
+             .activeMedicationLevel:
             return false
         }
     }
@@ -113,6 +116,11 @@ public extension MetricType {
         case .vo2Max: return 5...100
         case .vascularAge: return 10...120
         case .dayStrain: return 0...21          // Whoop's own scale
+        // Generous: the highest rung of any GLP-1 ladder here is 15 mg, and a
+        // weekly injectable accumulates to several times a single dose before
+        // it plateaus. 200 mg is not reachable by any regimen this app models,
+        // so anything past it is a unit error rather than a body.
+        case .activeMedicationLevel: return 0...200
         // No honest ceiling, or none needed. Sleep duration is bounded by the
         // day; a very long recorded sleep is usually a real illness or a real
         // device error, and the app should show it rather than hide it.

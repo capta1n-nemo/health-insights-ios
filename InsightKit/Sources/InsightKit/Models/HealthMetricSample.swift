@@ -23,6 +23,15 @@ public struct MetricSource: Codable, Sendable, Hashable {
     /// GLP-1 tracker and `MultiSource` can keep it as its own series.
     public static let shotsy = MetricSource(id: "shotsy", displayName: "Shotsy")
 
+    /// Worked out by this app rather than measured by anything.
+    ///
+    /// Its own source so that a modelled series can never be mistaken for a
+    /// reading: `activeMedicationLevel` is computed from logged doses and a
+    /// published half-life, and every screen that names a source — the overlay
+    /// legend, the per-source breakdown, the data export — says so.
+    public static let calculated = MetricSource(id: "calculated",
+                                                displayName: "Worked out by this app")
+
     /// A specific device *within* Apple Health (e.g. "Apple Watch", "Oura",
     /// "iPhone"). Apple Health mixes many devices; preserving the underlying
     /// device name is what lets us overlay and de-duplicate sources.

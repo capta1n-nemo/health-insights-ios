@@ -97,6 +97,36 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Seventeenth push — Weight management, and the app's first modelled metric.**
+Three asks, all the user's.
+
+- **Body Composition has two bespoke sections now.** *"I want to actually put
+  the medication on its own section, called weight management. Meaning body comp
+  will have two bespoke sections."* `secondaryBespokeSection` is a fixed
+  position 6 for every card and `EmptyView` on the eight with nothing to put
+  there — so the one *positional* placement rule Phase 1 bought still holds.
+  `card-map.sh` now reports 15 sections; the four hand-written tables beside it
+  moved with it.
+- **"On board" is gone everywhere.** It was pharmacology jargon. It reads
+  **"Medication in your system"** — not "in your blood", because the model is a
+  whole-body compartment, and saying blood would claim a measurement nobody
+  took.
+- **`MetricType.activeMedicationLevel`** — the app's **only modelled metric**,
+  added so the level could join "What goes into this". That chart, the baseline
+  machinery and the contributor pipeline all speak `MetricType`, so nothing else
+  could carry it there. `PharmacokineticsModel.dailySamples` emits a point a
+  day; `AppModel.refreshMedicationLevelSamples` folds them into `samples` on
+  every recompute, stripping the previous derivation first so it cannot stack.
+- **Weight 0, not the 2% the user offered.** The chart draws `contributors`, not
+  weights, so weight 0 gets it on screen anyway — and a weight would assert that
+  more or less of a *prescribed* drug is better. What the drug is doing is
+  already scored (`rateWeight`). Stated in the code and in the row's own text,
+  and pinned by `MedicationLevelMetricTests`.
+- Three guards keep it from reading as a measurement: `MetricSource.calculated`
+  on every sample, its own `MetricFamily.pharmacology` (`.body` would suppress
+  the weight-versus-drug pattern as a tautology), and no `referenceRange` — a
+  band would read as a target dose.
+
 **Sixteenth push, then reverted — the share sheet's bottom row.** *"why is it
 not in the bottom like other 3 apps that support actions, I want an action."*
 Built (`aaf185c`), CI green, and **refused at signing on the deploy Mac**. Now

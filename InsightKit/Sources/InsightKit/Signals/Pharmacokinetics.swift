@@ -174,6 +174,33 @@ public enum PharmacokineticsModel {
         return out
     }
 
+    /// The curve as `MetricType.activeMedicationLevel` samples, one per day.
+    ///
+    /// **Why a metric at all.** The reader asked to see the drug level against
+    /// their weight and body fat on the card's "What goes into this" chart, and
+    /// that chart — like the baseline machinery and the whole contributor
+    /// pipeline — speaks `MetricType` and `HealthMetricSample`. Nothing else in
+    /// the app can carry a series onto it.
+    ///
+    /// **Why it stays honest.** Every sample is `MetricSource.calculated`, so
+    /// no screen that names a source can present it as a reading; and the card
+    /// that reads it scores it at weight 0, because a higher drug level is not
+    /// a better or worse body — it is a fact about the dose somebody is on.
+    ///
+    /// One point per day rather than the curve's own six-hourly step: this
+    /// feeds a daily-bucketed overlay, and four points a day for a year is
+    /// fourteen hundred samples to average back down to the same line.
+    public static func dailySamples(doses: [AdministeredDose], compound: GLPCompound,
+                                    from start: Date, to end: Date,
+                                    source: MetricSource = .calculated) -> [HealthMetricSample] {
+        curve(doses: doses, compound: compound, from: start, to: end,
+              step: 24 * 3600)
+            .map {
+                HealthMetricSample(type: .activeMedicationLevel, value: $0.level,
+                                   start: $0.date, source: source)
+            }
+    }
+
     /// Trough and peak once a repeated dose has stopped accumulating.
     ///
     /// Reached after roughly four to five elimination half-lives, which for a

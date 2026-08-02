@@ -161,7 +161,7 @@ the place to look.
   - `UserHealthProfile` :170
   - `WeightGoal` :120
 - `Models/HealthMetricSample.swift`
-  - `HealthMetricSample` :75
+  - `HealthMetricSample` :84
   - `MetricSource` :5
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
@@ -214,7 +214,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :460
+  - `MetricPalette` :486
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -263,10 +263,10 @@ the place to look.
   - `ActiveCompoundPoint` :105
   - `AdministeredDose` :79
   - `GLPCompound` :10
-  - `MedicationScanPayload` :274
-  - `MedicationScanner` :311
+  - `MedicationScanPayload` :301
+  - `MedicationScanner` :338
   - `PharmacokineticsModel` :115
-  - `TitrationEngine` :217
+  - `TitrationEngine` :244
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9
@@ -463,9 +463,9 @@ the place to look.
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
 - `Features/Insights/MedicationSection.swift`
-  - `DoseEntrySheet` :304
-  - `MedicationSection` :36
-  - `MedicationSetupSheet` :249
+  - `DoseEntrySheet` :340
+  - `MedicationSection` :45
+  - `MedicationSetupSheet` :285
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`

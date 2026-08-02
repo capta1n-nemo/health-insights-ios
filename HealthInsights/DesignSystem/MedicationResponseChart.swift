@@ -2,8 +2,8 @@ import SwiftUI
 import Charts
 import InsightKit
 
-/// **Is it working?** — what's on board, your weight and your body fat, on one
-/// axis.
+/// **Is it working?** — what's still in you, your weight and your body fat, on
+/// one axis.
 ///
 /// The user's ask, 2026-08-02: *"I want the medication board graph to be in this
 /// new Medication section, and for you to overlay weight, fat, relevant stats
@@ -22,8 +22,8 @@ import InsightKit
 /// ## What the dashes mean
 ///
 /// The same thing they mean everywhere in this app: **not measured.** The
-/// on-board line runs dashed over any stretch held up by doses `TitrationEngine`
-/// worked out rather than ones the reader logged. Weight and body fat are
+/// medication line runs dashed over any stretch held up by doses
+/// `TitrationEngine` worked out rather than ones the reader logged. Weight and body fat are
 /// measurements, so they are always solid.
 struct MedicationResponseChart: View {
     let series: [MedicationResponse.ResponseSeries]

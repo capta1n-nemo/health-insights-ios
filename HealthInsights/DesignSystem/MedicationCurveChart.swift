@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 import InsightKit
 
-/// How much of the medication is still on board, day by day.
+/// How much of the medication is still in you, day by day.
 ///
 /// The shape is the point. A weekly injectable does not arrive and leave — it
 /// accumulates for a month or more before it stops climbing, which is why a
@@ -96,13 +96,13 @@ struct MedicationCurveChart: View {
         // stroke from the series, so mixing dashed and solid points inside one
         // series draws whichever the last point asked for.
         ForEach(visible.filter { !$0.restsOnInferredDose }) { point in
-            LineMark(x: .value("Date", point.date), y: .value("On board", point.level),
+            LineMark(x: .value("Date", point.date), y: .value("In your system", point.level),
                      series: .value("Series", "measured"))
                 .foregroundStyle(tint)
                 .interpolationMethod(.linear)
         }
         ForEach(visible.filter(\.restsOnInferredDose)) { point in
-            LineMark(x: .value("Date", point.date), y: .value("On board", point.level),
+            LineMark(x: .value("Date", point.date), y: .value("In your system", point.level),
                      series: .value("Series", "estimated"))
                 .foregroundStyle(tint.opacity(0.6))
                 .lineStyle(Theme.projectedStroke)

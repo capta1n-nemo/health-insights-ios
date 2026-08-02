@@ -241,7 +241,7 @@ struct DataTabView: View {
         }
     }
 
-    /// The medication regimen: what is on board now, and how many doses back it.
+    /// The medication regimen: how much is in you now, and how many doses back it.
     @ViewBuilder private var medicationSection: some View {
         if let medication = model.activeMedication, let compound = medication.compound,
            !medication.doses.isEmpty {
@@ -253,7 +253,7 @@ struct DataTabView: View {
                         HStack {
                             Text(medication.brandName ?? compound.displayName)
                             Spacer()
-                            Text(String(format: "%.2f mg on board",
+                            Text(String(format: "%.2f mg in your system",
                                         PharmacokineticsModel.level(
                                             at: Date(),
                                             doses: medication.doses.map(\.administered),

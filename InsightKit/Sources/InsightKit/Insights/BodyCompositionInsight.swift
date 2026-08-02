@@ -204,12 +204,41 @@ public struct BodyCompositionInsight: InsightModel {
     /// moment the weight was removed). A weight-0 row with its reason on it is
     /// the shape this repo already uses for every other unscored signal.
     static func trackedNotScored(samples: [HealthMetricSample]) -> [MetricContribution] {
-        guard let muscle = samples.latestValue(.muscleMass) else { return [] }
-        return [MetricContribution(
-            metric: .muscleMass, higherIsBetter: true, weight: 0,
-            detail: String(format: "%.1f kg — tracked, not scored: your scale works it "
-                           + "out from lean mass, which already carries a share, and "
-                           + "counting both would count one tissue twice", muscle))]
+        var out: [MetricContribution] = []
+        if let muscle = samples.latestValue(.muscleMass) {
+            out.append(MetricContribution(
+                metric: .muscleMass, higherIsBetter: true, weight: 0,
+                detail: String(format: "%.1f kg — tracked, not scored: your scale works it "
+                               + "out from lean mass, which already carries a share, and "
+                               + "counting both would count one tissue twice", muscle)))
+        }
+        // **The medication, and why its weight is zero rather than small.**
+        //
+        // The user asked for this on the chart: *"I also want that data point to
+        // go into the 'what goes into this' chart, even if it has like a 2%
+        // weighting for the overall score, so I can see this one go up.. and
+        // everything else go down probably."* The chart is what they were
+        // after, and a weight-0 contributor is drawn there exactly like a
+        // scored one — `MetricOverlayChart` reads `contributors`, not weights.
+        //
+        // The 2% is the part that is declined, and deliberately. A weight says
+        // "more of this is better" or "less of this is better", and neither is
+        // true of a drug level: the right amount is whatever somebody was
+        // prescribed. Scoring it would make the card reward a higher dose,
+        // which is both meaningless and the opposite of what this app says
+        // anywhere else about medication. What the drug is *doing* is already
+        // scored — that is `rateWeight`, the speed the weight is moving at.
+        //
+        // `higherIsBetter: nil` for the same reason: neither direction is good.
+        if let level = samples.latestValue(.activeMedicationLevel) {
+            out.append(MetricContribution(
+                metric: .activeMedicationLevel, higherIsBetter: nil, weight: 0,
+                detail: String(format: "%.2f mg — tracked, not scored: worked out from "
+                               + "your logged doses, not measured. There is no better or "
+                               + "worse level to be at; what it's doing to your weight is "
+                               + "what this card scores", level)))
+        }
+        return out
     }
 
     /// Everything a scale reports beyond the one measurement carrying the dial.

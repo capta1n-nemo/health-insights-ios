@@ -2,15 +2,15 @@ import Foundation
 
 /// **Is it working?** — the medication read against the body it is acting on.
 ///
-/// `PharmacokineticsModel` says how much drug is on board. That is a model of
-/// the *drug*, and on its own it answers nothing a reader actually wants to
-/// know. This is the other half: the weight and body-fat record laid against
+/// `PharmacokineticsModel` says how much drug is still in the reader. That is a
+/// model of the *drug*, and on its own it answers nothing a reader actually
+/// wants to know. This is the other half: the weight and body-fat record laid against
 /// the dose history, so "the 7.5 was where it stopped moving" is a number
 /// rather than a feeling.
 ///
 /// Modelled on the dashboards the user asked for (Shotsy's Results tab): total
 /// change and average weekly loss per dose step, the same per injection site,
-/// and an overlay of what is on board against what the body did.
+/// and an overlay of the level against what the body did.
 ///
 /// ## What this is not
 ///
@@ -234,7 +234,10 @@ public enum MedicationResponse {
 
             public var title: String {
                 switch self {
-                case .onBoard: return "On board"
+                // The reader-facing name. `onBoard` stays as the case name —
+                // renaming an enum case would touch every call site to change
+                // a string that only appears here.
+                case .onBoard: return "In your system"
                 case .weight: return "Weight"
                 case .bodyFat: return "Body fat"
                 }
