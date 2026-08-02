@@ -46,7 +46,27 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**Sleep onset deep-dive (latest, 2026-08-02, night).** The user wanted "a pretty
+**Graceful-population rules (latest, 2026-08-02, night).** The user, after the
+audit: *"make rules so when a new card accepts a new source of info, it
+gracefully populates across the cards"* — the more connectors, the more the Data
+tab and the scores fill in. Turned the audit's lessons into enforced invariants:
+
+- **`MetricType.dataCategory`** (`MetricDataCategory.swift`, InsightKit,
+  exhaustive) — every metric declares its Data-tab group, so a new connector's
+  metric appears there automatically. `DataTabView.categories` is now *generated*
+  from it, not hand-written. This fixed two live drifts: **sleep latency and
+  vascular age** were metrics with data missing from the Data tab. Held by
+  `MetricDataCategoryTests`.
+- **`ContributorCandidateTests`** — every model's reported contributor metrics ⊆
+  `candidateMetrics`, so a scored signal reaches every section (contributor-keyed
+  *and* candidate-keyed) uniformly. Fixed the one violation: Body Composition's
+  `activeMedicationLevel` was a contributor but not a candidate (added it).
+- Non-metric inputs already populate the contributor sections for free via
+  `auxiliaryInputs` (previous push). Documented the whole thing in the
+  `add-metric-type` skill ▸ "Graceful population" and `docs/data-conventions.md`
+  ▸ §4, so the next session inherits the rules.
+
+**Sleep onset deep-dive (previous, 2026-08-02, night).** The user wanted "a pretty
 graph and deep dive" on how long they take to fall asleep — is it drifting, and
 why (drugs? tech? eating? too hot/cold?). Shipped as a nested Sleep section,
 "How fast you fall asleep":

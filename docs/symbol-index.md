@@ -167,6 +167,8 @@ the place to look.
   - `AggregatedPoint` :29
   - `BucketSize` :9
   - `BucketStatistic` :4
+- `Models/MetricDataCategory.swift`
+  - `MetricDataCategory` :20
 - `Models/MetricType.swift`
   - `MetricType` :9
 - `Models/MetricValueFormatter.swift`
@@ -442,7 +444,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :414
+  - `OtherDataDetailView` :407
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`

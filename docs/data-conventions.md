@@ -65,6 +65,34 @@ its chart is a plain line by design.
 catches a raw chart in a data page; it does not check that a shared component
 obeys the encoding rules, and only the skill (and the device) can.
 
+## 4. A new source populates every card, by rule not by memory
+
+The cross-card audit found a card's inputs scattered inconsistently across its
+sections. The lesson, as a set of enforced rules so *"a new source gracefully
+populates across the cards"* — the more connectors, the more the Data tab and the
+scores fill in:
+
+- **Every metric has a Data-tab home.** `MetricType.dataCategory`
+  (`MetricDataCategory.swift`) is exhaustive, so a new connector's metric appears
+  in the Data tab automatically once it declares a group — no hand-edit of the
+  view. This replaced a literal array that had already dropped sleep latency and
+  vascular age. Held by `MetricDataCategoryTests`.
+- **A reported contributor is always a candidate.** A card's inputs live in two
+  lists — `contributors` (drives "What goes into this" / "How this is weighted" /
+  "Full history") and `candidateMetrics` (drives "How you compare" / "How far
+  from your normal" / the overlay fallback). They must agree or a signal shows in
+  some sections and vanishes from others. Held by `ContributorCandidateTests`.
+- **Non-metric inputs populate the contributor sections automatically.** A
+  grounding fact (cholesterol) or a derived figure (substance load) reaches "What
+  goes into this" and "Full history" through
+  `InsightDetailView.auxiliaryInputs`, which reads a card's `otherFactors` and
+  `requirements` — no per-section wiring. A published peer norm and a
+  `VitalSignsCheck` spec are **not** free; those are deliberate per-metric
+  decisions.
+
+The full checklist for teaching the app a new signal is in the `add-metric-type`
+skill ▸ "Graceful population".
+
 ## The observation trap that hid a side effect
 
 Not a page convention, but the bug that prompted this file and worth keeping:

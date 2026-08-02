@@ -8,9 +8,18 @@ public struct BodyCompositionInsight: InsightModel {
     /// `.height` is deliberately absent — see `supportingMetrics`. It is a
     /// static attribute with no series to chart and nothing that can change
     /// between two readings; it enters through BMI and is named in the drivers.
+    ///
+    /// `.activeMedicationLevel` is here because this card **reports it** as a
+    /// weight-0 tracked contributor (`trackedNotScored`). A metric a card charts
+    /// but does not declare as a candidate falls out of every section keyed on
+    /// `candidateMetrics` — "How far from your normal", the overlay's declared
+    /// fallback — while appearing in the ones keyed on `contributors`. That
+    /// split is the cross-card inconsistency the audit found, and
+    /// `ContributorCandidateTests` now fails on it: a reported contributor must
+    /// be a candidate.
     public var candidateMetrics: [MetricType] {
         [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass, .boneMass,
-         .bodyWaterPercentage]
+         .bodyWaterPercentage, .activeMedicationLevel]
     }
     /// Non-mandatory: without them the dial falls back to BMI rather than
     /// disappearing, and the card still narrates.

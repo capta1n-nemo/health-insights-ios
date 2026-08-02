@@ -30,21 +30,14 @@ struct DataTabView: View {
     }
 
     /// Fixed category order; only metrics that actually have samples are shown.
-    private static let categories: [(String, [MetricType])] = [
-        ("Heart & circulation", [.heartRate, .restingHeartRate, .walkingHeartRateAverage,
-                                 .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
-                                 .heartRateRecovery, .atrialFibrillationBurden,
-                                 .vo2Max, .respiratoryRate, .oxygenSaturation,
-                                 .peripheralPerfusionIndex]),
-        ("Body", [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-                  .boneMass, .bodyWaterPercentage, .height, .bloodGlucose]),
-        ("Sleep & recovery", [.sleepDurationHours, .sleepOnset, .sleepEfficiency,
-                              .sleepDeepMinutes, .sleepRemMinutes, .bodyTemperature,
-                              .skinTemperature, .skinTemperatureDeviation,
-                              .dayStrain]),
-        ("Activity & mobility", [.stepCount, .activeEnergyBurned, .exerciseMinutes,
-                                 .walkingSteadiness, .walkingAsymmetry])
-    ]
+    ///
+    /// **Generated from `MetricType.dataCategory`, not hand-written.** The old
+    /// literal array had already dropped sleep latency and vascular age — real
+    /// metrics with data, absent from this screen because adding a `MetricType`
+    /// and listing it here were two steps. Now a new connector's metric appears
+    /// automatically once it declares a category, which the compiler forces.
+    private static let categories: [(String, [MetricType])] =
+        MetricDataCategory.listed.map { ($0.rawValue, MetricType.metrics(in: $0)) }
 
     private var groups: [MetricGroup] {
         // Keyed off the cached summaries rather than remapping every sample.

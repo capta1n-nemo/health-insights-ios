@@ -1,0 +1,69 @@
+import Foundation
+
+/// Which group a metric appears under in the Data tab.
+///
+/// ## Why this is an exhaustive switch and not a list in the view
+///
+/// The user's rule after the cross-card audit: *"the more connectors we have, the
+/// more populated into the data section… make rules so a new source gracefully
+/// populates across the cards."* The Data tab's metric list **was** a
+/// hand-written array in the app target, and it had already drifted — sleep
+/// latency and vascular age were real metrics with data that appeared nowhere on
+/// it, because adding a `MetricType` and adding it to that array were two steps
+/// and the second was forgotten.
+///
+/// So the mapping lives here, exhaustive over `MetricType`. A new connector's
+/// metric cannot compile without a category, and the moment it has one it appears
+/// in the Data tab automatically — the "graceful population" the rule asks for,
+/// enforced by the compiler rather than by memory. `MetricDataCategoryTests`
+/// pins the two that had silently gone missing.
+public enum MetricDataCategory: String, Sendable, CaseIterable {
+    case heart = "Heart & circulation"
+    case body = "Body"
+    case sleepRecovery = "Sleep & recovery"
+    case activity = "Activity & mobility"
+    /// Not in the grouped metric list because it has its own Data-tab section:
+    /// blood pressure is a paired reading (its own domain), and the modelled
+    /// medication level lives in the medication domain. Kept as an explicit case
+    /// rather than an exclusion so a new metric has to *decide* it belongs to
+    /// another section — silence is not an option.
+    case ownDomain
+
+    /// The four groups the Data tab actually renders, in order.
+    public static var listed: [MetricDataCategory] {
+        allCases.filter { $0 != .ownDomain }
+    }
+}
+
+public extension MetricType {
+    /// The Data-tab group this metric appears in.
+    var dataCategory: MetricDataCategory {
+        switch self {
+        case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
+             .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
+             .heartRateRecovery, .atrialFibrillationBurden, .vo2Max,
+             .vascularAge, .respiratoryRate, .oxygenSaturation,
+             .peripheralPerfusionIndex:
+            return .heart
+        case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
+             .boneMass, .bodyWaterPercentage, .height, .bloodGlucose:
+            return .body
+        case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
+             .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
+             .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             .dayStrain:
+            return .sleepRecovery
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             .walkingSteadiness, .walkingAsymmetry:
+            return .activity
+        case .bloodPressureSystolic, .bloodPressureDiastolic, .activeMedicationLevel:
+            return .ownDomain
+        }
+    }
+
+    /// Metrics in one Data-tab group, in the enum's own declaration order — the
+    /// same order the Data tab has always listed them.
+    static func metrics(in category: MetricDataCategory) -> [MetricType] {
+        allCases.filter { $0.dataCategory == category }
+    }
+}

@@ -33,6 +33,7 @@ None has a `default:`, so all eight must be updated:
 | `MetricPresentation.swift` ▸ `presentation` | trend / range / total / bivariate / static layout |
 | `MetricPresentation.swift` ▸ `maxValidInterval` | Longest gap a chart line may bridge |
 | `MetricPresentation.swift` ▸ `referenceRange` | The published normal band, or `nil` — see below |
+| `MetricDataCategory.swift` ▸ `dataCategory` | **Which Data-tab group it appears in** — see "Graceful population" |
 | `Signals/MetricSanitizer.swift` ▸ `requiresPositiveValue` | Whether zero is a real reading |
 
 Safe (they have `default:` or are derived): `bucketStatistic`, `inSentence`,
@@ -80,6 +81,44 @@ A metric with no reader is invisible. Either add it to an insight's
 `candidateMetrics` **and** emit a `MetricContribution` for it from the scoring
 code, or accept that it is Vitals-tab-only and say so. `docs/architecture.md`
 carries the metric → insight table; keep it current.
+
+**If a card reports it as a contributor, it MUST be in that card's
+`candidateMetrics`** — `ContributorCandidateTests` fails otherwise. See below for
+why.
+
+## Graceful population — a new source reaches every card
+
+The user's rule after the cross-card audit: *"the more connectors we have, the
+more populated the data section, the more accurate the scores — make rules so a
+new source gracefully populates across the cards."* Two invariants carry it, both
+enforced so they can't be forgotten:
+
+1. **Every metric has a Data-tab home (`dataCategory`, exhaustive).** A new
+   connector's metric appears in the Data tab automatically the moment it
+   declares a category — the switch won't compile without one. Use `.ownDomain`
+   only if it has its *own* Data-tab section (blood pressure, the medication
+   level); otherwise pick the group it belongs in. This replaced a hand-written
+   list that had already dropped sleep latency and vascular age.
+   `MetricDataCategoryTests` pins the partition.
+
+2. **A reported contributor is always a candidate.** A card's inputs live in two
+   lists — `contributors` (drives "What goes into this", "How this is weighted",
+   "Full history") and `candidateMetrics` (drives "How you compare", "How far
+   from your normal", the overlay fallback). When they disagree, a signal shows
+   in some sections and vanishes from others — the exact inconsistency the audit
+   found (Body Composition charted the medication level but omitted it from
+   `candidateMetrics`). `ContributorCandidateTests` runs every shipped model on a
+   full fixture and fails if any contributor metric is not a candidate.
+
+The **non-metric** inputs — a grounding fact like cholesterol, a derived figure
+like the substance load — populate the contributor sections automatically too,
+via `InsightDetailView.auxiliaryInputs`, which reads a card's `otherFactors` and
+its `requirements`. So a new grounding requirement or a new `otherFactors` entry
+needs no per-section wiring: declare it on the model and it shows up under "What
+goes into this" and "Full history". What it does **not** get for free is a
+published peer norm ("How you compare") or a `VitalSignsCheck` spec ("How far
+from your normal"); those are per-metric research decisions, made deliberately,
+not defaults.
 
 Read it through `VitalReader` (`Baseline/VitalReader.swift`) — the day's
 de-duplicated value against a windowed baseline, with freshness. Every insight
