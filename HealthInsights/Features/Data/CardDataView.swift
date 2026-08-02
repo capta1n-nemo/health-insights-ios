@@ -148,30 +148,40 @@ struct CardDataView: View {
         }
     }
 
+    /// Doses and side effects are separate domains — separate rows into their
+    /// own data pages — so this card slice reads the same as the Data tab does,
+    /// rather than inventing a combined destination that exists nowhere else.
     @ViewBuilder private var medicationSection: some View {
         let doses = model.activeMedication?.doses.count ?? 0
         let effects = model.sideEffects.count
-        if doses > 0 || effects > 0 {
+        if doses > 0 {
             Section("Medication") {
                 NavigationLink {
-                    MedicationHistoryView()
+                    MedicationDataView()
                 } label: {
                     HStack {
-                        Text("Doses & side effects")
+                        Text("Doses")
                         Spacer()
-                        Text(medicationFigure(doses: doses, effects: effects))
+                        Text("\(doses) \(SectionCaveat.plural(doses, "dose"))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
         }
-    }
-
-    private func medicationFigure(doses: Int, effects: Int) -> String {
-        var parts: [String] = []
-        if doses > 0 { parts.append("\(doses) \(SectionCaveat.plural(doses, "dose"))") }
-        if effects > 0 { parts.append("\(effects) side \(SectionCaveat.plural(effects, "effect"))") }
-        return parts.joined(separator: " · ")
+        if effects > 0 {
+            Section("Side effects") {
+                NavigationLink {
+                    SideEffectDataView()
+                } label: {
+                    HStack {
+                        Text("Recorded")
+                        Spacer()
+                        Text("\(effects) side \(SectionCaveat.plural(effects, "effect"))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder private var importSection: some View {

@@ -46,7 +46,33 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**The screenshot-round-2 session (latest, 2026-08-02, evening).** Four asks off
+**The data-conventions session (latest, 2026-08-02, evening).** From a Data-tab
+screenshot: the domain rows opened the wrong places and a side effect had gone
+missing. One push.
+
+- **The root bug: logged data was invisible to observation.** `sideEffects` and
+  `activeMedication` were *computed* properties reading the SwiftData store, and
+  a computed read off an external object registers no SwiftUI dependency — so a
+  side effect logged from the `+` menu did not appear on a Data tab already on
+  screen, and the Body Comp medicine section could show stale dose counts. Both
+  are now **stored `private(set) var`s** reloaded by `reloadLoggedData()` at the
+  top of `recompute()` (every mutation funnels through it) and in `hydrate()`,
+  like `substanceEvents`. **Generalises: SwiftData-backed logged data must be a
+  stored, reloaded property, never read live from the store in a view.**
+- **The Data tab's detail destinations were each their own shape** — substances
+  opened the *add* page, medication opened the Body Comp *card*, side effects
+  were a static inline list that opened nothing. Now every domain opens a
+  read-only page built with **`DomainDataScaffold`** (title, optional
+  shared-component chart, entries newest-first, standard empty state):
+  `SubstanceDataView`, `MedicationDataView`, `SideEffectDataView`.
+  `MedicationHistoryView` (last session's) folded into `MedicationDataView`.
+- **The conventions are now enforced, not described** — the user's "so I don't
+  need to keep reprompting". `docs/data-conventions.md` is the authority;
+  `verify.sh` fails if a `<Domain>DataView` skips the scaffold or hand-rolls a
+  raw `Chart`. See the memory router. **Read that doc before adding a data type
+  or a data page.**
+
+**The screenshot-round-2 session (previous, 2026-08-02, evening).** Four asks off
 new screenshots, one push:
 
 1. **Trend indicator was "broken" — it was hiding the steady state.** The chip

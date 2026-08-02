@@ -428,6 +428,16 @@ The Vitals Check fix, applied everywhere it was also true.
       view of doses and side effects. `ContributionRouteStatus` is the one
       exhaustive resolver of a route's name and summary, so a new kind of data
       (dose, goal, scan…) costs the card a line and cannot skip the hub.
+- [x] **Data-tab detail pages follow one convention, enforced (2026-08-02).**
+      Substances opened the add page, medication opened the Body Comp card, side
+      effects opened nothing. Now every domain opens a read-only page built with
+      `DomainDataScaffold` (`SubstanceDataView`, `MedicationDataView`,
+      `SideEffectDataView`); `verify.sh` fails a `*DataView` that skips the
+      scaffold or draws a raw `Chart`. Authority: `docs/data-conventions.md`.
+- [x] **Logged data made observable (2026-08-02).** `sideEffects` and
+      `activeMedication` were computed off the SwiftData store — invisible to
+      SwiftUI observation, so a side effect logged from `+` didn't appear. Now
+      stored and reloaded in `reloadLoggedData()`.
 - [x] **Viewing consolidated to one screen per card (2026-08-02, round 2).**
       The user's call for "multiple data sources… viewed in a consolidated way".
       `CardDataView` is the card-scoped Data tab — the signals the card reads

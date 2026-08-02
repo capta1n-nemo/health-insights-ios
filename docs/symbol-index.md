@@ -438,7 +438,13 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :391
+  - `OtherDataDetailView` :414
+- `Features/Data/DomainDataScaffold.swift`
+  - `DomainDataScaffold` :35
+- `Features/Data/DomainDataViews.swift`
+  - `MedicationDataView` :59
+  - `SideEffectDataView` :118
+  - `SubstanceDataView` :17
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`
@@ -452,8 +458,7 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :305
-  - `MedicationHistoryView` :232
+  - `GroundingKindList` :230
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102

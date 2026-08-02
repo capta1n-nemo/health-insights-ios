@@ -124,6 +124,14 @@ So:
   somatotype: models, service interfaces, algorithms, UI shape, build order and
   the open decisions. Also scores the outside analysis that prompted them,
   claim by claim, so a wrong diagnosis isn't re-acted on.
+- `docs/data-conventions.md` -> **The Data tab's three rules, enforced.** Every
+  kind of data has a `DataDomain` and a Data-tab section (exhaustive switch);
+  every domain opens a read-only detail page built with `DomainDataScaffold`
+  (title, optional shared-component chart, entries newest-first, empty state);
+  and a data page never hand-rolls a chart. `verify.sh` holds the last two. Also
+  the observation trap: logged data in SwiftData must be a stored, reloaded
+  property, never read live from the store in a view. **Read before adding a
+  data type or a data detail page.**
 - `docs/card-sections.md` -> **What every card renders, and what each section
   does.** The nine-by-fourteen matrix, the order and the rationale behind it,
   the gate table, the per-section feature audit (arrives open or closed, empty

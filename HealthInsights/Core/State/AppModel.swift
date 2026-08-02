@@ -106,10 +106,30 @@ final class AppModel {
 
     /// The active medication regimen and its doses, if the reader has one.
     ///
-    /// Read straight off the store rather than cached: doses change only when
-    /// the reader logs one, and a curve built from a stale list would be
-    /// describing a body that has since had another injection.
-    var activeMedication: MedicationRecord? { dataStore.loadActiveMedication() }
+    /// **Stored and observed, not computed off the store.** It used to be a
+    /// computed `dataStore.loadActiveMedication()`, and that is invisible to
+    /// SwiftUI's observation: a view reading only `model.activeMedication` (the
+    /// Data tab's medication row, the medication section) establishes no
+    /// dependency on any `@Observable` stored property, so logging a dose left
+    /// it showing stale counts until some *other* observed change happened to
+    /// redraw it. Reloaded by `reloadLoggedData()` on every mutation, so the
+    /// count the reader just changed is the count they see.
+    private(set) var activeMedication: MedicationRecord?
+
+    /// Side effects the reader has recorded, newest first. Stored and observed
+    /// for the same reason as `activeMedication` — a computed read off the store
+    /// is not tracked, which is why a side effect logged from the `+` menu did
+    /// not appear on a Data tab that was already on screen.
+    private(set) var sideEffects: [SideEffectRecord] = []
+
+    /// Reload the logged data that lives in SwiftData rather than in `samples`,
+    /// so every observed reader of it redraws. Called from `hydrate()` and at
+    /// the top of `recompute()`, which every mutation funnels through — the one
+    /// place freshness has to be guaranteed.
+    private func reloadLoggedData() {
+        activeMedication = dataStore.loadActiveMedication()
+        sideEffects = dataStore.loadSideEffects()
+    }
 
     /// The active-compound curve for the visible window, or empty when there
     /// is no regimen. Memoised per window, since a chart re-evaluates its body
@@ -147,9 +167,6 @@ final class AppModel {
         return MedicationResponse.overlay(curve: curve, weights: samples,
                                           range: first...now)
     }
-
-    /// Side effects the reader has recorded, newest first.
-    var sideEffects: [SideEffectRecord] { dataStore.loadSideEffects() }
 
     // MARK: - Build
 
@@ -597,6 +614,7 @@ final class AppModel {
         // Small SwiftData reads only. `hydrate()` does the rest, off the main
         // actor and after the first frame — see the note on it.
         substanceEvents = dataStore.loadSubstanceEvents()
+        reloadLoggedData()
         suggestionDismissals = dataStore.loadSuggestionDismissals()
         // Decided here rather than in the view so there is no first frame where
         // the answer is still unknown — a `@State` default cannot read the
@@ -1200,6 +1218,11 @@ final class AppModel {
     }
 
     private func recompute() {
+        // The logged data that lives in SwiftData rather than in `samples` —
+        // the regimen and the side effects — reloaded first, so both the models
+        // that read them and every observed view redraw with what the reader
+        // just changed.
+        reloadLoggedData()
         // Before the evaluation, so the card that reads it sees it in the same
         // pass rather than one recompute later.
         refreshMedicationLevelSamples()

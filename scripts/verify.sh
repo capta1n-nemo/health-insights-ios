@@ -308,6 +308,51 @@ EOF
     fi
 fi
 
+# --- Data detail pages follow the scaffold convention ----------------------
+#
+# The user's rule, 2026-08-02: *"not only do we need to have a data menu for
+# every data type, but those menus need to follow at least a minimum convention
+# of how those subpages are built… so I don't need to keep reprompting."* The
+# convention is `DomainDataScaffold` (title, optional shared-component chart,
+# entries newest-first, standard empty state), and this is what stops a new
+# domain page reinventing its own shape — which is what shipped the substance
+# page opening the *add* screen and side effects opening nothing.
+#
+# Any `<Domain>DataView` under Features/Data must be built with the scaffold.
+# `CardDataView` is the one exclusion: it is a card-scoped *browser* over many
+# domains, not a single-domain page, so it composes the domain rows itself.
+if [ -d HealthInsights/Features/Data ]; then
+    nonconforming=""
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        case "$(basename "$f")" in
+            CardDataView.swift) continue ;;
+        esac
+        grep -q 'DomainDataScaffold' "$f" || \
+            nonconforming="$nonconforming $(basename "$f")"
+    done <<EOF
+$(grep -rlE 'struct [A-Za-z]+DataView: View' HealthInsights/Features/Data 2>/dev/null)
+EOF
+    if [ -n "$nonconforming" ]; then
+        note "Data detail pages that skip DomainDataScaffold — every domain data page must use it (see docs/data-conventions.md):$nonconforming"
+        fail=1
+    fi
+
+    # And a data page never hand-rolls a chart. The chart rules live in the
+    # shared components (`SubstanceLoadChart`, `MedicationCurveChart`, …) and in
+    # the `add-chart` skill; a raw `Chart {` in a domain page is how those rules
+    # get skipped. `OtherDataDetailView` is exempt — it is the review surface for
+    # *unmodelled* imported data, which has no shared component by definition.
+    # `(^|[^A-Za-z0-9_])Chart` so a *component* whose name ends in "Chart"
+    # (`SubstanceLoadChart(`) is not mistaken for the raw Swift Charts `Chart`.
+    rawcharts=$(grep -rlE 'struct [A-Za-z]+DataView: View' HealthInsights/Features/Data 2>/dev/null \
+        | xargs grep -lE '(^|[^A-Za-z0-9_])Chart[ ]*[({]' 2>/dev/null || true)
+    if [ -n "$rawcharts" ]; then
+        note "Data pages drawing a raw Chart — use a shared chart component so the add-chart rules hold:$(printf ' %s' $(basename $rawcharts))"
+        fail=1
+    fi
+fi
+
 # --- No half-done markers in the roadmap -----------------------------------
 #
 # `- [~]` means "some clauses of this are done and some are not", and it is the

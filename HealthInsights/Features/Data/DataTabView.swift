@@ -143,14 +143,16 @@ struct DataTabView: View {
 
     /// The substance log's own row in the Data tab.
     ///
-    /// It was reachable only from the Today toolbar, which meant the one screen
-    /// listing everything the app measures about you didn't mention it. Shows the
-    /// current decayed load and the most recent entry, and opens the log.
+    /// Opens the read-only `SubstanceDataView`, not the *add* page. It used to
+    /// open `SubstanceLogView` — the logging screen — so "view your data" and
+    /// "add data" were the same tap, which is the inconsistency the convention
+    /// (`DomainDataScaffold`) removes: every domain row opens its data page, and
+    /// adding is a separate gesture.
     @ViewBuilder private var substanceSection: some View {
         if !model.substanceEvents.isEmpty {
             Section("Substances") {
                 NavigationLink {
-                    SubstanceLogView()
+                    SubstanceDataView()
                 } label: {
                     let load = SubstanceLoad.load(events: model.substanceEvents, at: Date())
                     VStack(alignment: .leading, spacing: 3) {
@@ -242,12 +244,18 @@ struct DataTabView: View {
     }
 
     /// The medication regimen: how much is in you now, and how many doses back it.
+    ///
+    /// Opens `MedicationDataView` — the level curve and the dated dose list —
+    /// rather than the Body Composition card it used to jump to. Landing the
+    /// reader on a whole insight card when they tapped "Medication" in a data
+    /// browser was the wrong altitude; the card is where the score lives, this
+    /// is where the doses do.
     @ViewBuilder private var medicationSection: some View {
         if let medication = model.activeMedication, let compound = medication.compound,
            !medication.doses.isEmpty {
             Section {
                 NavigationLink {
-                    InsightDetailView(insightID: .bodyComposition)
+                    MedicationDataView()
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack {
@@ -272,27 +280,42 @@ struct DataTabView: View {
         }
     }
 
-    /// Side effects the reader recorded — imported from Shotsy today.
+    /// Side effects the reader recorded — imported from Shotsy or entered by
+    /// hand.
+    ///
+    /// One tappable row into `SideEffectDataView`, like every other domain.
+    /// It used to be a static inline list of up to six rows that opened nothing
+    /// — no sub-page, no way to see the seventh, and a second one logged from
+    /// the `+` menu could not even reach it. The row shows the newest and the
+    /// count; the page holds the rest.
     @ViewBuilder private var sideEffectSection: some View {
         let effects = filteredSideEffects
         if !effects.isEmpty {
             Section {
-                ForEach(effects.prefix(6), id: \.persistentModelID) { effect in
-                    HStack {
-                        Text(effect.name)
-                        Spacer()
-                        Text("\(effect.severity)/10")
-                            .foregroundStyle(.secondary).monospacedDigit()
-                        Text("· \(effect.date.formatted(.relative(presentation: .named)))")
-                            .font(.caption2).foregroundStyle(.tertiary)
+                NavigationLink {
+                    SideEffectDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let latest = effects.first {
+                            HStack {
+                                Text(latest.name)
+                                Spacer()
+                                Text("\(latest.severity)/10")
+                                    .foregroundStyle(.secondary).monospacedDigit()
+                                Text("· \(latest.date.formatted(.relative(presentation: .named)))")
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                        Text(effects.count == 1
+                             ? "1 recorded"
+                             : "\(effects.count) recorded")
+                            .font(.caption).foregroundStyle(.tertiary)
                     }
                 }
             } header: {
                 Text(DataDomain.sideEffects.title)
             } footer: {
-                Text(effects.count > 6
-                     ? "The 6 most recent of \(effects.count). \(DataDomain.sideEffects.summary)"
-                     : DataDomain.sideEffects.summary)
+                Text(DataDomain.sideEffects.summary)
             }
         }
     }
