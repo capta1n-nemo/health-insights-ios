@@ -117,7 +117,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :172
+  - `ReadinessInsight` :188
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
@@ -296,7 +296,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :751
+  - `SubstanceWindow` :775
 - `Text/CardStateExport.swift`
   - `CardStateExport` :26
 - `Text/DataInventory.swift`

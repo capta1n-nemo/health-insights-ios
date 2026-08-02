@@ -375,6 +375,34 @@ public enum SubstanceResponseAnalyzer {
         Swift.min(1, Double(effect.evidencePairs) / Double(fullEvidencePairs))
     }
 
+    /// Why a signal took nothing off the score — and it is **not** always good
+    /// news.
+    ///
+    /// This used to be one string: *"moved the way you'd want it to, so it took
+    /// nothing off"*, applied to every row with a zero share. On the reader's
+    /// own card that put it under "Resting HR **+2 bpm** after use", "HRV
+    /// **−4%** after use" and "Time to fall asleep **+7.1 min** after use" —
+    /// three changes in the *unwelcome* direction, described as welcome, while
+    /// the same card's driver list flagged all three as notable. One card, two
+    /// opposite claims about one number.
+    ///
+    /// A zero share has three quite different causes and the reader deserves to
+    /// know which: the move was welcome; the move was unwelcome but rests on too
+    /// few readings to count yet; or it was unwelcome and simply too small to
+    /// register against this person's own spread.
+    static func zeroShareReason(_ effect: MetricEffect, share: Double) -> String {
+        guard share <= 0 else { return "" }
+        guard effect.isAdverse else {
+            return " — moved the way you'd want it to, so it took nothing off"
+        }
+        if effect.evidencePairs < fullEvidencePairs {
+            return " — not the direction you'd want, but on \(effect.evidencePairs) "
+                + "\(effect.evidencePairs == 1 ? "reading" : "readings") it counts for "
+                + "nothing yet"
+        }
+        return " — not the direction you'd want, but too small to move the score"
+    }
+
     /// One signal's contribution to the pool, 0–100: how far it moved in the
     /// unwelcome direction, judged against the reader's own spread, discounted
     /// for how well that move is evidenced.
@@ -692,11 +720,7 @@ public enum SubstanceResponseAnalyzer {
                 higherIsBetter: Self.higherIsBetter(effect.metric),
                 weight: share,
                 detail: "\(Self.deltaLabel(effect)) after use"
-                    // A signal that moved the *welcome* way has a severity of
-                    // zero and so takes nothing off. That is good news and has
-                    // to read as good news rather than as a bare zero under a
-                    // section promising every input carries a share.
-                    + (share > 0 ? "" : " — moved the way you'd want it to, so it took nothing off"))
+                    + Self.zeroShareReason(effect, share: share))
         }
         // The fortnight's load is a penalty in its own right and is not a metric
         // — it is a decaying figure over the log — so it reaches the weighting

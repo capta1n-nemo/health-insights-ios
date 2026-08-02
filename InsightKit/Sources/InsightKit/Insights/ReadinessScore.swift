@@ -143,6 +143,22 @@ public enum ReadinessScore {
         return Output(score: score, components: comps, band: band(score))
     }
 
+    /// The card's explanation, built **from whatever score is actually shown**.
+    ///
+    /// It used to be written inside `score(...)` from the raw component score
+    /// while the dial displayed the *blended* one that folds in the wider vitals
+    /// scan — so the card read "73.8" above a sentence saying "69/100". One
+    /// builder, called with the final number, is the only way those cannot
+    /// drift apart again.
+    public static func explanation(score: Double, scannedSignals: Int) -> String {
+        let base = "Your recovery today is \(Int(score.rounded()))/100 (\(band(score))), "
+            + "from how your HRV, resting heart rate, sleep and temperature "
+            + "compare with your own recent baseline"
+        guard scannedSignals > 0 else { return base + "." }
+        return base + ", together with \(scannedSignals) other "
+            + "\(scannedSignals == 1 ? "vital" : "vitals") the daily scan checked."
+    }
+
     static func band(_ score: Double) -> String {
         switch score {
         case 80...: return "Primed"
@@ -318,7 +334,12 @@ public struct ReadinessInsight: InsightModel {
             id: id, title: title, primaryValue: blendedScore ?? base.primaryValue,
             headline: blendedScore.map { ReadinessScore.band($0) } ?? base.headline,
             score: blendedScore, confidence: base.confidence,
-            explanation: base.explanation,
+            // Rebuilt from the blended score, never inherited: `base` was
+            // written before the vitals scan was folded in, and reusing its
+            // sentence is what put two different numbers on one card.
+            explanation: blendedScore.map {
+                ReadinessScore.explanation(score: $0, scannedSignals: supporting.count)
+            } ?? base.explanation,
             driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                 + (base.driverLines + extra).filter { $0.isNotable != true },
             unmetRequirements: base.unmetRequirements, contributors: contributors,
@@ -381,7 +402,7 @@ public struct ReadinessInsight: InsightModel {
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: out.band, score: out.score, confidence: confidence,
-            explanation: "Your recovery today is \(Int(out.score.rounded()))/100 (\(out.band)), from how your HRV, resting heart rate, sleep and temperature compare with your own recent baseline.",
+            explanation: ReadinessScore.explanation(score: out.score, scannedSignals: 0),
             driverLines: lines.filter { $0.isNotable == true } + lines.filter { $0.isNotable != true },
             unmetRequirements: [], contributors: out.contributions,
             weighting: .weightedAverage)
