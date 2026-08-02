@@ -18,6 +18,10 @@ public struct MetricSource: Codable, Sendable, Hashable {
     public static let hume = MetricSource(id: "hume", displayName: "Hume")
     public static let manual = MetricSource(id: "manual", displayName: "Manual entry")
     public static let document = MetricSource(id: "document", displayName: "Imported document")
+    /// A Shotsy JSON backup shared into the app. Its own source, not
+    /// `document`, so a reader can see which of their weigh-ins came from the
+    /// GLP-1 tracker and `MultiSource` can keep it as its own series.
+    public static let shotsy = MetricSource(id: "shotsy", displayName: "Shotsy")
 
     /// A specific device *within* Apple Health (e.g. "Apple Watch", "Oura",
     /// "iPhone"). Apple Health mixes many devices; preserving the underlying

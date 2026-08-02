@@ -64,6 +64,40 @@
     <!-- Custom URL scheme used as the OAuth redirect target for Oura/Withings.
          Credentials are entered in-app and stored in the Keychain; there is no
          backend. -->
+
+    <!-- Shotsy has no API, so its JSON backup *is* the integration: the user
+         exports it and shares it to us. Claiming JSON as a document type is
+         what puts this app in the share sheet and in "Open With".
+
+         LSHandlerRank is "Alternate" deliberately. JSON is a generic type that
+         many apps can open, and claiming Owner rank would make this app the
+         default handler for every .json file on the phone — which it is not,
+         and which would be an obnoxious thing to do to somebody who installed
+         a health app. Alternate puts us in the list without taking it over.
+
+         LSSupportsOpeningDocumentsInPlace is false: an import reads the file
+         once and persists what it found. Opening in place would hand us a live
+         reference to a file in another app's container that we neither edit
+         nor own. -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Health data backup</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.json</string>
+                <string>public.text</string>
+            </array>
+        </dict>
+    </array>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <false/>
+
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

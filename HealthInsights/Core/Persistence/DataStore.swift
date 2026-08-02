@@ -339,6 +339,46 @@ final class DataStore {
         try? context.save()
     }
 
+    /// Replace the regimen's dose history with an imported one.
+    ///
+    /// **Wholesale, not merged.** An imported backup is the complete record
+    /// from the app the reader actually logs in; merging it with our own
+    /// inferred ladder would leave guesses interleaved with facts and no way
+    /// to tell which was which. Anything the app estimated goes.
+    func replaceMedicationHistory(compound: GLPCompound, brandName: String?,
+                                  startedOn: Date, doses: [DoseLogRecord]) {
+        for existing in ((try? context.fetch(FetchDescriptor<MedicationRecord>())) ?? []) {
+            existing.isActive = false
+        }
+        let record = MedicationRecord(compoundRaw: compound.rawValue,
+                                      brandName: brandName, startedOn: startedOn)
+        record.doses = doses
+        context.insert(record)
+        try? context.save()
+    }
+
+    /// Store imported measurements, skipping any already held.
+    ///
+    /// Identity is (metric, source, instant): re-sharing the same backup is the
+    /// expected way to update, so it has to be idempotent or a reader's weight
+    /// history doubles every time they send it.
+    func mergeImportedSamples(_ samples: [HealthMetricSample]) -> Int {
+        let existing = Set(loadManualSamples().map(Self.sampleKey))
+        var added = 0
+        for sample in samples where !existing.contains(Self.sampleKey(sample)) {
+            context.insert(ManualSampleRecord(metricRaw: sample.type.rawValue,
+                                              value: sample.value, date: sample.start,
+                                              sourceID: sample.source.id))
+            added += 1
+        }
+        if added > 0 { try? context.save() }
+        return added
+    }
+
+    private static func sampleKey(_ sample: HealthMetricSample) -> String {
+        "\(sample.type.rawValue)|\(sample.source.id)|\(Int(sample.start.timeIntervalSince1970))"
+    }
+
     func logDose(_ milligrams: Double, at date: Date, site: String? = nil) {
         guard let medication = loadActiveMedication() else { return }
         medication.doses.append(DoseLogRecord(takenAt: date, milligrams: milligrams,

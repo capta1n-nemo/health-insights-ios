@@ -97,6 +97,48 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Ninth push — Shotsy import, the app's first file-shaped input.** Shotsy has
+no API, so its JSON backup *is* the integration: the user exports and shares
+it. `ShotsyImport` (InsightKit, 20 tests) parses **export version 2**, written
+against the user's real 84 KB file rather than a description of it — which
+mattered twice:
+
+- **The shape is not what anyone would guess.** No top-level `medications` or
+  `shots`; there is `days`, a list of single-key dicts keyed by a unix day,
+  whose values map an entry *kind* to a payload. Most kinds are one object;
+  `shots` and `sideEffectRecords` are arrays; `sideEffects` is a lossier
+  duplicate of the latter and is deliberately ignored (merging both doubles
+  every side effect).
+- **The units are actively hostile** — HealthKit *canonical*, not display.
+  Body fat arrives in **ppm** (331890.03 = 33.19%), dietary energy in
+  **joules** (5460872.8 = 1305 kcal), macronutrients in **kilograms**
+  (0.0438 = 43.8 g), exercise in seconds. Imported naively the card would have
+  shown a body fat of 331,890%. `ShotsyUnit` is the single place the
+  conversions live, driven by the **declared unit** with the kind as fallback,
+  so a future Shotsy release that switches to percent is not divided by 10,000.
+
+**Verified against the real file**: 21 doses, 314 measurements (body fat
+29.97–33.36%, weight 110.36–124.89 kg, lean 76.98–84.00 kg — all sane),
+1 side effect, schedule Mounjaro 12.5 mg every 7 d. Nutrition is reported as
+`unmappedKinds` rather than dropped, because **TDEE is blocked on exactly that
+data** and the conversions are now written down.
+
+**Imported doses supersede inferred ones**, and the file proves why. The user's
+real ladder is 2.5 ×3 → **4.5** → 5 ×4 → **6** → 7.5 ×5 → 10 ×3 → **11** →
+back **down** to 7.5 → 12.5, at intervals from 5 to 15 days. Three of those
+doses are not on Mounjaro's standard ladder at all, and a *reduction* is
+something no titration model would ever predict — so `TitrationEngine`'s guess
+would have been wrong in at least six ways. A guess has no business outliving
+the record it stood in for.
+
+App side: `CFBundleDocumentTypes` claims JSON at **`LSHandlerRank` Alternate**
+(Owner would make a health app the phone's default JSON handler — obnoxious),
+`onOpenURL` intercepts the share (guarding `isFileURL`, since the OAuth
+redirect uses the same door), `ShotsyImportService.read` handles the security
+scope that only fails on device, and Settings ▸ Export gains a `fileImporter`
+fallback. Both routes call one `importSharedFile`. Re-sharing the same backup
+is idempotent — samples key on (metric, source, instant), doses on Shotsy's id.
+
 **Seventh and eighth pushes — "do all of it".** The user asked for the whole
 remaining list. Two coherent pushes:
 

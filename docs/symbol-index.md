@@ -46,6 +46,9 @@ the place to look.
   - `PromotionRuleSet` :116
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
+- `Ingestion/ShotsyImport.swift`
+  - `ShotsyImport` :26
+  - `ShotsyUnit` :248
 - `Insights/ActivityDoseModel.swift`
   - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`
@@ -158,7 +161,7 @@ the place to look.
   - `UserHealthProfile` :170
   - `WeightGoal` :120
 - `Models/HealthMetricSample.swift`
-  - `HealthMetricSample` :71
+  - `HealthMetricSample` :75
   - `MetricSource` :5
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
@@ -290,6 +293,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
+  - `FileImportOutcome` :38
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
   - `RootView` :5
@@ -325,6 +329,8 @@ the place to look.
   - `OAuthTokens` :4
   - `ProviderCredentialStore` :46
   - `ProviderCredentials` :37
+- `Core/Integrations/ShotsyImportService.swift`
+  - `ShotsyImportService` :19
 - `Core/Integrations/SyncedData.swift`
   - `SyncedData` :8
 - `Core/Integrations/WhoopProvider.swift`
@@ -464,8 +470,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :219
-  - `OtherDataListView` :232
+  - `FullExport` :259
+  - `OtherDataListView` :272
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :300
   - `IntegrationRow` :201

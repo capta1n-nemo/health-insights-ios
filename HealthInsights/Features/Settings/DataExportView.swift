@@ -38,6 +38,44 @@ struct DataExportView: View {
         let signalCount: Int
     }
     @State private var documents: Documents?
+    @State private var showingImporter = false
+    @State private var importMessage: String?
+
+    /// Bringing data *in*, opposite the export rows below.
+    ///
+    /// The share sheet is the main route — the reader exports from Shotsy and
+    /// sends it here — and this picker is the fallback for a file already saved
+    /// to Files. Both land in the same `importSharedFile`, so there is one
+    /// import path rather than two that can diverge.
+    @ViewBuilder private var importSection: some View {
+        Section {
+            Button {
+                showingImporter = true
+            } label: {
+                Label("Import a Shotsy backup", systemImage: "square.and.arrow.down")
+            }
+            if let importMessage {
+                Text(importMessage)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } header: {
+            Text("Bring data in")
+        } footer: {
+            Text("In Shotsy, use its export and share the file to Health Insights — your injections, weight and body-composition history come across. You can also pick a file you've already saved. Sharing the same backup twice is safe: nothing is imported twice.")
+        }
+        .fileImporter(isPresented: $showingImporter,
+                      allowedContentTypes: [.json, .text],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                importMessage = model.importSharedFile(at: url)
+            case .failure(let error):
+                importMessage = "Couldn't open that file: \(error.localizedDescription)"
+            }
+        }
+    }
 
     private var unmodelledCount: Int { model.otherDataGroups.count }
 
@@ -100,6 +138,8 @@ struct DataExportView: View {
 
     var body: some View {
         List {
+            importSection
+
             Section {
                 if let documents {
                     LabeledContent("Signals", value: "\(documents.signalCount)")

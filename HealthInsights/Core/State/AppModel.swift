@@ -129,6 +129,35 @@ final class AppModel {
         activeMedication?.doses.filter { $0.isInferred && $0.confirmedAt == nil }.count ?? 0
     }
 
+    // MARK: - File import
+
+    /// Take in a file the OS handed us — from the share sheet, "Open With", or
+    /// the in-app picker.
+    ///
+    /// Returns the sentence to show the reader, always. An import that fails
+    /// silently is indistinguishable from one that did nothing, and somebody
+    /// who has just shared a backup out of another app is owed an answer either
+    /// way.
+    func importSharedFile(at url: URL) -> String {
+        do {
+            let data = try ShotsyImportService.read(url)
+            let summary = try ShotsyImportService(dataStore: dataStore).import(data)
+            if !summary.isEmpty {
+                // Imported readings join the sample set the models read, so the
+                // cards reflect them without waiting for the next sync.
+                samples = (samples + dataStore.loadManualSamples()).partitionedVitals().kept
+                recompute()
+            }
+            return summary.sentence
+        } catch ShotsyImport.Failure.notAShotsyExport {
+            return "That JSON file isn't a Shotsy backup — nothing was imported. In Shotsy, use Settings ▸ Export Data, then share the file to this app."
+        } catch ShotsyImport.Failure.notJSON {
+            return "That file isn't JSON, so there was nothing to read."
+        } catch {
+            return "Couldn't read that file: \(error.localizedDescription)"
+        }
+    }
+
     func logDose(_ milligrams: Double, at date: Date = Date()) {
         dataStore.logDose(milligrams, at: date)
         recompute()
