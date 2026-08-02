@@ -39,6 +39,16 @@ struct SettingsView: View {
                         IntegrationSummaryRow(integration: integration,
                                               status: model.status(for: integration))
                     }
+                // Same shape again: nothing to authorise, because the reader
+                // "connects" this one by building an automation. The screen
+                // walks them through it and reports when it last ran.
+                } else if integration is ShortcutsIntegration {
+                    NavigationLink {
+                        ShortcutsIntegrationView()
+                    } label: {
+                        IntegrationSummaryRow(integration: integration,
+                                              status: model.status(for: integration))
+                    }
                 } else {
                     IntegrationRow(integration: integration) { action in
                         Task {

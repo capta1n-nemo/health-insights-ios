@@ -46,6 +46,8 @@ the place to look.
   - `PromotionRuleSet` :116
 - `Ingestion/RawValue.swift`
   - `RawValue` :14
+- `Ingestion/ShortcutIngest.swift`
+  - `ShortcutIngest` :36
 - `Ingestion/ShotsyImport.swift`
   - `ShotsyImport` :26
   - `ShotsyUnit` :248
@@ -161,7 +163,7 @@ the place to look.
   - `UserHealthProfile` :170
   - `WeightGoal` :120
 - `Models/HealthMetricSample.swift`
-  - `HealthMetricSample` :84
+  - `HealthMetricSample` :95
   - `MetricSource` :5
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
@@ -307,7 +309,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :45
+  - `FileImportOutcome` :54
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
   - `RootView` :5
@@ -343,6 +345,8 @@ the place to look.
   - `OAuthTokens` :4
   - `ProviderCredentialStore` :46
   - `ProviderCredentials` :37
+- `Core/Integrations/ShortcutsIntegration.swift`
+  - `ShortcutsIntegration` :26
 - `Core/Integrations/ShotsyImportService.swift`
   - `ShotsyImportService` :19
 - `Core/Integrations/ShotsyIntegration.swift`
@@ -520,10 +524,12 @@ the place to look.
   - `FullExport` :293
   - `OtherDataListView` :306
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :259
-  - `IntegrationRow` :160
-  - `IntegrationSummaryRow` :216
+  - `DisclaimerView` :269
+  - `IntegrationRow` :170
+  - `IntegrationSummaryRow` :226
   - `SettingsView` :4
+- `Features/Settings/ShortcutsIntegrationView.swift`
+  - `ShortcutsIntegrationView` :12
 - `Features/Settings/ShotsyIntegrationView.swift`
   - `ShotsyIntegrationView` :12
 - `Features/Settings/TelemetryOutboxView.swift`

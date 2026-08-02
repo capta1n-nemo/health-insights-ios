@@ -23,6 +23,17 @@ public struct MetricSource: Codable, Sendable, Hashable {
     /// GLP-1 tracker and `MultiSource` can keep it as its own series.
     public static let shotsy = MetricSource(id: "shotsy", displayName: "Shotsy")
 
+    /// A Shortcuts automation the reader installed, handing over readings the
+    /// app cannot collect for itself — Screen Time, calendar load, anything
+    /// Shortcuts can reach and iOS will not hand an app directly.
+    ///
+    /// Its own source rather than `manual`: the reader did not type these, and a
+    /// per-source breakdown that said they did would misdescribe how the number
+    /// got here. Distinct from `appleHealthDevice("Shortcuts")`, which is a
+    /// shortcut writing into Apple Health and reaching us second-hand.
+    public static let shortcuts = MetricSource(id: "shortcuts",
+                                               displayName: "Shortcuts automation")
+
     /// Worked out by this app rather than measured by anything.
     ///
     /// Its own source so that a modelled series can never be mistaken for a

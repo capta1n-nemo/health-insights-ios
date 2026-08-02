@@ -19,6 +19,15 @@ struct HealthInsightsApp: App {
                     // The OAuth redirect comes through the same door. It is a
                     // custom scheme rather than a file, and handing it to the
                     // importer would try to read "healthinsights://…" as JSON.
+                    // A Shortcuts automation handing over readings the app
+                    // cannot collect for itself. Checked before the file guard
+                    // because it is a custom-scheme URL, not a file.
+                    if ShortcutIngest.handles(url) {
+                        if let message = model.ingestShortcut(url) {
+                            importOutcome = FileImportOutcome(message: message)
+                        }
+                        return
+                    }
                     guard url.isFileURL else { return }
                     Task {
                         importOutcome = FileImportOutcome(

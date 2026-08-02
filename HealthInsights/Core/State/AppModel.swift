@@ -369,6 +369,58 @@ final class AppModel {
         return summary.sentence
     }
 
+    /// Take readings handed over by the reader's Shortcuts automation.
+    ///
+    /// Returns the sentence to show them, which names anything it refused —
+    /// a mistyped metric or a value outside its plausible range. A shortcut is
+    /// a hand-built thing and silently dropping half of it would leave the
+    /// reader believing they are collecting something they are not.
+    @discardableResult
+    func ingestShortcut(_ url: URL) -> String? {
+        guard let result = ShortcutIngest.parse(url) else { return nil }
+
+        if !result.samples.isEmpty {
+            // Upsert per metric per day: an automation that runs twice, or is
+            // re-run to correct a figure, must not leave two readings for one
+            // day to be averaged into a number nobody saw.
+            let calendar = Calendar.current
+            for sample in result.samples {
+                dataStore.replaceManualSamples(of: sample.type,
+                                               on: calendar.startOfDay(for: sample.start),
+                                               with: [sample])
+            }
+            samples = (samples.filter { existing in
+                !result.samples.contains {
+                    $0.type == existing.type
+                        && calendar.isDate($0.start, inSameDayAs: existing.start)
+                }
+            } + dataStore.loadManualSamples()).partitionedVitals().kept
+            recompute()
+        }
+
+        let summary = Self.shortcutSummary(result)
+        ShortcutsIntegration.recordRun(summary: summary)
+        return summary
+    }
+
+    static func shortcutSummary(_ result: ShortcutIngest.Result) -> String {
+        var parts: [String] = []
+        if result.samples.isEmpty {
+            parts.append("Nothing was recorded")
+        } else {
+            let names = result.samples.map(\.type.displayName).sorted()
+            parts.append("Recorded \(names.joined(separator: ", "))")
+        }
+        if !result.unknownKeys.isEmpty {
+            parts.append("didn't recognise \(result.unknownKeys.joined(separator: ", "))")
+        }
+        if !result.rejectedKeys.isEmpty {
+            parts.append("couldn't read a sensible value for "
+                         + result.rejectedKeys.joined(separator: ", "))
+        }
+        return parts.joined(separator: " — ") + "."
+    }
+
     /// True while a shared file is being read, so the UI can say so.
     private(set) var isImporting = false
 
@@ -828,6 +880,9 @@ final class AppModel {
             // the reader's side "where does my data come from" has one answer
             // and this is where it lives. See `ShotsyIntegration`.
             ShotsyIntegration(),
+            // The reader's own automation, collecting what iOS won't hand an
+            // app directly. See `ShortcutsIntegration`.
+            ShortcutsIntegration(),
             WithingsProvider(credentials: credentials, webFlow: webFlow)
         ])
         return AppModel(dataStore: dataStore, healthService: healthService,
