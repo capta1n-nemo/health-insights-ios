@@ -23,19 +23,45 @@ final class ContributionRouteTests: XCTestCase {
     /// Every model that asks for grounding facts offers exactly those facts, in
     /// the order it declared them. This is the whole point of deriving the route
     /// rather than switching on `InsightID`: the two lists cannot drift.
+    ///
+    /// **The invariant is the *contents* of the grounding route, not the number
+    /// of routes.** It asserted "exactly one" until 2026-08-02, which was an
+    /// incidental truth rather than the rule — Body Composition now also offers
+    /// a file import, because the user's rule is that every input type appears
+    /// in "View & add", and a card can want more than one kind of thing from
+    /// you. What must never drift is a grounding route that names facts the
+    /// model does not actually require.
     func testGroundingFactsAreDerivedFromTheModelsOwnRequirements() {
         for model in engine.models where !model.requirements.isEmpty {
-            // The two log-backed models deliberately don't follow the default.
+            // The log-backed model deliberately doesn't follow the default.
             if model.id == .bloodPressure { continue }
 
-            let routes = model.contributions
-            XCTAssertEqual(routes.count, 1,
-                           "\(model.id) should offer exactly one route")
-            guard case .groundingFacts(let kinds) = routes.first else {
-                return XCTFail("\(model.id) should offer .groundingFacts")
+            let grounding = model.contributions.compactMap { route -> [GroundingKind]? in
+                guard case .groundingFacts(let kinds) = route else { return nil }
+                return kinds
             }
-            XCTAssertEqual(kinds, model.requirements.map(\.kind),
+            XCTAssertEqual(grounding.count, 1,
+                           "\(model.id) should offer exactly one grounding route")
+            XCTAssertEqual(grounding.first, model.requirements.map(\.kind),
                            "\(model.id)'s route must name its own requirements")
+        }
+    }
+
+    /// A route the reader can reach must be one the section knows how to draw.
+    /// `ViewAndAddSection` switches exhaustively over these, so a new case is a
+    /// compile error there — this pins the other half, that every case a model
+    /// actually offers is one somebody chose to offer.
+    func testEveryOfferedRouteIsDeliberate() {
+        for model in engine.models {
+            for route in model.contributions {
+                switch route {
+                case .groundingFacts(let kinds):
+                    XCTAssertFalse(kinds.isEmpty,
+                                   "\(model.id) offers an empty grounding route")
+                case .bloodPressureReadings, .substanceLog, .fileImport:
+                    continue
+                }
+            }
         }
     }
 

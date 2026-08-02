@@ -134,32 +134,58 @@ final class AppModel {
     /// Take in a file the OS handed us — from the share sheet, "Open With", or
     /// the in-app picker.
     ///
+    /// **Async, and the reason is what the user saw.** The first version did
+    /// all of this synchronously on the main actor: read, parse, several
+    /// hundred SwiftData inserts, then a full re-evaluation of every insight
+    /// over the whole sample set. The app simply stopped for several seconds
+    /// and the result alert appeared afterwards, so the only feedback was a
+    /// freeze. Parsing now happens off the actor and `isImporting` drives a
+    /// progress overlay, so the wait is visible and explained rather than
+    /// looking like a hang.
+    ///
     /// Returns the sentence to show the reader, always. An import that fails
     /// silently is indistinguishable from one that did nothing, and somebody
-    /// who has just shared a backup out of another app is owed an answer either
-    /// way.
-    func importSharedFile(at url: URL) -> String {
+    /// who has just shared a backup out of another app is owed an answer.
+    func importSharedFile(at url: URL) async -> String {
+        isImporting = true
+        defer { isImporting = false }
+        // One turn of the run loop so the overlay is on screen before the work
+        // starts — without it the first frame the reader sees is the finished
+        // one, which is the freeze all over again.
+        await Task.yield()
+
+        let parsed: ShotsyImport.Result
         do {
             let data = try ShotsyImportService.read(url)
-            let summary = try ShotsyImportService(dataStore: dataStore).import(data)
-            if !summary.isEmpty {
-                // Imported readings join the sample set the models read, so the
-                // cards reflect them without waiting for the next sync.
-                samples = (samples + dataStore.loadManualSamples()).partitionedVitals().kept
-                recompute()
-                // The integration's only honest freshness claim is when a file
-                // last arrived, so this is what writes it.
-                ShotsyIntegration.recordImport(summary: summary.sentence)
-            }
-            return summary.sentence
+            // `parse` is pure and `Sendable`, so it can leave the main actor —
+            // and it is the only part of this that can.
+            parsed = try await Task.detached(priority: .userInitiated) {
+                try ShotsyImport.parse(data)
+            }.value
         } catch ShotsyImport.Failure.notAShotsyExport {
-            return "That JSON file isn't a Shotsy backup — nothing was imported. In Shotsy, use Settings ▸ Export Data, then share the file to this app."
+            return "That JSON file isn't a Shotsy backup — nothing was imported. In Shotsy, use Settings ▸ Manage My Data ▸ Export JSON, then share the file to this app."
         } catch ShotsyImport.Failure.notJSON {
             return "That file isn't JSON, so there was nothing to read."
         } catch {
             return "Couldn't read that file: \(error.localizedDescription)"
         }
+
+        // Persistence and the re-evaluation are main-actor bound (SwiftData and
+        // the engine both), so they stay here — but the reader is now watching
+        // a spinner rather than a frozen screen.
+        let summary = ShotsyImportService(dataStore: dataStore).persist(parsed)
+        if !summary.isEmpty {
+            samples = (samples + dataStore.loadManualSamples()).partitionedVitals().kept
+            recompute()
+            // The integration's only honest freshness claim is when a file
+            // last arrived, so this is what writes it.
+            ShotsyIntegration.recordImport(summary: summary.sentence)
+        }
+        return summary.sentence
     }
+
+    /// True while a shared file is being read, so the UI can say so.
+    private(set) var isImporting = false
 
     func logDose(_ milligrams: Double, at date: Date = Date()) {
         dataStore.logDose(milligrams, at: date)

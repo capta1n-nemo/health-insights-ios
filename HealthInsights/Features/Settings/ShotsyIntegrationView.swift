@@ -91,7 +91,7 @@ struct ShotsyIntegrationView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
-                importMessage = model.importSharedFile(at: url)
+                Task { importMessage = await model.importSharedFile(at: url) }
             case .failure(let error):
                 importMessage = "Couldn't open that file: \(error.localizedDescription)"
             }

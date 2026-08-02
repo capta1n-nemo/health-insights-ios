@@ -293,7 +293,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :38
+  - `FileImportOutcome` :45
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
   - `RootView` :5
@@ -372,12 +372,14 @@ the place to look.
 - `DesignSystem/Haptics.swift`
   - `CopyButton` :37
   - `Haptics` :10
+- `DesignSystem/ImportProgressOverlay.swift`
+  - `ImportProgressOverlay` :9
 - `DesignSystem/InsightSection.swift`
   - `InsightSection` :77
   - `NestedInsightSection` :201
   - `SectionExpansion` :26
 - `DesignSystem/MedicationCurveChart.swift`
-  - `MedicationCurveChart` :16
+  - `MedicationCurveChart` :22
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
@@ -417,10 +419,10 @@ the place to look.
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :302
-  - `LastNightCard` :152
-  - `TodayView` :7
-  - `VitalsGlance` :227
+  - `InsightCard` :347
+  - `LastNightCard` :197
+  - `TodayView` :8
+  - `VitalsGlance` :272
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`
@@ -434,17 +436,17 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddSection.swift`
-  - `GroundedSummary` :197
-  - `GroundingKindList` :222
-  - `ViewAndAddSection` :43
+  - `GroundedSummary` :239
+  - `GroundingKindList` :264
+  - `ViewAndAddSection` :44
 - `Features/Insights/InsightDetailView.swift`
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
 - `Features/Insights/MedicationSection.swift`
-  - `DoseEntrySheet` :134
+  - `DoseEntrySheet` :138
   - `MedicationSection` :13
-  - `MedicationSetupSheet` :79
+  - `MedicationSetupSheet` :83
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`

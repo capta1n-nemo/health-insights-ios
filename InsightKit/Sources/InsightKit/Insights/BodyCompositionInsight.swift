@@ -24,6 +24,14 @@ public struct BodyCompositionInsight: InsightModel {
                    + "what you're aiming for — without it, only unsafe speeds count.")]
     }
 
+    /// Grounding facts **and** a file import: a Shotsy backup carries weight,
+    /// body fat and lean mass, which is most of what this card reads. See
+    /// `ContributionRoute.fileImport` for why an input has to be offered on the
+    /// card rather than only in Settings.
+    public var contributions: [ContributionRoute] {
+        [.groundingFacts(requirements.map(\.kind)), .fileImport]
+    }
+
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         let weightSeries = samples.samples(of: .bodyMass)
         guard let weight = weightSeries.last?.value else {

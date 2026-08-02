@@ -631,7 +631,7 @@ one beat-to-beat stream and only agreement between them is evidence.
 | `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
 | `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
 | `NightSleepChart` | ○ | ○ | ● shared | — within a single night |
-| `MedicationCurveChart` | ○ | ○ | ● shared | — its own 90-day window |
+| `MedicationCurveChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
 | `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |

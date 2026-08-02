@@ -1366,7 +1366,7 @@ struct InsightDetailView: View {
         Divider()
         somatotypeSection
         Divider()
-        MedicationSection()
+        MedicationSection(window: window(spanning: nil))
     }
 
     /// `@AppStorage` cannot hold an optional enum, so it round-trips through

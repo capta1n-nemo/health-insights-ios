@@ -20,8 +20,15 @@ struct HealthInsightsApp: App {
                     // custom scheme rather than a file, and handing it to the
                     // importer would try to read "healthinsights://…" as JSON.
                     guard url.isFileURL else { return }
-                    importOutcome = FileImportOutcome(message: model.importSharedFile(at: url))
+                    Task {
+                        importOutcome = FileImportOutcome(
+                            message: await model.importSharedFile(at: url))
+                    }
                 }
+                // The wait is visible now. Reading, parsing and re-scoring
+                // several hundred readings takes seconds, and without this the
+                // app looked frozen until the result alert appeared.
+                .overlay { if model.isImporting { ImportProgressOverlay() } }
                 .alert("Import", isPresented: Binding(
                     get: { importOutcome != nil },
                     set: { if !$0 { importOutcome = nil } }

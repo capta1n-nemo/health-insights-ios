@@ -97,6 +97,35 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Eleventh push — the new inputs are reachable, and the med chart obeys the
+rules.** Five things off the user's device, all real:
+
+- **The share sheet works** — Health Insights now appears in the app row for a
+  `.shotsyjson` file, so the imported UTI was the fix. **The bottom "actions"
+  list is a different mechanism** (Action Extensions) and still needs its own
+  target.
+- **The import hung.** It did read, parse, several hundred SwiftData inserts
+  and a full re-score synchronously on the main actor, so the app froze and
+  the result alert appeared afterwards — the only feedback was the freeze.
+  `importSharedFile` is `async` now, the parse runs off the actor
+  (`ShotsyImport.parse` is pure), `ShotsyImportService.persist` is split out
+  for the main-actor half, and `isImporting` drives `ImportProgressOverlay`.
+- **`ContributionRoute.fileImport`** — the user's rule: *"everytime we do a new
+  input type for any cards, the input needs to also be in this add section"*.
+  Body Composition offers it beside its grounding facts.
+- **The Today `+` is a menu**, not a shortcut to the substance log. It offers
+  substance, blood pressure, dose (when a regimen exists) and Shotsy import —
+  the app's one global add affordance had been showing exactly one of its
+  input types.
+- **`MedicationCurveChart` wraps `ScrollableMetricChart`** and takes the card's
+  `window`. It drew a fixed 90 days while the picker said "M" and could not be
+  panned — the `add-chart` skill's first rule, broken by me the day after
+  loading it.
+
+`ContributionRouteTests` asserted "exactly one route" per model; that was an
+incidental truth rather than the invariant, which is that a grounding route
+names the model's own requirements. Rewritten to test the rule, not the count.
+
 **Tenth push — Shotsy as a listed integration, and the UTI that was blocking
 the share sheet.**
 

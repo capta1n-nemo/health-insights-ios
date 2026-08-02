@@ -16,6 +16,15 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     case bloodPressureReadings
     /// A dated log of events the user adds as they happen.
     case substanceLog
+    /// A file the reader shares in from another app — today Shotsy's backup.
+    ///
+    /// A route rather than a Settings-only affordance because **every input
+    /// type has to appear here**: "View & add" is the card's answer to "what
+    /// does this want from me", and an input reachable only from Settings is
+    /// one the reader will never find. The user made that the rule on
+    /// 2026-08-02, and it applies to the scans and photos still to come.
+    case fileImport
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card

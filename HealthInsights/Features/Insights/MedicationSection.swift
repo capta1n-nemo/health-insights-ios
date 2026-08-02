@@ -11,13 +11,17 @@ import InsightKit
 /// silently: the proposal is stored unconfirmed, drawn dashed, and sits behind
 /// this row until they say yes.
 struct MedicationSection: View {
+    /// The card's timeframe, so the curve obeys the picker like every other
+    /// historical chart. The first version drew a fixed ninety days whatever
+    /// the picker said.
+    let window: TimeInterval
     @Environment(AppModel.self) private var model
     @State private var showingStart = false
     @State private var showingLog = false
 
     var body: some View {
         if let medication = model.activeMedication, let compound = medication.compound {
-            let points = model.medicationCurve()
+            let points = model.medicationCurve(days: max(14, Int(window / 86_400)))
             NestedInsightSection(
                 title: "Medication on board",
                 trailing: points.last.map { String(format: "%.2f mg", $0.level) },
@@ -27,7 +31,7 @@ struct MedicationSection: View {
                     Text("No doses logged yet.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    MedicationCurveChart(points: points, compound: compound)
+                    MedicationCurveChart(points: points, compound: compound, window: window)
                 }
                 if model.unconfirmedDoseCount > 0 {
                     confirmRow(count: model.unconfirmedDoseCount)

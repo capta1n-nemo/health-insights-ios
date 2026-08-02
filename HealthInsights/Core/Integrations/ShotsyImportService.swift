@@ -58,8 +58,12 @@ struct ShotsyImportService {
         return try Data(contentsOf: url)
     }
 
-    func `import`(_ data: Data, now: Date = Date()) throws -> Summary {
-        let parsed = try ShotsyImport.parse(data)
+    /// Persist an already-parsed export.
+    ///
+    /// Split from parsing so the parse can leave the main actor: everything
+    /// below touches SwiftData and cannot, and doing both here is what made
+    /// the app freeze for the length of an import.
+    func persist(_ parsed: ShotsyImport.Result, now: Date = Date()) -> Summary {
         var summary = Summary()
         summary.unmappedKinds = parsed.unmappedKinds
         summary.scheduleName = parsed.schedule?.medicationName

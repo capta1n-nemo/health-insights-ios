@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import InsightKit
 
 /// "View & add" — one section, one anatomy, on every card that takes something
@@ -51,6 +52,8 @@ struct ViewAndAddSection: View {
     @State private var addingBloodPressure = false
     @State private var showingSubstanceLog = false
     @State private var showingGroundingDetail: GroundingKindList?
+    @State private var showingImporter = false
+    @State private var importMessage: String?
 
     var body: some View {
         if !routes.isEmpty {
@@ -75,11 +78,50 @@ struct ViewAndAddSection: View {
         }
     }
 
+    /// Bringing a file in from another app — today a Shotsy backup.
+    ///
+    /// On the card rather than only in Settings because that is what this
+    /// section is *for*: it answers "what does this card want from me", and an
+    /// input the reader can only find by going looking is one they will not
+    /// find. The same will be true of scans and photos.
+    @ViewBuilder private var fileImportRoute: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Import from another app", systemImage: "square.and.arrow.down")
+                .font(.subheadline.weight(.medium))
+            Text("Shotsy holds your injections, weight and body composition. Export its JSON and share it here — or pick a file you've already saved.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let lastImport = ShotsyIntegration.lastImportDate {
+                Text("Last file received \(lastImport.formatted(date: .abbreviated, time: .shortened)).")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+            Button("Choose a file") { showingImporter = true }
+                .font(.caption.weight(.medium))
+            if let importMessage {
+                Text(importMessage)
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .fileImporter(isPresented: $showingImporter,
+                      allowedContentTypes: ShotsyIntegrationView.acceptedTypes,
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                Task { importMessage = await model.importSharedFile(at: url) }
+            case .failure(let error):
+                importMessage = "Couldn't open that file: \(error.localizedDescription)"
+            }
+        }
+    }
+
     @ViewBuilder private func section(for route: ContributionRoute) -> some View {
         switch route {
         case .bloodPressureReadings: bloodPressureRoute
         case .substanceLog: substanceRoute
         case .groundingFacts(let kinds): factsRoute(kinds)
+        case .fileImport: fileImportRoute
         }
     }
 
