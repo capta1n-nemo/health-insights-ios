@@ -133,6 +133,12 @@ that is not yet automated is the next thing to automate.
 | **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness. **Hardened 2026-08-02**: the hook was invoked by a relative path and hook processes inherit the shell's *drifted* cwd, so a push issued after a `cd` skipped the gate silently (exit 127 is a non-blocking hook error). Now `$CLAUDE_PROJECT_DIR`-absolute, and `verify.sh` lints settings.json hook commands for relative paths (canaried) |
 | A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
 | A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
+| **Miss an exhaustive switch that only the app target compiles** | **3** | ⬜ **open, and the session's top waste** — three of this session's four red CI pushes were an app-target symbol the local gate cannot see: an internal `PeerStandingModel.isModelled` read from the app, a missing `.screenTime` arm in `onsetDriverIcon`, and a missing `import InsightKit`. InsightKit builds on Linux and `HealthInsights/` does not, so CI is the only compiler that ever sees them. `verify.sh` already runs `swiftc -parse` per app file — **`-parse` cannot resolve a symbol; only `-typecheck` with the iOS SDK can, and that SDK does not exist here.** See the roadmap: the tractable half is a *textual* cross-target check (a `public` audit for symbols the app names), not a real compile |
+| **The local gate disagreeing with CI** | **1** | ✅ automated — `verify.sh --tests` exited 0 on a tree plain `verify.sh` exited 1 on, because the test block's runner-artifact recovery cleared the shared `fail` flag and wiped every lint above it. The mandated mode was the weaker one. Fixed by giving the recovery its own `testfail`, and **`verify.sh` now greps itself** for a stray `fail=0`, with the needle assembled from two string pieces so the check's own source cannot match it (canaried) |
+| **Documenting a fix tripping the lint for that fix** | **2** | ✅ automated — this repo's house style records the replaced shape in a doc comment, so ban patterns are quoted by design in the files that no longer commit the sin. Hit twice in one session (a `\.0` key path and a `case 6..<7:` band table), each time forcing a less clear comment. `ban` now skips comment lines; canaried both ways |
+| **A scoring curve with a step in it** | **7 in one sweep** | ✅ automated — `ScoreCurve.through` + `ScoreContinuityTests` (4000-point sweep, both axes separately) + a `verify.sh` lint on `case 6..<7: return 65` + the rules in `add-insight`. The category, not the instance: one card's visible crater led to seven across the codebase |
+| **A test that asserts nothing** | **3** | ✅ automated — `verify.sh` fails any test file with no `XCTAssert`/`XCTUnwrap`/`XCTFail`/`#expect`. `ZZProbeTests` had passed every run for several sessions while printing four numbers; two vacuous fixtures were caught by hand the same day (jitter `(day * 3) % 3`, identically zero) |
+| **A test that re-types the code it checks** | **1** | ⬜ open — caught by this session's own handover audit: the Readiness oxygen sweep duplicated the arithmetic because it lived inline, so it would have passed whatever the shipped path did. Fixed by extracting `ReadinessScore.oxygenComponent`. The rule is *nothing is testable that is not callable*; no mechanical check yet |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | **Report "deployed" when nothing was installed** | 1 session, 4 times in it | ✅ automated — `deploy.yml` writes `refs/deploy/*`, `scripts/deploy-status.sh` reads it, `CLAUDE.md` and `ship-to-main` now require it |
 | **A build that CI can compile and the user's Mac cannot** | 1 | ⚠️ partly — the `.metal` dependency is gone, but the two environments still differ and nothing compares them. See roadmap |
@@ -159,6 +165,36 @@ that is not yet automated is the next thing to automate.
 | Device verification | every | ❌ not automatable — only the user can do it |
 
 ## The efficiency roadmap
+
+### ⬜ A textual cross-target symbol check — the top open item (session 21)
+
+**Three of session 21's four red CI pushes were the same failure**, and it is now
+the ledger's top unautomated row: an app-target symbol the local gate cannot
+see. An `internal` `PeerStandingModel.isModelled` read from the app target; a
+missing `.screenTime` arm in `onsetDriverIcon`; a missing `import InsightKit` in
+`HealthInsightsApp.swift`. Each cost a full CI cycle and a fix commit.
+
+**Why the existing check does not catch them, stated precisely so nobody tries it
+again.** `verify.sh` already runs `swiftc -parse` over every app file — and
+`-parse` builds a syntax tree without resolving a single name. Only `-typecheck`
+resolves symbols, and that needs the iOS SDK, which does not exist on this
+container. There is no local compile that can answer these.
+
+So the tractable version is **textual, not a compile**:
+
+1. Collect every `public`/`internal` declaration in `InsightKit/Sources`.
+2. Collect every identifier the app target names that looks like an InsightKit
+   type or member.
+3. Flag any that resolves to an `internal` declaration — that is the
+   `isModelled` class exactly, and it is a grep against two lists.
+4. Separately: flag any app file naming an InsightKit symbol without
+   `import InsightKit` — that is the third instance, and it is one grep.
+
+The exhaustive-switch instance (`onsetDriverIcon`) is already covered in
+principle by the generic switch lint; it fired here because the switch is in the
+*app* target over an *InsightKit* enum, and the lint only reads InsightKit. Widen
+its search path — the cheapest of the four and worth doing first.
+
 
 ### ✅ Parse every changed app-target file before pushing — added session 16
 
@@ -432,6 +468,7 @@ with guesses.
 | 19 | 2026-08-02 | 6 | **0** | 1 (named below) | 0 | 902 → 914 | **`scripts/bash-workdir-hook.sh`** — the ledger's six-session row, retired by the harness rather than by care, and its construction closed a silent pre-push-gate bypass (hook cwd inheritance) now also linted by `verify.sh`; **refresh coalescing** — concurrent pipelines join the running one; **`ModelInternalsExport`** — the third instrument, which *found a live parser defect on its first output* (Oura split nights); **`AppModel.memoized` + `LazyVStack` + detached export builds + breakdown prewarm + `SyncActivityPill`** — the performance/visibility pass; `VitalSignsCheck.Reading.historyDays`; `SplitNightTests` | **Better, and the first session with zero working-directory round trips after six sessions of them.** 1 waste / 6 pushes ≈ 0.17 against 18's 0.29 (16: 0.08). Zero red CI across six pushes, six installs, zero re-derivations. The rework is small and instructive: the export misquoted the 1.25 threshold as "1.2" — built and fixed the same day, caught by the user's first real export |
 
 | 20 | 2026-08-02 | 23 (24 commits) | **1** | 4 | 2 (named below) | 914 → 1067 | **`DataDomain`** — every kind of data has a Data-tab section or it does not build; **`InputKind` + `cardRequirement` + three checks** — the four input surfaces cannot drift apart, and the `verify.sh` lint binds the inputs *nobody declared*; **`add-data-or-input` skill** + `docs/architecture.md` ▸ "The structural invariants"; **`refs/deploy/errors/<sha>` + `deploy-status.sh --errors/--fresh`**; `ci-status.sh --errors`; `MedicationResponse` (+16), `SharedInbox` (+7, reverted with the extension), `MedicationLevelMetricTests` (+11), `InputKindTests` (+12), `SharedInbox`/dose tests; `RenderMemo`; `MetricSource.calculated` and the modelled-metric guards | **Worse than 19 on the ratio, and the biggest session recorded.** 7 waste / 23 pushes = 0.30, against 19's 0.17 and a 0.56 baseline — better than baseline, behind the last three. The honest sting is elsewhere: **ten deploys installed nothing**, and two of those were mine |
+| 21 | 2026-08-02 | 25 (26 commits) | **4** | 4 | 2 (named below) | 1067 → 1182 | **`ScoreCurve` + `ScoreContinuityTests` + a band-table lint + scoring rules in `add-insight`** — a 4000-point sweep per curve, both axes separately, retiring the class behind seven shipped score cliffs; **`verify.sh` self-check for a stray `fail=0`** and the `testfail` split, after the mandated gate was found to be weaker than the plain one; **`ban` skips comment lines**, so documenting a fix stops tripping the lint for it; **assertion-free test files fail the gate**; `CandidateReachabilityTests` (the reverse contributor invariant); `MetricDataCategory`; `DomainDataScaffold` + two data-page lints; `ShortcutIngest.url` round-tripped against its own parser for all 102 metrics; `LogHealthDataIntent` + `AppShortcutsProvider`; `RawMetricGroup.suspectValues` | **Worse than the last five on the ratio, better than baseline.** 10 waste / 25 pushes = 0.40, against 20's 0.30, 19's 0.17 and a 0.56 baseline. **All four red CI pushes are one cause** — an app-target symbol no local compile can see — now the roadmap's top item. The compounding column is the strongest since 16: one card's visible crater was chased into a seven-instance defect class and closed with a sweep |
 
 ### Session 20 notes
 
@@ -503,6 +540,89 @@ nights on the device — needs a rebuild-from-providers and a fresh export), F11
 F14 (Readiness's supporting-only renormalisation), the action extension parked
 on a paid Developer Program membership, and dietary energy from the Shotsy
 import still unmodelled.
+
+### Session 21 notes
+
+**Red CI (4), and all four are one cause.** `5a792d4` (an `internal`
+`PeerStandingModel.isModelled` read from the app target), `aae13c7` (a missing
+`.screenTime` arm in `onsetDriverIcon`), `793a2f1` (a missing
+`import InsightKit` in `HealthInsightsApp.swift`) and `5aabc68` (a `\.0` tuple
+key path). The first three are the same class — **a symbol only the app target
+compiles, and no local compile can see it**: InsightKit builds on Linux,
+`HealthInsights/` needs the iOS SDK, and `verify.sh`'s `swiftc -parse` resolves
+no names by construction. Now the roadmap's top item, with the tractable
+*textual* version spelled out so the next session does not re-attempt the
+impossible local compile.
+
+**The fourth is worse than the other three**, because the check that catches it
+already existed and had fired. See below.
+
+**Rework (4).** `ea886c5`, `eb76e3b`, `93e9d86`, `3337466` — one fix commit per
+red CI. No rework from any other cause.
+
+**Re-derivations (2), named.**
+1. **The `\.0` tuple key path.** `verify.sh` has banned it since a CI round trip
+   long before this session, with "Cost a CI round trip once" written in the
+   comment above the pattern. It was written anyway and shipped.
+2. **Task "Energy: resting HR weighted but not scoring"** was carried as an open
+   audit item and investigated as one. It had already been fixed in `bff6390`,
+   with the full rationale in the code comment at the site. The backlog outlived
+   the fix; the code was the honest record and the doc was not.
+
+**The most important finding of the session is that the gate lied.**
+`./scripts/verify.sh --tests` — the command `CLAUDE.md` mandates before every
+push — exited **0** on a tree that plain `./scripts/verify.sh` exited **1** on.
+The mandated mode was the weaker of the two, and had been since the
+runner-artifact recovery was added.
+
+The mechanism: `swift test --parallel` on Linux intermittently exits non-zero
+with every test passing, so the test block re-runs serially and, if that passes,
+clears the failure. It cleared `fail` — **the flag every lint above it also
+sets**. So any lint failure vanished the moment the serial re-run passed. The
+`\.0` lint had fired correctly and was erased a second later, and the gate
+printed `Clean.` on a commit with a compile error in it.
+
+**The general shape is worth more than the instance: a recovery may only undo
+the thing it diagnosed.** A recovery that clears a flag it does not own silently
+forgives everything else that set it. The test run now owns `testfail`; `fail` is
+assigned zero exactly once, where it is declared; and `verify.sh` greps *itself*
+for a stray assignment — with the needle assembled from two string pieces so the
+check's own source cannot match it, which is the only way a self-check can be
+made honest rather than made to pass.
+
+Worth keeping beside it: **CI's `lint` job runs plain `verify.sh` on Ubuntu with
+no toolchain, and that independence is exactly what caught this.** Tier 3 in
+this file's own hierarchy, working as designed on the tier below it.
+
+**The compounding column, and why one crater was worth seven fixes.** The user
+reported a Body Composition chart reading `49 · 15 · 15 · 55` on four consecutive
+days. It was reproduced from a simulated body losing a steady 0.02 kg/day, then
+*measured* rather than reasoned about: a fitted slope wobbling with scale water
+noise across a fixed 0.1 threshold, switching a term scoring 4/100 into the blend
+at its full 25% weight.
+
+Asking what *class* that was, rather than fixing the card, turned one visible bug
+into seven — including a 40-point blood-pressure step for a tenth of a mmHg of
+diastolic, on a card whose comment claimed it graded "by whichever number put it
+there" above a line that only ever read systolic. **A comment describing
+behaviour is not evidence of it.**
+
+**And the handover audit caught this session's own overstatement.** Step 12 of
+the protocol — check the `[x]` items clause by clause — found that "all seven are
+fixed and all seven are guarded" was false: Sleep's oxygen curve and Readiness'
+blood-oxygen component were fixed without being enrolled in the sweep. Both are
+now enrolled. Enrolling the second one required extracting
+`ReadinessScore.oxygenComponent` from an inline expression, because the sweep
+would otherwise have had to re-type the arithmetic — and **a test that re-types
+the code it checks passes whatever that code does.** New ledger row: *nothing is
+testable that is not callable.*
+
+**What made this session expensive.** Four red CI cycles, all avoidable in
+principle and none avoidable with the tools present. What made it cheap: the
+audited docs were trusted rather than re-swept, `where.sh` answered every symbol
+lookup, `ci-status.sh --errors` was used instead of the Actions API, and a
+subagent swept 17 models for the discontinuity class in one pass rather than the
+main context reading them serially.
 
 ### Session 19 notes
 

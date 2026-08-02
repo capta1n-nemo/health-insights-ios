@@ -360,29 +360,36 @@ history" gives each a row (grounding → its entry sheet; derived → plain row)
 figure on Substance Impact now appear where the reader looks for what drives the
 number.
 
-### Still open — the audit's remaining gaps, ranked (next session)
+### The audit's gaps — five of six closed, ranked as they were
 
-1. **Derived scores are not in the Data tab** (user asked explicitly: "your ASCVD
-   or SCORE2 etc scores"). SCORE2/ASCVD/consensus risk %, heart age, fitness age
-   are computed and shown but stored nowhere as data. History already exists
-   (`ageHistory`, `scoreHistories`). **Build a `DataDomain` for derived scores
-   with a `DomainDataScaffold` detail page** (reuse `ScoreHistoryChart`/
-   `AgeHistoryChart`). Follows the data-conventions this repo now enforces.
-2. **"How far from your normal" is vitals-only.** It runs `VitalSignsCheck`,
-   whose specs cover no `sleep*` metric and not `activeEnergyBurned` — so
-   sleep duration (drives Readiness 0.20, Sleep, Energy) and active energy can't
-   appear there though they drive the score. Extend the departure section to any
-   metric with enough baseline, or state the limit.
-3. **Two real bugs on Body Composition** (`BodyCompositionInsight.swift`):
-   - **The RFM/build scoring route is dead.** `evaluate` calls
-     `Self.score(bodyFat:bmi:age:sex:)` **without `build:`** (~L121), so the
-     waist-derived Relative Fat Mass override (the `score(..., build:)` overload,
-     ~L420) never runs — even though `.bodyType` is offered as an input route.
-   - **Height doc/code contradiction:** the dial doc (~L409) says height "stays a
-     charted input at weight 0", but no height contributor is ever emitted.
-4. **Inverse inconsistency on Energy:** resting HR is a *weighted* contributor row
-   but is explicitly not a scoring term (only sets the exertion threshold) —
-   `Energy.swift:~85`, `:481`. Give it weight 0 with a note, or drop it.
+**Items 1-4 and 6 are done. They are kept, struck through, with what actually
+turned out to be true** — three of them were *misdiagnoses*, and deleting the
+row would lose the correction along with the task.
+
+1. ~~**Derived scores are not in the Data tab.**~~ **Done** — `DataDomain
+   .derivedScores` + `DerivedScoreDataView` (`80844b8`). Adding the case did what
+   the enum exists for: broke the Data tab's two switches *and* the export switch
+   until each said where it goes.
+2. ~~**"How far from your normal" is vitals-only.**~~ **Done** —
+   `VitalDeparture.forCard(_:cardMetrics:contributorMetrics:samples:…)` covers
+   every metric the card declares, with `VitalDeparture.baseline(_:)` for a
+   metric that has no concerning direction (`5a792d4`).
+3. ~~**Two real bugs on Body Composition.**~~ **One was real, one was a
+   misdiagnosis, and the misdiagnosis is the interesting half.**
+   - The RFM/build route is **not** mis-wired. `BodyDimensions` has no input, no
+     storage and no source anywhere in the app, because the LiDAR capture it was
+     designed around is still a roadmap note in `planned-modules.md` — so `build`
+     is legitimately nil at the only call site and the middle route is
+     unreachable *because its input was never built*. Reported as "dead in the
+     scoring path", which reads as something to go and fix.
+     `BodyCompositionRouteTests` keeps it working while it waits.
+   - The height doc/code contradiction was real and the claim is deleted.
+   - **The card's actual bug was somewhere else entirely** — the score crater,
+     found by measuring rather than by reading. See "Score discontinuities".
+4. ~~**Inverse inconsistency on Energy:** resting HR is weighted but not
+   scoring.~~ **Already fixed before the item was written**, in `bff6390`:
+   resting HR and heart rate carry *supporting* shares against the reader's own
+   baseline, with the reasoning in the code. The backlog outlived the fix.
 5. **"How you compare" is empty on Sleep** (no sleep metric has a published norm)
    and thin elsewhere — a literature gap. Candidate norms need research per metric.
 6. ~~**candidateMetrics/contributors asymmetry:** Sleep's 2 unused temperature

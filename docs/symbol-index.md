@@ -117,7 +117,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :195
+  - `ReadinessInsight` :213
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45

@@ -137,6 +137,48 @@ final class ScoreContinuityTests: XCTestCase {
         }
     }
 
+    /// Overnight blood oxygen. Added by the handover audit of this session's own
+    /// claims: it was **fixed and not swept**, and the roadmap said all seven
+    /// were guarded. Fixing without enrolling is how the next edit reintroduces
+    /// the step with nothing to catch it.
+    func testSleepOxygenScoreIsContinuous() {
+        assertContinuous("SleepInsight.oxygenScore", over: 85...100) {
+            SleepInsight.oxygenScore($0)
+        }
+    }
+
+    // MARK: - Readiness
+
+    /// Readiness' own blood-oxygen component: the no-baseline fallback and the
+    /// absolute floor below 92, swept together as the card applies them.
+    ///
+    /// A pulse oximeter's resolution is a percentage point, so both lines were
+    /// reachable by rounding — `>= 95 ? 85 : 60` and `min(component, 40)`.
+    func testTheReadinessOxygenComponentIsContinuous() {
+        // The no-baseline path, where the published fallback lives.
+        assertContinuous("ReadinessScore oxygen (no baseline)", over: 85...100) {
+            ReadinessScore.oxygenComponent(value: $0, z: nil)
+        }
+        // And with a baseline, where the absolute floor is the only step left
+        // it could take.
+        for z in [-2.0, 0.0, 1.5] {
+            assertContinuous("ReadinessScore oxygen (z \(z))", over: 85...100) {
+                ReadinessScore.oxygenComponent(value: $0, z: z)
+            }
+        }
+    }
+
+    /// And the floor still floors — continuity must not have bought itself by
+    /// removing the safety behaviour it was wrapped around.
+    func testTheReadinessOxygenFloorStillBites() {
+        // A reader whose baseline says 90% is an ordinary night still gets
+        // marked down for it, because the floor is absolute.
+        let flattering = ReadinessScore.oxygenComponent(value: 90, z: 0)
+        XCTAssertLessThanOrEqual(flattering, 40,
+                                 "a low absolute saturation was normalised away")
+        XCTAssertGreaterThan(ReadinessScore.oxygenComponent(value: 97, z: 0), 60)
+    }
+
     // MARK: - Blood pressure
 
     /// **Both numbers, independently.** The band is chosen by systolic *and*
