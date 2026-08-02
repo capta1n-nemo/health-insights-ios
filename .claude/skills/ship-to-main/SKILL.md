@@ -21,7 +21,8 @@ land it on `main` yourself rather than leaving a PR open.
 git add -A && git commit
 git push origin HEAD:main          # NOT `git push -u origin main`
 ./scripts/ci-status.sh --wait      # does it compile?  0 passed / 1 failed / 2 none
-./scripts/deploy-status.sh --wait  # is it on the phone? 0 installed / 1 failed / 2 none
+./scripts/deploy-status.sh --wait    # is it on the phone? 0 installed / 1 failed / 2 none
+./scripts/deploy-status.sh --errors  # on a red: signing/install lines, not a guess
 ```
 
 **Both, and in that order.** They answer different questions and the second is
@@ -32,8 +33,10 @@ three, and each was reported as "deployment triggered" — because nothing was
 checking. A push is not an install.
 
 Then report what `deploy-status.sh` actually said, and **end the turn**. If it
-failed, the build is almost certainly fine and the phone is the problem: unlock
-it, same Wi-Fi as the Mac, no VPN. Re-running the workflow installs the same
+failed, **read `--errors` before naming a cause.** The phone is the usual
+answer — unlock it, same Wi-Fi as the Mac, no VPN — but since the app gained an
+App Group entitlement a deploy can also be refused at signing, and those two
+need completely different fixes. Re-running the workflow installs the same
 commit — no new push needed.
 Don't keep working past the push unless they asked for more.
 

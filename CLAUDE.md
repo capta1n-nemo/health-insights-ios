@@ -68,7 +68,12 @@ inherit the shell's drifted cwd, and a relative hook path fails silently
   branch and push that. If a session starts you on a `claude/*` branch, land it
   on `main` yourself instead of leaving a PR open.
 - Once pushed to `main`, run **`./scripts/deploy-status.sh --wait`** and report
-  what it says. **A push is not an install, and `ci-status.sh` cannot tell you
+  what it says — and on a red, **`./scripts/deploy-status.sh --errors`**, which
+  reads the grepped signing/install lines from `refs/deploy/errors/<sha>`. A
+  failed deploy is not automatically "the phone": since the app gained an App
+  Group entitlement it can also be refused at signing, and guessing between the
+  two is how a wrong cause gets reported confidently.
+  **A push is not an install, and `ci-status.sh` cannot tell you
   it was one** — `ci.yml` runs on GitHub's runners and proves the code compiles;
   `deploy.yml` runs on the user's own Mac and is the only thing that reaches the
   phone. On 2026-07-31 three deploys in a row failed on an unreachable iPhone

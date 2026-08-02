@@ -12,6 +12,13 @@
 #   ./scripts/deploy-status.sh              # HEAD
 #   ./scripts/deploy-status.sh <sha>
 #   ./scripts/deploy-status.sh --wait       # poll until a verdict appears
+#   ./scripts/deploy-status.sh --errors     # print WHY it failed
+#
+# `--errors` exists because the verdict was a single bit, so "the phone was
+# locked" and "signing rejected a capability" looked identical from here. That
+# stopped being tolerable the day a second target with an App Group entitlement
+# landed. `deploy.yml` now writes the grepped signing/install lines to
+# refs/deploy/errors/<sha>, which is a few hundred bytes.
 #
 # Exit 0 = installed, 1 = failed, 2 = no verdict yet.
 #
@@ -22,10 +29,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 wait=0
+errors=0
 sha=""
 for arg in "$@"; do
     case "$arg" in
         --wait) wait=1 ;;
+        --errors) errors=1 ;;
         *) sha="$arg" ;;
     esac
 done
@@ -89,11 +98,15 @@ report() {
             echo "installed  ${sha:0:7}"; return 0 ;;
         *"refs/deploy/failed/"*)
             echo "DEPLOY FAILED  ${sha:0:7}"
-            echo "The build is fine — this is the install step. Usually the phone:"
-            echo "  · unlock it, and keep it unlocked for the install"
-            echo "  · same Wi-Fi as the Mac, no VPN"
-            echo "  · Xcode ▸ Window ▸ Devices and Simulators shows it, 'Connect via network' ticked"
-            echo "Re-run without a new commit: gh workflow run deploy.yml  (or the Actions tab)"
+            # This used to assert "the build is fine — this is the install
+            # step", which was a guess dressed as a finding. A deploy can fail
+            # at signing too, and since 2026-08-02 the app has an entitlement
+            # that can be refused outright. Ask for the reason instead of
+            # naming one.
+            echo "Why:  ./scripts/deploy-status.sh --errors"
+            echo "Most often the phone: unlocked, same Wi-Fi as the Mac, no VPN,"
+            echo "and showing in Xcode ▸ Window ▸ Devices and Simulators."
+            echo "Re-run without a new commit: the Actions tab ▸ Deploy ▸ Run workflow"
             return 1 ;;
     esac
     return 2
@@ -108,6 +121,15 @@ if [ "$wait" -eq 1 ]; then
     done
     echo "no deploy verdict for ${sha:0:7} after 15 minutes"
     no_verdict_help
+    exit 2
+fi
+
+if [ "$errors" -eq 1 ]; then
+    if git fetch -q origin "refs/deploy/errors/$sha" 2>/dev/null; then
+        git show FETCH_HEAD:errors.txt
+        exit 1
+    fi
+    echo "no deploy error blob for ${sha:0:7} (it installed, is still running, or predates refs/deploy/errors)"
     exit 2
 fi
 

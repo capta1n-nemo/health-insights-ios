@@ -143,6 +143,11 @@ jobs:
       - name: Install onto iPhone
         run: |
           set -eo pipefail
+          # Everything this step prints also lands in a file, so the verdict
+          # step below can put the *reason* in a git ref. Without it, a failed
+          # deploy was a single bit and the only way to see why was the Actions
+          # API — 457 KB for one line of cause.
+          exec > >(tee -a "$RUNNER_TEMP/install.log") 2>&1
           APP_PATH=$(find build/Build/Products/Debug-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "::error::No .app was produced by the build step."
@@ -214,3 +219,38 @@ jobs:
           if [ "${{ job.status }}" = "success" ]; then result=passed; else result=failed; fi
           echo "Deploy $result for $GITHUB_SHA"
           git push -f origin "HEAD:refs/deploy/$result/$GITHUB_SHA"
+
+      # …and *why*, when it failed.
+      #
+      # `ci.yml` has written its compile errors to refs/ci/errors/<sha> from the
+      # start; this job recorded a single bit, so "the phone was unreachable"
+      # and "signing rejected a capability" looked identical from outside. On
+      # 2026-08-02 that mattered the moment a second target with an App Group
+      # entitlement landed — App Groups are unavailable to free personal teams,
+      # and there was no cheap way to tell that failure from a locked phone.
+      #
+      # Under refs/deploy/, so it cannot trigger a workflow and cannot loop.
+      - name: Record why it failed
+        if: failure()
+        run: |
+          set -uo pipefail
+          LOGS=""
+          for f in "$RUNNER_TEMP/build.log" "$RUNNER_TEMP/install.log"; do
+            [ -f "$f" ] && LOGS="$LOGS $f"
+          done
+          : > /tmp/deploy-errors.txt
+          if [ -n "$LOGS" ]; then
+            # Signing and provisioning first — those name a capability and are
+            # the ones a reader can act on — then anything else that failed.
+            grep -hiE 'error:|does not support|provisioning profile|entitlement|codesign|no profiles|devicectl|unable to install|\*\* BUILD FAILED' \
+              $LOGS | tail -40 > /tmp/deploy-errors.txt || true
+            if [ ! -s /tmp/deploy-errors.txt ]; then
+              tail -30 $LOGS > /tmp/deploy-errors.txt
+            fi
+          else
+            echo "No build or install log was produced — the job failed before either step ran." > /tmp/deploy-errors.txt
+          fi
+          blob=$(git hash-object -w /tmp/deploy-errors.txt)
+          tree=$(printf '100644 blob %s\terrors.txt\n' "$blob" | git mktree)
+          commit=$(git commit-tree "$tree" -m "deploy errors for $GITHUB_SHA")
+          git push -f origin "$commit:refs/deploy/errors/$GITHUB_SHA"
