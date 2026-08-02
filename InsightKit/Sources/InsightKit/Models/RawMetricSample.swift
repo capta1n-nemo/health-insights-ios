@@ -86,6 +86,88 @@ public struct RawMetricGroup: Identifiable, Sendable {
     public init(id: String, displayName: String, unit: String, samples: [RawMetricSample]) {
         self.id = id; self.displayName = displayName; self.unit = unit; self.samples = samples
     }
+
+    // MARK: - Readings this series' own history says cannot be right
+
+    /// How far from its own median a reading has to sit before it is called a
+    /// unit slip rather than a big day.
+    ///
+    /// Twenty. The slips that actually happen are **powers of a thousand**
+    /// (grams for milligrams, milligrams for micrograms) or sixty (seconds for
+    /// minutes), and the largest genuine day-to-day swing in anything here is
+    /// nearer three. Twenty sits in the empty space between them, so a hard
+    /// training day is never flagged and a factor-of-1000 slip always is.
+    public static let unitSlipFactor = 20.0
+
+    /// Below this many readings there is no "typical" to judge against, and two
+    /// readings that disagree are not evidence that either is wrong.
+    public static let minimumHistoryForSuspicion = 5
+
+    /// The reader's export carried **Vitamin A: 170,000 mcg** — about
+    /// fifty-seven times the tolerable upper intake, and a number no food
+    /// produces. It came in through a chain the app does not control (a shortcut
+    /// writing into Apple Health), and it sat in the Data tab looking exactly
+    /// like a measurement.
+    ///
+    /// **A plausible range per analyte is not available and never will be** —
+    /// this is the *unmodelled* catalogue, whose whole point is holding data
+    /// nobody has written a spec for, and there are already 130 such series from
+    /// Oura alone. So the judgement is self-referential and needs no catalogue:
+    /// **a reading is suspect when its own series says so.**
+    ///
+    /// The median rather than the mean, because the outlier is in the sample it
+    /// is being judged against and a mean of 800, 800, 800 and 170,000 is 43,100
+    /// — which the outlier itself would then sit inside four times over.
+    ///
+    /// Flagged in both directions: a milligram figure recorded in grams is a
+    /// thousand times too small, and reads as a series that quietly stopped
+    /// meaning anything rather than as an obvious spike.
+    public var suspectValues: Set<UUID> {
+        let numeric = samples.compactMap { sample in
+            sample.numericValue.map { (sample.id, $0) }
+        }
+        guard numeric.count >= Self.minimumHistoryForSuspicion,
+              let median = Baseline.quantile(0.5, of: numeric.map(\.1)),
+              median > 0 else { return [] }
+        let high = median * Self.unitSlipFactor
+        let low = median / Self.unitSlipFactor
+        return Set(numeric.filter { $0.1 > high || ($0.1 > 0 && $0.1 < low) }.map(\.0))
+    }
+
+    /// One sentence for the reader, or nil where nothing looks wrong.
+    ///
+    /// Deliberately says *check it* rather than *it is wrong*: the app cannot
+    /// know, and a series that genuinely jumps a hundredfold is possible even if
+    /// it is usually a slip. It also names the multiple, because "1000× your
+    /// usual" is what makes somebody recognise a unit mistake.
+    public var suspicionNote: String? {
+        let suspects = suspectValues
+        guard !suspects.isEmpty,
+              let median = Baseline.quantile(0.5, of: samples.compactMap(\.numericValue)),
+              median > 0,
+              let worst = samples.filter({ suspects.contains($0.id) })
+                .compactMap(\.numericValue)
+                .max(by: { abs(log($0 / median)) < abs(log($1 / median)) })
+        else { return nil }
+
+        let multiple = worst > median ? worst / median : median / worst
+        let direction = worst > median ? "larger" : "smaller"
+        let count = suspects.count
+        let subject = count == 1 ? "One reading here is"
+            : "\(count) readings here are"
+        return "\(subject) far outside the rest of this series — the furthest is about "
+            + "\(Self.roundedMultiple(multiple))× \(direction) than your usual. That is the "
+            + "shape of a unit mix-up upstream rather than a measurement. Worth checking "
+            + "wherever it came from."
+    }
+
+    /// "1000" rather than "1000.4" — a multiple is being used to make somebody
+    /// recognise a power of ten, so the digits after it are noise.
+    static func roundedMultiple(_ value: Double) -> String {
+        value >= 100 ? String(Int((value / 10).rounded() * 10))
+            : value >= 10 ? String(Int(value.rounded()))
+            : String(format: "%.1f", value)
+    }
 }
 
 public extension Array where Element == RawMetricSample {

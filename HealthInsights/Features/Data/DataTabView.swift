@@ -508,6 +508,21 @@ struct OtherDataDetailView: View {
                 Text("Identifier: \(group.id)\nSources: \(group.sources.sorted().joined(separator: ", "))")
             }
 
+            // A reading this series' own history says cannot be right. Judged
+            // against the whole group rather than the visible timeframe: the
+            // question "is this number wrong" is about the series, and a
+            // fortnight's window can contain the slip and none of the ordinary
+            // days it should be compared with.
+            if let suspicion = group.suspicionNote {
+                Section {
+                    Label(suspicion, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("Worth a look")
+                }
+            }
+
             // Text fields get a state tally instead of a chart.
             if !stateCounts.isEmpty {
                 Section("States") {
@@ -523,12 +538,22 @@ struct OtherDataDetailView: View {
             }
 
             Section("Readings · \(samples.count)") {
+                let suspect = group.suspectValues
                 ForEach(samples) { s in
                     HStack {
                         Text(s.formattedValue)
                             .monospacedDigit()
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
+                        // Marked on the row as well as summarised above, so the
+                        // reader can see *which* one without comparing numbers
+                        // by eye down a long list.
+                        if suspect.contains(s.id) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.warn)
+                                .accessibilityLabel("Far outside the rest of this series")
+                        }
                         Spacer()
                         Text(s.start.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary)
