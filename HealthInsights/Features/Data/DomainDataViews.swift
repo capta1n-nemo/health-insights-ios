@@ -113,6 +113,74 @@ struct MedicationDataView: View {
     }
 }
 
+// MARK: - Derived scores
+
+/// Every number the app worked out — each card's score, and the clinical
+/// estimate behind it where there is one (a 10-year risk percentage, a heart
+/// age). Read-only by definition: nothing here was entered or measured.
+///
+/// Kept apart from the measured metrics for the reason the modelled medication
+/// level is: presenting a computed number beside sensed ones invites reading it
+/// as a measurement. The footer says so once, plainly.
+struct DerivedScoreDataView: View {
+    @Environment(AppModel.self) private var model
+
+    private var scored: [InsightResult] {
+        model.results.filter { $0.score != nil }
+            .sorted { ($0.score ?? 0) > ($1.score ?? 0) }
+    }
+
+    var body: some View {
+        DomainDataScaffold(
+            title: DataDomain.derivedScores.title,
+            entriesHeader: "Cards",
+            entryCount: scored.count,
+            emptyHeadline: "Nothing scored yet",
+            emptyMessage: "Once a card can produce a number from your data, it appears here with the estimate behind it.",
+            emptySymbol: "function",
+            overview: {
+                Section {
+                    Text(DataDomain.derivedScores.summary)
+                        .font(.caption).foregroundStyle(.secondary)
+                } footer: {
+                    Text("These are outputs, not readings. Each is computed from the measurements and details in the sections above — change those and these move.")
+                }
+            },
+            rows: {
+                ForEach(scored, id: \.id) { result in
+                    NavigationLink {
+                        InsightDetailView(insightID: result.id)
+                    } label: {
+                        row(result)
+                    }
+                }
+            })
+    }
+
+    private func row(_ result: InsightResult) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(result.title)
+                Spacer()
+                if let score = result.score {
+                    Text("\(Int(score.rounded()))")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            // The card's own quantity in its own units — a risk percentage, a
+            // heart age — which is a different number from the 0–100 dial and
+            // is the one a clinician would recognise.
+            HStack(spacing: 6) {
+                Text(result.headline)
+                    .font(.caption).foregroundStyle(.tertiary)
+                Text("· \(result.confidence.rawValue)")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
 // MARK: - Side effects
 
 struct SideEffectDataView: View {

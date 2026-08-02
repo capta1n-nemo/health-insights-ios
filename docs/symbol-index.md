@@ -446,12 +446,13 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :407
+  - `OtherDataDetailView` :442
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
+  - `DerivedScoreDataView` :125
   - `MedicationDataView` :59
-  - `SideEffectDataView` :118
+  - `SideEffectDataView` :186
   - `SubstanceDataView` :17
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11

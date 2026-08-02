@@ -125,6 +125,10 @@ struct DataTabView: View {
                            medication.compound?.displayName ?? "")
         case .sideEffects:
             return !filteredSideEffects.isEmpty
+        case .derivedScores:
+            return model.results.contains { $0.score != nil }
+                && (matches(domain.title, "score", "estimate", "risk", "heart age")
+                    || model.results.contains { matches($0.title) })
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
         }
@@ -218,7 +222,38 @@ struct DataTabView: View {
         case .substances: substanceSection
         case .medication: medicationSection
         case .sideEffects: sideEffectSection
+        case .derivedScores: derivedScoreSection
         case .unmodelled: otherDataSection
+        }
+    }
+
+    /// What the app worked out, as data — each card's score and the clinical
+    /// estimates behind it. The user's ask: *"I want any derived data being
+    /// stored in the data tab, eg your ASCVD or SCORE2 etc scores."* They were
+    /// visible only as a number on a card, with no list and no history here.
+    @ViewBuilder private var derivedScoreSection: some View {
+        let scored = model.results.filter { $0.score != nil }
+        if !scored.isEmpty {
+            Section {
+                NavigationLink {
+                    DerivedScoreDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Card scores & estimates")
+                            Spacer()
+                            Text("\(scored.count)")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text("Worked out by this app, not measured")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.derivedScores.title)
+            } footer: {
+                Text(DataDomain.derivedScores.summary)
+            }
         }
     }
 

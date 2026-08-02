@@ -151,6 +151,7 @@ public struct HealthDataExport: Encodable, Sendable {
         case .substances: return "substances"
         case .medication: return "medication"
         case .sideEffects: return "sideEffects"
+        case .derivedScores: return "derivedScores"
         case .unmodelled: return "unmodelled"
         }
     }

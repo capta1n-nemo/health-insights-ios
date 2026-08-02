@@ -36,6 +36,16 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     case medication
     /// Dated side-effect records — severity against a name.
     case sideEffects
+    /// **What the app worked out**, as opposed to what it measured: each card's
+    /// score, and the clinical estimates behind them — SCORE2, ASCVD, heart age.
+    ///
+    /// The user, 2026-08-02: *"I want any derived data being stored in the data
+    /// tab, eg your ASCVD or SCORE2 etc scores."* They are the app's own output
+    /// and the reader has never been able to see them as *data* — only as a
+    /// number on a card, with no list, no history and no export row. Filed as
+    /// their own domain rather than mixed in with `metrics` precisely because
+    /// they are modelled: nothing on the phone sensed them.
+    case derivedScores
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
 
@@ -49,6 +59,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .substances: return "Substances"
         case .medication: return "Medication"
         case .sideEffects: return "Side effects"
+        case .derivedScores: return "Scores & estimates"
         case .unmodelled: return "Other data"
         }
     }
@@ -66,6 +77,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Your regimen, the doses logged, and how much is still active."
         case .sideEffects:
             return "What you recorded feeling, and how strongly."
+        case .derivedScores:
+            return "What the app worked out from everything above — each card's score, and the clinical estimates behind them."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         }
