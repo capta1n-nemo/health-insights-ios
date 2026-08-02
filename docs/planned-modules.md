@@ -1,7 +1,8 @@
 # Four planned modules — architecture of record
 
 _Written 2026-08-02 from the user's brief, alongside an outside (Gemini) analysis
-of their full export. Design only: nothing here is built yet. Each section gives
+of their full export. **Module 1 is built; modules 3 and 4 have their maths
+built and their capture/UI outstanding; module 2 is next.** Each section gives
 the data models, the service interface, the algorithm, and the UI shape, in the
 order the brief asked for._
 
@@ -324,7 +325,19 @@ protocol, so it is testable today with a stub.
 
 ---
 
-## 3. LiDAR / camera dimensions and the BMI override
+## 3. LiDAR / camera dimensions and the BMI override — **MATHS BUILT 2026-08-02**
+
+`BodyDimensions` and `BuildAssessmentModel` are in InsightKit with 6 tests:
+Woolcott & Bergman RFM, the waist-to-height 0.5 action line, and the
+non-standard-build flag. `BodyCompositionInsight.score` now has **three
+routes** — measured fat, then dimensions, then BMI — so a waist measurement
+displaces BMI wherever one exists. **The capture is not built**: ARKit cannot
+be exercised from a sandbox, so the LiDAR/camera layer and its UI remain the
+device-only half.
+
+The design as written:
+
+## 3a. LiDAR / camera dimensions and the BMI override
 
 **The brief:** accept 3D-derived circumferences; when BMI says obese but the
 structure says otherwise, flag it and adjust.
@@ -387,7 +400,18 @@ documents for fat over BMI.
 
 ---
 
-## 4. Somatotype
+## 4. Somatotype — **ENGINE BUILT 2026-08-02**
+
+`Somatotype` and `SomatotypeModel` are in InsightKit with 8 tests: three
+continuous Heath–Carter components from body fat (against the same Gallagher
+band the dial uses), fat-free mass index, the ponderal index, and a
+shoulder-to-waist lift where a tape or a scan provides it. `isBalanced` exists
+because most people are mixtures and the card must be able to say so. **The
+card and the user override are not built yet.**
+
+The design as written:
+
+## 4a. Somatotype
 
 **The brief:** estimate ecto/meso/endomorph from frame, waist-to-shoulder and
 composition; a card that explains it and lets the user override.

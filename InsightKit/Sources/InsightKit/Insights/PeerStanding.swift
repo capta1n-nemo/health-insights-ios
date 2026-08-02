@@ -145,6 +145,25 @@ public enum PeerStandingModel {
         return Norm(mean: mean, sd: mean * 0.18, higherIsBetter: true)
     }
 
+    /// Body fat percentage.
+    ///
+    /// Anchored on the **same Gallagher et al. (2000) healthy band the dial is
+    /// already scored against** (`BodyCompositionInsight.healthyBodyFatRange`),
+    /// so this card cannot disagree with its own score about what a healthy
+    /// body fat is — the identical argument `vo2Norm` makes for reusing
+    /// `FitnessAgeModel.referenceVO2`.
+    ///
+    /// The band is the healthy *range*, not the population's *middle*, and the
+    /// two are different things: population body fat sits above the healthy
+    /// band in every published Western survey. The mean is placed a little
+    /// above the band's top edge for that reason, which is what makes a reader
+    /// inside the healthy range land well up the distribution rather than at
+    /// the fiftieth centile. The spread is wide because the population's is.
+    static func bodyFatNorm(age: Double, sex: BiologicalSex) -> Norm {
+        let band = BodyCompositionInsight.healthyBodyFatRange(age: age, sex: sex)
+        return Norm(mean: band.upper + 4, sd: 7, higherIsBetter: false)
+    }
+
     /// The normal-approximation centile of `value` under `norm`, oriented so
     /// higher always means better.
     static func percentile(_ value: Double, norm: Norm) -> Double {
@@ -165,7 +184,7 @@ public enum PeerStandingModel {
 
     /// The published norm for a metric, or `nil` where there isn't one.
     ///
-    /// **Three metrics, and that is the whole list.** Every other signal this
+    /// **Four metrics, and that is the whole list.** Every other signal this
     /// app reads is either not distributed in a way a normal approximation
     /// describes — blood oxygen sits against a ceiling at 100% and is nothing
     /// like Gaussian — or has no age-and-sex population summary published at
@@ -186,6 +205,7 @@ public enum PeerStandingModel {
         case .restingHeartRate: return restingHeartRateNorm(age: age, sex: sex)
         case .heartRateVariabilityRMSSD: return hrvNorm(age: age, sex: sex)
         case .vo2Max: return vo2Norm(age: age, sex: sex)
+        case .bodyFatPercentage: return bodyFatNorm(age: age, sex: sex)
         default: return nil
         }
     }
@@ -201,7 +221,14 @@ public enum PeerStandingModel {
     /// population. VO₂max updates every few weeks by design; a resting heart
     /// rate from last month is a fact about last month.
     static func freshness(for metric: MetricType) -> TimeInterval {
-        metric == .vo2Max ? 45 * 86_400 : 7 * 86_400
+        switch metric {
+        case .vo2Max: return 45 * 86_400
+        // Most people weigh in every few days rather than daily, and body
+        // composition does not move fast enough for a fortnight-old reading to
+        // be describing someone else.
+        case .bodyFatPercentage: return 14 * 86_400
+        default: return 7 * 86_400
+        }
     }
 
     /// Where the metrics **this card reads** sit against other people.

@@ -240,6 +240,10 @@ the place to look.
   - `VitalDeparturePanel` :109
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
+- `Signals/BuildAssessment.swift`
+  - `BodyDimensions` :9
+  - `BuildAssessment` :49
+  - `BuildAssessmentModel` :64
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
   - `CompositionVelocityModel` :49
@@ -250,6 +254,9 @@ the place to look.
   - `SleepSegment` :9
 - `Signals/SleepOnset.swift`
   - `SleepOnset` :23
+- `Signals/Somatotype.swift`
+  - `Somatotype` :15
+  - `SomatotypeModel` :78
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`

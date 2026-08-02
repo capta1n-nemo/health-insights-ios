@@ -364,11 +364,26 @@ public struct BodyCompositionInsight: InsightModel {
     /// is the only thing on this card that cannot change between two readings,
     /// so it is what the score is measured *against* rather than something
     /// moving it. It stays a charted input at weight 0.
-    static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?)
+    /// **Three routes now, and the middle one is new** (2026-08-02): a measured
+    /// fat fraction, then an estimate from the reader's own *dimensions*, then
+    /// BMI. `build` is the waist-and-height estimate — see `BuildAssessment`.
+    ///
+    /// The ordering is the same "prefer the better instrument" argument that
+    /// put fat ahead of BMI in the first place. Relative Fat Mass is validated
+    /// against DXA and BMI is not validated against anything except itself, so
+    /// where a waist measurement exists it displaces BMI — and where a scale
+    /// reports fat directly, that still wins over both.
+    static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?,
+                      build: BuildAssessment? = nil)
         -> (value: Double, metric: MetricType)? {
         if let bodyFat, let age, let sex {
             let range = healthyBodyFatRange(age: age, sex: sex)
             return (rangeScore(bodyFat, lower: range.lower, upper: range.upper),
+                    .bodyFatPercentage)
+        }
+        if let build, let age, let sex {
+            let range = healthyBodyFatRange(age: age, sex: sex)
+            return (rangeScore(build.relativeFatMass, lower: range.lower, upper: range.upper),
                     .bodyFatPercentage)
         }
         if let bmi { return (rangeScore(bmi, lower: 18.5, upper: 24.9), .bodyMass) }
