@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import InsightKit
 
 /// **The master input list.** Every way into this app, on one screen, generated
@@ -343,6 +344,11 @@ struct ScreenTimeEntrySheet: View {
                                                     to: Date()) ?? Date()
     @State private var hours = 4
     @State private var minutes = 0
+    /// Scanning state, for the screenshot route.
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var isScanning = false
+    @State private var scanOutcome: String?
+    private let scanner = DocumentScanService()
 
     private var total: Double { Double(hours) * 60 + Double(minutes) }
 
@@ -367,6 +373,30 @@ struct ScreenTimeEntrySheet: View {
                     Text("Screen time")
                 } footer: {
                     Text("From Settings ▸ Screen Time — the daily total. Re-entering a day replaces it, so fixing a typo is just entering it again.")
+                }
+
+                // The camera route. Screenshot Settings ▸ Screen Time and the
+                // numbers are read off it on-device — the one way to get the
+                // exact figures, since Apple will not let an app query them.
+                Section {
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Label("Scan a Screen Time screenshot", systemImage: "text.viewfinder")
+                    }
+                    if isScanning {
+                        HStack {
+                            ProgressView()
+                            Text("Reading the screenshot…").foregroundStyle(.secondary)
+                        }
+                    }
+                    if let scanOutcome {
+                        Text(scanOutcome)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } header: {
+                    Text("Or read it off a screenshot")
+                } footer: {
+                    Text("Screenshot Settings ▸ Screen Time and pick it here. The text is read on your device — nothing is uploaded — and the figures land in the pickers above for you to check before saving. A daily *average* is never taken as a day's total.")
                 }
 
                 Section {
@@ -394,6 +424,54 @@ struct ScreenTimeEntrySheet: View {
                     .disabled(total <= 0)
                 }
             }
+            .onChange(of: pickerItem) { _, item in
+                guard let item else { return }
+                Task { await scan(item) }
+            }
+        }
+    }
+}
+
+private extension ScreenTimeEntrySheet {
+    /// OCR the chosen screenshot and fill the pickers from it.
+    ///
+    /// **Fills, never saves.** The reader still presses Save, because OCR of a
+    /// screen full of numbers is exactly the place a wrong figure could slip in
+    /// unnoticed — and because the parser deliberately refuses to offer a daily
+    /// average as a day, this has to be able to say so rather than silently
+    /// doing nothing.
+    func scan(_ item: PhotosPickerItem) async {
+        isScanning = true
+        scanOutcome = nil
+        defer { isScanning = false }
+
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = PlatformImage(data: data) else {
+            scanOutcome = "Couldn't read that image."
+            return
+        }
+        let result = await scanner.extractScreenTime(from: image)
+
+        if let day = result.dayTotal {
+            hours = Int(day.minutes) / 60
+            // Nearest quarter hour, because the picker offers quarters — and
+            // the exact minutes are still what gets saved if the reader leaves
+            // it alone... they are not, so round honestly and say the figure.
+            minutes = Int((day.minutes.truncatingRemainder(dividingBy: 60) / 15).rounded()) * 15
+            if minutes == 60 { hours += 1; minutes = 0 }
+            if let scanned = result.date { date = scanned }
+            var note = String(format: "Found %@ — %dh %dm.", day.label,
+                              Int(day.minutes) / 60, Int(day.minutes) % 60)
+            if let pickups = result.pickups { note += " \(pickups) pickups." }
+            scanOutcome = note + " Check it and press Save."
+        } else if let other = result.otherReadings.first {
+            // The distinction the parser exists for, said out loud.
+            scanOutcome = "That screenshot shows a \(other.kind.displayName.lowercased()) "
+                + "(\(Int(other.minutes) / 60)h \(Int(other.minutes) % 60)m), not one day's "
+                + "total — so it hasn't been filled in. Open a single day in Screen Time and "
+                + "screenshot that."
+        } else {
+            scanOutcome = "No screen-time figures found in that image."
         }
     }
 }

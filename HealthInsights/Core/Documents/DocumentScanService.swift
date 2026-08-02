@@ -46,6 +46,20 @@ final class DocumentScanService {
         let text = await recognizeText(in: image)
         return LabReportParser.extract(from: text)
     }
+
+    /// OCR a screenshot of Settings ▸ Screen Time.
+    ///
+    /// The second thing the camera can read, and the one that exists because
+    /// there is no other way in: Apple sandboxes the Screen Time API so no app
+    /// can query it, while a picture of the screen carries the exact figures.
+    /// The classification of *which* figure is which lives in
+    /// `ScreenTimeScreenshotParser`, where it is tested — a daily average read
+    /// as a day's total would quietly bias everything compared against it.
+    func extractScreenTime(from image: PlatformImage,
+                           now: Date = Date()) async -> ScreenTimeScreenshotParser.Result {
+        let text = await recognizeText(in: image)
+        return ScreenTimeScreenshotParser.parse(text, now: now)
+    }
 }
 
 #if canImport(UIKit)

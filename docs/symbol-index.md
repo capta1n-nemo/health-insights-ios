@@ -16,6 +16,8 @@ the place to look.
   - `VitalReading` :24
 - `Documents/LabReportParser.swift`
   - `LabReportParser` :12
+- `Documents/ScreenTimeScreenshotParser.swift`
+  - `ScreenTimeScreenshotParser` :26
 - `Feedback/Feedback.swift`
   - `Cohort` :6
   - `FeedbackRating` :55
@@ -478,13 +480,13 @@ the place to look.
   - `GroundedSummary` :150
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
-  - `AddDataView` :19
-  - `AddInputMenu` :142
-  - `BodyTypeSheet` :256
-  - `InputSheet` :177
-  - `PushedInSheet` :229
-  - `ScreenTimeEntrySheet` :335
-  - `SideEffectEntrySheet` :410
+  - `AddDataView` :20
+  - `AddInputMenu` :143
+  - `BodyTypeSheet` :257
+  - `InputSheet` :178
+  - `PushedInSheet` :230
+  - `ScreenTimeEntrySheet` :336
+  - `SideEffectEntrySheet` :488
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18
