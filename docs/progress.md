@@ -34,6 +34,20 @@ about confidence.**
       rotten the day a waist measurement arrives.
 - [x] **A test that asserts nothing now fails the gate.** `ZZProbeTests` had
       passed every run for several sessions while asserting nothing.
+- [x] **No dead candidate declarations, proven.** `CandidateReachabilityTests`
+      settles two suspicions the audit had carried for several sessions: Sleep's
+      absolute temperatures and Heart Health's second HRV flavour are
+      *fallbacks*, not dead declarations. Reading the code could not tell the
+      difference; running it could.
+- [x] **A reading its own series says cannot be right is flagged.** The reader's
+      Vitamin A 170,000 mcg — a unit slip from upstream, sitting in the Data tab
+      looking like a measurement. Judged against the series' own median, so it
+      needs no per-analyte catalogue and works for all 130 unmodelled Oura
+      series too.
+- [x] **The gate itself was lying, and is fixed.** `verify.sh --tests` exited 0
+      on a tree plain `verify.sh` exited 1 on — the mandated mode was the weaker
+      one. See `activeContext.md`; the rule is *a recovery may only undo the
+      thing it diagnosed*, and `verify.sh` now checks itself for it.
 
 > **Read the next three sections as history.** They describe the seventeen-card
 > era. Seventeen cards were merged into nine on 2026-07-31 — see "Card
