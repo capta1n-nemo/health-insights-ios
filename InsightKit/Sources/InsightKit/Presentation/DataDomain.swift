@@ -4,7 +4,8 @@ import Foundation
 ///
 /// ## Why this exists
 ///
-/// The Vitals tab is the app's answer to "what does this thing actually know
+/// The Data tab (called Vitals until 2026-08-02) is the app's answer to "what
+/// does this thing actually know
 /// about me". That claim only holds if it is complete — and it kept not being,
 /// because each section was hand-written and staying complete depended on
 /// somebody remembering. The substance log was reachable only from a toolbar
@@ -13,7 +14,7 @@ import Foundation
 /// must have an entry in that tab."**
 ///
 /// A rule that depends on memory is not a rule, so this is the enforcement.
-/// `VitalsView` switches **exhaustively** over `allCases`, so a new domain is a
+/// `DataTabView` switches **exhaustively** over `allCases`, so a new domain is a
 /// compile error in the app target until it has a section. That is the same
 /// mechanism `MetricType`'s eight switches and `ContributionRoute` already use,
 /// and the reason it is an enum here rather than a list of section builders in
@@ -40,7 +41,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
 
     public var id: String { rawValue }
 
-    /// The section heading the Vitals tab uses.
+    /// The section heading the Data tab uses.
     public var title: String {
         switch self {
         case .metrics: return "Measurements"

@@ -127,6 +127,21 @@ final class AppModel {
     /// Side effects the reader has recorded, newest first.
     var sideEffects: [SideEffectRecord] { dataStore.loadSideEffects() }
 
+    /// Record a side effect by hand.
+    ///
+    /// Until this existed a side effect could only arrive inside a Shotsy
+    /// backup, so the app held a kind of data with no way to give it one —
+    /// which is exactly what the master input list is meant to make impossible.
+    func logSideEffect(name: String, severity: Int, at date: Date = Date()) {
+        dataStore.logSideEffect(name: name, severity: severity, at: date)
+        recompute()
+    }
+
+    func deleteSideEffect(_ record: SideEffectRecord) {
+        dataStore.deleteSideEffect(record)
+        recompute()
+    }
+
     /// Doses the app proposed and the reader has not yet confirmed.
     var unconfirmedDoseCount: Int {
         activeMedication?.doses.filter { $0.isInferred && $0.confirmedAt == nil }.count ?? 0

@@ -7,10 +7,10 @@ import InsightKit
 /// on the Insights tab.
 struct TodayView: View {
     @Environment(AppModel.self) private var model
-    @State private var showSubstanceLog = false
-    @State private var showBloodPressure = false
-    @State private var showDoseLog = false
-    @State private var showingImporter = false
+    /// Whichever input the `+` menu opened. One piece of state for every input
+    /// rather than a `Bool` each: the menu is generated from `InputKind`, so a
+    /// new input needs no state here at all.
+    @State private var activeInput: InputKind?
 
     private var dailyResults: [InsightResult] {
         model.results.filter { $0.id.cadence == .daily && $0.isWorthShowing }
@@ -51,58 +51,20 @@ struct TodayView: View {
             .navigationTitle("Today")
             .refreshable { await model.refresh() }
             .toolbar {
-                // A menu rather than a button. It went straight to the
-                // substance log, so the app's one global "add" affordance
-                // offered exactly one of its input types — every other way in
-                // was buried on a card. Each new input type belongs here as
-                // well as on its own card.
+                // A menu rather than a button, and its contents come from
+                // `InputKind` rather than from a list written out here. It
+                // went straight to the substance log once, then to a
+                // hand-written four; both times the app's one global "add"
+                // affordance offered less than the app accepted.
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button {
-                            showSubstanceLog = true
-                        } label: {
-                            Label("Log a substance", systemImage: "pills")
-                        }
-                        Button {
-                            showBloodPressure = true
-                        } label: {
-                            Label("Log a blood-pressure reading", systemImage: "heart.text.square")
-                        }
-                        if model.activeMedication != nil {
-                            Button {
-                                showDoseLog = true
-                            } label: {
-                                Label("Log a dose", systemImage: "syringe")
-                            }
-                        }
-                        Button {
-                            showingImporter = true
-                        } label: {
-                            Label("Import from Shotsy", systemImage: "square.and.arrow.down")
-                        }
+                        AddInputMenu(active: $activeInput)
                     } label: {
                         Label("Add", systemImage: "plus.circle")
                     }
                 }
             }
-            .sheet(isPresented: $showSubstanceLog) {
-                SubstanceLogView()
-            }
-            .sheet(isPresented: $showBloodPressure) {
-                GroundingSheet(kind: .cuffSystolic)
-            }
-            .sheet(isPresented: $showDoseLog) {
-                if let compound = model.activeMedication?.compound {
-                    DoseEntrySheet(compound: compound)
-                }
-            }
-            .fileImporter(isPresented: $showingImporter,
-                          allowedContentTypes: ShotsyIntegrationView.acceptedTypes,
-                          allowsMultipleSelection: false) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    Task { _ = await model.importSharedFile(at: url) }
-                }
-            }
+            .inputSheet($activeInput)
         }
     }
 

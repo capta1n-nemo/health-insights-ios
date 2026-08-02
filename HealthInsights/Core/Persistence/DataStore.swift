@@ -364,6 +364,21 @@ final class DataStore {
         return added
     }
 
+    /// Record a side effect the reader entered themselves.
+    ///
+    /// No `externalID`: that key exists to make *re-importing the same backup*
+    /// idempotent, and a hand-entered record has no upstream to be a duplicate
+    /// of. Logging the same nausea twice on purpose is the reader's business.
+    func logSideEffect(name: String, severity: Int, at date: Date) {
+        context.insert(SideEffectRecord(name: name, severity: severity, date: date))
+        try? context.save()
+    }
+
+    func deleteSideEffect(_ record: SideEffectRecord) {
+        context.delete(record)
+        try? context.save()
+    }
+
     /// Replace the regimen's dose history with an imported one.
     ///
     /// **Wholesale, not merged.** An imported backup is the complete record

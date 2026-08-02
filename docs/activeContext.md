@@ -97,6 +97,41 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Thirteenth push — the Data tab, and the master input list.** Three things the
+user asked for after seeing the twelfth on the phone.
+
+- **Vitals is now "Data", and third.** Today · Insights · **Data** · Settings.
+  The rename was overdue on its own terms: the tab holds the substance log, the
+  medication regimen, side effects and the raw imported catalogue, none of
+  which is a vital sign. `VitalsView` → `DataTabView`, `Features/Vitals/` →
+  `Features/Data/`. **File renames are free here** — the project uses
+  `PBXFileSystemSynchronizedRootGroup`, so no `pbxproj` edit is involved.
+- **`InputKind` is `DataDomain` for the input side.** *"This master input list
+  is now out of date, so many new things that could be input are missing, make
+  sure it gets updated every time a new input is in the app, also collapse this
+  into a sub menu because it will get too long."* Settings listed nine
+  grounding facts, hand-written, while the app accepted eight kinds of input
+  across four surfaces that each kept their own list. `weightGoal` shipped that
+  morning and was in none of them, so Body Composition asked for a fact the
+  settings screen had no way to set.
+  - `AddDataView` is generated from `InputGroup.allCases` × `InputKind`, and
+    Settings pushes to it — the sub-menu the user asked for.
+  - The Today `+` menu is `AddInputMenu`, from the same enum. Four `Bool`s of
+    sheet state became one `InputKind?`.
+  - `View.inputSheet(_:)` holds **one** exhaustive switch saying what each
+    input opens, so a new input reaches every surface at once.
+  - `ContributionRoute.inputKind` is exhaustive: a card route cannot exist
+    without a master-list entry.
+  - `GroundingKind.isEnteredDirectly` replaced the array of nine. `InputKindTests`
+    asserts every grounding kind is reachable and that no shipped model requires
+    a fact with no way in — **the test that would have caught `weightGoal`.**
+- **Side effects can be entered by hand** (`SideEffectEntrySheet`). They could
+  previously only arrive inside a Shotsy backup, so the app held a kind of data
+  it gave no way to add — the input-side twin of the display-side bug the
+  twelfth push closed.
+- The renewal dots ("Current for another 6 months") moved from Settings into
+  `GroundingDetailView` with the facts, rather than being lost in the collapse.
+
 **Twelfth push — the Vitals tab is generated from an enum, so it cannot go
 stale again.** The user: *"we've been importing more data, making new data,
 etc.. it should all be getting put into the vitals tab. Whenever we add new

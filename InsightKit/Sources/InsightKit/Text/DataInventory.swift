@@ -3,7 +3,7 @@ import Foundation
 /// What is actually in this person's data, as a report they can hand back.
 ///
 /// This exists to close a blind spot that has cost this project real time:
-/// nobody working on the app can see the user's Vitals tab, so every "what data
+/// nobody working on the app can see the user's Data tab, so every "what data
 /// do we have?" question has been answered from the *parsers* rather than from
 /// the data. That has been wrong before — circadian consistency sat recorded as
 /// blocked for several sessions on a bedtime that was in every payload and being
@@ -95,7 +95,7 @@ public enum DataInventory {
     }
 
     /// Everything imported but not yet modelled — the "Other data" section of the
-    /// Vitals tab. **This is the half nobody working on the app has ever seen**,
+    /// Data tab. **This is the half nobody working on the app has ever seen**,
     /// and the reason the report exists.
     static func rawRows(_ groups: [RawMetricGroup]) -> [Row] {
         groups.map { group in

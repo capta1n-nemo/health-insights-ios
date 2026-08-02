@@ -198,7 +198,10 @@ the place to look.
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
 - `Presentation/DataDomain.swift`
-  - `DataDomain` :27
+  - `DataDomain` :28
+- `Presentation/InputKind.swift`
+  - `InputGroup` :126
+  - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
 - `Presentation/LaunchNarration.swift`
@@ -299,7 +302,7 @@ the place to look.
   - `HealthInsightsApp` :4
 - `App/RootView.swift`
   - `RootView` :5
-  - `SyncActivityPill` :70
+  - `SyncActivityPill` :75
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
@@ -422,10 +425,13 @@ the place to look.
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :347
-  - `LastNightCard` :197
+  - `InsightCard` :309
+  - `LastNightCard` :159
   - `TodayView` :8
-  - `VitalsGlance` :272
+  - `VitalsGlance` :234
+- `Features/Data/DataTabView.swift`
+  - `DataTabView` :16
+  - `OtherDataDetailView` :286
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`
@@ -442,6 +448,12 @@ the place to look.
   - `GroundedSummary` :239
   - `GroundingKindList` :264
   - `ViewAndAddSection` :44
+- `Features/Inputs/AddDataView.swift`
+  - `AddDataView` :19
+  - `AddInputMenu` :133
+  - `InputSheet` :168
+  - `PushedInSheet` :216
+  - `SideEffectEntrySheet` :242
 - `Features/Insights/InsightDetailView.swift`
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`
@@ -480,9 +492,9 @@ the place to look.
   - `FullExport` :259
   - `OtherDataListView` :272
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :310
-  - `IntegrationRow` :211
-  - `IntegrationSummaryRow` :267
+  - `DisclaimerView` :259
+  - `IntegrationRow` :160
+  - `IntegrationSummaryRow` :216
   - `SettingsView` :4
 - `Features/Settings/ShotsyIntegrationView.swift`
   - `ShotsyIntegrationView` :12
@@ -492,7 +504,4 @@ the place to look.
   - `TroubleshootingView` :10
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :7
-- `Features/Vitals/VitalsView.swift`
-  - `OtherDataDetailView` :278
-  - `VitalsView` :8
 

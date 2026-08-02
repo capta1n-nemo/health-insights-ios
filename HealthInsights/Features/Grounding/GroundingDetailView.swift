@@ -24,6 +24,26 @@ struct GroundingDetailView: View {
         Set(unmetRequirements.map(\.kind))
     }
 
+    /// Renewal state per fact — "current for another 6 months", "worth
+    /// repeating". This used to be drawn in Settings' own hand-written list of
+    /// facts; when that list collapsed into the master input list, the state
+    /// came here with the facts rather than being dropped. It is the thing
+    /// `requirementStatuses` has always known and every caller but this one
+    /// threw away, so a value was invisible until the day it expired.
+    private var renewals: [GroundingKind: GroundingRenewal] {
+        Dictionary(uniqueKeysWithValues:
+            model.engine.groundingRenewals(profile: model.profile).map { ($0.kind, $0) })
+    }
+
+    private func colour(for state: GroundingRenewal.State) -> Color {
+        switch state {
+        case .current: return Theme.good
+        case .expiringSoon: return Theme.warn
+        case .stale: return Theme.bad
+        case .missing: return .secondary
+        }
+    }
+
     private var summary: ContributionSummary {
         ContributionSummary.facts(
             set: kinds.filter { !unmetKinds.contains($0) }.count,
@@ -79,11 +99,17 @@ struct GroundingDetailView: View {
                     // still used — what it has stopped buying is confidence. So
                     // it reads as "worth repeating", never as missing.
                     if let input {
-                        Text(input.isFresh()
-                             ? kind.formatted(input.value)
-                             : "\(kind.formatted(input.value)) · worth repeating")
+                        Text(kind.formatted(input.value))
                             .font(.caption)
                             .foregroundStyle(input.isFresh() ? Color.secondary : Theme.warn)
+                        if let renewal = renewals[kind] {
+                            HStack(spacing: 5) {
+                                Circle().fill(colour(for: renewal.state))
+                                    .frame(width: 6, height: 6)
+                                Text(renewal.sentence(asOf: Date()))
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                        }
                     } else if let rationale {
                         Text(rationale)
                             .font(.caption2).foregroundStyle(.tertiary)

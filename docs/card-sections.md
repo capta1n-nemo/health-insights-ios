@@ -730,10 +730,19 @@ old copy and stays hidden, so the placeholder-card rule survives. The
 Last-night tile joined the same truth: a stale night is titled "Yesterday's
 night" with a sync hint, not "Last night".
 | **Insights** | "Improve your health" · subtitle · score comparison · 5 trend tiles | `cadence == .trend && isWorthShowing` |
-| **Vitals** | `DataDomain.allCases`, in case order: 4 metric groups · Blood pressure · Substances · Medication · Side effects · Other data | rows, not cards |
+| **Data** (3rd tab) | `DataDomain.allCases`, in case order: 4 metric groups · Blood pressure · Substances · Medication · Side effects · Other data | rows, not cards |
+| **Settings ▸ Add or update data** | `InputGroup.allCases` → `InputKind` rows: About you · Log as it happens · Bring data in | the master input list |
 | **Settings ▸ Export my data** | inventory (Markdown) · full export (JSON) · browse the unmodelled | the development feedback loop |
 
-**Vitals is now generated from an enum, and that is the point.** The tab is the
+**Tab order and the rename, 2026-08-02.** Today · Insights · **Data** · Settings.
+Vitals was second and is now third and called Data, at the user's request. Both
+halves were overdue: the order reads as *now → what it means → everything
+underneath*, and the tab had stopped holding only vitals — it carries the
+substance log, the medication regimen, side effects and the raw imported
+catalogue, and `DataDomain` exists so that list keeps growing. `VitalsView` is
+`DataTabView`, in `Features/Data/`.
+
+**Data is now generated from an enum, and that is the point.** The tab is the
 app's answer to *"what does this thing actually know about me"*, and that claim
 only holds if it is complete — which it kept not being, because each section was
 hand-written and completeness depended on somebody remembering. The substance
@@ -742,7 +751,7 @@ imported side effects were written to the store and listed nowhere. The user's
 rule, 2026-08-02: **"whenever we add new data, it must have an entry in that
 tab."**
 
-So `VitalsView.body` is `ForEach(DataDomain.allCases)` into an **exhaustive**
+So `DataTabView.body` is `ForEach(DataDomain.allCases)` into an **exhaustive**
 `switch`, and `DataDomain` (InsightKit, `Presentation/DataDomain.swift`) carries
 the section's title and summary. A new kind of data is a compile error in the
 app target until it has a section. Same mechanism as `MetricType`'s eight
@@ -755,6 +764,28 @@ series; a domain is a *shape* of data — a dated log, a set of paired readings,
 regimen with a decay curve — and most of these are not series at all, which is
 exactly why they kept falling out of a screen built around series. Composition
 scans, when they land, add a case and the build tells you where to put it.
+
+**The input side got the same treatment: `InputKind`.** `DataDomain` guarantees
+every kind of data can be *seen*; `InputKind` (InsightKit,
+`Presentation/InputKind.swift`) guarantees every kind can be *given*. The app
+had four input surfaces — Settings' "Your details", the Today `+` menu, a card's
+"View & add", and a Settings row for the blood-test photo — each a hand-written
+list, so each went stale separately. Settings offered nine facts while the app
+accepted fourteen kinds of input; `weightGoal` shipped and appeared in none of
+them. The user: *"make sure it gets updated every time a new input is in the
+app, also collapse this into a sub menu because it will get too long."*
+
+- `InputKind.allCases` × `InputGroup` generates `AddDataView`, the sub-menu
+  Settings now pushes to instead of listing facts inline.
+- The Today `+` menu is `AddInputMenu`, from the same enum.
+- `View.inputSheet(_:)` holds **one** exhaustive switch saying what each input
+  opens, so a new input works on every surface at once.
+- `ContributionRoute.inputKind` is exhaustive, so a card route cannot exist
+  without a master-list entry.
+- `GroundingKind.isEnteredDirectly` replaced Settings' array of nine. The one
+  `false` is diastolic, which arrives with systolic.
+- Side effects became enterable by hand (`SideEffectEntrySheet`) — they could
+  previously only arrive inside a Shotsy backup.
 
 **Today lost "Improve your insights" on 2026-08-01.** `GroundingPromptBanner`
 listed the same grounding gaps that `SuggestionEngine.unlocks` already emits as

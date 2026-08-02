@@ -2,10 +2,18 @@ import SwiftUI
 import Charts
 import InsightKit
 
-/// The Vitals tab — the "everything" data browser for people who want to dig.
+/// The Data tab — the "everything" browser for people who want to dig.
+///
+/// Called Vitals until 2026-08-02, and renamed because it had stopped being
+/// true: it holds the substance log, the medication regimen, side effects and
+/// the raw imported catalogue as well as the vitals, and `DataDomain` exists
+/// precisely so that list keeps growing. It also moved to third, at the user's
+/// request — Today, Insights, Data, Settings reads as now, what it means, and
+/// then everything underneath.
+///
 /// Lists every metric that has data, grouped, with its latest value and how many
 /// sources report it; tapping opens the multi-source overlay in `MetricDetailView`.
-struct VitalsView: View {
+struct DataTabView: View {
     @Environment(AppModel.self) private var model
 
     private struct MetricGroup: Identifiable {
@@ -93,7 +101,7 @@ struct VitalsView: View {
                     }
                 }
             }
-            .navigationTitle("Vitals")
+            .navigationTitle("Data")
             .refreshable { await model.refresh() }
         }
     }

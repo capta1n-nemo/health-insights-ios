@@ -5,21 +5,18 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     // Bumped after connect/disconnect to re-read integration status.
     @State private var refreshToken = 0
-    @State private var groundingKind: GroundingKind?
 
     var body: some View {
         NavigationStack {
             List {
                 integrationsSection
-                profileSection
-                importSection
+                inputSection
                 intelligenceSection
                 exportSection
                 privacySection
                 aboutSection
             }
             .navigationTitle("Settings")
-            .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
         }
     }
 
@@ -62,68 +59,41 @@ struct SettingsView: View {
         .id(refreshToken)
     }
 
-    private var profileSection: some View {
+    /// One row, not a list.
+    ///
+    /// This was nine hand-listed grounding facts plus a separate row for the
+    /// blood-test photo — a list that had to be edited by hand every time an
+    /// input shipped, and wasn't. `weightGoal` landed the same morning the user
+    /// pointed at it and appeared nowhere. It is now a sub-menu generated from
+    /// `InputKind`, at the user's request: *"collapse this into a sub menu
+    /// because it will get too long."*
+    ///
+    /// The renewal dots that used to be here moved with the facts — they live
+    /// on the rows inside `GroundingDetailView`, which is where the facts now
+    /// are. Two summaries stay: how many are set, and where you stand on each
+    /// other input.
+    private var inputSection: some View {
         Section {
-            ForEach(profileKinds, id: \.self) { kind in
-                Button {
-                    groundingKind = kind
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(kind.displayName).foregroundStyle(.primary)
-                            Spacer()
-                            Text(valueLabel(kind)).foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right").font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                        // Where the fact stands, not just what it is.
-                        // `requirementStatuses` has always known this and every
-                        // caller threw away everything but `.missing`, so a value
-                        // was invisible until the day it expired.
-                        if let renewal = renewals[kind] {
-                            HStack(spacing: 5) {
-                                Circle().fill(colour(for: renewal.state))
-                                    .frame(width: 6, height: 6)
-                                Text(renewal.sentence(asOf: Date()))
-                                    .font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+            NavigationLink {
+                AddDataView()
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Add or update data", systemImage: "plus.circle")
+                    Text("\(groundingSetCount) of \(GroundingKind.directlyEntered.count) details set")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         } header: {
-            Text("Your details")
+            Text("Your data")
         } footer: {
-            Text("These are the one-off facts the clinical models need. A value past its window keeps being used — it's still better than a population average — but it stops the estimate counting as current.")
+            Text("Every way to give the app something: your details, cuff readings, substances, medication and doses, side effects, a photographed blood test, and files shared from other apps.")
         }
     }
 
-    /// Renewal state per fact, computed once for the whole section.
-    private var renewals: [GroundingKind: GroundingRenewal] {
-        Dictionary(uniqueKeysWithValues:
-            model.engine.groundingRenewals(profile: model.profile).map { ($0.kind, $0) })
+    private var groundingSetCount: Int {
+        GroundingKind.directlyEntered.filter { model.profile.value($0) != nil }.count
     }
 
-    private func colour(for state: GroundingRenewal.State) -> Color {
-        switch state {
-        case .current: return Theme.good
-        case .expiringSoon: return Theme.warn
-        case .stale: return Theme.bad
-        case .missing: return .secondary
-        }
-    }
-
-    private var importSection: some View {
-        Section {
-            NavigationLink {
-                ImportLabView()
-            } label: {
-                Label("Import blood test (photo)", systemImage: "doc.text.viewfinder")
-            }
-        } footer: {
-            Text("Read on-device — take or choose a photo of a pathology report and confirm the values. Nothing is uploaded.")
-        }
-    }
 
     /// The development feedback loop: hand back what the app has actually
     /// imported, so a decision about which signals deserve a card is made
@@ -136,7 +106,7 @@ struct SettingsView: View {
                 Label("Export my data", systemImage: "square.and.arrow.up.on.square")
             }
         } footer: {
-            Text("An inventory of every signal in your Vitals tab — including the imported fields no card reads yet — small enough to send in a message. Stays on this phone until you share it, and never includes account details.")
+            Text("An inventory of every signal in your Data tab — including the imported fields no card reads yet — small enough to send in a message. Stays on this phone until you share it, and never includes account details.")
         }
     }
 
@@ -184,27 +154,6 @@ struct SettingsView: View {
         }
     }
 
-    private let profileKinds: [GroundingKind] = [
-        .dateOfBirth, .biologicalSex, .totalCholesterol, .hdlCholesterol,
-        .currentSmoker, .hasDiabetes, .onBPMedication, .score2Region, .cuffSystolic
-    ]
-
-    private func valueLabel(_ kind: GroundingKind) -> String {
-        guard let v = model.profile.value(kind) else { return "Add" }
-        switch kind {
-        case .dateOfBirth:
-            let age = model.profile.age() ?? 0
-            return "\(Int(age)) yrs"
-        case .biologicalSex: return v == 0 ? "Male" : "Female"
-        case .currentSmoker, .hasDiabetes, .onBPMedication: return v >= 0.5 ? "Yes" : "No"
-        case .score2Region: return model.profile.score2Region.displayName
-        case .totalCholesterol, .hdlCholesterol: return String(format: "%.1f mmol/L", v)
-        case .cuffSystolic:
-            let d = model.profile.value(.cuffDiastolic) ?? 0
-            return "\(Int(v))/\(Int(d))"
-        default: return "\(Int(v))"
-        }
-    }
 }
 
 /// A single integration row with a connect / disconnect control and live status.

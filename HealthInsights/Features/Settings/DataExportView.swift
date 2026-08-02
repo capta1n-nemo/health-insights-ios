@@ -2,7 +2,7 @@ import SwiftUI
 import InsightKit
 import UniformTypeIdentifiers
 
-/// Export everything the Vitals tab knows about, so it can be handed back to
+/// Export everything the Data tab knows about, so it can be handed back to
 /// whoever is building the app.
 ///
 /// This is a development feedback loop, and it exists because of a specific
@@ -151,7 +151,7 @@ struct DataExportView: View {
             } header: {
                 Text("What's in here")
             } footer: {
-                Text("Everything the Vitals tab shows, including the imported fields under \"Other data\" that no card reads yet. Your own health data — it stays on this phone until you share it, and it never contains account details or tokens.")
+                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. Your own health data — it stays on this phone until you share it, and it never contains account details or tokens.")
             }
 
             Section {
@@ -267,7 +267,7 @@ private struct FullExport: Transferable {
 
 /// A plain list of the unmodelled identifiers, newest-reporting first.
 ///
-/// The Vitals tab already has this, but reaching it means scrolling past every
+/// The Data tab already has this, but reaching it means scrolling past every
 /// modelled metric; here it is the point of the screen.
 private struct OtherDataListView: View {
     let groups: [RawMetricGroup]

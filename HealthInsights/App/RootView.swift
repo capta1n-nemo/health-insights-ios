@@ -12,11 +12,16 @@ struct RootView: View {
                 TodayView()
                     .tabItem { Label("Today", systemImage: "sun.max.fill") }
 
-                VitalsView()
-                    .tabItem { Label("Vitals", systemImage: "waveform.path.ecg") }
-
                 InsightsListView()
                     .tabItem { Label("Insights", systemImage: "chart.xyaxis.line") }
+
+                // Third, and called Data — the user's ordering, 2026-08-02. It
+                // reads as a progression: now, what it means, then everything
+                // underneath. "Vitals" had also stopped being true: the tab
+                // holds substances, medication, side effects and the raw
+                // imported catalogue, none of which is a vital sign.
+                DataTabView()
+                    .tabItem { Label("Data", systemImage: "waveform.path.ecg") }
 
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
