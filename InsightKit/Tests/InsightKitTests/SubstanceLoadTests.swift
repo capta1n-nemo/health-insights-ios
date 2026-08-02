@@ -212,12 +212,24 @@ final class SubstanceWatchedMetricsTests: XCTestCase {
     }
 
     /// Every watched metric must declare a direction, or the detail chart can't
-    /// say which way is better. Temperature is the deliberate exception —
-    /// nearest the baseline is best, and neither end is an improvement.
+    /// say which way is better — **unless it is one of the named few where
+    /// nearest your own normal is the good place**, which is a real answer
+    /// rather than a missing one.
+    ///
+    /// The exemption was `family != .thermal` until 2026-08-02, a proxy for the
+    /// category that stopped working the moment blood glucose joined the
+    /// watched list: harm at both ends, exactly like a temperature, and not
+    /// thermal. `nearestNormalIsBest` names the category outright, so a new
+    /// metric has to be put in it deliberately.
     func testEveryWatchedMetricDeclaresItsDirection() {
-        for metric in SubstanceResponseAnalyzer.comparedMetrics where metric.family != .thermal {
-            XCTAssertNotNil(SubstanceResponseAnalyzer.higherIsBetter(metric),
-                            "\(metric) has no better direction")
+        for metric in SubstanceResponseAnalyzer.comparedMetrics {
+            if SubstanceResponseAnalyzer.nearestNormalIsBest.contains(metric) {
+                XCTAssertNil(SubstanceResponseAnalyzer.higherIsBetter(metric),
+                             "\(metric) is a nearest-normal metric and must not claim a better end")
+            } else {
+                XCTAssertNotNil(SubstanceResponseAnalyzer.higherIsBetter(metric),
+                                "\(metric) has no better direction")
+            }
         }
     }
 

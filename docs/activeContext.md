@@ -97,6 +97,36 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Fourth push — Substance Impact rebuilt as harm reduction (user ruling).**
+The user's words are quoted in full in `docs/card-sections.md` ▸ "Harm
+reduction"; the short version is that the dial must read **measured impact,
+never disapproval of use**, and their card read 0 on a 3-vs-5-reading blood
+pressure comparison. Three faults, three fixes, all shipped:
+
+- `worstResponseShare` 0.45 / `breadthShare` 0.55 — one signal can no longer
+  zero the card; only a broad response reaches the bottom. The combiner became
+  **linear**, so `penaltyShares` is exact by inspection (Euler's theorem no
+  longer needed — the old root-sum-square is gone).
+- `severity` subtracts one standard error and discounts by the thinner pool
+  against `fullEvidencePairs` (5). Thin findings are shown, named and
+  headlined — just not scored at full strength — and the driver line says
+  "on 3 readings after use vs 5 clean".
+- `watched` went 11 → 26 metrics. **Widening is safe by construction**: a quiet
+  signal lowers the breadth mean, so more vitals can only raise the score
+  unless they moved. Exclusions are documented (body comp/VO₂max can't move in
+  18 h; sleep onset is a decision, not an effect).
+- `exposureCeilingUnmeasured` 55 — heavy use with no biometrics reads 45, not
+  0, because a log without readings is evidence of use and none of harm.
+- Two pre-existing guardrails earned their keep in this change, both catching
+  real gaps: every watched metric needs a driver-line name (16 were missing,
+  and would have been measured then silently dropped) and a legend direction.
+  The second's `family != .thermal` exemption was a proxy that broke when
+  blood glucose joined — harm at both ends, not thermal — so it is now the
+  named set `nearestNormalIsBest`.
+- `testTheUsersOwnCardNoLongerReadsZero` reconstructs their export's eight
+  rows exactly; the card moves 0 → ~45 with BP still the top row at ~50%
+  instead of 88.6%.
+
 **Third push of the afternoon (the user's rulings).** Answers came back:
 morning re-sleep IS one night's sleep, F15 traced-and-fixed, AI-in-score
 direction chosen (below). What shipped:

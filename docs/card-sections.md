@@ -256,11 +256,14 @@ proportions*, and the two are not the same claim:
   for the length of one commit. Both are `weightedAverage` now — the second half
   of the same day gave their supporting signals real shares, so the primary
   measurement no longer has all of it. See the section below.)*
-- **Substance Impact** is a worst-offender-dominant pool, and a pool of that
-  shape divides **exactly**: the combiner `worst + 0.35·√(Σ rest²)` is
-  homogeneous of degree one, so by Euler's theorem each penalty's own
-  contribution sums to the whole with no approximation.
-  `SubstanceResponseAnalyzer.penaltyShares`.
+- **Substance Impact** divides **exactly**, and since 2026-08-02 it does so by
+  inspection: the combiner is
+  `0.45·worst + 0.55·mean(severities) + exposure`, which is *linear* in the
+  severities, so each input's share is its own points over the total.
+  `SubstanceResponseAnalyzer.penaltyShares`. *(It was
+  `worst + 0.35·√(Σ rest²)` — exact too, but by Euler's theorem, and a card
+  whose whole job is to be believed should prefer arithmetic a sceptical
+  reader can check.)*
 - **Heart Attack & Stroke Risk** runs published equations, which is a reason the
   shares are not proportions anyone chose — not a reason they cannot be
   reported. `RiskAttribution` holds one factor at its optimal value and re-runs
@@ -392,12 +395,58 @@ statement; the shares are what "How this is weighted" draws._
 | Readiness | `weightedAverage` | six fixed weights, renormalised over what had data | the further vitals the scan covers, scored by the scan's own `normality` |
 | Sleep | `weightedAverage` | ten terms summing to 1 (latency joined 2026-08-01, funded from duration and consistency) — one `Weight` table read by the score and `contributors` both | — none; every input is already weighted |
 | Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR; heart rate when the day is too thin to count exertion |
-| Substance Impact | `worstOffender` | `penaltyShares` — exact, by Euler's theorem, over `effectivePenalties`: since 2026-08-01 exposure alone caps at 25 once ≥3 signals are measured, so the dial reads the body's *measured* response rather than zeroing on usage (user direction; the load stands alone only while nothing is measured). The comparison itself is **contemporaneous** — both sides drawn from the last 90 days (`comparisonWindowDays`) — after the user's card export showed a six-year cuff history posing as the clean baseline for a fortnight of logs: a BP that rose over years reached the card as "+21 mmHg after use" at 87% of the score | — the pool already covers every signal |
+| Substance Impact | `worstOffender` | `penaltyShares` — exact and linear (see above). **The dial is measured impact, never disapproval of use** (user ruling, 2026-08-02 — see "Harm reduction" below): one signal is bounded at `worstResponseShare` 0.45 of the deduction, breadth carries the other 0.55 as a mean over everything measured, thin pools are discounted by `severity`, and exposure alone is capped at 25 once ≥3 signals are measured (55 when nothing is). The comparison is **contemporaneous** — both sides from the last 90 days (`comparisonWindowDays`) — after a six-year cuff history posed as the clean baseline for a fortnight of logs | — the pool already covers every signal |
 | Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
 | Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's exercise dose (0.20, `ActivityDoseModel`, WHO 2020) | strain, HR recovery, walking HR, resting HR, steps, active energy — plus exercise minutes only in a week with too few recorded days to judge a dose |
 | Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |
 | Blood Pressure | route-dependent — see below | | |
 | Body Composition | `weightedAverage` | body fat, or body mass through BMI | lean, muscle, bone, water |
+
+### Harm reduction: what Substance Impact's number is for
+
+_Set by the user on 2026-08-02, on seeing their own card read 0:_ **"Just
+because I had stimulants doesn't mean it should be 0. This is harm reduction —
+it's about letting people know an honest impact of drug usage, not just 'drugs
+are bad'. Measure the impact to me and tell me when I'm overdoing it. No big
+impact? Your score will be quite high. If you've had heaps and there is now a
+big impact to all your metrics, then yes, lower score. I want almost every
+vital to go into this, so it can actually see the real impact drugs have to me
+as an individual, not just general doctor guidance that would draconianly say
+'you've had something, now you're at 0%'."**
+
+Three faults produced that 0, and each has its own fix:
+
+1. **One signal could annihilate the dial.** A single response at two standard
+   deviations took the full 100 off, so the user's systolic row zeroed a card
+   whose seven other signals were untouched. `worstResponseShare` (0.45) now
+   bounds what any single row can do; `breadthShare` (0.55) spreads the rest
+   over the **mean** severity of everything measured. Reaching zero requires a
+   body responding across the board — which is what the user asked for, and
+   what a broad response actually means.
+2. **A three-reading pool counted like a three-hundred-reading one.** Their
+   systolic comparison was 3 readings after use against 5 clean. `severity`
+   now subtracts one standard error (`√(1/n₁+1/n₂)`, in SDs) from the observed
+   effect size and discounts by the thinner pool against `fullEvidencePairs`
+   (5). The row is still shown, still named, still headlined if it is the
+   largest thing on the card — it simply cannot take its full toll until the
+   readings back it, and the driver line says so in words.
+3. **Only eleven vitals were watched.** Now nearly every one that can move
+   inside the after-use window: heart rate, walking heart rate, both blood
+   pressures, sleep architecture (efficiency, deep, REM, latency), core
+   temperature, next-day capacity (steps, active energy, exercise minutes,
+   strain), perfusion, glucose and gait. **Widening is safe by construction** —
+   a quiet signal lowers the breadth mean, so adding vitals can only raise the
+   score unless they actually moved (`testWatchingMoreQuietSignalsNeverLowersTheScore`).
+
+Still excluded, and why: body composition, VO₂max, vascular age and height
+cannot move within 18 hours, so a difference across that window measures the
+passage of time rather than a response; **sleep onset** is when you chose to go
+to bed, which is a decision rather than something the substance did to you.
+
+Exposure keeps a seat — *"tell me when I'm overdoing it"* — but never the whole
+bench: `exposureCeilingUnmeasured` (55) means a heavy fortnight with no
+biometrics at all reads 45 rather than 0, because a log with no readings is
+evidence of **use** and none of **harm**.
 
 **Blood Pressure has three routes, and which one is live is what the section says:**
 

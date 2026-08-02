@@ -221,8 +221,8 @@ final class ScoreAttributionTests: XCTestCase {
               isAdverse: true, baselineSD: 6 / effectSize)
     }
 
-    /// The combiner is homogeneous of degree one in the penalties, so the parts
-    /// sum to the whole exactly — no normalisation, no approximation.
+    /// The combiner is linear in the severities, so the parts sum to the whole
+    /// exactly — no normalisation, no approximation, and readable off the page.
     func testPenaltySharesAccountForTheDeductionExactly() {
         let effects = [effect(.restingHeartRate, effectSize: 1.6),
                        effect(.heartRateVariabilityRMSSD, effectSize: 0.8),
@@ -236,10 +236,12 @@ final class ScoreAttributionTests: XCTestCase {
         let score = SubstanceResponseAnalyzer.score(load: load, effects: effects) ?? 0
         let deduction = 100 - score
         XCTAssertGreaterThan(deduction, 0)
-        let worst = shares.max() ?? 0
-        XCTAssertEqual(worst * deduction,
-                       SubstanceResponseAnalyzer.severity(effects[0]), accuracy: 1e-6,
-                       "the largest response contributes itself, whole")
+        let severities = effects.map(SubstanceResponseAnalyzer.severity)
+        let worstSeverity = try? XCTUnwrap(severities.max())
+        let expectedWorst = SubstanceResponseAnalyzer.worstResponseShare * (worstSeverity ?? 0)
+            + SubstanceResponseAnalyzer.breadthShare * (worstSeverity ?? 0) / Double(effects.count)
+        XCTAssertEqual((shares.max() ?? 0) * deduction, expectedWorst, accuracy: 1e-6,
+                       "the largest response contributes its own bounded share plus its part of the breadth term")
     }
 
     func testTheWorstResponseTakesTheLargestShare() {
@@ -285,20 +287,26 @@ final class ScoreAttributionTests: XCTestCase {
         let severe = [effect(.restingHeartRate, effectSize: 2.0),
                       benign(.heartRateVariabilityRMSSD), benign(.sleepDurationHours)]
         let bad = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: severe))
-        XCTAssertLessThan(bad, 25, "a full-strength measured response is still the finding")
+        XCTAssertLessThan(bad, 40, "a full-strength measured response is still the finding")
         XCTAssertLessThan(bad, heavy)
     }
 
     /// With nothing measured, exposure is the only evidence there is, and a
     /// heavy fortnight must still read as one — the cap needs measurement to
-    /// earn it.
-    func testAnUnmeasuredHeavyFortnightStillScoresLow() throws {
+    /// earn it. **But it can no longer read as annihilation**: the user's
+    /// ruling of 2026-08-02 is that a log with no biometrics is evidence of use
+    /// and none of harm, so the worst it can say is "you have had a lot lately
+    /// and nothing here can see what it did".
+    func testAnUnmeasuredHeavyFortnightScoresLowButNotZero() throws {
         let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: []))
-        XCTAssertEqual(score, 0)
-        // One weakly-paired signal discounts only a third of the way.
+        XCTAssertEqual(score, 100 - SubstanceResponseAnalyzer.exposureCeilingUnmeasured,
+                       accuracy: 1e-9)
+        XCTAssertGreaterThan(score, 0, "use alone is never the whole of this number")
+        // One weakly-paired signal discounts only part of the way.
         let one = try XCTUnwrap(SubstanceResponseAnalyzer.score(
             load: 100, effects: [benign(.restingHeartRate)]))
-        XCTAssertLessThan(one, 40, "one measured signal must not fully discount exposure")
+        XCTAssertLessThan(one, 60, "one measured signal must not fully discount exposure")
+        XCTAssertGreaterThan(one, score, "…but it does discount it")
     }
 
     /// The defect the user's own card export found: their cuff readings span
@@ -349,6 +357,127 @@ final class ScoreAttributionTests: XCTestCase {
                        SubstanceResponseAnalyzer.exposureCeilingWhenMeasured,
                        accuracy: 1e-6)
     }
+
+    // MARK: Harm reduction, not disapproval (user direction, 2026-08-02)
+
+    /// An effect measured on `after` versus `clean` readings, at a given size.
+    private func pooled(_ metric: MetricType, effectSize: Double,
+                        after: Int, clean: Int) -> SubstanceResponseAnalyzer.MetricEffect {
+        .init(metric: metric, baseline: 60, afterUse: 66, deltaAbsolute: 6,
+              deltaPercent: 10, affectedNights: after, baselineNights: clean,
+              isAdverse: true, baselineSD: 6 / effectSize)
+    }
+
+    /// **The card the user objected to.** Their systolic row compared 3
+    /// readings after use with 5 clean ones, reported 2.9 SD, took 88.6% of the
+    /// score and zeroed the dial — while seven other signals sat untouched.
+    /// One signal, however extreme, must never annihilate this number.
+    func testOneExtremeSignalCannotZeroTheDial() throws {
+        var effects = [pooled(.bloodPressureSystolic, effectSize: 2.9, after: 3, clean: 5)]
+        for metric in [MetricType.restingHeartRate, .heartRateVariabilityRMSSD,
+                       .sleepDurationHours, .respiratoryRate, .oxygenSaturation,
+                       .skinTemperature, .stepCount] {
+            effects.append(benign(metric))
+        }
+        let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: effects))
+        XCTAssertGreaterThan(score, 30,
+                             "one thinly-evidenced response beside seven quiet signals is not a zero")
+
+        // And it is still clearly the finding — the largest share by far.
+        let shares = SubstanceResponseAnalyzer.penaltyShares(load: 100, effects: effects)
+        XCTAssertEqual(shares.firstIndex(of: shares.max() ?? 0), 0)
+        XCTAssertLessThan(shares[0], 0.886,
+                          "…but it no longer carries almost the whole score")
+    }
+
+    /// The philosophy in one assertion: **the same response, measured across
+    /// everything, is what takes the number down.**
+    func testABroadResponseScoresFarBelowANarrowOne() throws {
+        let strong = { (m: MetricType) in self.pooled(m, effectSize: 2.5, after: 20, clean: 40) }
+        let metrics: [MetricType] = [.restingHeartRate, .heartRateVariabilityRMSSD,
+                                     .sleepDurationHours, .respiratoryRate,
+                                     .oxygenSaturation, .stepCount]
+        let narrow = [strong(.restingHeartRate)] + metrics.dropFirst().map(benign)
+        let broad = metrics.map(strong)
+
+        let narrowScore = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 40, effects: narrow))
+        let broadScore = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 40, effects: broad))
+        XCTAssertLessThan(broadScore, narrowScore - 20,
+                          "a body responding across the board is the low score, not a single row")
+        XCTAssertLessThan(broadScore, 20, "…and it does reach the bottom")
+    }
+
+    /// *"No big impact? Your score will be quite high."* Heavy logged use with
+    /// every measured signal steady must read as high.
+    func testHeavyUseWithNoMeasuredImpactStaysHigh() throws {
+        let quiet = [MetricType.restingHeartRate, .heartRateVariabilityRMSSD,
+                     .sleepDurationHours, .respiratoryRate, .stepCount].map(benign)
+        let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: quiet))
+        XCTAssertGreaterThan(score, 70,
+                             "the body is the subject; a heavy log with no response is not a low score")
+    }
+
+    /// Thin evidence is discounted, not hidden — the same effect on more
+    /// readings must cost more.
+    func testTheSameEffectCostsMoreWhenBetterEvidenced() {
+        let thin = pooled(.bloodPressureSystolic, effectSize: 2.5, after: 2, clean: 3)
+        let solid = pooled(.bloodPressureSystolic, effectSize: 2.5, after: 30, clean: 60)
+        XCTAssertLessThan(SubstanceResponseAnalyzer.severity(thin),
+                          SubstanceResponseAnalyzer.severity(solid))
+        XCTAssertGreaterThan(SubstanceResponseAnalyzer.severity(thin), 0,
+                             "a thin finding is still a finding — discounted, never erased")
+    }
+
+    /// Adding a vital that does not respond can only *help* the score, which is
+    /// what makes widening the watched list safe.
+    func testWatchingMoreQuietSignalsNeverLowersTheScore() throws {
+        let base = [pooled(.restingHeartRate, effectSize: 2.0, after: 10, clean: 20)]
+        let widened = base + [benign(.stepCount), benign(.sleepRemMinutes),
+                              benign(.walkingAsymmetry)]
+        let narrow = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 20, effects: base))
+        let broad = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 20, effects: widened))
+        XCTAssertGreaterThanOrEqual(broad, narrow)
+    }
+
+    /// **The user's own card, from the model-internals export of 2026-08-02.**
+    /// Every row is their real pool: the systolic comparison is 3 readings
+    /// after use against 5 clean, at 2.9 SD, and it scored the card 0 while
+    /// seven other signals sat quiet. Reconstructed here so the number that
+    /// prompted the rewrite can never come back.
+    func testTheUsersOwnCardNoLongerReadsZero() throws {
+        func row(_ metric: MetricType, delta: Double, sd: Double,
+                 after: Int, clean: Int, adverse: Bool) -> SubstanceResponseAnalyzer.MetricEffect {
+            .init(metric: metric, baseline: 100, afterUse: 100 + delta,
+                  deltaAbsolute: delta, deltaPercent: delta,
+                  affectedNights: after, baselineNights: clean,
+                  isAdverse: adverse, baselineSD: sd)
+        }
+        let effects = [
+            row(.restingHeartRate, delta: 1.0, sd: 7.9, after: 4, clean: 111, adverse: true),
+            row(.heartRateVariabilityRMSSD, delta: 3.6, sd: 22.1, after: 2, clean: 65, adverse: false),
+            row(.skinTemperatureDeviation, delta: -0.2, sd: 0.6, after: 2, clean: 61, adverse: false),
+            row(.skinTemperature, delta: -0.2, sd: 0.6, after: 2, clean: 61, adverse: false),
+            row(.sleepDurationHours, delta: 0.2, sd: 2.3, after: 4, clean: 125, adverse: false),
+            row(.respiratoryRate, delta: 0.8, sd: 2.4, after: 68, clean: 160, adverse: true),
+            row(.oxygenSaturation, delta: -0.2, sd: 0.5, after: 4, clean: 117, adverse: true),
+            row(.bloodPressureSystolic, delta: 31.5, sd: 10.8, after: 3, clean: 5, adverse: true)
+        ]
+        let score = try XCTUnwrap(SubstanceResponseAnalyzer.score(load: 100, effects: effects))
+        XCTAssertGreaterThan(score, 30, "this card read 0; a single thin BP row must not do that")
+        XCTAssertLessThan(score, 70, "…and a real +31 mmHg response is still a real finding")
+
+        // Blood pressure is still the top row, and still the headline — it is
+        // simply no longer almost the entire score.
+        let shares = SubstanceResponseAnalyzer.penaltyShares(load: 100, effects: effects)
+        let bpShare = shares[7]
+        XCTAssertEqual(shares.firstIndex(of: shares.max() ?? 0), 7)
+        XCTAssertLessThan(bpShare, 0.7, "was 88.6% of the score")
+        XCTAssertGreaterThan(bpShare, 0.2, "and must remain the finding it is")
+    }
+
+    // (Legend directions for the watched pool are pinned by
+    // `SubstanceWatchedMetricsTests.testEveryWatchedMetricDeclaresItsDirection`,
+    // against `nearestNormalIsBest`.)
 
     // MARK: - Body Composition
 

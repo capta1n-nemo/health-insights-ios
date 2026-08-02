@@ -258,7 +258,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :521
+  - `SubstanceWindow` :751
 - `Text/CardStateExport.swift`
   - `CardStateExport` :26
 - `Text/DataInventory.swift`
