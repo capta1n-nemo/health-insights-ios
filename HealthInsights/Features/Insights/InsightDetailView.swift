@@ -433,7 +433,8 @@ struct InsightDetailView: View {
         // that judgement belongs.
         return InsightSection(
             title: "What's driving this",
-            trailing: routine.isEmpty ? nil : "\(lines.count) signals",
+            trailing: routine.isEmpty ? nil
+                : "\(lines.count) \(SectionCaveat.plural(lines.count, "signal"))",
             caveat: .none,
             expansion: expansion(preview: placeholder?.headline)
         ) {
@@ -814,7 +815,11 @@ struct InsightDetailView: View {
             let reason = SectionPlaceholder.needsInput(
                 subject: "How your heart responds",
                 what: "a recorded workout, which is where a recovery reading "
-                    + "comes from, plus a few days of resting rate and variability")
+                    + "comes from, plus a few days of resting rate and variability",
+                // Not a grounding fact either — nothing under "View & add" can
+                // record a workout.
+                remedy: "record a workout with your watch and this fills in on "
+                    + "the next sync")
             InsightSection(title: "How your heart responds", trailing: nil,
                            caveat: .none,
                            expansion: expansion(preview: reason.headline)) {
@@ -916,11 +921,30 @@ struct InsightDetailView: View {
         }
         var placeholder: SectionPlaceholder?
         if standing == nil {
-            // Without an age and a sex there is no norm table to pick, and that
-            // is the one gap on this section the reader can close today.
-            placeholder = SectionPlaceholder.needsInput(
-                subject: "Comparing you with other people",
-                what: "your date of birth and sex")
+            if model.profile.age() == nil || model.profile.sex == nil {
+                // Without an age and a sex there is no norm table to pick, and
+                // that is the one gap on this section the reader can close
+                // today. The remedy must be a section this card actually has:
+                // the daily cards render no "View & add" at all, and pointing a
+                // reader at a section that isn't on the screen is the same
+                // failure as pointing at one that says "All set".
+                placeholder = SectionPlaceholder.needsInput(
+                    subject: "Comparing you with other people",
+                    what: "your date of birth and sex",
+                    remedy: contributionRoutes.isEmpty
+                        ? "add them under \"View & add\" on the Heart Health card"
+                        : "see \"View & add\" near the bottom of this card")
+            } else {
+                // `evaluate` also returns nil when it was handed no metrics at
+                // all. The profile is set, so claiming it isn't would be false
+                // — this arm exists so a transient empty state can never borrow
+                // the missing-details copy.
+                placeholder = SectionPlaceholder.notComputable(
+                    subject: "Comparing you with other people",
+                    because: "needs at least one of this card's signals to have "
+                        + "a reading first. This fills in on its own as data "
+                        + "arrives.")
+            }
         }
         let drawn = standing?.standings ?? []
         let unNormed = standing?.unNormed ?? []
@@ -1001,12 +1025,24 @@ struct InsightDetailView: View {
             VitalSignsCheck.evaluate(samples: model.samples,
                                      events: model.vitalEvents)
         }
-        let panel = VitalDeparturePanel.from(
-            scan,
-            limitedTo: insightID == .readiness
-                ? nil : resolvedContributions(result).metrics)
+        let cardMetrics = insightID == .readiness
+            ? nil : resolvedContributions(result).metrics
+        let panel = VitalDeparturePanel.from(scan, limitedTo: cardMetrics)
         var placeholder: SectionPlaceholder?
-        if panel.isEmpty {
+        if let cardMetrics, Set(cardMetrics).isDisjoint(with: VitalSignsCheck.coveredMetrics) {
+            // Not a history problem and never will be: the scan watches
+            // point-in-time vitals, and nothing this card reads is one. Saying
+            // "not enough history … arrives on its own" here was two false
+            // claims under a legend already quoting each signal's SD from
+            // baseline — the departure the reader wants is on this same screen.
+            placeholder = SectionPlaceholder.notComputable(
+                subject: "This card's signals",
+                because: "aren't among the vitals the daily scan watches — it "
+                    + "covers point-in-time readings like heart rate, blood "
+                    + "pressure and temperature. How far each of this card's "
+                    + "signals sits from your own normal is already shown "
+                    + "beside it under \"What goes into this\".")
+        } else if panel.isEmpty {
             placeholder = SectionPlaceholder.notComputable(
                 subject: "This card's signals",
                 because: "need enough of your own history to have a normal "
@@ -1119,7 +1155,12 @@ struct InsightDetailView: View {
         if memoisedSplit == nil {
             let reason = SectionPlaceholder.needsInput(
                 subject: "The split of your weight",
-                what: "a scale that reports body fat alongside your weight")
+                what: "a scale that reports body fat alongside your weight",
+                // Not a grounding fact, so "View & add" can't close this gap —
+                // a smart scale connects under Settings, or writes body fat to
+                // Apple Health on its own.
+                remedy: "connect one (Withings, or any scale that writes body "
+                    + "fat to Apple Health) under Settings")
             InsightSection(title: "What you're made of", trailing: nil,
                            caveat: .none,
                            expansion: expansion(preview: reason.headline)) {
@@ -1545,7 +1586,8 @@ struct InsightDetailView: View {
 
         return InsightSection(
             title: "What changed",
-            trailing: changes.isEmpty ? "No shift" : "\(changes.count) signals",
+            trailing: changes.isEmpty ? "No shift"
+                : "\(changes.count) \(SectionCaveat.plural(changes.count, "signal"))",
             caveat: changes.isEmpty
                 ? SectionCaveat.none
                 : .periodContrast(days: PeriodContrast.windowDays),
@@ -1596,7 +1638,7 @@ struct InsightDetailView: View {
         let metrics = resolvedContributions(result).metrics
         if !metrics.isEmpty {
             InsightSection(title: "Full history",
-                           trailing: "\(metrics.count) signals",
+                           trailing: "\(metrics.count) \(SectionCaveat.plural(metrics.count, "signal"))",
                            caveat: .none) {
                 let slots = MetricPalette.slots(for: metrics)
                 ForEach(metrics, id: \.self) { metric in

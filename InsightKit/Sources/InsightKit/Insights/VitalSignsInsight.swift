@@ -167,6 +167,14 @@ public enum VitalSignsCheck {
 
     static let day: TimeInterval = 86_400
 
+    /// Every metric the scan can judge at all. "How far from your normal" needs
+    /// this to tell a card whose signals the scan will *never* cover (body
+    /// composition — nothing in `specs` is a scale reading) apart from one whose
+    /// signals just lack history: the first shipped as "not enough history yet …
+    /// this arrives on its own", two false claims under a legend already quoting
+    /// SD-from-baseline figures for those same signals.
+    public static var coveredMetrics: Set<MetricType> { Set(specs.map(\.metric)) }
+
     static let specs: [Spec] = [
         // Bounds now apply to the day's representative value rather than to
         // whatever raw sample happened to be last, so a resting figure of 100

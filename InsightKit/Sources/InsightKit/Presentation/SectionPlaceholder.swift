@@ -224,12 +224,21 @@ public struct SectionPlaceholder: Sendable, Equatable {
     /// Separate from `needsMore` because the two are opposite instructions.
     /// "Keep recording and this fills in" is wrong when nothing the reader does
     /// passively will ever produce the value.
-    public static func needsInput(subject: String, what: String) -> SectionPlaceholder {
+    /// `remedy` says where the reader actually closes the gap. The default is
+    /// this card's own "View & add" section — right for a grounding fact the
+    /// card collects, and wrong for anything else: this copy once pointed a
+    /// missing-scale message and a missing-details message on a card *without*
+    /// that section at a place that either said "All set" or didn't exist. A
+    /// remedy the reader can't follow is worse than none, so callers whose
+    /// input lives elsewhere must say where.
+    public static func needsInput(subject: String, what: String,
+                                  remedy: String = "see \"View & add\" near the bottom of this card")
+    -> SectionPlaceholder {
         SectionPlaceholder(
             headline: "Waiting on you",
             detail: "\(subject) is drawn from \(what), and the app doesn't have "
                 + "any yet. This is the one kind of gap that won't close on its "
-                + "own — see \"View & add\" near the bottom of this card.")
+                + "own — \(remedy).")
     }
 
     /// A card's own picture that cannot be computed from what is here, for a

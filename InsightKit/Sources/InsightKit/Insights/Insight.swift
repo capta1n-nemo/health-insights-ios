@@ -144,8 +144,20 @@ public struct InsightResult: Sendable, Equatable {
     /// requirements at all — their empty state is "connect a wearable", which a
     /// placeholder card cannot help with.
     public var isWorthShowing: Bool {
-        primaryValue != nil || !unmetRequirements.isEmpty
+        primaryValue != nil || !unmetRequirements.isEmpty || isAwaitingTodaysData
     }
+    /// A daily card that has real history and is only waiting for today's sync.
+    ///
+    /// Readiness and Energy score *today*, so a morning on which the wearable
+    /// hasn't synced yet leaves them with no number — which is not the same
+    /// state as never having recorded a night, and it used to be rendered as
+    /// exactly that: both cards vanished from Today until the sync landed, and
+    /// their empty copy told a user with months of nights to "record a night".
+    /// This flag keeps the card on the tab with a waiting headline instead. A
+    /// genuinely fresh install (no history at all) leaves it false, so the
+    /// original rule — a card with no number earns its place only when there is
+    /// something the user can do — still holds there.
+    public let isAwaitingTodaysData: Bool
     /// Grounding requirements still unmet, so the UI can prompt.
     public let unmetRequirements: [GroundingRequirement]
     /// The metrics that actually fed this result, emitted by the scoring code as
@@ -210,7 +222,8 @@ public struct InsightResult: Sendable, Equatable {
             driverLines: all.filter { $0.isNotable == true }
                 + all.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements, contributors: contributors,
-            weighting: weighting, otherFactors: otherFactors)
+            weighting: weighting, otherFactors: otherFactors,
+            isAwaitingTodaysData: isAwaitingTodaysData)
     }
 
     /// For insights that don't distinguish notable lines from routine ones.
@@ -226,13 +239,15 @@ public struct InsightResult: Sendable, Equatable {
         unmetRequirements: [GroundingRequirement],
         contributors: [MetricContribution] = [],
         weighting: ScoreWeighting = .unstated,
-        otherFactors: [ScoreFactor] = []
+        otherFactors: [ScoreFactor] = [],
+        isAwaitingTodaysData: Bool = false
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
                   score: score, confidence: confidence, explanation: explanation,
                   driverLines: drivers.map { InsightDriver(text: $0) },
                   unmetRequirements: unmetRequirements, contributors: contributors,
-                  weighting: weighting, otherFactors: otherFactors)
+                  weighting: weighting, otherFactors: otherFactors,
+                  isAwaitingTodaysData: isAwaitingTodaysData)
     }
 
     public init(
@@ -247,7 +262,8 @@ public struct InsightResult: Sendable, Equatable {
         unmetRequirements: [GroundingRequirement],
         contributors: [MetricContribution] = [],
         weighting: ScoreWeighting = .unstated,
-        otherFactors: [ScoreFactor] = []
+        otherFactors: [ScoreFactor] = [],
+        isAwaitingTodaysData: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -261,6 +277,7 @@ public struct InsightResult: Sendable, Equatable {
         self.contributors = contributors
         self.weighting = weighting
         self.otherFactors = otherFactors
+        self.isAwaitingTodaysData = isAwaitingTodaysData
     }
 }
 

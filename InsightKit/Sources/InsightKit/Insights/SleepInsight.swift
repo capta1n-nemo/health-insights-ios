@@ -106,6 +106,7 @@ public struct SleepInsight: InsightModel {
         // is not "last night" and the card shouldn't imply it is.
         let nightsAgo = Swift.max(0, Int((now.timeIntervalSince(sleepReading.date) / 86_400).rounded(.down)))
         let nightLabel = sleepReading.isFresh ? "Last night"
+            : nightsAgo <= 1 ? "Last recorded night (yesterday)"
             : "Last recorded night (\(nightsAgo) days ago)"
 
         let nightly = VitalReader.dailyValues(.sleepDurationHours, from: samples,

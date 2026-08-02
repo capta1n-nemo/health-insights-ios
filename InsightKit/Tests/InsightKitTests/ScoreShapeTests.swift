@@ -167,6 +167,34 @@ final class BodyCompositionDialTests: XCTestCase {
         XCTAssertNil(result.score)
     }
 
+    /// Shaped like the 2026-08-02 screenshots: the dial was 80% body fat while
+    /// the header said "BMI 32.2" and the explanation opened "Your BMI is 32.2
+    /// (obese)" — a basis the weighting section contradicted two screens down.
+    /// The header must lead with whatever the score actually rests on.
+    func testHeaderLeadsWithTheMeasurementTheDialRestsOn() throws {
+        let samples = [sample(.bodyMass, 110.4, daysAgo: 0), sample(.height, 1.85, daysAgo: 100),
+                       sample(.bodyFatPercentage, 30.6, daysAgo: 0)]
+        let result = BodyCompositionInsight()
+            .evaluate(samples: samples, profile: profile(age: 28, male: true), now: Date())
+
+        XCTAssertTrue(result.headline.contains("Body fat"),
+                      "scored on body fat, headlined \(result.headline)")
+        XCTAssertEqual(try XCTUnwrap(result.primaryValue), 30.6, accuracy: 0.05,
+                       "the primary value is the scored measurement, not BMI")
+        XCTAssertTrue(result.explanation.hasPrefix("Your body fat is"),
+                      "the explanation opens with the scored basis: \(result.explanation)")
+        XCTAssertTrue(result.explanation.contains("BMI 32.3"),
+                      "BMI stays in the sentence — it just no longer poses as the score")
+    }
+
+    /// And on the fallback route the BMI header is still correct.
+    func testBMIRouteKeepsItsBMIHeader() {
+        let samples = [sample(.bodyMass, 80, daysAgo: 0), sample(.height, 1.80, daysAgo: 100)]
+        let result = BodyCompositionInsight().evaluate(samples: samples, profile: .init(), now: Date())
+        XCTAssertTrue(result.headline.contains("BMI"))
+        XCTAssertTrue(result.explanation.contains("Your BMI is"))
+    }
+
     func testTooMuchFatCostsMoreThanTooLittle() {
         XCTAssertEqual(BodyCompositionInsight.rangeScore(19, lower: 8, upper: 19), 82.3, accuracy: 0.5)
         XCTAssertLessThan(BodyCompositionInsight.rangeScore(30, lower: 8, upper: 19),

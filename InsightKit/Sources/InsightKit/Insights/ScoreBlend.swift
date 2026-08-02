@@ -158,4 +158,25 @@ public enum ScoreBlend {
                     detail: MetricValueFormatter.string(reading.value, reading.metric) + departure,
                     isPublishedScale: false)
     }
+
+    /// A supporting term with a share, or a weight-0 row that says why not —
+    /// never a silent drop.
+    ///
+    /// `supporting` alone returns `nil` for a reading with no baseline, and a
+    /// caller that `compactMap`s it makes the signal disappear from every list
+    /// on the card: heart-rate recovery had data a day old and appeared in
+    /// neither the weighted shares nor "charted, not scored", which is the
+    /// invisible middle state the why-rows exist to forbid. A weight of 0
+    /// contributes nothing to the number; the detail says what would change it.
+    public static func supportingOrTracked(_ reading: VitalReading,
+                                           higherIsBetter: Bool?,
+                                           weight: Double = 1) -> Term {
+        supporting(reading, higherIsBetter: higherIsBetter, weight: weight)
+            ?? Term(metric: reading.metric, higherIsBetter: higherIsBetter,
+                    score: 0, weight: 0,
+                    detail: MetricValueFormatter.string(reading.value, reading.metric)
+                        + " — tracked, not scored: needs \(VitalSignsCheck.minimumBaselineDays) "
+                        + "recent days of history before it can be judged against your normal",
+                    isPublishedScale: false)
+    }
 }

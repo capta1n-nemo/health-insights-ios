@@ -457,12 +457,24 @@ provider problem and a patience problem, indistinguishable from the outside.
 
 Three builders cover them, and the split between the first two is the point:
 `needsMore(subject:have:need:noun:)` for a countable floor, which always quotes
-*both* numbers and ends "as more arrive"; `needsInput(subject:what:)` for the
-gaps only the reader can close — a cuff reading, a date of birth, a scale that
-reports body fat — which never promises it will fill in on its own; and
+*both* numbers and ends "as more arrive"; `needsInput(subject:what:remedy:)` for
+the gaps only the reader can close — a cuff reading, a date of birth, a scale
+that reports body fat — which never promises it will fill in on its own; and
 `notComputable(subject:because:)` where the reason is about the model rather
 than a count. A test pins that the two instructions never appear in each other's
-copy.
+copy. **`remedy:` (2026-08-02) is where the reader actually closes the gap** —
+the default points at this card's own "View & add", which is right only for a
+grounding fact the card collects; the scale, the workout, and DOB/sex on a
+card without that section each say where they really live, because a pointer
+at a section that says "All set" (or isn't on the screen) is worse than none.
+
+Two placeholders stopped lying on 2026-08-02. "How far from your normal" says
+when a card's signals are outside the scan's coverage entirely (Body
+Composition — nothing in `VitalSignsCheck.coveredMetrics` is a scale reading,
+so that card's panel can never fill and must not claim "not enough history…
+arrives on its own"). "How you compare" distinguishes missing DOB/sex from
+having nothing to compare, so a transient empty state can never borrow the
+missing-details copy.
 
 ### Two ways of placing a signal, on every card
 
@@ -595,6 +607,17 @@ different bodies. Unchanged by the consolidation.
 | Surface | Cards, in order | Which insights it lists |
 |---|---|---|
 | **Today** | summary · suggestion · Last night · Vitals glance · 4 daily tiles | `cadence == .daily && isWorthShowing` |
+
+**`isWorthShowing` grew a third arm on 2026-08-02**:
+`InsightResult.isAwaitingTodaysData`. Readiness and Energy score *today*, so a
+morning before the wearable syncs left them with no `primaryValue` — and both
+cards vanished from Today while their empty copy told a user with months of
+nights to "record a night". With ≥7 recorded days and a reading no older than 3
+days they now stay listed as "Waiting for today's sync" / "Waiting for last
+night"; a fresh install (or a wearable abandoned longer than that) keeps the
+old copy and stays hidden, so the placeholder-card rule survives. The
+Last-night tile joined the same truth: a stale night is titled "Yesterday's
+night" with a sync hint, not "Last night".
 | **Insights** | "Improve your health" · subtitle · score comparison · 5 trend tiles | `cadence == .trend && isWorthShowing` |
 | **Vitals** | 4 metric groups · Blood pressure · Substances · Other data | rows, not cards |
 | **Settings ▸ Export my data** | inventory (Markdown) · full export (JSON) · browse the unmodelled | the development feedback loop |

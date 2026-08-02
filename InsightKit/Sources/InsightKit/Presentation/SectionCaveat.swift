@@ -199,8 +199,10 @@ public struct SectionCaveat: Sendable, Equatable {
     /// one in use. Defaulted rather than required, because every other noun on
     /// these screens is regular and an explicit form for all of them would be
     /// noise around the one that matters.
-    static func plural(_ count: Int, _ singular: String,
-                       plural: String? = nil) -> String {
+    /// Public because the app target's section trailers count things too, and
+    /// "1 signals" shipped from exactly the call sites that couldn't reach this.
+    public static func plural(_ count: Int, _ singular: String,
+                              plural: String? = nil) -> String {
         count == 1 ? singular : (plural ?? singular + "s")
     }
 }

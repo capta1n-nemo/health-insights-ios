@@ -152,16 +152,38 @@ struct TodayView: View {
 struct LastNightCard: View {
     @Environment(AppModel.self) private var model
 
-    private var sleepHours: Double? { model.latest(.sleepDurationHours) }
+    private var newestNight: HealthMetricSample? {
+        model.memoized("lastNightTile") {
+            model.samples.filter { $0.type == .sleepDurationHours }
+                .max { $0.start < $1.start }
+        }
+    }
+    private var sleepHours: Double? { newestNight?.value }
     private var readiness: InsightResult? {
         model.results.first { $0.id == .readiness && $0.score != nil }
+    }
+
+    /// How many calendar days old the newest night is. 0 is the night that
+    /// ended this morning — the one "Last night" can honestly name.
+    private var nightAgeDays: Int {
+        guard let start = newestNight?.start else { return 0 }
+        let cal = Calendar.current
+        return cal.dateComponents([.day], from: cal.startOfDay(for: start),
+                                  to: cal.startOfDay(for: Date())).day ?? 0
     }
 
     var body: some View {
         if sleepHours != nil || readiness != nil {
             Card {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Last night", systemImage: "moon.stars.fill")
+                    // A stale night must not pose as last night: on a morning
+                    // the wearable hadn't synced, this tile said "Last night
+                    // 7.3 h" while Readiness and Energy called the same night
+                    // too old to score — three stories about one gap.
+                    Label(nightAgeDays <= 0 ? "Last night"
+                          : nightAgeDays == 1 ? "Yesterday's night"
+                          : "Last recorded night",
+                          systemImage: "moon.stars.fill")
                         .font(.headline)
                     HStack(alignment: .top, spacing: 12) {
                         if let s = sleepHours {
@@ -175,6 +197,14 @@ struct LastNightCard: View {
                         if let hrv = model.latest(.heartRateVariabilityRMSSD) ?? model.latest(.heartRateVariabilitySDNN) {
                             stat(value: "\(Int(hrv.rounded())) ms", label: "HRV", icon: "waveform.path.ecg")
                         }
+                    }
+                    if nightAgeDays >= 1 {
+                        Text(nightAgeDays == 1
+                             ? "Last night hasn't synced yet — pull to refresh once your wearable has caught up."
+                             : "Nothing newer than \(nightAgeDays) days ago has synced.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

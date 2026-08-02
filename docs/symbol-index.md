@@ -90,7 +90,7 @@ the place to look.
   - `InsightConfidence` :60
   - `InsightDriver` :96
   - `InsightID` :15
-  - `InsightModel` :271
+  - `InsightModel` :288
   - `InsightResult` :113
   - `RequirementStatus` :84
 - `Insights/InsightEngine.swift`
@@ -110,7 +110,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :161
+  - `ReadinessInsight` :172
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
@@ -224,6 +224,8 @@ the place to look.
   - `SeriesScale` :4
 - `Presentation/OverlaySelection.swift`
   - `OverlaySelection` :10
+- `Presentation/RenderMemo.swift`
+  - `RenderMemo` :19
 - `Presentation/SectionCaveat.swift`
   - `SectionCaveat` :22
 - `Presentation/SectionPlaceholder.swift`
@@ -254,7 +256,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :499
+  - `SubstanceWindow` :521
 - `Text/CardStateExport.swift`
   - `CardStateExport` :26
 - `Text/DataInventory.swift`
@@ -380,10 +382,10 @@ the place to look.
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :272
+  - `InsightCard` :302
   - `LastNightCard` :152
   - `TodayView` :7
-  - `VitalsGlance` :197
+  - `VitalsGlance` :227
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`

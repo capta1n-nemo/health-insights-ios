@@ -203,6 +203,37 @@ public enum SubstanceResponseAnalyzer {
         }
     }
 
+    /// One delta, formatted the way this card talks about that metric — HRV as
+    /// a percentage, everything else in its own unit.
+    ///
+    /// Shared by the driver lines and the weighting rows. As two formatters the
+    /// same effect reached the reader as "HRV +5% after use" in one section and
+    /// "+3.6 after use" — the raw milliseconds, unlabelled — in the next, two
+    /// spellings of one number with nothing saying they were the same fact.
+    static func deltaLabel(_ e: MetricEffect) -> String {
+        let arrow = e.deltaAbsolute >= 0 ? "+" : "−"
+        switch e.metric {
+        case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN:
+            return String(format: "%@%.0f%%", e.deltaPercent >= 0 ? "+" : "−", abs(e.deltaPercent))
+        case .restingHeartRate, .heartRateRecovery:
+            return String(format: "%@%.0f bpm", arrow, abs(e.deltaAbsolute))
+        case .bloodPressureSystolic:
+            return String(format: "%@%.0f mmHg", arrow, abs(e.deltaAbsolute))
+        case .sleepDurationHours:
+            return String(format: "%@%.1f h", arrow, abs(e.deltaAbsolute))
+        case .respiratoryRate:
+            return String(format: "%@%.1f br/min", arrow, abs(e.deltaAbsolute))
+        case .skinTemperature, .skinTemperatureDeviation:
+            return String(format: "%@%.1f °C", arrow, abs(e.deltaAbsolute))
+        case .oxygenSaturation, .atrialFibrillationBurden:
+            return String(format: "%@%.1f%%", arrow, abs(e.deltaAbsolute))
+        default:
+            let unit = e.metric.unit
+            return String(format: "%@%.1f%@", arrow, abs(e.deltaAbsolute),
+                          unit.isEmpty ? "" : " \(unit)")
+        }
+    }
+
     static func higherIsBetter(_ metric: MetricType) -> Bool? {
         switch metric {
         case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .sleepDurationHours,
@@ -344,37 +375,29 @@ public enum SubstanceResponseAnalyzer {
         // is worth keeping but not worth leading with.
         var drivers: [InsightDriver] = []
         for e in analysis.effects {
-            let arrow = e.deltaAbsolute >= 0 ? "+" : "−"
             // `isAdverse` is already decided when the effect is measured, against
             // the same watched-metric table — recomputing it here would be a
             // second opinion that could drift from the first.
-            let text: String?
+            let name: String?
             switch e.metric {
-            case .restingHeartRate:
-                text = String(format: "Resting HR %@%.0f bpm after use", arrow, abs(e.deltaAbsolute))
-            case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN:
-                text = String(format: "HRV %@%.0f%% after use", e.deltaPercent >= 0 ? "+" : "−", abs(e.deltaPercent))
-            case .skinTemperatureDeviation:
-                text = String(format: "Body temp %@%.1f °C after use", arrow, abs(e.deltaAbsolute))
-            case .sleepDurationHours:
-                text = String(format: "Sleep %@%.1f h after use", arrow, abs(e.deltaAbsolute))
-            case .respiratoryRate:
-                text = String(format: "Respiration %@%.1f br/min after use", arrow, abs(e.deltaAbsolute))
-            case .skinTemperature:
-                text = String(format: "Skin temperature %@%.1f °C after use", arrow, abs(e.deltaAbsolute))
-            case .oxygenSaturation:
-                text = String(format: "Blood oxygen %@%.1f%% after use", arrow, abs(e.deltaAbsolute))
-            case .heartRateRecovery:
-                text = String(format: "Heart-rate recovery %@%.0f bpm after use", arrow, abs(e.deltaAbsolute))
-            case .bloodPressureSystolic:
-                text = String(format: "Systolic BP %@%.0f mmHg after use", arrow, abs(e.deltaAbsolute))
-            case .atrialFibrillationBurden:
-                text = String(format: "AFib burden %@%.1f%% after use", arrow, abs(e.deltaAbsolute))
-            // No `default:` — a metric added to `watched` without a sentence
+            case .restingHeartRate: name = "Resting HR"
+            case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN: name = "HRV"
+            case .skinTemperatureDeviation: name = "Body temp"
+            case .sleepDurationHours: name = "Sleep"
+            case .respiratoryRate: name = "Respiration"
+            case .skinTemperature: name = "Skin temperature"
+            case .oxygenSaturation: name = "Blood oxygen"
+            case .heartRateRecovery: name = "Heart-rate recovery"
+            case .bloodPressureSystolic: name = "Systolic BP"
+            case .atrialFibrillationBurden: name = "AFib burden"
+            // No `default:` — a metric added to `watched` without a name
             // here would be measured and then silently dropped from the card.
-            default: text = nil
+            default: name = nil
             }
-            if let text { drivers.append(InsightDriver(text: text, isNotable: e.isAdverse)) }
+            if let name {
+                drivers.append(InsightDriver(text: "\(name) \(Self.deltaLabel(e)) after use",
+                                             isNotable: e.isAdverse))
+            }
         }
         drivers.append(InsightDriver(
             text: "Recent cardiovascular load: \(analysis.loadBand) (\(analysis.eventsInWindow) logs in \(loadWindowDays) days)",
@@ -441,8 +464,7 @@ public enum SubstanceResponseAnalyzer {
                 metric: effect.metric,
                 higherIsBetter: Self.higherIsBetter(effect.metric),
                 weight: share,
-                detail: String(format: "%@%.1f after use",
-                               effect.deltaAbsolute >= 0 ? "+" : "−", abs(effect.deltaAbsolute))
+                detail: "\(Self.deltaLabel(effect)) after use"
                     // A signal that moved the *welcome* way has a severity of
                     // zero and so takes nothing off. That is good news and has
                     // to read as good news rather than as a bare zero under a

@@ -125,6 +125,55 @@ final class SharedBaselineTests: XCTestCase {
                              "same all-time mean, opposite recent trends — these cannot score alike")
     }
 
+    /// Shaped like the 2026-08-02 card outputs: "Resting heart rate: 58 bpm"
+    /// four rows above "Resting Heart Rate 60 — top 25% for your age and sex" —
+    /// one metric, two values, nothing on screen saying why they differ. The
+    /// centile now folds into the component's own line.
+    func testDriversNameEachMetricOnce() {
+        var samples: [HealthMetricSample] = []
+        for back in 0...30 {
+            samples.append(sample(.restingHeartRate, 58, back))
+            samples.append(sample(.heartRateVariabilityRMSSD, 70, back))
+        }
+        for back in stride(from: 0, through: 60, by: 7) {
+            samples.append(sample(.vo2Max, 31, back))
+        }
+        let result = HeartHealthInsight().evaluate(samples: samples, profile: profile(), now: now)
+
+        for needle in ["resting heart", "vo₂max", "hrv"] {
+            let mentions = result.drivers.filter { $0.lowercased().contains(needle) }
+            XCTAssertLessThanOrEqual(mentions.count, 1,
+                                     "\(needle) reaches the reader twice: \(mentions)")
+        }
+        let folded = result.drivers.first { $0.lowercased().contains("vo₂max") }
+        XCTAssertTrue(folded?.contains("for your age and sex") == true,
+                      "the centile phrase survives the fold: \(folded ?? "nil")")
+    }
+
+    /// A recovery reading whose baseline is still building must not vanish from
+    /// every list on the card. Declared with day-old data, it appeared in
+    /// neither the weighted shares nor "charted, not scored" — the invisible
+    /// middle state the why-rows exist to forbid.
+    func testRecoveryWithoutABaselineIsTrackedNotSilentlyDropped() throws {
+        var samples: [HealthMetricSample] = []
+        for back in 0...30 {
+            samples.append(sample(.restingHeartRate, 58, back))
+        }
+        for back in stride(from: 0, through: 60, by: 7) {
+            samples.append(sample(.vo2Max, 31, back))
+        }
+        // One recovery reading — data, but nothing to build a baseline from.
+        samples.append(sample(.heartRateRecovery, 25, 1))
+
+        let result = HeartHealthInsight().evaluate(samples: samples, profile: profile(), now: now)
+        let recovery = try XCTUnwrap(
+            result.contributors.first { $0.metric == .heartRateRecovery },
+            "the reading exists — it must appear somewhere on the card")
+        XCTAssertEqual(recovery.weight, 0, "no baseline, no share")
+        XCTAssertTrue(recovery.detail.contains("tracked, not scored"),
+                      "the row says why: \(recovery.detail)")
+    }
+
     // MARK: - Resting Heart Rate trend
 
     // The three tests that stood here exercised the Resting Heart Rate card:

@@ -735,7 +735,7 @@ public struct BloodPressureInsight: InsightModel {
                                                               diastolic: freshPair.diastolic)
             contributorWeights[.bloodPressureSystolic] = shares.systolic
             contributorWeights[.bloodPressureDiastolic] = shares.diastolic
-            weighting = .singleMeasure("the published ACC/AHA blood-pressure bands - "
+            weighting = .singleMeasure("the published ACC/AHA blood-pressure bands — "
                                        + "this is your own cuff reading from the last "
                                        + "24 hours, taken at face value")
         }

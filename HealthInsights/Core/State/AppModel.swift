@@ -39,7 +39,14 @@ final class AppModel {
     /// timeframe change, and each evaluation was re-running whole models
     /// (`VitalSignsCheck`, `HeartResponseModel`, `PeriodContrast`, …) over the
     /// full sample set — the "opening a card hangs" report of 2026-08-02.
-    @ObservationIgnored private var renderMemo: [String: Any] = [:]
+    ///
+    /// `RenderMemo` rather than a bare dictionary because of what a bare
+    /// dictionary did on its first day: a `nil` computed during a transient
+    /// empty-data window stuck until the next sample change, and two sections
+    /// spent the morning claiming the user had no scale and no date of birth
+    /// beside sections showing both. The type refuses to cache `nil`, and that
+    /// rule is tested in InsightKit.
+    @ObservationIgnored private var renderMemo = RenderMemo()
     @ObservationIgnored private var otherGroupCache: [RawMetricGroup]?
     @ObservationIgnored private var bloodPressureCache: [BloodPressureEstimator.Reading]?
 
@@ -538,12 +545,9 @@ final class AppModel {
     /// the insight id); the cache clears with every other derived cache when
     /// the samples change, so a hit can never be stale data — only a saved
     /// re-run. A failed cast falls through to recompute, so the worst case is
-    /// the old behaviour.
+    /// the old behaviour. A `nil` result is never cached — see `RenderMemo`.
     func memoized<T>(_ key: String, _ compute: () -> T) -> T {
-        if let hit = renderMemo[key] as? T { return hit }
-        let value = compute()
-        renderMemo[key] = value
-        return value
+        renderMemo.value(key, compute)
     }
 
     /// A source-split breakdown of a metric across all connected devices, cached

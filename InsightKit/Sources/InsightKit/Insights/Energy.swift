@@ -376,6 +376,28 @@ public struct EnergyInsight: InsightModel {
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
         guard let output = EnergyModel.evaluate(samples: samples, now: now) else {
+            // The model only declines when there is no fresh night to charge
+            // from — and a user with months of nights whose wearable hasn't
+            // synced this morning is not a user who has never recorded one.
+            // "Record a night" to the first reads as data loss, and hiding the
+            // card is how Today lost its daily cards every morning until the
+            // sync landed.
+            // Recency-bounded: a source that stopped recording months ago is
+            // not "waiting for last night", and the card must not sit on Today
+            // forever promising a sync that isn't coming.
+            let nights = samples.samples(of: .sleepDurationHours)
+            if let latest = nights.map(\.start).max(),
+               Int(now.timeIntervalSince(latest) / 86_400) <= 3 {
+                let days = max(1, Int(now.timeIntervalSince(latest) / 86_400))
+                let age = days == 1 ? "yesterday" : "\(days) days ago"
+                return InsightResult(
+                    id: id, title: title, primaryValue: nil,
+                    headline: "Waiting for last night",
+                    score: nil, confidence: .low,
+                    explanation: "Energy starts the day charged by the night behind it, and your newest recorded night is from \(age) — last night hasn't synced yet. This fills in on its own once your wearable catches up; pull to refresh to ask again.",
+                    drivers: [], unmetRequirements: [],
+                    isAwaitingTodaysData: true)
+            }
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "No night yet",
                 score: nil, confidence: .low,

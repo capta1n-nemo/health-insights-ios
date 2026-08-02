@@ -175,7 +175,7 @@ public struct FitnessInsight: InsightModel {
 
         if !vo2Reading.isFresh {
             let days = Int(now.timeIntervalSince(vo2Reading.date) / 86_400)
-            drivers.append(.notable("Last measured \(days) days ago — an outdoor walk or run will refresh it"))
+            drivers.append(.notable("Last measured \(days) \(SectionCaveat.plural(days, "day")) ago — an outdoor walk or run will refresh it"))
         }
 
         // The signals this card newly reads. Reported as lines because they are

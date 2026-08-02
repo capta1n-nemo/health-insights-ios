@@ -83,7 +83,8 @@ public struct BodyCompositionInsight: InsightModel {
         // Weight moving while lean mass holds is fat loss; both falling
         // together is not, and that distinction is worth saying out loud — and
         // is the one line here that is genuinely a finding.
-        if let composition = Self.compositionNarrative(samples: samples, weightSeries: weightSeries) {
+        let composition = Self.compositionNarrative(samples: samples, weightSeries: weightSeries)
+        if let composition {
             drivers.insert(.notable(composition), at: 0)
             explanation += " " + composition
         }
@@ -102,6 +103,31 @@ public struct BodyCompositionInsight: InsightModel {
         let bodyFat = samples.latestValue(.bodyFatPercentage)
         let dial = Self.score(bodyFat: bodyFat, bmi: bmi,
                               age: profile.age(asOf: now), sex: profile.sex)
+
+        // The header must lead with whatever the dial actually rests on. It was
+        // built from BMI unconditionally, *before* the route above was chosen,
+        // so a card whose score was 80% body fat opened "Your BMI is 32.2
+        // (obese)" and put "BMI 32.2" under the number — a basis the weighting
+        // section two screens down contradicted. BMI stays in the sentence and
+        // in the drivers; it just no longer poses as the score.
+        if let dial, dial.metric == .bodyFatPercentage, let bodyFat,
+           let age = profile.age(asOf: now), let sex = profile.sex {
+            let range = Self.healthyBodyFatRange(age: age, sex: sex)
+            let position = bodyFat > range.upper ? "above"
+                : bodyFat < range.lower ? "below" : "inside"
+            headline = String(format: "Body fat %.1f%%", bodyFat)
+            primary = bodyFat
+            var lead = String(format: "Your body fat is %.1f%% — %@ the %.0f–%.0f%% healthy range for your age and sex, and it carries most of this score.",
+                              bodyFat, position, range.lower, range.upper)
+            if let bmi, let h = height {
+                lead += String(format: " BMI %.1f (%@), from %.1f kg at %.2f m.",
+                               bmi, Self.bmiCategory(bmi), weight, h)
+            }
+            if let composition {
+                lead += " " + composition
+            }
+            explanation = lead
+        }
         let blend = dial.flatMap { dial in
             ScoreBlend.blend(
                 primary: [.init(metric: dial.metric,

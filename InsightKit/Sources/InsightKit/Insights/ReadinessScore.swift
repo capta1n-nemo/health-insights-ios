@@ -53,6 +53,17 @@ public enum ReadinessScore {
         clamp(65 + polarity * z * 20)
     }
 
+    /// The metrics the score above can be built from. The adapter needs this
+    /// list to tell "no fresh reading today" apart from "never recorded" when
+    /// `evaluate` comes back nil — the two get opposite copy, and the first
+    /// used to borrow the second's ("wear your device for a few nights") on
+    /// every morning the wearable hadn't synced yet.
+    public static let componentMetrics: [MetricType] = [
+        .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN, .restingHeartRate,
+        .sleepDurationHours, .skinTemperatureDeviation, .respiratoryRate,
+        .oxygenSaturation
+    ]
+
     /// Readiness is a statement about *today*, so every component is the day's
     /// de-duplicated value judged against a windowed baseline — see `VitalReader`
     /// for why reading `series.last` against `series.dropLast()` was wrong in
@@ -289,7 +300,8 @@ public struct ReadinessInsight: InsightModel {
                 driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                     + (base.driverLines + extra).filter { $0.isNotable != true },
                 unmetRequirements: base.unmetRequirements,
-                contributors: contributors, weighting: base.weighting)
+                contributors: contributors, weighting: base.weighting,
+                isAwaitingTodaysData: base.isAwaitingTodaysData)
         }
 
         return InsightResult(
@@ -300,7 +312,8 @@ public struct ReadinessInsight: InsightModel {
             driverLines: (base.driverLines + extra).filter { $0.isNotable == true }
                 + (base.driverLines + extra).filter { $0.isNotable != true },
             unmetRequirements: base.unmetRequirements, contributors: contributors,
-            weighting: base.weighting)
+            weighting: base.weighting,
+            isAwaitingTodaysData: base.isAwaitingTodaysData)
     }
 
     /// The readiness score proper. Split out so the merged `evaluate` above
@@ -308,6 +321,39 @@ public struct ReadinessInsight: InsightModel {
     private func score(samples: [HealthMetricSample], profile: UserHealthProfile,
                        now: Date) -> InsightResult {
         guard let out = ReadinessScore.evaluate(samples: samples, now: now) else {
+            // Nothing fresh enough to score. Two very different mornings look
+            // like this, and they need opposite sentences: a person who has
+            // never worn a device (tell them to start), and a person with
+            // months of nights whose wearable simply hasn't synced *today*
+            // (tell them that — "wear your device for a few nights" to
+            // someone on night 170 reads as the app having lost their data,
+            // and hiding the card entirely is how "cards keep disappearing
+            // from Today" got reported).
+            // "Waiting" is only the honest state when a score would actually
+            // come back with fresh data: an established baseline (the same
+            // seven-day floor the scan judges by) and a reading recent enough
+            // that this is a sync gap, not an abandoned wearable. Two nights of
+            // history is genuinely a building baseline however fresh they are —
+            // "fills in once your wearable syncs" would be a false promise.
+            let recorded = ReadinessScore.componentMetrics
+                .flatMap { samples.samples(of: $0) }
+                .map(\.start)
+            let calendar = Calendar.current
+            let recordedDays = Set(recorded.map { calendar.startOfDay(for: $0) })
+            if let latest = recorded.max(),
+               recordedDays.count >= VitalSignsCheck.minimumBaselineDays {
+                let days = max(1, Int(now.timeIntervalSince(latest) / 86_400))
+                if days <= 3 {
+                    let age = days == 1 ? "yesterday" : "\(days) days ago"
+                    return InsightResult(
+                        id: id, title: title, primaryValue: nil,
+                        headline: "Waiting for today's sync",
+                        score: nil, confidence: .low,
+                        explanation: "Readiness is about today, and nothing from today has arrived yet — your latest readings are from \(age). This fills in on its own once your wearable syncs; pull to refresh to ask again.",
+                        drivers: [], unmetRequirements: [],
+                        isAwaitingTodaysData: true)
+                }
+            }
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "Building baseline",
                 score: nil, confidence: .low,

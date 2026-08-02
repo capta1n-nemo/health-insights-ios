@@ -30,7 +30,77 @@ appears, ask whether the fix retires the *instance* or the *category*.
 
 ## Current focus
 
-**The hook-and-instruments session (latest, 2026-08-02).** Six pushes
+**The screenshot-review session (latest, 2026-08-02, afternoon).** The user
+supplied nine screenshots and all three exports (card outputs, data inventory,
+model internals — build `d96ada1`, which is HEAD) for a full is-our-work-right
+pass. The review produced sixteen findings; one push fixed the seven confirmed
+defect classes. What matters for the next session:
+
+### The root cause that explains "sections lost their data"
+
+**`renderMemo[key] as? T` hits a phantom nil on a missing key when `T` is
+optional.** The dictionary subscript yields `Any?.none`, and a conditional cast
+of that to an optional type *succeeds* as `.some(.none)` — so every
+optional-typed render memo ("bodySplit", "peerStanding.…") returned nil on its
+very first ask and never ran its compute at all. That is why "What you're made
+of" claimed no scale existed and "How you compare" claimed no date of birth,
+on a phone whose data was fine, starting the day render memoisation shipped
+(`8058595`). `RenderMemo` (InsightKit, tested) now owns the cache: unwrap
+before casting, and never store a nil, so a transient empty window can't stick
+either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
+
+### What else shipped in the same push
+
+- Placeholders stopped lying: "How far from your normal" says when a card's
+  signals are simply outside the scan's coverage (Body Composition — forever)
+  instead of "not enough history"; "How you compare" distinguishes missing
+  DOB/sex from having nothing to compare; `needsInput` takes a `remedy:` so no
+  placeholder points at a "View & add" that says "All set" or isn't on the card.
+- **The stale-sync morning** (`InsightResult.isAwaitingTodaysData`): Readiness
+  and Energy with ≥7 recorded days and readings ≤3 days old say "Waiting for
+  today's sync" / "Waiting for last night" and **stay listed on Today**; the
+  Last-night tile titles a stale night "Yesterday's night" with a sync hint.
+  Fresh installs keep the old copy and stay hidden.
+- Body Composition's header leads with the scored route (body fat + its
+  age/sex band; BMI demoted into the sentence), `primaryValue` is the scored
+  figure.
+- Heart Health: centile phrases fold into the component driver lines (no more
+  "58 bpm" and "60 — top 25%" as two rows), and an HRR reading with no
+  baseline appears as a weight-0 "tracked, not scored — needs 7 recent days"
+  row via `ScoreBlend.supportingOrTracked` instead of vanishing from every
+  list.
+- Formatting: "1 signals"/"1 days ago" pluralisation (three trailing counts,
+  Sleep, Fitness), substance deltas share one per-metric formatter
+  (`deltaLabel`) so "HRV +5%" can't sit beside an unlabelled "+3.6", BP basis
+  em dash.
+
+### Open, deliberately not done — the next session's list
+
+- **F8, the big one: split nights are STILL split on the device** despite the
+  fix being installed. 07-31 reads Oura 4.3 h vs Apple 8.7 h in the internals
+  export; Oura synced *today* (daily-activity rows for 08-02 exist) yet the
+  sleep history wasn't rewritten, so either the sleep endpoint quietly returned
+  nothing (the cache-merge stale trap) or the parser fix fails on real data.
+  **Ask the user to run Settings ▸ Troubleshooting ▸ Rebuild data from
+  providers, then re-export model internals.** If the four nights (07-31,
+  07-29, 07-20, 07-11) still disagree, the parser fix is broken. The
+  diagnostics log around a sync will show the sleep endpoint's result.
+- **F11, needs the user's decision**: Substance Impact's systolic effect rests
+  on 5 clean vs 3 after-use readings and carries 88.6% of the score (dial 0,
+  "BP +31 after use" on Today). The export's own footnote calls that "a hint,
+  not a finding". Same medicine as `minimumTrendSpanDays` wants applying — a
+  per-side pool floor or shrinkage by pool size — but the threshold shape is a
+  scoring decision the user hasn't made yet. Also cross-card: the BP card
+  attributes the same 150/89 to Stage 2 hypertension at face value.
+- F14: Readiness's supporting-only weighted shares renormalise four wildly
+  unequal signals (one is a single manual BP reading) to 25% each.
+- F15: score history stores days below the two-contributor floor (Heart Health
+  2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
+  at draw and why they're stored.
+- The review's full ledger with file:line references survives only in this
+  entry — the scratchpad findings file dies with the container.
+
+**The hook-and-instruments session (previous, 2026-08-02, morning).** Six pushes
 (`356e534` → `8155740`), all CI-green first time, all installed. It opened with
 the user granting the six-session standing ask — the shell working-directory
 hook — and became a find-and-fix loop over their screenshots, diagnostics log

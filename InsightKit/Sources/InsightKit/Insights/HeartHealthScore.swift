@@ -218,9 +218,14 @@ public struct HeartHealthInsight: InsightModel {
         // the reader's own baseline, which is what `SupportingSignal` is for. A
         // cut-point says whether a reading is concerning; it is not a 0-100
         // curve, and turning it into one is the invention this app declines.
+        // `supportingOrTracked`, not `supporting`: a recovery reading whose
+        // baseline is still building used to vanish from the shares *and* from
+        // "charted, not scored" — declared, holding data a day old, and visible
+        // nowhere. A weight-0 row that says what it is waiting for is the
+        // contract every other unweighted signal on this card already honours.
         let supporting = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
                                              freshWithin: HeartResponseModel.recoveryFreshness)
-            .flatMap { ScoreBlend.supporting($0, higherIsBetter: true) }
+            .map { ScoreBlend.supportingOrTracked($0, higherIsBetter: true) }
         let blend = ScoreBlend.blend(
             primary: out.components.map {
                 ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
@@ -233,10 +238,8 @@ public struct HeartHealthInsight: InsightModel {
         // Confidence scales with how many components were available.
         let confidence: InsightConfidence = out.components.count >= 3 ? .high
             : out.components.count == 2 ? .moderate : .low
-        let lines = out.components
-            .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
         var explanation = "Composite heart-health score of \(Int(score.rounded()))/100 (\(band)), from your cardio fitness, resting heart rate and HRV compared with age-adjusted norms."
-        if supporting != nil {
+        if let supporting, supporting.weight > 0 {
             explanation += " Your heart-rate recovery is read in beside them, against your own normal rather than a published scale, so it carries a smaller share."
         }
 
@@ -246,19 +249,35 @@ public struct HeartHealthInsight: InsightModel {
         // whom, and this is the only place in the app that compares the user to
         // published population figures rather than to their own baseline.
         //
-        // Lines, not score terms. `PeerStandingModel` reads exactly the metrics
-        // `HeartHealthScore` has already weighted, so scoring them again would
-        // count the same measurements twice.
-        var standingLines: [InsightDriver] = []
-        if let standing = PeerStandingModel.evaluate(samples: samples, profile: profile, now: now) {
-            standingLines = standing.standings
-                .sorted { $0.percentile > $1.percentile }
-                .map { s in
-                    InsightDriver(
-                        text: "\(s.metric.displayName) \(MetricValueFormatter.string(s.value, s.metric)) — \(s.phrase) for your age and sex",
-                        // The weak ones are what a person would want to look at.
-                        isNotable: s.percentile < 40)
-                }
+        // Folded into the component lines rather than appended after them. As
+        // two lists, one metric reached the reader twice with two values and
+        // no label for the difference — "Resting heart rate: 58 bpm" four rows
+        // above "Resting Heart Rate 60 — top 25%", the component's baseline
+        // read against the centile's latest read. One metric, one line: the
+        // value the score used, with the centile phrase beside it. A centile
+        // band is coarse enough to survive the two reads differing by a couple
+        // of beats; two bare numbers are not.
+        let standing = PeerStandingModel.evaluate(samples: samples, profile: profile, now: now)
+        let standingByMetric = Dictionary(uniqueKeysWithValues:
+            (standing?.standings ?? []).map { ($0.metric, $0) })
+        var folded: Set<MetricType> = []
+        let lines = out.components.map { comp -> InsightDriver in
+            let base = InsightDriver.component("\(comp.name): \(comp.detail)", score: comp.score)
+            guard let s = standingByMetric[comp.metric] else { return base }
+            folded.insert(comp.metric)
+            return InsightDriver(text: base.text + " — \(s.phrase) for your age and sex",
+                                 isNotable: base.isNotable == true || s.percentile < 40)
+        }
+        // A standing for a metric the score didn't read still gets its own line.
+        let standingLines = (standing?.standings ?? [])
+            .filter { !folded.contains($0.metric) }
+            .sorted { $0.percentile > $1.percentile }
+            .map { s in
+                InsightDriver(
+                    text: "\(s.metric.displayName) \(MetricValueFormatter.string(s.value, s.metric)) — \(s.phrase) for your age and sex",
+                    isNotable: s.percentile < 40)
+            }
+        if let standing {
             explanation += " Across \(standing.standings.count) measure\(standing.standings.count == 1 ? "" : "s") you sit around the \(Int(standing.overall.rounded()))th centile for people your age and sex — an approximation to published figures, not a lookup into a real distribution — and a centile describes where you sit, not whether anything is wrong."
         }
 

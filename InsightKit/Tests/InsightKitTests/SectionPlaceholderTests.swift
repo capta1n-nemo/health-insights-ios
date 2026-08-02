@@ -144,6 +144,24 @@ final class SectionPlaceholderTests: XCTestCase {
         XCTAssertFalse(passive.detail.lowercased().contains("won't close"), passive.detail)
     }
 
+    /// A remedy the reader can't follow is worse than none. The default points
+    /// at this card's own "View & add"; a caller whose input lives elsewhere —
+    /// a scale in Settings, a workout on the watch, a fact collected by a
+    /// different card — must be able to say where, and the pointer must change.
+    func testNeedsInputRemedyReplacesTheViewAndAddPointer() {
+        let elsewhere = SectionPlaceholder.needsInput(
+            subject: "The split of your weight",
+            what: "a scale that reports body fat",
+            remedy: "connect one under Settings")
+        XCTAssertTrue(elsewhere.detail.contains("connect one under Settings"), elsewhere.detail)
+        XCTAssertFalse(elsewhere.detail.contains("View & add"), elsewhere.detail)
+        XCTAssertTrue(elsewhere.detail.lowercased().contains("won't close on its own"),
+                      "the shared framing survives a custom remedy")
+
+        let here = SectionPlaceholder.needsInput(subject: "This chart", what: "cuff readings")
+        XCTAssertTrue(here.detail.contains("View & add"), "the default still points here")
+    }
+
     /// The parameterised variants, swept for wording rather than for identity.
     private var everyVariant: [SectionPlaceholder] {
         everyPlaceholder + [
