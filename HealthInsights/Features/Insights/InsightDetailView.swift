@@ -734,6 +734,7 @@ struct InsightDetailView: View {
         case .medication: return "pills"
         case .temperature: return "thermometer.medium"
         case .eveningExertion: return "figure.run"
+        case .screenTime: return "iphone"
         }
     }
 
