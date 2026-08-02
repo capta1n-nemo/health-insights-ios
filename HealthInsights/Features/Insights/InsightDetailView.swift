@@ -676,7 +676,8 @@ struct InsightDetailView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                SleepOnsetChart(points: analysis.nights, trend: analysis.trend)
+                SleepOnsetChart(points: analysis.nights,
+                                window: window(spanning: onsetSpan(analysis.nights)))
 
                 if analysis.drivers.isEmpty {
                     Text("Nothing the app can see stood out as moving it over this stretch — not your substances, medication, temperature or how active the day was. That is the usual answer, and a reassuring one.")
@@ -776,6 +777,12 @@ struct InsightDetailView: View {
     }
 
     private func nightsSpan(_ nights: [VitalReader.DailyValue]) -> ClosedRange<Date>? {
+        guard let first = nights.first?.date, let last = nights.last?.date,
+              first <= last else { return nil }
+        return first...last
+    }
+
+    private func onsetSpan(_ nights: [SleepOnsetModel.Sample]) -> ClosedRange<Date>? {
         guard let first = nights.first?.date, let last = nights.last?.date,
               first <= last else { return nil }
         return first...last
@@ -1202,22 +1209,19 @@ struct InsightDetailView: View {
         }
         let cardMetrics = insightID == .readiness
             ? nil : resolvedContributions(result).metrics
-        let panel = VitalDeparturePanel.from(scan, limitedTo: cardMetrics)
+        // The card's own metrics the clinical scan doesn't cover — steps, active
+        // energy, VO₂max, the sleep signals — read against their *own* baseline
+        // so the section lists the same signals "How you compare" does, not just
+        // the clinical vitals. A modelled quantity is left out, as it is from the
+        // peer comparison, because "unusual for you" reads as a measurement claim.
+        let extraReadings: [VitalReading] = (cardMetrics ?? [])
+            .filter { !VitalSignsCheck.coveredMetrics.contains($0)
+                      && !PeerStandingModel.isModelled($0) }
+            .compactMap { VitalReader.reading($0, from: model.samples) }
+        let panel = VitalDeparturePanel.forCard(scan, cardMetrics: cardMetrics,
+                                                extraReadings: extraReadings)
         var placeholder: SectionPlaceholder?
-        if let cardMetrics, Set(cardMetrics).isDisjoint(with: VitalSignsCheck.coveredMetrics) {
-            // Not a history problem and never will be: the scan watches
-            // point-in-time vitals, and nothing this card reads is one. Saying
-            // "not enough history … arrives on its own" here was two false
-            // claims under a legend already quoting each signal's SD from
-            // baseline — the departure the reader wants is on this same screen.
-            placeholder = SectionPlaceholder.notComputable(
-                subject: "This card's signals",
-                because: "aren't among the vitals the daily scan watches — it "
-                    + "covers point-in-time readings like heart rate, blood "
-                    + "pressure and temperature. How far each of this card's "
-                    + "signals sits from your own normal is already shown "
-                    + "beside it under \"What goes into this\".")
-        } else if panel.isEmpty {
+        if panel.isEmpty {
             placeholder = SectionPlaceholder.notComputable(
                 subject: "This card's signals",
                 because: "need enough of your own history to have a normal "

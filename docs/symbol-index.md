@@ -248,7 +248,7 @@ the place to look.
   - `SeriesSegmentation` :53
 - `Presentation/VitalDeparture.swift`
   - `VitalDeparture` :27
-  - `VitalDeparturePanel` :109
+  - `VitalDeparturePanel` :132
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
 - `Signals/BuildAssessment.swift`
@@ -422,7 +422,7 @@ the place to look.
 - `DesignSystem/ScrubIndicator.swift`
   - `ScrubIndicator` :24
 - `DesignSystem/SleepOnsetChart.swift`
-  - `SleepOnsetChart` :19
+  - `SleepOnsetChart` :18
 - `DesignSystem/SleepOnsetStripChart.swift`
   - `SleepOnsetStripChart` :38
 - `DesignSystem/SourceBreakdownCard.swift`

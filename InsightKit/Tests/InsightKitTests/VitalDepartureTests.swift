@@ -174,4 +174,58 @@ final class VitalDepartureTests: XCTestCase {
         }
         XCTAssertEqual(panel.rows.count + panel.unjudged.count, output.readings.count)
     }
+
+    // MARK: - Non-clinical metrics reach the strip too
+
+    private func vitalReading(_ metric: MetricType, z: Double?,
+                              value: Double = 8000) -> VitalReading {
+        VitalReading(metric: metric, value: value, date: Date(),
+                     baseline: z.map { _ in value }, zScore: z, history: [],
+                     sourceName: "Watch", isFresh: true)
+    }
+
+    /// A step count or a VO₂max has no clinical concerning direction, so its
+    /// baseline departure is neutral — notable ("watch") at most, never the
+    /// clinical red. This is what lets "How far from your normal" list a card's
+    /// non-vital signals without dressing a quiet day as an alarm.
+    func testANonClinicalMetricGetsANeutralBaselineRow() throws {
+        let dep = try XCTUnwrap(VitalDeparture.baseline(vitalReading(.stepCount, z: 2.5)))
+        XCTAssertEqual(dep.metric, .stepCount)
+        XCTAssertEqual(dep.z, 2.5)
+        XCTAssertEqual(dep.band, .watch, "a big move with no concerning side caps at watch")
+        XCTAssertFalse(dep.isConcerningDirection)
+        XCTAssertFalse(dep.isBeyondClinicalBound)
+    }
+
+    func testANonClinicalMetricWithNoBaselineYieldsNoRow() {
+        XCTAssertNil(VitalDeparture.baseline(vitalReading(.stepCount, z: nil)))
+    }
+
+    /// The fix for the reported gap: a Fitness-shaped card whose scan covers one
+    /// of its signals must still draw the rest against their own baseline, so the
+    /// section lists what "How you compare" lists rather than two rows out of six.
+    func testForCardAddsTheNonScanSignalsBesideTheScanOnes() {
+        let output = VitalSignsCheck.Output(
+            readings: [reading(.restingHeartRate, z: 0.2, status: .normal)],
+            stale: [], events: [], score: 90, coverage: 1)
+        let panel = VitalDeparturePanel.forCard(
+            output, cardMetrics: [.restingHeartRate, .stepCount, .vo2Max],
+            extraReadings: [vitalReading(.stepCount, z: 2.4, value: 3000),
+                            vitalReading(.vo2Max, z: -0.5, value: 42)])
+        XCTAssertEqual(Set(panel.rows.map(\.metric)),
+                       [.restingHeartRate, .stepCount, .vo2Max])
+        XCTAssertEqual(panel.rows.first?.metric, .stepCount, "worst departure leads")
+    }
+
+    /// A metric the scan already drew must not be added a second time from the
+    /// extra readings.
+    func testForCardDoesNotDuplicateAScanMetric() {
+        let output = VitalSignsCheck.Output(
+            readings: [reading(.restingHeartRate, z: 0.2, status: .normal)],
+            stale: [], events: [], score: 90, coverage: 1)
+        let panel = VitalDeparturePanel.forCard(
+            output, cardMetrics: [.restingHeartRate],
+            extraReadings: [vitalReading(.restingHeartRate, z: 5)])
+        XCTAssertEqual(panel.rows.filter { $0.metric == .restingHeartRate }.count, 1)
+    }
 }

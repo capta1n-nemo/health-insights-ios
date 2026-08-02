@@ -102,6 +102,29 @@ public struct VitalDeparture: Sendable, Equatable, Identifiable {
     static func isConcerning(z: Double, spec: VitalSignsCheck.Spec) -> Bool {
         z > 0 ? spec.concernWhenHigh : spec.concernWhenLow
     }
+
+    /// A departure row for a metric the **clinical scan doesn't cover** — a step
+    /// count, VO₂max, active energy. "How far from your normal" is on every card
+    /// and lists that card's signals; it used to draw only the ones with a
+    /// `VitalSignsCheck` spec, so a card whose inputs are mostly non-clinical
+    /// (Fitness, Sleep, Energy) showed two rows while "How you compare" listed
+    /// six. This closes that gap by reading the metric's own baseline.
+    ///
+    /// Neutral by construction: a non-clinical metric has **no concerning
+    /// direction** — fewer steps than usual is not an alarm the way a low blood
+    /// oxygen is — so its band never reaches the clinical red, only "worth a
+    /// look". `nil` when the metric has no baseline yet.
+    public static func baseline(_ reading: VitalReading) -> VitalDeparture? {
+        guard let z = reading.zScore else { return nil }
+        return VitalDeparture(
+            metric: reading.metric, z: z,
+            plotted: Swift.max(-axisLimit, Swift.min(axisLimit, z)),
+            isClamped: abs(z) > axisLimit,
+            band: band(z: z, concerning: false),
+            isConcerningDirection: false,
+            isBeyondClinicalBound: false,
+            value: reading.value, sourceName: reading.sourceName)
+    }
 }
 
 /// Everything the Readiness strip needs: the rows it can draw, and an honest
@@ -159,6 +182,39 @@ public struct VitalDeparturePanel: Sendable, Equatable {
             rows: whole.rows.filter { wanted.contains($0.metric) },
             unjudged: whole.unjudged.filter { wanted.contains($0) },
             stale: whole.stale.filter { wanted.contains($0) })
+    }
+
+    /// A card's departure panel: the clinical scan's rows for the metrics it
+    /// covers, **plus** a plain baseline row for every other metric the card
+    /// reads. This is what makes "How far from your normal" list the same
+    /// signals as "How you compare" — steps, active energy, VO₂max and the rest,
+    /// each against the reader's own normal — rather than only the clinical
+    /// vitals the scan happens to watch.
+    ///
+    /// `extraReadings` are the card's non-scan metrics read through
+    /// `VitalReader`; the caller supplies them because only it holds the samples.
+    /// A metric measured but without a baseline yet joins `unjudged` so it is
+    /// named, not silently dropped.
+    public static func forCard(_ output: VitalSignsCheck.Output,
+                               cardMetrics: [MetricType]?,
+                               extraReadings: [VitalReading]) -> VitalDeparturePanel {
+        let base = from(output, limitedTo: cardMetrics)
+        var rows = base.rows
+        var unjudged = base.unjudged
+        let alreadyHave = Set(rows.map(\.metric)).union(unjudged).union(base.stale)
+        for reading in extraReadings where !alreadyHave.contains(reading.metric) {
+            if let row = VitalDeparture.baseline(reading) {
+                rows.append(row)
+            } else {
+                unjudged.append(reading.metric)
+            }
+        }
+        rows.sort {
+            $0.band.severity != $1.band.severity
+                ? $0.band.severity > $1.band.severity
+                : abs($0.z) > abs($1.z)
+        }
+        return VitalDeparturePanel(rows: rows, unjudged: unjudged, stale: base.stale)
     }
 
     public static func from(_ output: VitalSignsCheck.Output) -> VitalDeparturePanel {

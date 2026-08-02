@@ -46,7 +46,27 @@ before touching a chart. Both were written from shipped defects.
 
 ## Current focus
 
-**Graceful-population rules (latest, 2026-08-02, night).** The user, after the
+**Consistency fixes off two screenshots (latest, 2026-08-02, night).**
+
+- **"How far from your normal" now covers every card metric, not just clinical
+  vitals.** Fitness showed 6 signals in "How you compare" and 2 in the departure
+  section, because the latter ran only `VitalSignsCheck` specs (no spec for
+  steps, active energy, VO₂max, sleep\*). New `VitalDeparture.baseline(_:)` builds
+  a **neutral** departure row (no concerning direction → amber at most, never
+  clinical red) from any metric's own baseline, and `VitalDeparturePanel.forCard`
+  merges the scan rows with a `VitalReader` reading for each non-scan card metric.
+  The old "not among the vitals the scan watches" placeholder is gone. This closes
+  audit open-item #2 (the departure section being vitals-only). Modelled metrics
+  stay out, as they do from peer comparison.
+- **The sleep-onset chart now conforms to the timeframe and has the fortnight
+  chart's band + average line.** It ignored the D/W/M/6M/Y/All picker (fixed:
+  takes `window(spanning:)`), and the user wanted it to match "Your fortnight" —
+  so it now draws a dashed average line at your usual latency and a ±1 SD band,
+  both **re-fitted over the visible window** via `onVisibleRangeChange`, exactly
+  like `SleepOnsetStripChart`. The separate drift line is dropped from the chart;
+  the drift stays in the sentence above it.
+
+**Graceful-population rules (previous, 2026-08-02, night).** The user, after the
 audit: *"make rules so when a new card accepts a new source of info, it
 gracefully populates across the cards"* — the more connectors, the more the Data
 tab and the scores fill in. Turned the audit's lessons into enforced invariants:
