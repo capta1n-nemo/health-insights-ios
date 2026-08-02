@@ -83,11 +83,21 @@ public struct AdministeredDose: Sendable, Equatable {
     /// entered or confirmed by the reader. Everything derived from it is drawn
     /// dashed — the app's one rule for "not measured".
     public let isInferred: Bool
+    /// Where it was injected, when the reader (or an import) said.
+    ///
+    /// Carried on the dose rather than looked up separately because
+    /// `MedicationResponse` attributes weight change to whichever dose was in
+    /// effect, and "which site" is a property of that same dose. Free text: it
+    /// is Shotsy's vocabulary on the way in, and a fixed enum would drop any
+    /// site somebody else's app names differently.
+    public let site: String?
 
-    public init(takenAt: Date, milligrams: Double, isInferred: Bool = false) {
+    public init(takenAt: Date, milligrams: Double, isInferred: Bool = false,
+                site: String? = nil) {
         self.takenAt = takenAt
         self.milligrams = milligrams
         self.isInferred = isInferred
+        self.site = site
     }
 }
 

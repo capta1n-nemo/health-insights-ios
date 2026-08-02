@@ -255,16 +255,18 @@ the place to look.
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
   - `CompositionVelocityModel` :49
+- `Signals/MedicationResponse.swift`
+  - `MedicationResponse` :25
 - `Signals/NightSleepDetail.swift`
   - `NightSleepDetail` :17
 - `Signals/Pharmacokinetics.swift`
-  - `ActiveCompoundPoint` :95
+  - `ActiveCompoundPoint` :105
   - `AdministeredDose` :79
   - `GLPCompound` :10
-  - `MedicationScanPayload` :264
-  - `MedicationScanner` :301
-  - `PharmacokineticsModel` :105
-  - `TitrationEngine` :207
+  - `MedicationScanPayload` :274
+  - `MedicationScanner` :311
+  - `PharmacokineticsModel` :115
+  - `TitrationEngine` :217
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9
@@ -359,7 +361,7 @@ the place to look.
   - `ManualSampleRecord` :27
   - `MedicationRecord` :208
   - `PredictionOutcomeRecord` :145
-  - `SideEffectRecord` :264
+  - `SideEffectRecord` :265
   - `SubstanceEventRecord` :98
   - `SuggestionDismissalRecord` :127
 - `Core/State/AppModel.swift`
@@ -386,6 +388,8 @@ the place to look.
   - `SectionExpansion` :26
 - `DesignSystem/MedicationCurveChart.swift`
   - `MedicationCurveChart` :22
+- `DesignSystem/MedicationResponseChart.swift`
+  - `MedicationResponseChart` :28
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
@@ -459,9 +463,9 @@ the place to look.
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
 - `Features/Insights/MedicationSection.swift`
-  - `DoseEntrySheet` :138
-  - `MedicationSection` :13
-  - `MedicationSetupSheet` :83
+  - `DoseEntrySheet` :300
+  - `MedicationSection` :36
+  - `MedicationSetupSheet` :245
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`

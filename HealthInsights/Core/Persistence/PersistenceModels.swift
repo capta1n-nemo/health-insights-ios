@@ -250,7 +250,8 @@ final class DoseLogRecord {
     /// being an estimate, which is what makes the curve stop being dashed.
     var administered: AdministeredDose {
         AdministeredDose(takenAt: takenAt, milligrams: milligrams,
-                         isInferred: isInferred && confirmedAt == nil)
+                         isInferred: isInferred && confirmedAt == nil,
+                         site: injectionSite)
     }
 }
 

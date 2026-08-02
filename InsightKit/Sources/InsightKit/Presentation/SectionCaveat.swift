@@ -85,6 +85,15 @@ public struct SectionCaveat: Sendable, Equatable {
             + "recording — a score resting on one measurement isn't one. Days "
             + "the app scored for you at the time are kept as they were shown.")
 
+    /// Weight change credited to whichever dose happened to be the current one.
+    ///
+    /// The text lives on `MedicationResponse` because the analysis and the
+    /// disclaimer are the same claim, and three surfaces draw that analysis.
+    /// Three hand-written versions of a caveat is three chances for one of them
+    /// to be the soft one.
+    public static let doseAttribution = SectionCaveat(
+        kind: .estimated, text: MedicationResponse.caveat)
+
     /// Signals a scan looks at but does not weigh into the score.
     public static func unscored(signals: Int) -> SectionCaveat {
         SectionCaveat(

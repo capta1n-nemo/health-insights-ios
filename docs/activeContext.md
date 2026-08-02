@@ -97,6 +97,40 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Fourteenth push — "is it working": the medication section grew an engine.**
+The user, after showing Shotsy's Results tab: *"I want the medication board
+graph to be in this new Medication section, and for you to overlay weight, fat,
+relevant stats onto it.. so I can see how well it's working."*
+
+- **`MedicationResponse`** (InsightKit, 16 tests) attributes the weight record
+  to the dose history. Each dose owns the stretch until the next; the weigh-ins
+  nearest each boundary — within ten days, **symmetric** — give it its change.
+  Out of that: the ladder table (total and kg/week per dose step), the injection
+  site table, and four overall figures measured **from the first dose**, not
+  from the reader's first ever weigh-in.
+- **A dose step with no weigh-ins keeps its days and its count but gets no
+  rate.** Dropping it shortens the denominator and inflates that step's
+  kg/week — a made-up number where a dash belongs. There is a test.
+- **`SectionCaveat.doseAttribution`** carries the honesty on every table:
+  attribution is by timing, not cause, and early loss on a GLP-1 is faster at
+  any dose, so the first rungs always flatter themselves.
+- **`MedicationResponseChart` is standardised, not dual-axed.** Milligrams,
+  kilograms and percent on one axis as z-scores against each series' own window
+  mean. Two y-axes is how any two lines can be slid until they agree;
+  `MetricOverlayChart` already refused and this follows. The scrub read-out
+  prints the real values, so nothing is hidden.
+- **`ResponsePoint` exists rather than reusing `NormalizedPoint`** for exactly
+  one field — `isInferred` — so a curve resting on doses `TitrationEngine`
+  worked out stays **dashed** after normalisation instead of becoming a solid
+  guess. That is the one thing this app never rounds in its own favour.
+- Injection sites are shown but explicitly **not** presented as a comparison.
+  The dose sheet offers the sites already in the record (`knownInjectionSites`),
+  so a hand-logged dose groups with imported ones instead of starting a second
+  name for the same place.
+- Still not built from Shotsy's dashboards: the **calories** panel. Dietary
+  energy arrives in the import but is not a `MetricType` yet — see
+  `pendingNutritionKinds`.
+
 **Thirteenth push — the Data tab, and the master input list.** Three things the
 user asked for after seeing the twelfth on the phone.
 

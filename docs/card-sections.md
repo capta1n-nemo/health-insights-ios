@@ -176,7 +176,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" + "Medication on board" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" + "Medication" (5 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
 **The bespoke slot is still one slot.** Four cards draw two things in it
 (Body Composition, Fitness, Heart Attack & Stroke Risk, and — since 2026-08-02
@@ -550,7 +550,11 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
 | 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
 | 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
-| 5n | Medication on board | BodyC | open (closed when empty) | ● | mg active | `.none` | `MedicationCurveChart` |
+| 5n | Medication | BodyC | open (closed when empty) | ● | mg on board | `doseAttribution` | — (four figures) |
+| 5n·1 | Is it working | BodyC | nested in 5n | ● | — | `.none` | `MedicationResponseChart` |
+| 5n·2 | By dose | BodyC | nested in 5n, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
+| 5n·3 | By injection site | BodyC | nested in 5n, if recorded | ● | — | `doseAttribution` | — (grid) |
+| 5n·4 | Side effects | BodyC | nested in 5n, if any | ● | — | `.none` | — (worst avg first) |
 | 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
 | 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
 | 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
@@ -632,9 +636,47 @@ one beat-to-beat stream and only agreement between them is evidence.
 | `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
 | `NightSleepChart` | ○ | ○ | ● shared | — within a single night |
 | `MedicationCurveChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
+| `MedicationResponseChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
 | `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |
+
+### The medication section is now five sections
+
+`MedicationSection` began as one chart of milligrams on board. That answers a
+question about the *drug* and none about the reader — the user, after showing
+Shotsy's Results tab: *"I want the medication board graph to be in this new
+Medication section, and for you to overlay weight, fat, relevant stats onto it..
+so I can see how well it's working."*
+
+`MedicationResponse` (InsightKit, 16 tests) is the engine. It attributes the
+weight record to the dose history: each dose owns the stretch until the next
+one, and the weigh-ins nearest each boundary — within ten days, symmetric —
+give that stretch its change. From that come the ladder table, the site table,
+and the overall four figures.
+
+Three things about it are deliberate and worth not undoing:
+
+- **Attribution by timing is not cause**, and `SectionCaveat.doseAttribution`
+  says so on every table that draws it. Early loss on a GLP-1 is faster at any
+  dose, so the first rungs of a ladder always flatter themselves.
+- **A dose step with no weigh-ins keeps its days and its count but gets no
+  rate.** Dropping it would shorten the denominator and inflate the per-week
+  figure for that step — a made-up number where a dash belongs.
+- **The overlay is standardised, not dual-axed.** `MedicationResponseChart`
+  puts milligrams, kilograms and percent on one axis as z-scores against each
+  series' own window mean. Two y-axes is how any two lines can be slid until
+  they agree; `MetricOverlayChart` already refused to do it and this follows.
+  The scrub read-out carries the real numbers, so nothing is hidden.
+  `ResponsePoint` exists rather than reusing `NormalizedPoint` for one field:
+  `isInferred`, so a curve resting on doses `TitrationEngine` worked out stays
+  **dashed** after normalisation instead of becoming a solid guess.
+
+Injection sites are recorded and shown, with a note that they are not a
+comparison — rotating sites is about the skin, and any difference in the table
+is far more likely to be which weeks the reader happened to inject where. The
+dose sheet offers the sites **already in the record**, so a hand-logged dose
+groups with imported ones instead of starting a second name for the same place.
 
 **Seven of twelve charts pan** — the five that don't never wrapped the shared
 component. Three of those (`EnergyCurveChart`, `FitnessProjectionChart`,

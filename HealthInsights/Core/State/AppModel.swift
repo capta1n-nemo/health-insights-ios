@@ -124,8 +124,38 @@ final class AppModel {
                                            to: now)
     }
 
+    /// The medication read against the body — dose steps, injection sites and
+    /// the overall change since the first dose.
+    ///
+    /// Not cached: it walks the dose list and the weight record once, and both
+    /// change only when the reader logs something or an import lands. Caching it
+    /// would need invalidating from four places, which is how a stale figure
+    /// gets shipped.
+    var medicationResponse: MedicationResponse.Analysis {
+        guard let medication = activeMedication else {
+            return MedicationResponse.Analysis(overall: nil, byDose: [],
+                                               bySite: [], periods: [])
+        }
+        return MedicationResponse.analyze(doses: medication.doses.map(\.administered),
+                                          weights: samples)
+    }
+
+    /// The three standardised series behind "is it working".
+    func medicationOverlay(days: Int, now: Date = Date()) -> [MedicationResponse.ResponseSeries] {
+        let curve = medicationCurve(days: days, now: now)
+        guard let first = curve.first?.date else { return [] }
+        return MedicationResponse.overlay(curve: curve, weights: samples,
+                                          range: first...now)
+    }
+
     /// Side effects the reader has recorded, newest first.
     var sideEffects: [SideEffectRecord] { dataStore.loadSideEffects() }
+
+    /// The same records tallied by symptom, worst average first.
+    var sideEffectTally: [MedicationResponse.SideEffectTally] {
+        MedicationResponse.sideEffectTally(
+            sideEffects.map { (name: $0.name, severity: $0.severity, date: $0.date) })
+    }
 
     /// Record a side effect by hand.
     ///
@@ -205,9 +235,25 @@ final class AppModel {
     /// True while a shared file is being read, so the UI can say so.
     private(set) var isImporting = false
 
-    func logDose(_ milligrams: Double, at date: Date = Date()) {
-        dataStore.logDose(milligrams, at: date)
+    func logDose(_ milligrams: Double, at date: Date = Date(), site: String? = nil) {
+        dataStore.logDose(milligrams, at: date, site: site)
         recompute()
+    }
+
+    /// Injection sites already in the record, so a hand-logged dose reuses the
+    /// vocabulary an import brought in rather than inventing a parallel one.
+    ///
+    /// Shotsy's own site names are free text and this app has no way to know
+    /// them in advance; offering "Stomach — upper left" beside an imported
+    /// "Stomach Upper Left" would split one site into two rows in the response
+    /// table and neither would be wrong. The standard six are the fallback for
+    /// a reader who has imported nothing.
+    var knownInjectionSites: [String] {
+        let used = Set((activeMedication?.doses ?? []).compactMap(\.injectionSite))
+        guard used.isEmpty else { return used.sorted() }
+        return ["Stomach Upper Left", "Stomach Upper Mid", "Stomach Upper Right",
+                "Stomach Lower Left", "Stomach Lower Mid", "Stomach Lower Right",
+                "Left Thigh", "Right Thigh", "Left Arm", "Right Arm"]
     }
 
     func confirmInferredDoses() {
