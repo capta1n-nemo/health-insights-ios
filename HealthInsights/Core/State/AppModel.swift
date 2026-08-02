@@ -104,6 +104,55 @@ final class AppModel {
         }
     }
 
+    /// The active medication regimen and its doses, if the reader has one.
+    ///
+    /// Read straight off the store rather than cached: doses change only when
+    /// the reader logs one, and a curve built from a stale list would be
+    /// describing a body that has since had another injection.
+    var activeMedication: MedicationRecord? { dataStore.loadActiveMedication() }
+
+    /// The active-compound curve for the visible window, or empty when there
+    /// is no regimen. Memoised per window, since a chart re-evaluates its body
+    /// on every pan frame.
+    func medicationCurve(days: Int = 90, now: Date = Date()) -> [ActiveCompoundPoint] {
+        guard let medication = activeMedication, let compound = medication.compound,
+              !medication.doses.isEmpty else { return [] }
+        let doses = medication.doses.map(\.administered)
+        let start = now.addingTimeInterval(-Double(days) * 86_400)
+        return PharmacokineticsModel.curve(doses: doses, compound: compound,
+                                           from: max(start, medication.startedOn),
+                                           to: now)
+    }
+
+    /// Doses the app proposed and the reader has not yet confirmed.
+    var unconfirmedDoseCount: Int {
+        activeMedication?.doses.filter { $0.isInferred && $0.confirmedAt == nil }.count ?? 0
+    }
+
+    func logDose(_ milligrams: Double, at date: Date = Date()) {
+        dataStore.logDose(milligrams, at: date)
+        recompute()
+    }
+
+    func confirmInferredDoses() {
+        dataStore.confirmInferredDoses()
+        recompute()
+    }
+
+    func discardInferredDoses() {
+        dataStore.discardInferredDoses()
+        recompute()
+    }
+
+    func startMedication(compound: GLPCompound, brandName: String?,
+                         currentDose: Double, startedOn: Date) {
+        let inferred = TitrationEngine.inferHistory(
+            currentDose: currentDose, compound: compound, startedOn: startedOn)
+        dataStore.startMedication(compound: compound, brandName: brandName,
+                                  startedOn: startedOn, inferredDoses: inferred)
+        recompute()
+    }
+
     /// Decaying daily cardiovascular load from the substance log.
     ///
     /// Cached for the same reason the overlay is: a detail view re-evaluates its

@@ -7,6 +7,11 @@ struct InsightDetailView: View {
     @State private var groundingKind: GroundingKind?
     @State private var feedbackGiven = false
     @State private var timeframe: Timeframe = .month
+    /// The reader's own answer about their build, where they gave one. A
+    /// preference about wording rather than an input to any model — see
+    /// `somatotypeSection`.
+    @AppStorage("somatotypeOverride") private var somatotypeOverrideRaw = ""
+
     @State private var scale: SeriesScale = .zScore
     @State private var logarithmic = false
     @State private var showsRoutineDrivers = false
@@ -1352,6 +1357,50 @@ struct InsightDetailView: View {
             ) {
                 BodyCompositionTrendChart(points: visible, finerSplitBegins: begins,
                                           window: window(spanning: compositionSpan(visible)))
+            }
+        }
+
+        // Your build, and what you are taking — both are pictures of this
+        // card's own subject, so they share its one bespoke slot rather than
+        // each claiming a placement rule of their own.
+        Divider()
+        somatotypeSection
+        Divider()
+        MedicationSection()
+    }
+
+    /// `@AppStorage` cannot hold an optional enum, so it round-trips through
+    /// the raw value with empty standing for "use the estimate".
+    private var somatotypeOverride: Binding<Somatotype.Component?> {
+        Binding(get: { Somatotype.Component(rawValue: somatotypeOverrideRaw) },
+                set: { somatotypeOverrideRaw = $0?.rawValue ?? "" })
+    }
+
+    /// The three-component build estimate, with the reader's override.
+    ///
+    /// Stored in `@AppStorage` rather than as a grounding fact: it is a
+    /// preference about how the app should describe them, not a measurement any
+    /// model reads. Nothing scores off it, which is exactly why it can be a
+    /// free choice.
+    @ViewBuilder private var somatotypeSection: some View {
+        let estimate = model.memoized("somatotype") {
+            SomatotypeModel.estimate(
+                bodyFatPercentage: model.samples.latestValue(.bodyFatPercentage),
+                leanMassKg: model.samples.latestValue(.leanBodyMass),
+                weightKg: model.samples.latestValue(.bodyMass) ?? 0,
+                heightMetres: model.samples.latestValue(.height) ?? 0,
+                dimensions: nil,
+                age: model.profile.age() ?? 35,
+                sex: model.profile.sex ?? .male)
+        }
+        if let estimate {
+            SomatotypeCard(somatotype: estimate, override: somatotypeOverride)
+        } else {
+            NestedInsightSection(title: "Your build", trailing: nil, caveat: .none) {
+                emptySection(SectionPlaceholder.needsInput(
+                    subject: "An estimate of your build",
+                    what: "your height and a recent weight",
+                    remedy: "add your height in Apple Health, or step on a connected scale"))
             }
         }
     }

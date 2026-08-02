@@ -178,7 +178,26 @@ in the export (107 readings, MyFitnessPal). Without intake the service returns
 
 ---
 
-## 2. Medication & pharmacokinetics (GLP-1)
+## 2. Medication & pharmacokinetics (GLP-1) — **BUILT 2026-08-02**
+
+`GLPCompound`, `PharmacokineticsModel` (Bateman, with the ka=ke limit handled
+so it cannot emit a NaN), `TitrationEngine` and `MedicationScanPayload` are in
+InsightKit with 18 tests. `MedicationRecord` / `DoseLogRecord` persist it,
+`MedicationCurveChart` draws it — **dashed wherever the line rests on a dose
+the app inferred** — and `MedicationSection` carries the confirm-or-remove step
+in Body Composition's bespoke slot. **Not built:** the Vision OCR scanner
+behind `MedicationScanner` (the seam and its text-parsing half are, and are
+tested); and `MetricType.activeMedicationLevel`, which stays out until the
+curve has been trusted on real doses, because it is the expensive registration.
+
+Two bugs the tests caught, worth keeping: the titration walk emitted a dose on
+both sides of every step boundary, which sorted into a ladder that appeared to
+go *backwards*; and "the inferred dose has decayed away" was asserted at three
+weeks, when a five-day half-life still leaves it carrying ~28% of the level.
+
+The design as written:
+
+## 2a. Medication & pharmacokinetics (GLP-1)
 
 **The brief:** track drug, dose, schedule and half-life decay; graph active
 compound; expose it as a predictor; infer a titration history; leave room for an

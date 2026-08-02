@@ -176,7 +176,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" + "Medication on board" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
 **The bespoke slot is still one slot.** Four cards draw two things in it
 (Body Composition, Fitness, Heart Attack & Stroke Risk, and — since 2026-08-02
@@ -549,6 +549,8 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
 | 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
 | 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
+| 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
+| 5n | Medication on board | BodyC | open (closed when empty) | ● | mg active | `.none` | `MedicationCurveChart` |
 | 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
 | 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
 | 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
@@ -629,6 +631,7 @@ one beat-to-beat stream and only agreement between them is evidence.
 | `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
 | `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
 | `NightSleepChart` | ○ | ○ | ● shared | — within a single night |
+| `MedicationCurveChart` | ○ | ○ | ● shared | — its own 90-day window |
 | `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
 | `PeerStandingStrip` | ○ | — | — | — position, not time |
 | `VitalDepartureStrip` | ○ | — | — | — position, not time |

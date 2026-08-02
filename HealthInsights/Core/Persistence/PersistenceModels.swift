@@ -197,3 +197,59 @@ final class FeedbackRecord {
 
     var cohort: Cohort { Cohort(sex: sex, ageBand: ageBand, ethnicity: ethnicity, region: region) }
 }
+
+/// A medication the reader is taking, with the doses they have logged.
+///
+/// **This app describes; it does not prescribe.** These records exist so the
+/// reader can see what they took and what the pharmacology implies is still on
+/// board. Nothing here recommends a dose, advances a titration, or suggests a
+/// change — see `GLPCompound`.
+@Model
+final class MedicationRecord {
+    var compoundRaw: String
+    /// Display only. The same compound is sold under several names, so the
+    /// pharmacology is keyed on `compoundRaw` and never on this.
+    var brandName: String?
+    var startedOn: Date
+    var isActive: Bool
+    @Relationship(deleteRule: .cascade) var doses: [DoseLogRecord]
+
+    init(compoundRaw: String, brandName: String? = nil, startedOn: Date,
+         isActive: Bool = true, doses: [DoseLogRecord] = []) {
+        self.compoundRaw = compoundRaw
+        self.brandName = brandName
+        self.startedOn = startedOn
+        self.isActive = isActive
+        self.doses = doses
+    }
+
+    var compound: GLPCompound? { GLPCompound(rawValue: compoundRaw) }
+}
+
+/// One dose. `isInferred` is the safety flag the whole medication module turns
+/// on: a dose the app extrapolated is stored as a **proposal**, drawn dashed,
+/// and never counted as the reader's word until they confirm it.
+@Model
+final class DoseLogRecord {
+    var takenAt: Date
+    var milligrams: Double
+    var injectionSite: String?
+    var isInferred: Bool
+    var confirmedAt: Date?
+
+    init(takenAt: Date, milligrams: Double, injectionSite: String? = nil,
+         isInferred: Bool = false, confirmedAt: Date? = nil) {
+        self.takenAt = takenAt
+        self.milligrams = milligrams
+        self.injectionSite = injectionSite
+        self.isInferred = isInferred
+        self.confirmedAt = confirmedAt
+    }
+
+    /// The value type the pharmacokinetics model reads. A confirmed dose stops
+    /// being an estimate, which is what makes the curve stop being dashed.
+    var administered: AdministeredDose {
+        AdministeredDose(takenAt: takenAt, milligrams: milligrams,
+                         isInferred: isInferred && confirmedAt == nil)
+    }
+}

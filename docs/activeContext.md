@@ -97,6 +97,43 @@ either. **Generalises: `dict[key] as? Optional<T>` is always a bug.**
 - F15: score history stores days below the two-contributor floor (Heart Health
   2026-07-30 57(0); Risk 90(0), 99(1)) — check whether the chart filters them
   at draw and why they're stored.
+**Seventh and eighth pushes — "do all of it".** The user asked for the whole
+remaining list. Two coherent pushes:
+
+**A. Body Composition can place you, judge your build, and name your shape.**
+- `PeerStandingModel` gains `.bodyFatPercentage`, anchored on the *same*
+  Gallagher band the dial scores against. **"None of this card's signals has a
+  published norm yet" is false for the first time.** The mean sits above the
+  band's top edge, because a healthy range is not a population's middle.
+- `BuildAssessment` — Woolcott & Bergman **RFM** (validated against DXA on
+  ~12k NHANES adults; BMI is validated against nothing but itself) plus the
+  waist-to-height 0.5 action line. `BodyCompositionInsight.score` has **three
+  routes** now: measured fat → dimensions → BMI. A BMI of 30.9 with an 84 cm
+  waist on 1.80 m is flagged non-standard and scored from the waist; the same
+  BMI with a 110 cm waist is not, because the override is not an escape hatch.
+- `Somatotype` — three continuous Heath–Carter components, never a label,
+  `isBalanced` because most people are mixtures.
+
+**B. The GLP-1 module.** `PharmacokineticsModel` (Bateman, ka=ke limit handled
+explicitly so it cannot emit a propagating NaN), `TitrationEngine`,
+`MedicationScanPayload`, SwiftData `MedicationRecord`/`DoseLogRecord`,
+`MedicationCurveChart`, `MedicationSection`, `SomatotypeCard`. **The safety
+posture is one flag:** every inferred dose is stored unconfirmed, drawn
+**dashed**, and sits behind a confirm-or-remove row until the reader says so.
+Nothing recommends or advances a dose.
+
+Two bugs the tests caught and are worth remembering: the titration walk emitted
+a dose on **both sides of every step boundary**, which sorted into a ladder
+that appeared to go backwards; and my own test asserted an inferred dose had
+"decayed away" at three weeks when a five-day half-life still leaves it
+carrying ~28% of the level — the test was wrong, not the code.
+
+**Still not built, deliberately:** the LiDAR capture (ARKit, unexercisable from
+a sandbox), the Vision OCR scanner behind `MedicationScanner` (the seam and its
+text parsing are built and tested), `MetricType.activeMedicationLevel` (the
+expensive registration — wait until the curve is trusted on real doses), and
+TDEE (needs dietary energy promoted out of the raw pile).
+
 **Sixth push — Body Composition scores velocity, not just a level.** The user's
 three answers came back: body fat **0.45** ("maybe 50% max", and asked what
 other systems do), a stated weight goal **yes**, the medication posture **yes**.

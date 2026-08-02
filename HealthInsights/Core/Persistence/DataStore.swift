@@ -13,7 +13,8 @@ final class DataStore {
         let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
                              IntegrationRecord.self, SubstanceEventRecord.self,
                              PredictionOutcomeRecord.self, FeedbackRecord.self,
-                             InsightScoreRecord.self, SuggestionDismissalRecord.self])
+                             InsightScoreRecord.self, SuggestionDismissalRecord.self,
+                             MedicationRecord.self, DoseLogRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -307,6 +308,67 @@ final class DataStore {
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         let records = (try? context.fetch(descriptor)) ?? []
         return records.compactMap(\.event)
+    }
+
+    // MARK: - Medication
+
+    /// The active medication regimen, if there is one. Only one at a time:
+    /// modelling two GLP-1 compounds on board at once is a clinical situation
+    /// this app has no business describing.
+    func loadActiveMedication() -> MedicationRecord? {
+        let descriptor = FetchDescriptor<MedicationRecord>(
+            sortBy: [SortDescriptor(\.startedOn, order: .reverse)])
+        return ((try? context.fetch(descriptor)) ?? []).first { $0.isActive }
+    }
+
+    /// Start a regimen, optionally seeding the titration history the engine
+    /// proposes. **Every seeded dose is stored unconfirmed** — the reader
+    /// reviews them, and until they do the curve draws dashed.
+    func startMedication(compound: GLPCompound, brandName: String?,
+                         startedOn: Date, inferredDoses: [AdministeredDose]) {
+        for existing in ((try? context.fetch(FetchDescriptor<MedicationRecord>())) ?? []) {
+            existing.isActive = false
+        }
+        let record = MedicationRecord(compoundRaw: compound.rawValue,
+                                      brandName: brandName, startedOn: startedOn)
+        record.doses = inferredDoses.map {
+            DoseLogRecord(takenAt: $0.takenAt, milligrams: $0.milligrams,
+                          isInferred: $0.isInferred)
+        }
+        context.insert(record)
+        try? context.save()
+    }
+
+    func logDose(_ milligrams: Double, at date: Date, site: String? = nil) {
+        guard let medication = loadActiveMedication() else { return }
+        medication.doses.append(DoseLogRecord(takenAt: date, milligrams: milligrams,
+                                              injectionSite: site))
+        try? context.save()
+    }
+
+    /// Accept the proposed history as it stands. The doses stop being estimates
+    /// and the curve stops drawing dashed.
+    func confirmInferredDoses(at date: Date = Date()) {
+        guard let medication = loadActiveMedication() else { return }
+        for dose in medication.doses where dose.isInferred && dose.confirmedAt == nil {
+            dose.confirmedAt = date
+        }
+        try? context.save()
+    }
+
+    /// Throw the proposal away — the reader says it did not happen that way.
+    func discardInferredDoses() {
+        guard let medication = loadActiveMedication() else { return }
+        for dose in medication.doses where dose.isInferred && dose.confirmedAt == nil {
+            context.delete(dose)
+        }
+        medication.doses.removeAll { $0.isInferred && $0.confirmedAt == nil }
+        try? context.save()
+    }
+
+    func stopMedication() {
+        loadActiveMedication()?.isActive = false
+        try? context.save()
     }
 
     func addSubstanceEvent(_ event: SubstanceEvent) {

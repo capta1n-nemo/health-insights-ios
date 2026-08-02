@@ -249,6 +249,14 @@ the place to look.
   - `CompositionVelocityModel` :49
 - `Signals/NightSleepDetail.swift`
   - `NightSleepDetail` :17
+- `Signals/Pharmacokinetics.swift`
+  - `ActiveCompoundPoint` :95
+  - `AdministeredDose` :79
+  - `GLPCompound` :10
+  - `MedicationScanPayload` :264
+  - `MedicationScanner` :301
+  - `PharmacokineticsModel` :105
+  - `TitrationEngine` :207
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9
@@ -330,11 +338,13 @@ the place to look.
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
+  - `DoseLogRecord` :233
   - `FeedbackRecord` :178
   - `GroundingRecord` :9
   - `InsightScoreRecord` :57
   - `IntegrationRecord` :84
   - `ManualSampleRecord` :27
+  - `MedicationRecord` :208
   - `PredictionOutcomeRecord` :145
   - `SubstanceEventRecord` :98
   - `SuggestionDismissalRecord` :127
@@ -358,6 +368,8 @@ the place to look.
   - `InsightSection` :77
   - `NestedInsightSection` :201
   - `SectionExpansion` :26
+- `DesignSystem/MedicationCurveChart.swift`
+  - `MedicationCurveChart` :16
 - `DesignSystem/MetricOverlayChart.swift`
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
@@ -421,6 +433,12 @@ the place to look.
   - `InsightDetailView` :4
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :7
+- `Features/Insights/MedicationSection.swift`
+  - `DoseEntrySheet` :134
+  - `MedicationSection` :13
+  - `MedicationSetupSheet` :79
+- `Features/Insights/SomatotypeCard.swift`
+  - `SomatotypeCard` :11
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9
 - `Features/Launch/LaunchParticleView.swift`
