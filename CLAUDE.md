@@ -135,7 +135,12 @@ So:
 - `docs/architecture.md` -> Core data pipeline, BYO-Key API client, and Swift patterns.
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
-- `docs/progress.md` -> Feature roadmap checklist.
+- `docs/progress.md` -> Feature roadmap checklist. **It opens with a table of
+  every open item** — what is still outstanding, which section it lives in, and
+  whether it needs the phone, a build or a decision. Read that instead of
+  grepping for `- [ ]`. The table is generated: run
+  `./scripts/roadmap-table.sh` after ticking or adding a box, and
+  `handover-check.sh` fails while it disagrees with the list below it.
 - `docs/planned-modules.md` -> **Designed, not built.** The architecture of
   record for the four modules from the 2026-08-02 brief — dynamic
   weighting/velocity, GLP-1 pharmacokinetics, LiDAR dimensions + BMI override,

@@ -176,6 +176,21 @@ if [ -x scripts/card-map.sh ]; then
     fi
 fi
 
+# --- 7c. The open-items table still matches the roadmap --------------------
+# `docs/progress.md` opens with a table of every unticked box below it. A
+# session that ticks one and leaves the table alone hands the next session a
+# summary that disagrees with the list it summarises — the same failure the
+# card map exists to stop, one document over. Generated, so it is a command
+# rather than care.
+if [ -x scripts/roadmap-table.sh ]; then
+    if scripts/roadmap-table.sh --check >/dev/null 2>&1; then
+        ok "docs/progress.md's open-items table matches the roadmap"
+    else
+        bad "docs/progress.md's open-items table is out of date."
+        printf '    Run ./scripts/roadmap-table.sh.\n'
+    fi
+fi
+
 # --- 8. Roadmap items are still countable ----------------------------------
 # Not a pass/fail — a number to read back to the user, so "nothing is missed" is
 # a count they can check rather than a claim they have to take on trust.

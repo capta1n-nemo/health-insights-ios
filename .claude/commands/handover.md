@@ -19,7 +19,10 @@ has now happened four times in this repo's history.
 
 1. Analyze the code changes and decisions made in this chat session.
 2. Update `docs/activeContext.md` with current focus, recent edits, and exact next steps.
-3. Update `docs/progress.md` task statuses.
+3. Update `docs/progress.md` task statuses, then run
+   **`./scripts/roadmap-table.sh`** — the open-items table at the top of that
+   file is generated from the boxes below it, and `handover-check.sh` fails
+   while the two disagree.
 4. **Carry the tooling forward, not just the prose.** If this session learnt a
    rule, hit a trap, or built a shortcut, put it where the *next* session will
    trip over it rather than only in the narrative:
