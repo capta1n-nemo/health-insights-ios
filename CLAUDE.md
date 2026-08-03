@@ -31,6 +31,24 @@ One rule survives for anyone editing the hooks themselves: **a hook command in
 inherit the shell's drifted cwd, and a relative hook path fails silently
 (exit 127 is a non-blocking hook error, not a denial).
 
+## Check before you Write
+
+`BodyModelParameters` was implemented **twice in one session** (2026-08-03): a
+`Write` was issued against a path the same session had already created and
+committed. The tool refused it, which is the only reason it cost one call rather
+than silently reverting finished work.
+
+**Before `Write` on any file whose name follows from a plan — which is most of
+them — check it isn't already there:**
+
+```bash
+ls <path> 2>/dev/null || git log --oneline -1 -- <path>
+```
+
+Cheap, and it retires a class the `/handover` context-reset makes likely: a long
+session forgets what it built two hours ago, and a plan file names the same
+symbol twice.
+
 ## Primary Verification Commands
 - **The gate, before every push:** `./scripts/verify.sh --tests`
 - **InsightKit's full test suite runs on Linux** — do not assume otherwise.

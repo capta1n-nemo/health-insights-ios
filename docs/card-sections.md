@@ -71,6 +71,24 @@ tab bar's own safe area with no hard-coded guess at its height.
 arithmetic. **9 before 10** for the same shape — the outside comparison, then
 the personal one.
 
+**Body Composition's first bespoke slot now nests three things (2026-08-03).**
+In order: **"Your body over time"** (the body model — a silhouette drawn from the
+reader's own girths, a scrubber that morphs between measurements and runs on
+into the weight trend's projection), then **"What you're made of"** (the
+composition split), then **"Your build"** (the somatotype).
+
+Nested rather than taking a seventh top-level slot, deliberately: all three are
+readings *of one body*, and the ordering block below is generated from
+`InsightDetailView.body` — a new slot moves four hand-written tables with it.
+`card-map.sh --check` agrees with the nested arrangement.
+
+The body model's own gate: it needs a height and a weight, and renders from
+**estimated** girths where nothing has been measured, because a body model that
+appears only after a scan cannot be what persuades somebody to take one. Its
+caveat always says which girths were estimated. The projected half is refused
+outright when `CompositionVelocity.isMoving` is false — a steady weight draws
+nothing past today rather than a confident future out of a flat line.
+
 **Position 6 is new, 2026-08-02, and it is one card's.** Body Composition's
 bespoke slot had grown to hold two genuinely different questions — *what your
 body is made of* and *what you are doing about it* — and the second had five

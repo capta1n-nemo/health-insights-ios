@@ -1203,6 +1203,40 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] ECG photo/PDF import with metadata (no automated interpretation — that's
       a regulated medical-device claim, out of scope by design).
 
+### Body scanner — the engine, the section and the data (2026-08-03)
+
+- [x] **Seven new `MetricType`s** for the sites worth trending, with
+      `referenceRange` nil and the reason stated (the published waist thresholds
+      are sex- and ethnicity-specific; that switch has no sex).
+- [x] **`BodyScan`** storing `(site, side, value)` so re-parsing survives a
+      schema change, with `BodyScanRecord` keeping it as encoded JSON.
+- [x] **`BodyScanPolicy`** — *what is used* and *what is saved*, separately,
+      `retained ⊆ captured` normalised.
+- [x] **`ScanComparability`** — conditions per scan, comparability verdicts, and
+      a repeatability band below which a change is not a change.
+- [x] **`BodyMeasurementReconciliation`** — ranked by method, authority expiring
+      at 90 days, disagreements surfaced rather than resolved.
+- [x] **`BodySymmetry`** and **`PostureAssessment`**, both silent below two
+      floors, tested from synthetic skeletons.
+- [x] **`BodyModelParameters`** and **"Your body over time"** — the body model,
+      morphing between measurements and projecting forward, nested in Body
+      Composition's first bespoke slot with the somatotype beneath it.
+- [x] **`DataDomain.bodyScans`**, `BodyScanDataView`, and the export key.
+- [x] **The tape input on all four surfaces**, and **both dead routes live** —
+      `BuildAssessmentModel` and `SomatotypeModel` receive real dimensions for
+      the first time since they shipped.
+- [x] **HealthKit `waistCircumference` read**, so Apple Health alone can put the
+      card on the RFM route.
+- [ ] **Settings ▸ Body scans** — the two-matrix screen. `BodyScanPolicy` is
+      built and tested but **nothing reads it**, so retention is not yet the
+      reader's choice. Must land with or before the capture.
+- [ ] **The 30-day reminder** — `BodyScanCadence` is built; `SuggestionEngine`
+      does not call it.
+- [ ] **The ARKit capture and guided flow** — the largest remaining piece, and
+      device-only. See `activeContext.md` for the design.
+- [ ] **A 3D mesh instead of the silhouette.** `BodySilhouetteView.outline` is
+      static and pure so a mesh can replace it without touching anything above.
+
 ### Three insight cards the user asked for (2026-08-03)
 
 All three are the **Substance Impact shape**: something the reader does, dated,

@@ -76,8 +76,67 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**Screen Time week import: a five-fold under-count, found on the device
+**Body scanner — the engine and the section are built; the capture is not
 (latest, 2026-08-03).**
+
+Approved plan: `/root/.claude/plans/can-you-work-on-validated-stallman.md`.
+Most of the *judgement* for this feature already existed and was dead:
+`BuildAssessmentModel` was wired into `BodyCompositionInsight.score` as route 2
+but always `nil`, and `SomatotypeModel.estimate(dimensions:)` was always passed
+`nil`, because nothing in the app could produce a waist. **Both are live now.**
+
+Built and installed:
+
+- **Seven `MetricType`s** (waist, hip, chest, neck, shoulder, thigh, upper arm).
+  Not the fourteen-to-twenty a dedicated scanner takes — a `MetricType` costs
+  nine exhaustive switches and earns a chart, a Data-tab row and a reference
+  range; the rest live in the `BodyScan` payload. `referenceRange` is `nil` for
+  all seven **with the reason written down**: the published waist thresholds are
+  sex- *and* ethnicity-specific and that switch has no sex.
+- **`BodyScan`** stores `(site, side, value)` triples, not a property per site.
+  That is what makes re-parsing survive a schema change.
+- **`BodyScanPolicy`** — the two matrices, *used* vs *saved*, `retained ⊆
+  captured` normalised rather than trapped. They come apart usefully: a scan can
+  **use** the colour frames to find the silhouette and never write one to disk.
+- **`ScanComparability`** — the market gap. Conditions stored per scan; differing
+  clothing or capture mode makes two scans *not comparable*; a change inside the
+  ±10 mm repeatability band is not reported as a change at all.
+- **`BodyMeasurementReconciliation`** — ranks by **method**, not by which app the
+  number came through: tape › our LiDAR › Apple Health (unknown method) › our
+  camera. Authority expires at 90 days. Disagreements are surfaced, not resolved.
+- **`BodySymmetry` / `PostureAssessment`** — both mostly silent by design, from
+  synthetic skeletons. Posture is observation, never diagnosis, and a test
+  asserts the caveat says so.
+- **`BodyModelParameters`** + **`BodySilhouetteView`** + **"Your body over
+  time"**, nested in Body Composition's first bespoke slot above the split and
+  the somatotype.
+- **`DataDomain.bodyScans`** + `BodyScanDataView` + the export key.
+- **`InputKind.bodyMeasurements`** + `ContributionRoute.bodyMeasurements` +
+  `BodyMeasurementsSheet` (tape) on all four surfaces.
+- **HealthKit `waistCircumference` is read**, so a reader who has ever recorded a
+  waist in Health gets the RFM route with no scanning at all.
+
+⚠️ **Not built, in plan order:**
+
+1. **Settings ▸ Body scans — the two-matrix screen.** `BodyScanPolicy` exists and
+   is tested; **nothing reads it yet**, so capture/retention is not yet a choice
+   the reader can make. This must land with, or before, the capture.
+2. **The 30-day reminder is not wired.** `BodyScanCadence` is built and tested;
+   `SuggestionEngine` does not call it.
+3. **The scanner itself — ARKit capture and the guided flow.** The largest
+   remaining piece and entirely device-only. Design in the plan: runtime
+   capability detection via `supportsFrameSemantics(_:)` (the phone is an
+   iPhone 16 Pro, so LiDAR is the primary path), five drawn guide steps, live
+   validators, and — the differentiator — **the capture replays the previous
+   scan's `ScanConditions` as its target**, which is what turns
+   `ScanComparability` from a warning into a way of getting comparable scans.
+4. **The body is an outline, not a 3D mesh.** `BodySilhouetteView.outline` is
+   static and pure precisely so a mesh can replace it without touching anything
+   upstream. The reader asked for the most realistic option and this is not yet
+   it — the morph and the projection, which they said mattered most, are done.
+
+**Screen Time week import: a five-fold under-count, found on the device
+(2026-08-03).**
 
 The reader's Data ▸ Screen Time chart topped out at **258 min** on days they had
 actually spent ~21 h on the phone. Cause: `weekScanned` took
