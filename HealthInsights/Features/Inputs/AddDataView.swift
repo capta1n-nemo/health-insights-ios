@@ -396,18 +396,12 @@ struct ScreenTimeEntrySheet: View {
                     Text(durationLabel(week.totalMinutes))
                         .monospacedDigit().foregroundStyle(.primary)
                 }
-                Button {
-                    let written = model.importScreenTime(week.days.map {
-                        ScreenTimeEntry(day: $0.date, minutes: $0.minutes,
-                                        provenance: .weekEstimate, recordedAt: Date())
-                    })
-                    pendingWeek = nil
-                    scanOutcome = written == 0
-                        ? "Those seven days already have better figures — nothing changed."
-                        : "Saved \(written) day\(written == 1 ? "" : "s")."
-                } label: {
-                    Label("Save these 7 days", systemImage: "square.and.arrow.down")
-                }
+                // **No Save button here.** There is one Save on this sheet and
+                // it is the one in the toolbar — a second, differently-worded
+                // save inside a section reads as saving only that section, and
+                // leaves the reader guessing which of the two commits the week.
+                // Discard stays, because it is not a save and has no toolbar
+                // equivalent.
                 Button("Discard", role: .destructive) { pendingWeek = nil }
             } header: {
                 Text("Week of \(week.weekStart.formatted(.dateTime.day().month(.wide)))")
@@ -437,29 +431,37 @@ struct ScreenTimeEntrySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    DatePicker("Day", selection: $date,
-                               in: ...Date(), displayedComponents: .date)
-                    HStack {
-                        Picker("Hours", selection: $hours) {
-                            ForEach(0...24, id: \.self) { Text("\($0) h").tag($0) }
+                // **Hidden while a week is pending.** The day picker and the
+                // hours/minutes wheels describe *one* day, and a Week import
+                // writes seven — so leaving them on screen offers a control
+                // that has nothing to do with what Save is about to do, above
+                // the seven rows that do. They come back if the week is
+                // discarded.
+                if pendingWeek == nil {
+                    Section {
+                        DatePicker("Day", selection: $date,
+                                   in: ...Date(), displayedComponents: .date)
+                        HStack {
+                            Picker("Hours", selection: $hours) {
+                                ForEach(0...24, id: \.self) { Text("\($0) h").tag($0) }
+                            }
+                            .pickerStyle(.wheel).frame(maxWidth: .infinity)
+                            // Every minute, not quarters. A scan reads an exact
+                            // figure — the reader's own screenshot said 21h **1m** —
+                            // and a quarter-hour picker silently rounded it to 21h
+                            // 0m on the way in, which makes the app disagree with
+                            // the screenshot it just read.
+                            Picker("Minutes", selection: $minutes) {
+                                ForEach(0...59, id: \.self) { Text("\($0) m").tag($0) }
+                            }
+                            .pickerStyle(.wheel).frame(maxWidth: .infinity)
                         }
-                        .pickerStyle(.wheel).frame(maxWidth: .infinity)
-                        // Every minute, not quarters. A scan reads an exact
-                        // figure — the reader's own screenshot said 21h **1m** —
-                        // and a quarter-hour picker silently rounded it to 21h
-                        // 0m on the way in, which makes the app disagree with
-                        // the screenshot it just read.
-                        Picker("Minutes", selection: $minutes) {
-                            ForEach(0...59, id: \.self) { Text("\($0) m").tag($0) }
-                        }
-                        .pickerStyle(.wheel).frame(maxWidth: .infinity)
+                        .frame(height: 110)
+                    } header: {
+                        Text("Screen time")
+                    } footer: {
+                        Text("From Settings ▸ Screen Time — the daily total. Re-entering a day replaces it, so fixing a typo is just entering it again.")
                     }
-                    .frame(height: 110)
-                } header: {
-                    Text("Screen time")
-                } footer: {
-                    Text("From Settings ▸ Screen Time — the daily total. Re-entering a day replaces it, so fixing a typo is just entering it again.")
                 }
 
                 // The camera route. Screenshot Settings ▸ Screen Time and the
@@ -505,12 +507,32 @@ struct ScreenTimeEntrySheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                // **The only Save on this sheet**, and it saves whichever of the
+                // two things is on screen: the seven days of a pending week, or
+                // the single day the wheels describe. The week case does not
+                // dismiss when it wrote nothing, because "those days already
+                // have better figures" is an outcome the reader has to see —
+                // dismissing on it would look identical to having saved.
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        model.logScreenTime(minutes: total, on: date)
-                        dismiss()
+                        if let week = pendingWeek {
+                            let written = model.importScreenTime(week.days.map {
+                                ScreenTimeEntry(day: $0.date, minutes: $0.minutes,
+                                                provenance: .weekEstimate,
+                                                recordedAt: Date())
+                            })
+                            pendingWeek = nil
+                            if written == 0 {
+                                scanOutcome = "Those seven days already have better figures — nothing changed."
+                            } else {
+                                dismiss()
+                            }
+                        } else {
+                            model.logScreenTime(minutes: total, on: date)
+                            dismiss()
+                        }
                     }
-                    .disabled(total <= 0)
+                    .disabled(pendingWeek == nil && total <= 0)
                 }
             }
             .onChange(of: pickerItem) { _, item in
