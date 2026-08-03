@@ -610,7 +610,10 @@ private extension ScreenTimeEntrySheet {
     /// its days", and "here are seven estimates".
     func weekScanned(_ result: ScreenTimeScreenshotParser.Result,
                      weekStart: Date, barHeights: [Double]?, capturedAt: Date?) {
-        guard let weekly = result.readings.first(where: { $0.kind == .weeklyTotal }) else {
+        // `result.weeklyTotal` chooses rather than taking the first: the
+        // category subtotals sit above the real total on screen, and taking the
+        // first shipped a five-fold under-count.
+        guard let weekly = result.weeklyTotal else {
             // The heading gave a week but no total was read off it. Nothing to
             // apportion, and an average times seven is a different number from
             // the total on the screen often enough not to substitute it.
@@ -618,6 +621,19 @@ private extension ScreenTimeEntrySheet {
                 + "\(weekStart.formatted(.dateTime.day().month(.wide))), but no weekly "
                 + "total could be read. Try a screenshot that includes the "
                 + "\"Total Screen Time\" row."
+            return
+        }
+
+        // The screenshot prints the total *and* its daily average, so the two
+        // must agree to within rounding. A figure that fails this is not the
+        // week's total, whatever it was labelled — refuse rather than import a
+        // month of wrong days that look plausible on a chart.
+        if result.totalAgreesWithAverage() == false {
+            let average = result.dailyAverage.map { durationLabel($0.minutes) } ?? "—"
+            scanOutcome = "The figures on that screenshot don't add up: it reads "
+                + "\(durationLabel(weekly.minutes)) for the week but \(average) a day, "
+                + "which would be a different total. Nothing has been imported. "
+                + "Try a screenshot that includes the whole \"Total Screen Time\" row."
             return
         }
 

@@ -1203,6 +1203,35 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] ECG photo/PDF import with metadata (no automated interpretation — that's
       a regulated medical-device claim, out of scope by design).
 
+### Three insight cards the user asked for (2026-08-03)
+
+All three are the **Substance Impact shape**: something the reader does, dated,
+measured against the vitals around it. That card is already a first-class
+`InsightModel` with before/after windows and an exponential load kernel, so the
+machinery exists — what each of these needs is a *source of events*.
+
+- [ ] **Travel drain.** The user travels internationally and often, and it is
+      draining. Events would come from the calendar (a connector this app does
+      not have yet) or from a timezone/location change Apple Health can already
+      witness — **a shift in timezone is a strong, free travel signal**, and
+      HealthKit samples carry timezone metadata. Worth reading before building
+      a calendar integration for it.
+- [ ] **Stress card.** The one of the three with sensed inputs already present:
+      HRV, resting heart rate, respiratory rate and sleep are all in `samples`,
+      and `HealthWatch` already does multi-signal convergence. The risk is
+      overlap — Readiness absorbed the vitals scan and the early warning for
+      exactly this reason — so the honest version needs to answer a question
+      Readiness does not, most likely *sustained* load rather than today.
+- [ ] **Work impact.** Same shape as travel, same missing piece: it needs to
+      know when the reader was working. Calendar again, or screen time by
+      category if Apple ever exposes it. Probably drives stress rather than
+      standing beside it, so build the stress card first and let work be a
+      contributor to it rather than a fourth dial.
+
+**The common blocker is an event source, not modelling.** A calendar connector
+would unlock two of the three, and the timezone signal would unlock travel
+without any new permission at all.
+
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸
 "Immediate next steps" for the file references behind each line.

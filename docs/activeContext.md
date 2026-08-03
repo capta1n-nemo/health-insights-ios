@@ -76,7 +76,44 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**Body scanner, push 1 of 2 — the testable core (latest, 2026-08-03).**
+**Screen Time week import: a five-fold under-count, found on the device
+(latest, 2026-08-03).**
+
+The reader's Data ▸ Screen Time chart topped out at **258 min** on days they had
+actually spent ~21 h on the phone. Cause: `weekScanned` took
+`readings.first(where: { $0.kind == .weeklyTotal })`, and on a Week view the
+**category subtotals** ("Productivity & Finance 43h 14m", "Other 18h 12m") sit
+*above* the "Total Screen Time" row. OCR reads top to bottom, so the first
+weekly-looking figure was a category, and every day split out of it was a
+fraction of the truth.
+
+Two fixes, and the second is the one that generalises:
+
+- `Result.weeklyTotal` **chooses**: a reading whose own words say "total screen
+  time" wins outright, otherwise the largest wins — a week's total is the sum of
+  its categories and cannot be smaller than any of them.
+- `Result.totalAgreesWithAverage()` is a **free cross-check**. The screenshot
+  prints the total *and* `total ÷ 7`, so any claimed weekly total must be within
+  rounding of seven times the average. A category subtotal fails immediately.
+  The import now refuses rather than writing a month of plausible-looking wrong
+  days. **This is the check that would have caught it on the first import.**
+
+⚠️ **Still open, all reported by the user on the device and none built yet:**
+
+1. **A Week import still shows the day picker.** The hours/minutes wheel at the
+   top is for a single day and is meaningless once a week is being imported —
+   it should be hidden.
+2. **A Week import needs its own "Save these 7 days" button**; the master Save
+   in the toolbar should do it.
+3. **Re-importing a week is not handled as an update.** `ScreenTimePrecedence`
+   resolves *per day* correctly, but the reader's cases are broader: a partial
+   week later re-uploaded in full, a day only partly elapsed at capture time,
+   and incremental re-uploads of the same day with a higher figure. **A later
+   screenshot of the same day should generally win, because screen time only
+   accumulates within a day** — that is a rule the precedence table does not yet
+   encode and is not the same as "newer recordedAt wins".
+
+**Body scanner, push 1 of 2 — the testable core (2026-08-03).**
 
 Approved plan: `/root/.claude/plans/can-you-work-on-validated-stallman.md`.
 Most of the *judgement* for this feature already existed and was dead:

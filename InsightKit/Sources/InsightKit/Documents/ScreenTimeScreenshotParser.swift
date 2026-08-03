@@ -114,6 +114,53 @@ public enum ScreenTimeScreenshotParser {
             readings.first { $0.kind == .dailyTotal }
         }
 
+        /// The week's own total, chosen rather than taken first.
+        ///
+        /// ⚠️ **Taking the first `.weeklyTotal` shipped a five-fold
+        /// under-count.** On a Week view the category subtotals
+        /// ("Productivity & Finance 43h 14m", "Other 18h 12m") sit *above* the
+        /// "Total Screen Time" row, and OCR reads top to bottom — so the first
+        /// weekly-looking figure found was a category, and every day split out
+        /// of it was a fraction of the truth. The reader's chart topped out at
+        /// 4 h on days they had spent 21 h on the phone.
+        ///
+        /// Two rules, in order. A reading whose own words say "total screen
+        /// time" wins outright. Otherwise the **largest** wins, because the
+        /// week's total is by construction the sum of its categories and cannot
+        /// be smaller than any of them.
+        public var weeklyTotal: Reading? {
+            let weeklies = readings.filter { $0.kind == .weeklyTotal }
+            if let named = weeklies.first(where: {
+                $0.label.lowercased().contains("total screen time")
+            }) { return named }
+            return weeklies.max { $0.minutes < $1.minutes }
+        }
+
+        /// The daily average printed on a Week view, which is an independent
+        /// statement of the same quantity.
+        public var dailyAverage: Reading? {
+            readings.first { $0.kind == .dailyAverage }
+        }
+
+        /// Whether the week's total and its printed daily average agree.
+        ///
+        /// **A free cross-check, and the one that would have caught the
+        /// under-count above.** Screen Time prints both `total` and
+        /// `total ÷ 7`, so any figure claiming to be the weekly total must be
+        /// within rounding of seven times the average. A category subtotal is
+        /// not, and fails this immediately.
+        ///
+        /// Returns nil when either figure is missing — unknown is not the same
+        /// as disagreeing, and a screenshot cropped past the average is still
+        /// perfectly importable.
+        public func totalAgreesWithAverage(tolerance: Double = 0.1) -> Bool? {
+            guard let weeklyTotal, let dailyAverage, dailyAverage.minutes > 0 else {
+                return nil
+            }
+            let implied = dailyAverage.minutes * 7
+            return abs(weeklyTotal.minutes - implied) / implied <= tolerance
+        }
+
         /// Everything found that is *not* a day's total, so the UI can show what
         /// it read and why it isn't offering it.
         public var otherReadings: [Reading] {
