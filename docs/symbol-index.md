@@ -437,6 +437,8 @@ the place to look.
   - `BloodPressureChart` :18
 - `DesignSystem/BodyCompositionTrendChart.swift`
   - `BodyCompositionTrendChart` :39
+- `DesignSystem/BodySilhouetteView.swift`
+  - `BodySilhouetteView` :28
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/FitnessProjectionChart.swift`
@@ -548,6 +550,8 @@ the place to look.
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :182
+- `Features/Insights/BodyOverTimeSection.swift`
+  - `BodyOverTimeSection` :24
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18

@@ -1501,6 +1501,15 @@ struct InsightDetailView: View {
 
         // Your build belongs with what you are made of. The medication moved
         // out to `weightManagementCard` — see `secondaryBespokeSection`.
+        //
+        // The body model leads the nested block: it is the picture of the
+        // subject, and the split and the build estimate are both readings *of*
+        // it. Nested rather than a third top-level bespoke slot — the ordering
+        // block in `docs/card-sections.md` is generated from this file and a
+        // new slot moves four hand-written tables with it, for a section that
+        // belongs beside these two anyway.
+        Divider()
+        BodyOverTimeSection()
         Divider()
         somatotypeSection
     }
