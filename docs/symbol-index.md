@@ -235,7 +235,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :562
+  - `MetricPalette` :625
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88

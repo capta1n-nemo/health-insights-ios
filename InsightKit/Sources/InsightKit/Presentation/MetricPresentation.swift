@@ -96,7 +96,11 @@ public extension MetricType {
         // `.metabolic` beside blood glucose, "more calories, higher glucose"
         // would be. Neither is arithmetic — both are the relationship this
         // metric exists to make visible.
-        case .dietaryEnergy: return .nutrition
+        case .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine:
+            return .nutrition
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return .sleep
         // Its own family, deliberately. `.body` would put it in the same family
@@ -194,6 +198,19 @@ public extension MetricType {
         case .thighCircumference: return 44
         case .upperArmCircumference: return 45
         case .dietaryEnergy: return 46
+        // The macros and the named-guidance six, appended in the order the
+        // card reads them. Their usual chart is the nutrition overlay, where
+        // hues resolve per chart anyway.
+        case .dietaryProtein: return 47
+        case .dietaryCarbohydrates: return 48
+        case .dietaryFat: return 49
+        case .dietarySaturatedFat: return 50
+        case .dietarySugar: return 51
+        case .dietaryFibre: return 52
+        case .dietarySodium: return 53
+        case .dietaryPotassium: return 54
+        case .dietaryWater: return 55
+        case .dietaryCaffeine: return 56
         }
     }
 
@@ -284,7 +301,10 @@ public extension MetricType {
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
              // Meals through the day only mean anything added up, which is the
              // same reason active energy is here.
-             .dietaryEnergy:
+             .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine:
             return .cumulativeTotal
 
         case .screenTimeMinutes:
@@ -327,6 +347,10 @@ public extension MetricType {
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
              // One figure a day, so two days apart is a gap like any other.
              .screenTimeMinutes, .dietaryEnergy,
+             .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
@@ -521,6 +545,41 @@ public extension MetricType {
         // calorie target is dietary advice this app does not give. The chart
         // shows what was eaten and stops there.
         case .dietaryEnergy: return nil
+        // **Four published figures fit here, and the `Band`'s open bounds are
+        // what make two of them possible.** A floor with no ceiling is exactly
+        // what `low:` alone expresses — the same shape heart-rate recovery
+        // already uses — so "at least 25 g of fibre" draws as a band that never
+        // calls a good day out of range.
+        case .dietarySodium:
+            return R(normal: B(high: 2_000),
+                     cautionAbove: B(low: 2_000),
+                     caption: "Less than 2 g of sodium a day — about 5 g of salt.",
+                     provenance: "WHO Guideline: Sodium intake for adults and children, 2012.")
+        case .dietaryCaffeine:
+            return R(normal: B(high: 400),
+                     cautionAbove: B(low: 400),
+                     caption: "Up to 400 mg a day is not a safety concern for a healthy adult — roughly four cups of coffee. 200 mg is the single-dose figure, and the daily one in pregnancy.",
+                     provenance: "EFSA Scientific Opinion on the safety of caffeine, 2015.")
+        case .dietaryFibre:
+            return R(normal: B(low: 25),
+                     cautionBelow: B(high: 25),
+                     caption: "At least 25 g a day, and the UK figure is 30 g. More is not a problem, which is why this band has no ceiling.",
+                     provenance: "EFSA adequate intake, 2010; SACN Carbohydrates and Health, 2015.")
+        case .dietaryPotassium:
+            return R(normal: B(low: 3_510),
+                     cautionBelow: B(high: 3_510),
+                     caption: "At least 3.5 g a day.",
+                     provenance: "WHO Guideline: Potassium intake for adults and children, 2012.")
+        // **The rest are relative figures, and a fixed band would misstate
+        // every one.** Protein is per kilogram of body mass, free sugars and
+        // saturated fat are percentages of energy (WHO < 10% each), and total
+        // water is sex-specific (EFSA 2.5 L men / 2.0 L women, food included).
+        // All four need the reader, so they live in the nutrition card's own
+        // table — the same reason `.vo2Max` returns nil while
+        // `HeartHealthScore` holds its age-and-sex tables.
+        case .dietaryProtein, .dietarySugar, .dietarySaturatedFat, .dietaryWater:
+            return nil
+        case .dietaryCarbohydrates, .dietaryFat: return nil
         }
     }
 
@@ -534,7 +593,11 @@ public extension MetricType {
             return .median
         // Partial samples through the day only mean anything added up — a
         // day's meals as much as a day's steps.
-        case .stepCount, .activeEnergyBurned, .exerciseMinutes, .dietaryEnergy:
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes, .dietaryEnergy,
+             .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine:
             return .sum
         default:
             return .mean

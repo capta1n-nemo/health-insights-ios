@@ -56,6 +56,21 @@ final class HealthKitService {
             // population" rule doing its job. Charted, never scored: see
             // `MetricType.dietaryEnergy`.
             (.dietaryEnergyConsumed, .dietaryEnergy, .kilocalorie()),
+            // The macros and the six the published guidance names, promoted
+            // out of the raw pile with dietary energy's rationale: each has a
+            // reader now (the nutrition card) and four of them carry a real
+            // band. Grams, milligrams and litres — the conversion belongs at
+            // this boundary, not in a model.
+            (.dietaryProtein, .dietaryProtein, .gram()),
+            (.dietaryCarbohydrates, .dietaryCarbohydrates, .gram()),
+            (.dietaryFatTotal, .dietaryFat, .gram()),
+            (.dietaryFatSaturated, .dietarySaturatedFat, .gram()),
+            (.dietarySugar, .dietarySugar, .gram()),
+            (.dietaryFiber, .dietaryFibre, .gram()),
+            (.dietarySodium, .dietarySodium, .gramUnit(with: .milli)),
+            (.dietaryPotassium, .dietaryPotassium, .gramUnit(with: .milli)),
+            (.dietaryWater, .dietaryWater, .liter()),
+            (.dietaryCaffeine, .dietaryCaffeine, .gramUnit(with: .milli)),
             // Promoted out of the raw pile because it earned a score: Apple's
             // exercise minute accrues at brisk-walk intensity and above, which
             // is the WHO guideline's own moderate-intensity definition, so the
@@ -129,18 +144,16 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierHeadphoneAudioExposure", "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
         "HKQuantityTypeIdentifierTimeInDaylight", "HKQuantityTypeIdentifierUnderwaterDepth",
         "HKQuantityTypeIdentifierWaterTemperature",
-        // Nutrition. Dietary energy is **not** here: it is a canonical
-        // `MetricType` as of 2026-08-03 and arrives through `readMap` above.
-        // A metric must not arrive through both routes — the same removal
-        // `appleExerciseTime` needed when it was promoted.
-        "HKQuantityTypeIdentifierDietaryCarbohydrates",
-        "HKQuantityTypeIdentifierDietaryFiber", "HKQuantityTypeIdentifierDietarySugar",
-        "HKQuantityTypeIdentifierDietaryFatTotal", "HKQuantityTypeIdentifierDietaryFatSaturated",
+        // Nutrition — **the micros only.** Dietary energy, the macros, fibre,
+        // sodium, potassium, water and caffeine are canonical `MetricType`s as
+        // of 2026-08-03 and arrive through `readMap` above; a metric must not
+        // arrive through both routes, which is the removal `appleExerciseTime`
+        // needed when it was promoted. What is left here is deliberate: no
+        // card reads a vitamin, and a metric with no reader is a chart nobody
+        // asked for — so they stay visible in the Data tab and unscored.
         "HKQuantityTypeIdentifierDietaryFatMonounsaturated", "HKQuantityTypeIdentifierDietaryFatPolyunsaturated",
-        "HKQuantityTypeIdentifierDietaryCholesterol", "HKQuantityTypeIdentifierDietaryProtein",
-        "HKQuantityTypeIdentifierDietarySodium", "HKQuantityTypeIdentifierDietaryPotassium",
+        "HKQuantityTypeIdentifierDietaryCholesterol",
         "HKQuantityTypeIdentifierDietaryCalcium", "HKQuantityTypeIdentifierDietaryIron",
-        "HKQuantityTypeIdentifierDietaryWater", "HKQuantityTypeIdentifierDietaryCaffeine",
         "HKQuantityTypeIdentifierDietaryVitaminC", "HKQuantityTypeIdentifierDietaryVitaminD",
         "HKQuantityTypeIdentifierDietaryVitaminA", "HKQuantityTypeIdentifierDietaryVitaminB12",
         "HKQuantityTypeIdentifierDietaryMagnesium", "HKQuantityTypeIdentifierDietaryZinc"

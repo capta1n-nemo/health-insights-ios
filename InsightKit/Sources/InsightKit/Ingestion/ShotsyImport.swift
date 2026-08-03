@@ -257,6 +257,10 @@ public enum ShotsyUnit {
         case "Lean Mass": return .leanBodyMass
         case "Exercise": return .exerciseMinutes
         case "Calories": return .dietaryEnergy
+        case "Protein": return .dietaryProtein
+        case "Fat": return .dietaryFat
+        case "Carbs": return .dietaryCarbohydrates
+        case "Fiber": return .dietaryFibre
         default: return nil
         }
     }
@@ -303,6 +307,17 @@ public enum ShotsyUnit {
             case "min": return value
             default: return value
             }
+        // The macros, all four in kilograms in the file and grams in the app.
+        // Same rule as everything above: the declared unit is the authority
+        // and the kind is only the fallback, so a Shotsy release that starts
+        // writing grams is not silently multiplied by a thousand.
+        case "Protein", "Fat", "Carbs", "Fiber":
+            switch unit {
+            case "kg", nil: return value * kilogramsToGrams
+            case "g": return value
+            case "mg": return value / 1000
+            default: return value
+            }
         case "Calories":
             switch unit {
             // Joules is what the file actually carries, and the bare case has
@@ -319,19 +334,14 @@ public enum ShotsyUnit {
         }
     }
 
-    /// The macronutrient kinds, with what they would convert to.
+    /// **Empty as of 2026-08-03, and kept as the record of why.**
     ///
-    /// **Calories left this list on 2026-08-03** — it is `.dietaryEnergy` now,
-    /// imported and charted. The macros stay pending because each would need a
-    /// `MetricType` of its own and none has a reader: per "a metric with no
-    /// reader is invisible", promoting four more series that no card consults
-    /// would add four charts nobody asked for. Kept here so the next session
-    /// finds the units already worked out rather than rediscovering that Shotsy
-    /// writes grams as kilograms.
-    public static let pendingNutritionKinds: [String: String] = [
-        "Protein": "kg → g (× 1000)",
-        "Fat": "kg → g (× 1000)",
-        "Carbs": "kg → g (× 1000)",
-        "Fiber": "kg → g (× 1000)"
-    ]
+    /// This was the ledger of nutrition kinds the file carried and the app had
+    /// no home for — the conversions worked out in advance so a later session
+    /// would not rediscover that calories arrive in joules and macros in
+    /// kilograms. Every one of them is now a `MetricType` and parsed above, so
+    /// the ledger is empty rather than deleted: an empty list says "all mapped"
+    /// where a missing constant would say nothing, and the next unmapped kind
+    /// has an obvious place to be written down.
+    public static let pendingNutritionKinds: [String: String] = [:]
 }

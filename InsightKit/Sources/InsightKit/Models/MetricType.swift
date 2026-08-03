@@ -68,6 +68,20 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// is aiming for, and a band drawn on this chart would be a target the app
     /// has no business setting. Arrives from Shotsy's backup in joules.
     case dietaryEnergy             // kcal
+    // The macros and the six the published guidance actually names. Everything
+    // past these — the vitamins, the minerals beyond sodium and potassium, the
+    // unsaturated fat splits — stays in the raw layer, visible in the Data tab
+    // and unscored: a metric no card consults is a chart nobody asked for.
+    case dietaryProtein            // g
+    case dietaryCarbohydrates      // g
+    case dietaryFat                // g — total
+    case dietarySaturatedFat       // g
+    case dietarySugar              // g
+    case dietaryFibre              // g
+    case dietarySodium             // mg
+    case dietaryPotassium          // mg
+    case dietaryWater              // L
+    case dietaryCaffeine           // mg
     case sleepDurationHours        // hours
     /// **Hours from local midnight, signed, with the branch cut at midday.**
     /// −1.5 is 22:30, +0.5 is 00:30, 0 is midnight exactly.
@@ -171,6 +185,16 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "Active Energy"
         case .exerciseMinutes: return "Exercise Minutes"
         case .dietaryEnergy: return "Calories Eaten"
+        case .dietaryProtein: return "Protein"
+        case .dietaryCarbohydrates: return "Carbohydrates"
+        case .dietaryFat: return "Fat"
+        case .dietarySaturatedFat: return "Saturated Fat"
+        case .dietarySugar: return "Sugar"
+        case .dietaryFibre: return "Fibre"
+        case .dietarySodium: return "Sodium"
+        case .dietaryPotassium: return "Potassium"
+        case .dietaryWater: return "Water"
+        case .dietaryCaffeine: return "Caffeine"
         case .sleepDurationHours: return "Sleep Duration"
         case .sleepOnset: return "Sleep Onset"
         case .sleepEfficiency: return "Sleep Efficiency"
@@ -218,6 +242,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .activeEnergyBurned: return "kcal"
         case .exerciseMinutes: return "min"
         case .dietaryEnergy: return "kcal"
+        case .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre:
+            return "g"
+        case .dietarySodium, .dietaryPotassium, .dietaryCaffeine: return "mg"
+        case .dietaryWater: return "L"
         case .sleepDurationHours: return "h"
         // Empty: the formatter renders this as a clock time, and "23:12 h" is
         // not a thing.

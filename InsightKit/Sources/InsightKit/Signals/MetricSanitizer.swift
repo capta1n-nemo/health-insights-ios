@@ -29,10 +29,14 @@ public extension MetricType {
              // provider placeholder.
              .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
              .walkingSteadiness,
-             // Nobody eats nothing. A zero on this metric is a day the reader
-             // did not log, and charting it as a real reading would draw a
-             // fast that never happened.
-             .dietaryEnergy:
+             // Nobody eats nothing. A zero on any of these is a day the reader
+             // did not log — every one is a sum of logged items, so an absent
+             // log and a genuine zero are indistinguishable, and charting the
+             // zero would draw a fast that never happened.
+             .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
              // A day with no exercise is a real day.
@@ -160,6 +164,20 @@ public extension MetricType {
         // that reached the parser unconverted lands two orders of magnitude
         // above this. `requiresPositiveValue` says the rest.
         case .dietaryEnergy: return 1...25_000
+        // Unit-error catchers, not dietary judgements — every one of these
+        // arrives in grams from a source that stores kilograms (Shotsy) or in
+        // milligrams from one that stores grams, so the bound only has to be
+        // below a 1,000x slip and above anything a person could eat.
+        case .dietaryProtein, .dietarySaturatedFat: return 1...500
+        case .dietaryCarbohydrates: return 1...2_000
+        case .dietaryFat: return 1...1_000
+        case .dietarySugar: return 1...1_500
+        case .dietaryFibre: return 1...300
+        case .dietarySodium: return 1...50_000
+        case .dietaryPotassium: return 1...30_000
+        // Litres. Thirty is past the point where water itself is the emergency.
+        case .dietaryWater: return 0.1...30
+        case .dietaryCaffeine: return 1...3_000
         // A single sample is an accrual interval, and a day holds 1,440 minutes.
         case .exerciseMinutes: return 0...1440
         }

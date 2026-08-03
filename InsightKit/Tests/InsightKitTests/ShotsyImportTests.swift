@@ -141,7 +141,7 @@ final class ShotsyImportTests: XCTestCase {
     /// **Calories are imported now** (2026-08-03), in kilocalories, from a file
     /// that states them in joules. The macros still have no home and must stay
     /// reported as unmapped rather than dropped silently.
-    func testCaloriesAreImportedAndMacrosAreStillReportedAsUnmapped() throws {
+    func testCaloriesAndMacrosAreBothImported() throws {
         let days = """
         [{"1771232400":{
           "Calories":{"value":5460872.83,"unit":"J","date":"2026-02-17T09:14:00Z","id":"C","source":"health-kit"},
@@ -151,10 +151,25 @@ final class ShotsyImportTests: XCTestCase {
         let calories = try XCTUnwrap(result.samples.first { $0.type == .dietaryEnergy })
         // 5.46 MJ is a real day's eating, and only in kcal does it read as one.
         XCTAssertEqual(calories.value, 1305, accuracy: 1)
-        XCTAssertEqual(result.unmappedKinds, ["Protein"])
-        // And the macro conversions stay written down for when they get a home.
-        XCTAssertNil(ShotsyUnit.pendingNutritionKinds["Calories"])
-        XCTAssertEqual(0.0438 * ShotsyUnit.kilogramsToGrams, 43.8, accuracy: 0.1)
+        // **The macros landed too, 2026-08-03.** 0.0438 kg is 43.8 g of
+        // protein, and nothing in this file is unmapped any more.
+        let protein = try XCTUnwrap(result.samples.first { $0.type == .dietaryProtein })
+        XCTAssertEqual(protein.value, 43.8, accuracy: 0.1)
+        XCTAssertEqual(result.unmappedKinds, [])
+        XCTAssertTrue(ShotsyUnit.pendingNutritionKinds.isEmpty)
+    }
+
+    /// The declared unit is the authority, not the kind. A Shotsy release that
+    /// starts writing grams must not be multiplied by a thousand — the same
+    /// rule body fat's ppm-versus-percent case already follows.
+    func testAMacroDeclaredInGramsIsNotConvertedAgain() throws {
+        let days = """
+        [{"1771232400":{
+          "Protein":{"value":43.8,"unit":"g","date":"2026-02-17T09:14:00Z","id":"P","source":"user"}}}]
+        """
+        let result = try ShotsyImport.parse(payload(days: days))
+        let protein = try XCTUnwrap(result.samples.first { $0.type == .dietaryProtein })
+        XCTAssertEqual(protein.value, 43.8, accuracy: 0.01)
     }
 
     /// **A missing unit means joules**, because that is what the export writes.

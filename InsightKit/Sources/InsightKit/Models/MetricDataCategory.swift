@@ -63,7 +63,11 @@ public extension MetricType {
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
              .dayStrain:
             return .sleepRecovery
-        case .dietaryEnergy: return .nutrition
+        case .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietarySodium, .dietaryPotassium, .dietaryWater,
+             .dietaryCaffeine:
+            return .nutrition
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
              .walkingSteadiness, .walkingAsymmetry, .screenTimeMinutes:
             return .activity

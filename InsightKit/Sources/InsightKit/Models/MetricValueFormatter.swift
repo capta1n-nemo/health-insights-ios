@@ -31,8 +31,16 @@ public enum MetricValueFormatter {
         case .sleepDeepMinutes, .sleepRemMinutes:
             let total = Int(value.rounded())
             return total >= 60 ? "\(total / 60)h \(total % 60)m" : "\(total)m"
-        case .stepCount, .activeEnergyBurned:
+        case .stepCount, .activeEnergyBurned,
+             // Four-figure quantities, all of them: a day's calories, and
+             // sodium and potassium in milligrams. The `default:` branch
+             // renders 2140 rather than 2,140.
+             .dietaryEnergy, .dietarySodium, .dietaryPotassium:
             return grouped(value)
+        // Litres, where the default's `Int(rounded())` would render every day
+        // between 1.5 L and 2.4 L as "2".
+        case .dietaryWater:
+            return String(format: "%.1f", value)
         // Stored as signed hours from midnight and read as a clock time, which
         // is the only form anybody thinks about a bedtime in. The default
         // branch would render −1.5 as "-2".
