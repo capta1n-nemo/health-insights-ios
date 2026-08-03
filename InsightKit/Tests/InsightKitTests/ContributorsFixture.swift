@@ -30,7 +30,11 @@ enum ContributorsFixture {
             // never supplied.
             .bloodGlucose: 5.2, .peripheralPerfusionIndex: 2.0,
             .atrialFibrillationBurden: 0.5, .heartRateRecovery: 25,
-            .walkingSteadiness: 85, .walkingAsymmetry: 2
+            .walkingSteadiness: 85, .walkingAsymmetry: 2,
+            // Charted by Body Composition at weight 0. Here for the same
+            // reason the promoted vitals are: a card that declares it has to
+            // be given something to report, or "full coverage" is not.
+            .dietaryEnergy: 2100
         ]
         var out: [HealthMetricSample] = []
         for i in stride(from: days - 1, through: 0, by: -1) {

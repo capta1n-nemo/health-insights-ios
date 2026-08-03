@@ -22,6 +22,10 @@ public enum MetricDataCategory: String, Sendable, CaseIterable {
     case body = "Body"
     case sleepRecovery = "Sleep & recovery"
     case activity = "Activity & mobility"
+    /// Its own group rather than a row under Activity: what went in and what
+    /// was burned are different questions, and a reader looking for what they
+    /// ate should not have to find it under exercise.
+    case nutrition = "Nutrition"
     /// Not in the grouped metric list because it has its own Data-tab section:
     /// blood pressure is a paired reading (its own domain), and the modelled
     /// medication level lives in the medication domain. Kept as an explicit case
@@ -59,6 +63,7 @@ public extension MetricType {
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
              .dayStrain:
             return .sleepRecovery
+        case .dietaryEnergy: return .nutrition
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
              .walkingSteadiness, .walkingAsymmetry, .screenTimeMinutes:
             return .activity

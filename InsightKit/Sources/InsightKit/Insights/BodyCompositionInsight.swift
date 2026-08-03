@@ -19,7 +19,7 @@ public struct BodyCompositionInsight: InsightModel {
     /// be a candidate.
     public var candidateMetrics: [MetricType] {
         [.bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass, .boneMass,
-         .bodyWaterPercentage, .activeMedicationLevel]
+         .bodyWaterPercentage, .activeMedicationLevel, .dietaryEnergy]
     }
     /// Non-mandatory: without them the dial falls back to BMI rather than
     /// disappearing, and the card still narrates.
@@ -262,6 +262,24 @@ public struct BodyCompositionInsight: InsightModel {
         // scored — that is `rateWeight`, the speed the weight is moving at.
         //
         // `higherIsBetter: nil` for the same reason: neither direction is good.
+        // **What went in, on the chart with what it did.** This card is where
+        // a calorie figure earns its keep: the reader can see intake against
+        // the weight it moved, which is the one honest thing to say about it.
+        //
+        // Weight 0, and for a harder reason than the medication's. A weight
+        // says more-is-better or less-is-better, and neither is true of a
+        // calorie count without knowing what somebody is aiming for — scoring
+        // it would make this card reward eating less, which is dietary advice
+        // and the line this app does not cross. `higherIsBetter: nil` says the
+        // same thing to every section that asks.
+        if let calories = samples.latestValue(.dietaryEnergy) {
+            out.append(MetricContribution(
+                metric: .dietaryEnergy, higherIsBetter: nil, weight: 0,
+                detail: String(format: "%.0f kcal — tracked, not scored: what the "
+                               + "right number is depends on what you're aiming for, "
+                               + "so this card shows it against your weight rather "
+                               + "than marking it", calories)))
+        }
         if let level = samples.latestValue(.activeMedicationLevel) {
             out.append(MetricContribution(
                 metric: .activeMedicationLevel, higherIsBetter: nil, weight: 0,

@@ -138,22 +138,43 @@ final class ShotsyImportTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result.samples.first).value, 30, accuracy: 0.001)
     }
 
-    /// Nutrition is in the file and has no home yet. It must be reported as
-    /// unmapped rather than dropped silently — the TDEE module is blocked on
-    /// exactly this data.
-    func testNutritionIsReportedAsUnmappedRatherThanDiscarded() throws {
+    /// **Calories are imported now** (2026-08-03), in kilocalories, from a file
+    /// that states them in joules. The macros still have no home and must stay
+    /// reported as unmapped rather than dropped silently.
+    func testCaloriesAreImportedAndMacrosAreStillReportedAsUnmapped() throws {
         let days = """
         [{"1771232400":{
           "Calories":{"value":5460872.83,"unit":"J","date":"2026-02-17T09:14:00Z","id":"C","source":"health-kit"},
           "Protein":{"value":0.0438,"unit":"kg","date":"2026-02-17T09:14:00Z","id":"P","source":"health-kit"}}}]
         """
         let result = try ShotsyImport.parse(payload(days: days))
-        XCTAssertTrue(result.samples.isEmpty)
-        XCTAssertEqual(result.unmappedKinds, ["Calories", "Protein"])
-        // And the conversions are written down for when they do get a home.
-        XCTAssertNotNil(ShotsyUnit.pendingNutritionKinds["Calories"])
-        XCTAssertEqual(5_460_872.83 * ShotsyUnit.joulesToKilocalories, 1305, accuracy: 1)
+        let calories = try XCTUnwrap(result.samples.first { $0.type == .dietaryEnergy })
+        // 5.46 MJ is a real day's eating, and only in kcal does it read as one.
+        XCTAssertEqual(calories.value, 1305, accuracy: 1)
+        XCTAssertEqual(result.unmappedKinds, ["Protein"])
+        // And the macro conversions stay written down for when they get a home.
+        XCTAssertNil(ShotsyUnit.pendingNutritionKinds["Calories"])
         XCTAssertEqual(0.0438 * ShotsyUnit.kilogramsToGrams, 43.8, accuracy: 0.1)
+    }
+
+    /// **A missing unit means joules**, because that is what the export writes.
+    /// Reading an unlabelled figure as kilocalories would put one day's eating
+    /// three orders of magnitude out, and the sanitiser's ceiling is the only
+    /// thing that would notice.
+    func testAnUnlabelledCalorieFigureIsReadAsJoules() throws {
+        let days = """
+        [{"1771232400":{
+          "Calories":{"value":5460872.83,"date":"2026-02-17T09:14:00Z","id":"C","source":"health-kit"}}}]
+        """
+        let result = try ShotsyImport.parse(payload(days: days))
+        let calories = try XCTUnwrap(result.samples.first { $0.type == .dietaryEnergy })
+        XCTAssertEqual(calories.value, 1305, accuracy: 1)
+        // The unconverted figure would not survive the sanitiser either, which
+        // is the second line of defence rather than the first.
+        XCTAssertTrue([calories].partitionedVitals().kept.contains { $0.type == .dietaryEnergy })
+        XCTAssertFalse([HealthMetricSample(type: .dietaryEnergy, value: 5_460_872.83,
+                                           start: calories.start, source: .shotsy)]
+            .partitionedVitals().kept.contains { $0.type == .dietaryEnergy })
     }
 
     // MARK: - Schedule and side effects

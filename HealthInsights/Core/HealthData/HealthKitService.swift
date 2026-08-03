@@ -50,6 +50,12 @@ final class HealthKitService {
             (.waistCircumference, .waistCircumference, .meterUnit(with: .centi)),
             (.stepCount, .stepCount, .count()),
             (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie()),
+            // What went in, beside what was burned. Anyone whose food app
+            // writes to Health — Shotsy does, and so do the calorie trackers —
+            // gets this without importing a file, which is the "graceful
+            // population" rule doing its job. Charted, never scored: see
+            // `MetricType.dietaryEnergy`.
+            (.dietaryEnergyConsumed, .dietaryEnergy, .kilocalorie()),
             // Promoted out of the raw pile because it earned a score: Apple's
             // exercise minute accrues at brisk-walk intensity and above, which
             // is the WHO guideline's own moderate-intensity definition, so the
@@ -123,8 +129,11 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierHeadphoneAudioExposure", "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
         "HKQuantityTypeIdentifierTimeInDaylight", "HKQuantityTypeIdentifierUnderwaterDepth",
         "HKQuantityTypeIdentifierWaterTemperature",
-        // Nutrition
-        "HKQuantityTypeIdentifierDietaryEnergyConsumed", "HKQuantityTypeIdentifierDietaryCarbohydrates",
+        // Nutrition. Dietary energy is **not** here: it is a canonical
+        // `MetricType` as of 2026-08-03 and arrives through `readMap` above.
+        // A metric must not arrive through both routes — the same removal
+        // `appleExerciseTime` needed when it was promoted.
+        "HKQuantityTypeIdentifierDietaryCarbohydrates",
         "HKQuantityTypeIdentifierDietaryFiber", "HKQuantityTypeIdentifierDietarySugar",
         "HKQuantityTypeIdentifierDietaryFatTotal", "HKQuantityTypeIdentifierDietaryFatSaturated",
         "HKQuantityTypeIdentifierDietaryFatMonounsaturated", "HKQuantityTypeIdentifierDietaryFatPolyunsaturated",

@@ -46,6 +46,9 @@ public enum MetricFamily: String, Sendable, CaseIterable {
     /// steps, the pattern finder would suppress "more screen time, fewer steps"
     /// as a tautology, and that is precisely the relationship worth surfacing.
     case behaviour
+    /// What the reader ate. Its own family for the same reason `.behaviour` is
+    /// — see `MetricType.family`.
+    case nutrition
 
     public var displayName: String {
         switch self {
@@ -55,6 +58,7 @@ public enum MetricFamily: String, Sendable, CaseIterable {
         case .thermal: return "Temperature"
         case .circulatory: return "Circulation"
         case .metabolic: return "Metabolic"
+        case .nutrition: return "Nutrition"
         case .mobility: return "Mobility"
         case .body: return "Body composition"
         case .activity: return "Activity"
@@ -86,6 +90,13 @@ public extension MetricType {
              .upperArmCircumference: return .body
         case .stepCount, .activeEnergyBurned, .exerciseMinutes, .vo2Max,
              .dayStrain: return .activity
+        // Its own family, on `.behaviour`'s precedent and for the same reason.
+        // Filed under `.activity` beside active energy, "ate more on the days
+        // you burned more" would be suppressed as a tautology; filed under
+        // `.metabolic` beside blood glucose, "more calories, higher glucose"
+        // would be. Neither is arithmetic — both are the relationship this
+        // metric exists to make visible.
+        case .dietaryEnergy: return .nutrition
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return .sleep
         // Its own family, deliberately. `.body` would put it in the same family
@@ -182,6 +193,7 @@ public extension MetricType {
         case .shoulderWidth: return 43
         case .thighCircumference: return 44
         case .upperArmCircumference: return 45
+        case .dietaryEnergy: return 46
         }
     }
 
@@ -269,7 +281,10 @@ public extension MetricType {
             // range 5.4–8.9 h" is.
             return .fluctuatingRange
 
-        case .stepCount, .activeEnergyBurned, .exerciseMinutes:
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             // Meals through the day only mean anything added up, which is the
+             // same reason active energy is here.
+             .dietaryEnergy:
             return .cumulativeTotal
 
         case .screenTimeMinutes:
@@ -311,7 +326,7 @@ public extension MetricType {
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
              // One figure a day, so two days apart is a gap like any other.
-             .screenTimeMinutes,
+             .screenTimeMinutes, .dietaryEnergy,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
@@ -500,6 +515,12 @@ public extension MetricType {
         // legitimately land on two weekend days. `ActivityDoseModel` scores the
         // weekly figure, which is the form the evidence is in.
         case .exerciseMinutes: return nil
+        // **No band, and this is the important one.** Energy requirements are
+        // individual — they depend on size, activity and what somebody is
+        // aiming for — so any range drawn here would be a target, and setting a
+        // calorie target is dietary advice this app does not give. The chart
+        // shows what was eaten and stops there.
+        case .dietaryEnergy: return nil
         }
     }
 
@@ -511,8 +532,9 @@ public extension MetricType {
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage:
             return .median
-        // Partial samples through the day only mean anything added up.
-        case .stepCount, .activeEnergyBurned, .exerciseMinutes:
+        // Partial samples through the day only mean anything added up — a
+        // day's meals as much as a day's steps.
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes, .dietaryEnergy:
             return .sum
         default:
             return .mean

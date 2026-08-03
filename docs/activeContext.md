@@ -92,6 +92,14 @@ choice and will validate later.**
   `AppModel` passes `lastBodyScan`; `BodyScanSuggestionTests` covers the three
   decisions (never-scanned belongs to `unusedInputs`, the id carries the state
   so a dismissal cannot swallow a cycle, strength ranks below a grounding gap).
+- **The app models a dietary quantity for the first time**:
+  `MetricType.dietaryEnergy`, from Shotsy's joules and from Apple Health.
+  Charted at weight 0 on Body Composition, no reference range, its own family
+  and its own Data-tab group. **The nutrition question the docs kept deferring
+  turned out to have a safe first answer**: chart it, do not score it. A weight
+  or a band would both be a calorie target, and that is dietary advice; showing
+  intake against the weight it moved is not. The macros stay unmodelled because
+  none has a reader.
 - **Settings ▸ Body scans exists** (`BodyScanSettingsView`, under Privacy).
   `BodyScanPolicy` had been built and tested with nothing reading it, so
   retention was the app's choice and not the reader's. `AppModel.bodyScanPolicy`

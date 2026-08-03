@@ -256,6 +256,7 @@ public enum ShotsyUnit {
         case "Body Fat": return .bodyFatPercentage
         case "Lean Mass": return .leanBodyMass
         case "Exercise": return .exerciseMinutes
+        case "Calories": return .dietaryEnergy
         default: return nil
         }
     }
@@ -302,18 +303,32 @@ public enum ShotsyUnit {
             case "min": return value
             default: return value
             }
+        case "Calories":
+            switch unit {
+            // Joules is what the file actually carries, and the bare case has
+            // to mean joules too: a Shotsy export writes no unit for this kind,
+            // and reading an unlabelled 8,780,000 as kilocalories would put a
+            // day's eating three orders of magnitude out.
+            case "j", nil: return value * joulesToKilocalories
+            case "kj": return value * joulesToKilocalories * 1000
+            case "kcal", "cal": return value
+            default: return value
+            }
         default:
             return nil
         }
     }
 
-    /// The nutrition kinds, with what they would convert to. Not imported yet —
-    /// `MetricType` has no dietary cases — but named here because the file
-    /// carries them and `docs/planned-modules.md` ▸ TDEE is blocked on exactly
-    /// this data. Recorded so the next session finds the units already worked
-    /// out rather than rediscovering that calories arrive in joules.
+    /// The macronutrient kinds, with what they would convert to.
+    ///
+    /// **Calories left this list on 2026-08-03** — it is `.dietaryEnergy` now,
+    /// imported and charted. The macros stay pending because each would need a
+    /// `MetricType` of its own and none has a reader: per "a metric with no
+    /// reader is invisible", promoting four more series that no card consults
+    /// would add four charts nobody asked for. Kept here so the next session
+    /// finds the units already worked out rather than rediscovering that Shotsy
+    /// writes grams as kilograms.
     public static let pendingNutritionKinds: [String: String] = [
-        "Calories": "J → kcal (÷ 4184)",
         "Protein": "kg → g (× 1000)",
         "Fat": "kg → g (× 1000)",
         "Carbs": "kg → g (× 1000)",

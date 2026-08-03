@@ -796,6 +796,7 @@ unused despite tens of thousands of samples.
 | stepCount, activeEnergyBurned | Cardio Trajectory, Energy |
 | exerciseMinutes | Fitness (weekly WHO dose via `ActivityDoseModel`) |
 | sleepLatencyMinutes | Sleep (Ohayon 2017 term; typed Oura parser only, nap-aware) |
+| dietaryEnergy | Body Composition — **charted at weight 0, never scored.** No reference range either: what the right number is depends on what somebody is aiming for, and a band would be a target |
 | dayStrain | *(no reader — Whoop not connected)* |
 
 ## Keychain storage

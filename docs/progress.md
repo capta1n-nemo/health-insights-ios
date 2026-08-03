@@ -29,32 +29,31 @@ section it sits in rather than by judgement:
 |---|---|---|---|
 | 1 | Not yet device-verified: the bar measurement is the half CI cannot check | Retrospective Screen Time import | loose end |
 | 2 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
-| 3 | Calories from the Shotsy import are still unmodelled | The screenshot-review session — 2026-08-02 | loose end |
-| 4 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
-| 5 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
-| 6 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
-| 7 | The nine cards on the phone | In progress / not yet device-verified | device |
-| 8 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
-| 9 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
-| 10 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
-| 11 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
-| 12 | Ultrahuman, Garmin, Fitbit | Integrations | next |
-| 13 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
-| 14 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
-| 15 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
-| 16 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 17 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 18 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 19 | Travel drain | Three insight cards the user asked for | next |
-| 20 | Stress card | Three insight cards the user asked for | next |
-| 21 | Work impact | Three insight cards the user asked for | next |
-| 22 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 23 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 24 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 25 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 26 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 27 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 28 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 3 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
+| 4 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
+| 5 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
+| 6 | The nine cards on the phone | In progress / not yet device-verified | device |
+| 7 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
+| 8 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
+| 9 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
+| 10 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
+| 11 | Ultrahuman, Garmin, Fitbit | Integrations | next |
+| 12 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
+| 13 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
+| 14 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
+| 15 | ECG photo/PDF import with metadata… | Unstructured data | next |
+| 16 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
+| 17 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
+| 18 | Travel drain | Three insight cards the user asked for | next |
+| 19 | Stress card | Three insight cards the user asked for | next |
+| 20 | Work impact | Three insight cards the user asked for | next |
+| 21 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 22 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 23 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 24 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 25 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 26 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 27 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -974,8 +973,23 @@ one red CI. What it established, so nothing here is re-derived:
       (`aaf185c`, reverted). App Groups need a paid Developer Program membership
       and an Xcode account on the runner Mac. `git cherry-pick aaf185c` restores
       it; `docs/deployment.md` has the errors verbatim.
-- [ ] **Calories from the Shotsy import are still unmodelled** — dietary energy
-      arrives in the file and is not a `MetricType`; see `pendingNutritionKinds`.
+- [x] **Calories from the Shotsy import are modelled** (2026-08-03).
+      `MetricType.dietaryEnergy`, kcal, parsed from the file's joules — and from
+      Apple Health's `dietaryEnergyConsumed`, removed from the raw pile in the
+      same commit so it cannot arrive twice, the way `appleExerciseTime` had to
+      be. **Charted at weight 0 on Body Composition** (`trackedNotScored`,
+      beside the medication level), which is where intake earns its keep: the
+      reader sees what went in against the weight it moved.
+      **No reference range and no score, and that is the whole design** — what
+      the right calorie figure is depends on what somebody is aiming for, so a
+      band would be a target and a weight would make the card reward eating
+      less. That is dietary advice, and it is the line this app does not cross.
+      Its own `MetricFamily` and its own Data-tab group on `.behaviour`'s
+      precedent: under `.activity` the pattern finder would suppress
+      "ate more on the days you burned more", under `.metabolic` it would
+      suppress "more calories, higher glucose", and both are real.
+      The four macros stay in `pendingNutritionKinds` — each would need a
+      `MetricType` and none has a reader.
 
 ## In progress / not yet device-verified
 

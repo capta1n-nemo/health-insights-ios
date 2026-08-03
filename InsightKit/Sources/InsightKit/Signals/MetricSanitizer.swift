@@ -28,7 +28,11 @@ public extension MetricType {
              // A living person cannot read zero on any of these; a zero is a
              // provider placeholder.
              .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
-             .walkingSteadiness:
+             .walkingSteadiness,
+             // Nobody eats nothing. A zero on this metric is a day the reader
+             // did not log, and charting it as a real reading would draw a
+             // fast that never happened.
+             .dietaryEnergy:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
              // A day with no exercise is a real day.
@@ -150,6 +154,12 @@ public extension MetricType {
         case .sleepLatencyMinutes: return 0...(12 * 60)
         case .skinTemperatureDeviation: return -15...15
         case .stepCount, .activeEnergyBurned: return nil
+        // A survival bound, not a dietary one. Recorded human intakes reach
+        // well past 10,000 kcal in a day (competitive eating, ultra-endurance
+        // racing), so the ceiling only rejects a unit error — a joule figure
+        // that reached the parser unconverted lands two orders of magnitude
+        // above this. `requiresPositiveValue` says the rest.
+        case .dietaryEnergy: return 1...25_000
         // A single sample is an accrual interval, and a day holds 1,440 minutes.
         case .exerciseMinutes: return 0...1440
         }

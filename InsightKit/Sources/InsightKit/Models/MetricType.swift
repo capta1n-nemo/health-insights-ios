@@ -60,6 +60,14 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// moderate-intensity definition — that match is why this one, alone of the
     /// activity metrics, can be scored against a published dose).
     case exerciseMinutes           // min
+
+    // Nutrition
+    /// What the reader ate, as energy. **The one dietary quantity the app
+    /// models**, and it is charted rather than scored: there is no calorie
+    /// figure this app can call better or worse without knowing what somebody
+    /// is aiming for, and a band drawn on this chart would be a target the app
+    /// has no business setting. Arrives from Shotsy's backup in joules.
+    case dietaryEnergy             // kcal
     case sleepDurationHours        // hours
     /// **Hours from local midnight, signed, with the branch cut at midday.**
     /// −1.5 is 22:30, +0.5 is 00:30, 0 is midnight exactly.
@@ -162,6 +170,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
         case .exerciseMinutes: return "Exercise Minutes"
+        case .dietaryEnergy: return "Calories Eaten"
         case .sleepDurationHours: return "Sleep Duration"
         case .sleepOnset: return "Sleep Onset"
         case .sleepEfficiency: return "Sleep Efficiency"
@@ -208,6 +217,7 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .exerciseMinutes: return "min"
+        case .dietaryEnergy: return "kcal"
         case .sleepDurationHours: return "h"
         // Empty: the formatter renders this as a clock time, and "23:12 h" is
         // not a thing.
