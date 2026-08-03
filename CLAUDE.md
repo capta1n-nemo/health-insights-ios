@@ -69,6 +69,12 @@ symbol twice.
 - Fully manage all files, including Xcode project structures, Swift files, and configurations.
 - Architecture: Swift 6, SwiftUI, `@Observable` view models (NO `ObservableObject`), `NavigationStack` (NO `NavigationView`), `@MainActor` on view models.
 - Treat static attributes (Height, Sex) separately from time-series vitals (Heart Rate, Weight).
+- **Every chart carries the substance shading** (user's rule, 2026-08-03).
+  `ScrollableMetricChart` draws it for anything wrapping it; a raw `Chart {}`
+  calls `SubstanceShading.marks(_:in:)` or carries
+  `// substance-shading: exempt — <why>`, and `verify.sh` fails otherwise. It
+  marks *when something was logged*, never what it did — which is what makes it
+  honest on a chart nothing has compared against the log.
 - **Two structural rules, both the user's, both enforced by exhaustive switches
   rather than by memory. Load `add-data-or-input` before touching either.**
   1. **New data must appear in the Data tab.** `DataDomain` — a new case does not

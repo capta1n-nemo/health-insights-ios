@@ -626,14 +626,16 @@ final class AppModel {
 
     @ObservationIgnored private var substanceWindowCache: [SubstanceWindow]?
 
-    /// The after-windows to shade behind a vital's chart.
+    /// The after-windows shaded behind **every** chart in the app.
     ///
-    /// Empty for a metric the analyzer doesn't compare, because a shaded stretch
-    /// behind a weight chart would assert a relationship nothing here has
-    /// looked for. `comparedMetrics` is derived from the analyzer's own watched
-    /// table, so the two can't drift apart.
-    func substanceWindows(for metric: MetricType) -> [SubstanceWindow] {
-        guard SubstanceResponseAnalyzer.comparedMetrics.contains(metric) else { return [] }
+    /// **Ungated since 2026-08-03, at the user's instruction.** It used to be
+    /// empty for any metric `SubstanceResponseAnalyzer` does not compare — the
+    /// reasoning being that a shaded stretch behind a weight chart would assert
+    /// a relationship nothing had looked for. The rule that replaces it is
+    /// narrower: the shading marks *when something was logged*, which is a fact
+    /// about the timeline and true on every chart, and the caption says it
+    /// claims nothing about the metric underneath. See `SubstanceShading`.
+    var allSubstanceWindows: [SubstanceWindow] {
         if let substanceWindowCache { return substanceWindowCache }
         let built = SubstanceResponseAnalyzer.affectedWindows(events: substanceEvents)
         substanceWindowCache = built

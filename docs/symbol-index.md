@@ -451,8 +451,8 @@ the place to look.
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/FitnessProjectionChart.swift`
-  - `FitnessProjectionChart` :26
-  - `RiskProjectionBar` :165
+  - `FitnessProjectionChart` :29
+  - `RiskProjectionBar` :168
 - `DesignSystem/Haptics.swift`
   - `CopyButton` :37
   - `Haptics` :10
@@ -494,7 +494,7 @@ the place to look.
 - `DesignSystem/ScoreHistoryChart.swift`
   - `ScoreHistoryChart` :12
 - `DesignSystem/ScrollableMetricChart.swift`
-  - `MetricYScale` :142
+  - `MetricYScale` :152
   - `ScrollableMetricChart` :13
 - `DesignSystem/ScrubIndicator.swift`
   - `ScrubIndicator` :24
@@ -506,6 +506,8 @@ the place to look.
   - `SourceBreakdown` :13
 - `DesignSystem/SubstanceLoadChart.swift`
   - `SubstanceLoadChart` :13
+- `DesignSystem/SubstanceShading.swift`
+  - `SubstanceShading` :27
 - `DesignSystem/Theme.swift`
   - `Card` :338
   - `ConfidenceBadge` :354

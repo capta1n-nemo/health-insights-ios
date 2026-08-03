@@ -29,6 +29,9 @@ import InsightKit
 /// quantity, not a measurement — the same rule that governs every other dash in
 /// this app.
 struct EnergyCurveChart: View {
+    /// Optional for the same reason the wrapper's is — a chart rendered outside
+    /// the app hierarchy draws without shading rather than trapping.
+    @Environment(AppModel.self) private var model: AppModel?
     let curve: [EnergyModel.Point]
     /// Where the day started, drawn as the reference the drain is read against.
     let morningCharge: Double
@@ -91,6 +94,11 @@ struct EnergyCurveChart: View {
     /// drag today's curve off the edge and find nothing on either side of it.
     private var chart: some View {
         Chart {
+            // Drawn here because this chart deliberately does not wrap
+            // `ScrollableMetricChart` — see above — so it does not inherit the
+            // shading that wrapper applies. A coffee at three shades the rest
+            // of today's curve, which is exactly the stretch worth seeing.
+            SubstanceShading.marks(model?.allSubstanceWindows ?? [], in: span ?? Date()...Date())
             marks
         }
         .chartYScale(domain: 0...100)

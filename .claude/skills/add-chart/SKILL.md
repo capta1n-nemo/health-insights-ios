@@ -183,6 +183,34 @@ check whether the mechanism can produce the target at all before choosing anothe
 value for it.** Four of those rounds were spent looking for a ratio that does not
 exist.
 
+## 9a. Every chart carries the substance shading
+
+**The user's standing rule, 2026-08-03:** *"make sure the stimulant impact
+shading is on EVERY chart in the app, and this is a design rule going forward."*
+
+`ScrollableMetricChart` draws it for every chart that wraps it, reading the
+windows from the environment — so a new chart that wraps the wrapper gets it and
+needs no code. A chart that builds its own `Chart {}` must call
+`SubstanceShading.marks(_:in:)` **first**, so it sits behind the data.
+
+`verify.sh` fails on any file with a raw `Chart {` that neither wraps the
+wrapper, nor calls `SubstanceShading`, nor carries:
+
+```swift
+// substance-shading: exempt — <why>
+```
+
+The only honest exemption is an x axis that is not a date —
+`FitnessProjectionChart` plots months *ahead*, where a window that happened
+yesterday has nowhere to land. "It did not seem relevant" is not an exemption:
+the shading claims only that something was logged in that stretch, which is true
+on every chart, and the caption (`SubstanceShading.caption`) says exactly that.
+
+What it replaced: the shading was gated on the metrics
+`SubstanceResponseAnalyzer` compares, on the reasoning that shading a weight
+chart would assert a relationship nothing had looked for. The narrower rule —
+*this marks when, not what it did* — is what makes it safe everywhere.
+
 ## 10. Review checklist
 
 Run this against any chart being added or reviewed. Each line is a shipped defect.

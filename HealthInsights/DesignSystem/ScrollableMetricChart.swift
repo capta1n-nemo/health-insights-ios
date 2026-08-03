@@ -11,6 +11,10 @@ import InsightKit
 /// Marks come from the caller, which is handed the padded date range it should
 /// plot so it can slice and thin its own data.
 struct ScrollableMetricChart<Marks: ChartContent>: View {
+    /// Optional so a chart rendered outside the app's own hierarchy — a
+    /// preview, a snapshot harness — draws without one rather than trapping.
+    @Environment(AppModel.self) private var model: AppModel?
+
     /// Extent of the whole history; the scroll domain derives from it.
     let dataSpan: ClosedRange<Date>?
     /// How much time fills the chart's width — the zoom level.
@@ -81,6 +85,12 @@ struct ScrollableMetricChart<Marks: ChartContent>: View {
     var body: some View {
         let range = visibleRange
         Chart {
+            // **First, so it sits behind the data** — and here rather than in
+            // each caller, which is what makes "on every chart" a property of
+            // the code instead of a thing each author has to remember. See
+            // `SubstanceShading` for the user's rule and what the shading is
+            // allowed to claim.
+            SubstanceShading.marks(model?.allSubstanceWindows ?? [], in: plotRange)
             marks(plotRange)
             // Drawn here rather than by each caller, so every chart that wraps
             // this one — score history, multi-source, blood pressure, the

@@ -23,6 +23,9 @@ import InsightKit
 /// **The band is `AreaMark(x:yStart:yEnd:)`**, which takes no `stacking:`
 /// argument. An absolute band between two heights is inherently unstacked, and
 /// passing one is a compile error rather than a silent mis-render.
+// substance-shading: exempt — the x axis is months ahead of today, not a date.
+// A window that happened yesterday has nowhere to land on a chart whose zero is
+// now and whose extent is the future. See `SubstanceShading` for the rule.
 struct FitnessProjectionChart: View {
     let trajectory: VO2Trajectory.Output
 

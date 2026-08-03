@@ -18,6 +18,8 @@ import InsightKit
 /// than the screen, and a pannable axis would let the reader drag it off the
 /// edge and find nothing on either side.
 struct NightSleepChart: View {
+    /// Optional for the same reason the wrapper's is.
+    @Environment(AppModel.self) private var model: AppModel?
     let detail: NightSleepDetail
     var selection: Binding<Date?>?
 
@@ -75,6 +77,10 @@ struct NightSleepChart: View {
 
     private var chart: some View {
         Chart {
+            // Same reason as `EnergyCurveChart`: one night is never longer than
+            // the screen, so this does not wrap `ScrollableMetricChart` and does
+            // not inherit its shading. A drink before bed lands squarely here.
+            SubstanceShading.marks(model?.allSubstanceWindows ?? [], in: domain)
             marks
         }
         .chartXScale(domain: domain.lowerBound...domain.upperBound)

@@ -682,6 +682,13 @@ one beat-to-beat stream and only agreement between them is evidence.
 
 ### Feature audit — what each chart supports
 
+**Substance shading is universal as of 2026-08-03** and so is not a column:
+`ScrollableMetricChart` draws it for everything wrapping it, `EnergyCurveChart`
+and `NightSleepChart` call `SubstanceShading` themselves, and
+`FitnessProjectionChart` is the one exemption — its x axis is months ahead, so a
+window that happened yesterday has nowhere to land. `verify.sh` fails on any new
+raw `Chart {}` that does none of the three. See the `add-chart` skill ▸ 9a.
+
 | Chart | Wraps `Scrollable­MetricChart` | Pan / zoom | Scrub line | Honours the card's timeframe |
 |---|---|---|---|---|
 | `ScoreHistoryChart` | ● | ● | ● shared | ● `window(spanning:)` |

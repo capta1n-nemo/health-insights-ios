@@ -368,6 +368,41 @@ EOF
     fi
 fi
 
+# --- Every chart carries the substance shading -----------------------------
+#
+# The user's rule, 2026-08-03: *"make sure the stimulant impact shading is on
+# EVERY chart in the app, and this is a design rule going forward."*
+#
+# "Going forward" is the part a lint has to carry: the shading was on one chart
+# for months because each new chart's author had no reason to know about it.
+# `ScrollableMetricChart` now draws it for every chart that wraps it, so the
+# only files this can catch are the ones building a raw `Chart {` of their own
+# — which is exactly where the rule gets skipped.
+#
+# A file passes if it wraps `ScrollableMetricChart`, calls `SubstanceShading`
+# itself, or carries the exemption marker with a reason:
+#     // substance-shading: exempt — <why>
+# An exemption is for a chart whose x axis is not a date (a projection in months
+# ahead, a scatter). There is no exemption for "it did not seem relevant".
+chartfiles=$(grep -rlE '(^|[^A-Za-z0-9_])Chart[ ]*\{' HealthInsights --include=*.swift 2>/dev/null || true)
+unshaded=""
+for f in $chartfiles; do
+    case "$(basename "$f")" in
+        ScrollableMetricChart.swift|SubstanceShading.swift) continue ;;
+    esac
+    # Comment lines don't build charts. `DomainDataScaffold` documents the rule
+    # that a data page never hand-rolls a `Chart {}`, and was flagged for saying
+    # so — a lint that fires on prose about itself teaches people to ignore it.
+    grep -nE '(^|[^A-Za-z0-9_])Chart[ ]*\{' "$f" \
+        | grep -qvE '^[0-9]+:[[:space:]]*(///|//|\*)' || continue
+    grep -q 'ScrollableMetricChart\|SubstanceShading\|substance-shading: exempt' "$f" \
+        || unshaded="$unshaded $(basename "$f")"
+done
+if [ -n "$unshaded" ]; then
+    note "Charts with no substance shading — wrap ScrollableMetricChart, call SubstanceShading, or mark '// substance-shading: exempt — <why>':$unshaded"
+    fail=1
+fi
+
 # --- Nothing may clear this script's own verdict ---------------------------
 #
 # On 2026-08-02 `verify.sh --tests` exited 0 on a tree that plain `verify.sh`

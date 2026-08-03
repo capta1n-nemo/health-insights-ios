@@ -50,11 +50,9 @@ struct MetricDetailView: View {
 
     /// Whether a dashed connector can appear at this zoom at all, so the key is
     /// only shown when the encoding is actually in play. O(1) — no history scan.
-    /// The after-windows to shade behind this metric's chart, if it is one the
-    /// substance analyzer compares at all.
-    private var substanceWindows: [SubstanceWindow] {
-        model.substanceWindows(for: metric)
-    }
+    /// Only for the caption below — the shading itself is drawn by
+    /// `ScrollableMetricChart` on every chart in the app now.
+    private var substanceWindows: [SubstanceWindow] { model.allSubstanceWindows }
 
     private var canBridge: Bool {
         let bucket = BucketSize.forWindow(window)
@@ -143,8 +141,7 @@ struct MetricDetailView: View {
                                  window: window,
                                  logarithmic: logScale,
                                  onVisibleRangeChange: { visibleRange = $0 },
-                                 selection: $scrubbed,
-                                 substanceWindows: substanceWindows)
+                                 selection: $scrubbed)
                 Text("Drag across the chart to read individual points; swipe it sideways to move back through your history.")
                     .font(.caption2).foregroundStyle(.tertiary)
                 if canBridge {
@@ -155,7 +152,7 @@ struct MetricDetailView: View {
                 // nowhere, so seeing which readings it covered meant doing date
                 // arithmetic in your head against a chart.
                 if !substanceWindows.isEmpty {
-                    Text("The shaded columns are the \(Int(SubstanceResponseAnalyzer.afterWindow / 3600)) hours after something you logged — the readings Substance Impact compares against your unlogged days. It marks when, not whether anything happened.")
+                    Text(SubstanceShading.caption)
                         .font(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
