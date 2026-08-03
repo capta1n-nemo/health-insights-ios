@@ -141,6 +141,24 @@ rediscover:
 3. **`add-insight` said five exhaustive switches and there are six** —
    `shortTitle` in `BalanceWeb.swift`. The skill now lists it.
 
+**Two standing items from 2026-08-03, both recorded so they are not re-derived:**
+
+- **Substance shading is on every chart, by rule.** `ScrollableMetricChart`
+  draws it for anything wrapping it, two day-scale charts call
+  `SubstanceShading` themselves, `FitnessProjectionChart` is exempt (its x axis
+  is months ahead), and `verify.sh` fails on any new raw `Chart {}` that does
+  none of the three. The gate on "metrics the analyzer compares" is gone: the
+  shading now claims only *that something was logged in this stretch*, which is
+  true on every chart.
+- **The symptom radar is designed, not built** — `planned-modules.md` ▸ module
+  7, researched against Oura, Apple, Whoop, Garmin, Samsung and Fitbit.
+  `HealthWatchModel` is already the engine and is close to Oura's design; what
+  is missing is the card. The figure that shapes it: the best published
+  validation of this approach is **43% sensitivity at 95% specificity**, so
+  "no signs" is not reassurance and the card has to say so. Build the symptoms
+  domain first — the HealthKit symptom tags are what the radar grades itself
+  against.
+
 **The scope is now stated, and it is bigger than the current card set.** The
 user, 2026-08-03: *"this is a master health app, in future it will need to
 support every domain of health and wellbeing."* The default answer to "does

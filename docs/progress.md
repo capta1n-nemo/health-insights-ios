@@ -65,13 +65,19 @@ section it sits in rather than by judgement:
 | 29 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
 | 30 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
 | 31 | Oral health | Every domain of health — the direction, and what is already arriving | next |
-| 32 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 33 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 34 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 35 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 36 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 37 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 38 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 32 | The card itself — `InsightID.symptomRadar`, daily, rendering `HealthWatchMode… | Symptom radar — the sickness early warning | next |
+| 33 | "No signs" must not read as reassurance | Symptom radar — the sickness early warning | next |
+| 34 | Name the confounder from data the app already holds | Symptom radar — the sickness early warning | next |
+| 35 | Never call a dose reaction an infection | Symptom radar — the sickness early warning | next |
+| 36 | Track the episode, not just the onset — start, peak, and each signal's return… | Symptom radar — the sickness early warning | next |
+| 37 | Grade itself against the reader's own symptom tags | Symptom radar — the sickness early warning | next |
+| 38 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 39 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 40 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 41 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 42 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 43 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 44 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1633,6 +1639,8 @@ plumbing. Ordered by how much is already arriving.
       side-effect log by hand (`InputKind.sideEffect`). Reconciling the two —
       what the reader logged here, what Health already knew — is a card, and it
       is the same reconciliation shape `BodyMeasurementReconciliation` uses.
+      **It is also the symptom radar's training signal**: build it first, or the
+      radar has nothing to grade itself against.
 - [ ] **Hearing.** Environmental and headphone audio exposure, plus the three
       exposure *events*, all already scraped. It has a published dose in the
       same form as the exercise one — WHO/NIOSH's 85 dB over 40 hours a week,
@@ -1669,6 +1677,54 @@ plus one reader, and each needs a `DataDomain` or a data category so it appears
 in the Data tab — the invariant that already exists. None needs a new
 integration. Load `add-data-or-input` and `add-metric-type` before starting any
 of them.
+
+### Symptom radar — the sickness early warning (user request, 2026-08-03)
+
+*"I want a symptom radar / sickness early warning like Oura, as its own card."*
+**Researched against Oura, Apple, Whoop, Garmin, Samsung and Fitbit, and
+designed in `docs/planned-modules.md` ▸ module 7. Read that first** — it carries
+the competitive table, the validation figure that shapes the whole card, and the
+four things this app can do that none of the products can.
+
+**The engine already exists.** `HealthWatchModel` has been shipping since
+2026-08-02: seven weighted signals, a 3-day recent window against a 21-day
+reference with a 4-day gap between them, z-scored, counted only when they move
+the way illness pushes them. It is within touching distance of Oura's design and
+is currently a section inside Readiness. What is missing is the card.
+
+- [ ] **The card itself** — `InsightID.symptomRadar`, daily, rendering
+      `HealthWatchModel` directly. Three states on Oura's precedent (nothing
+      stirring / some signs / strong signs) and a radar of the seven signals
+      showing which moved and how far. Which signals moved is more actionable
+      than a score.
+- [ ] **"No signs" must not read as reassurance.** The best published
+      prospective validation of this approach — sleep resting HR, respiratory
+      rate and HRV over 470 health-care workers — is **43% sensitivity at 95%
+      specificity** (JMIR Formative Research, 2024). A model of this kind misses
+      more than half of real infections. Every competitor puts a green tick in
+      the quiet state; this card has to say what quiet actually means, and that
+      is the most important sentence on it.
+- [ ] **Name the confounder from data the app already holds.** Apple lists
+      *possible* causes generically. This app has the substance log, the GLP-1
+      dose schedule and screen time, so it can say "you logged alcohol on two of
+      these three nights" instead. The universal substance shading (2026-08-03)
+      is the visual half of this and is already in.
+- [ ] **Never call a dose reaction an infection.** Nausea and fatigue after a
+      GLP-1 dose are the drug working. The app knows the dose dates and the
+      modelled level; no competitor does. Flagging an infection on titration day
+      is the kind of wrong a reader remembers.
+- [ ] **Track the episode, not just the onset** — start, peak, and each signal's
+      return to baseline ("day 3, two of four signals back inside your range").
+      The standing criticism of Whoop's Health Monitor is that it flags a bug
+      and then goes quiet.
+- [ ] **Grade itself against the reader's own symptom tags.** HealthKit writes
+      fifteen symptom categories into this app's raw pile — nausea, fatigue,
+      headache, fever, coughing — and nothing reads them. They are both the
+      training signal and the honesty feature: the card can report its own hit
+      rate, the way the blood-pressure estimator reports "out by 13 mmHg on
+      average". **Build the symptoms domain first** (see "Every domain of
+      health"); an early-warning card that cannot say how often it is right is
+      the one shape this app should not ship.
 
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸

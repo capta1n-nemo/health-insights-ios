@@ -879,3 +879,92 @@ blocker for the metabolism card's *confidence* being any good, because a reader
 who logs food properly is the reader whose energy balance can be trusted. Build
 the promotion first, the card second, and let the metabolism card land whenever
 it is ready.
+
+---
+
+## 7. Symptom radar — the sickness early warning, as its own card (user request, 2026-08-03)
+
+*"I want a symptom radar / sickness early warning like Oura, as its own card."*
+
+### What already exists here, so nobody rebuilds it
+
+**`HealthWatchModel` is this feature's engine and it has been shipping since
+2026-08-02.** Seven weighted signals — skin-temperature deviation and absolute
+skin temperature (1.0), resting heart rate and rMSSD (0.9), SDNN and
+respiratory rate (0.8), SpO₂ (0.5) — each scored as a z-score of a 3-day recent
+window against a 21-day reference, **with a 4-day gap between them so yesterday
+cannot help set the baseline that judges today**. `leaningZ` is 1.0, `strongZ`
+2.0, and a signal only counts when it moved in the direction illness pushes it.
+
+That design is already within touching distance of the reference products. What
+is missing is not the maths — it is a *card*: a surface, a state, an episode,
+and the honesty a self-reported early-warning feature needs. Today the engine is
+a section inside Readiness plus a `SuggestionEngine.convergence` row.
+
+### What the reference products actually do
+
+| Product | Signals | Baseline | Output | Notes |
+| --- | --- | --- | --- | --- |
+| **Oura Symptom Radar** | resting HR, HRV, respiratory rate, body temperature, inactive time | long-term personal baseline, "deviation in combination" | **three states** — no signs / minor signs / major signs, each morning | built with UCSF on 2 years of member data and ~3M illness tags; detects up to **2 days** before the member tags an illness; V2 runs on-device and returns to "no signs" faster after recovery than V1 |
+| **Apple Watch Vitals** | overnight HR, respiratory rate, wrist temperature, SpO₂, sleep duration | "typical range" from the **last 7 nights** | per-metric *typical* / *outlier*; a notification only when **two or more** are outliers | names possible causes — alcohol, elevation, medication, illness — rather than asserting one |
+| **Whoop Health Monitor** | resting HR, respiratory rate, skin temperature, HRV, SpO₂ | 30-day rolling average | green / amber / red per metric, every morning | reviewers' consistent criticism: it flags onset and then says nothing about **recovery** |
+| **Garmin** | Body Battery, respiratory rate; Health Snapshot is a 2-minute on-demand capture | personal | disrupted Body Battery charge as the tell | illness is framed as one explanation for a failure to recharge overnight |
+| **Samsung Health** | baseline deviation across Galaxy Watch vitals | personal | an illness-prediction alert (announced 2026) | the newest entrant; same shape as the rest |
+| **Fitbit Health Metrics** | five-to-six overnight metrics | personal range | dashboard with per-metric ranges | the original of this genre |
+
+**The one number that matters, and none of them print it.** The best published
+prospective validation of this exact approach — sleep resting HR, respiratory
+rate and HRV, tested on 470 health-care workers — reported **sensitivity 43% at
+specificity 95%** for correctly labelling COVID days (JMIR Formative Research,
+2024). So a model of this kind is right to stay quiet most of the time and
+**misses more than half of real infections**. Everything below follows from
+that.
+
+### The design
+
+- **Its own card, `InsightID.symptomRadar`**, daily cadence, rendering
+  `HealthWatchModel` directly rather than through Readiness. Readiness keeps its
+  section; this card is where the episode lives.
+- **Three states, on Oura's precedent** — nothing stirring / some signs / strong
+  signs — from the existing weighted vote rather than a new one.
+- **A radar of the seven signals**: each signal's z-score, its direction, and
+  whether it is leaning. This is the "radar" the user asked for, and the shape
+  the reader can act on: *which* signals moved is more useful than a score.
+- **"No signs" must not read as reassurance.** At 43% sensitivity the honest
+  line is that this catches under half of infections, and the card says so in
+  the quiet state — where every competitor puts a green tick. This is the
+  single most important sentence on the card.
+
+### The four things this app can do that none of them can
+
+1. **Name the confounder, from data it already holds.** Apple lists *possible*
+   factors generically. This app holds the substance log, the GLP-1 dose
+   schedule, screen time and (soon) travel — so it can say *"you logged alcohol
+   on two of these three nights"* rather than *"alcohol may affect these
+   metrics"*. The substance shading is on every chart as of 2026-08-03, which
+   is exactly the visual half of this.
+2. **Do not call a dose reaction an infection.** Nausea and fatigue after a
+   GLP-1 dose are the drug working, and the app knows the dose dates and the
+   modelled level. A card that flags an infection on titration day would be
+   wrong in the way a reader remembers. **No competitor knows the reader's
+   medication schedule; this one does.**
+3. **Track the episode, not just the onset.** The standing criticism of Whoop's
+   Health Monitor is that it flags a bug and then goes quiet. An episode has a
+   start, a peak and a return to baseline per signal — *"day 3, two of four
+   signals back inside your range"* — and the machinery to say it already
+   exists.
+4. **Grade itself.** Oura trains against members' illness tags; this app can
+   *report its own hit rate to the reader*, which is the pattern the blood
+   pressure estimator already ships ("out by 13 mmHg on average"). Tagging
+   closes the loop: HealthKit already writes fifteen symptom categories into
+   this app's raw pile — nausea, fatigue, headache, fever, coughing — and they
+   are read by nothing. **That is both the training signal and the honesty
+   feature, and no competitor prints its own precision.**
+
+### Order
+
+The engine is built, the symptom tags are arriving unread, and the card is the
+only new surface. Build it after the symptoms domain (`progress.md` ▸ "Every
+domain of health") rather than before: without the tags there is nothing to
+grade the radar against, and an early-warning card that cannot say how often it
+is right is the one shape this app should not ship.
