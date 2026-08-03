@@ -25,7 +25,7 @@ import UIKit
 /// is worse than no button.
 struct DocumentCameraView: View {
     /// Pages, in the order they were scanned. Empty when the reader cancels.
-    let onFinish: ([PlatformImage]) -> Void
+    let onFinish: @MainActor ([PlatformImage]) -> Void
 
     /// Whether the system scanner can run here at all.
     static var isAvailable: Bool {
@@ -49,7 +49,7 @@ struct DocumentCameraView: View {
 
     #if canImport(VisionKit) && canImport(UIKit)
     private struct Representable: UIViewControllerRepresentable {
-        let onFinish: ([PlatformImage]) -> Void
+        let onFinish: @MainActor ([PlatformImage]) -> Void
 
         func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
             let controller = VNDocumentCameraViewController()
@@ -66,24 +66,37 @@ struct DocumentCameraView: View {
         /// failure one. A scanner that reports nothing when the camera errors
         /// leaves the sheet up with a spinner behind it and no way to tell what
         /// happened.
+        ///
+        /// **`MainActor.assumeIsolated` rather than a `Task` hop.** These
+        /// callbacks are UIKit's, delivered on the main thread, and everything
+        /// they touch — the caller's `@State`, `DiagnosticsLog` — is
+        /// main-actor isolated. Hopping would work and would also make the
+        /// cover's dismissal race the pages arriving; asserting what UIKit
+        /// already guarantees keeps it one ordered step.
         final class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
-            private let onFinish: ([PlatformImage]) -> Void
-            init(onFinish: @escaping ([PlatformImage]) -> Void) { self.onFinish = onFinish }
+            private let onFinish: @MainActor ([PlatformImage]) -> Void
+            init(onFinish: @escaping @MainActor ([PlatformImage]) -> Void) {
+                self.onFinish = onFinish
+            }
 
             func documentCameraViewController(_ controller: VNDocumentCameraViewController,
                                               didFinishWith scan: VNDocumentCameraScan) {
-                let pages = (0..<scan.pageCount).map { scan.imageOfPage(at: $0) }
-                onFinish(pages)
+                MainActor.assumeIsolated {
+                    onFinish((0..<scan.pageCount).map { scan.imageOfPage(at: $0) })
+                }
             }
 
             func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-                onFinish([])
+                MainActor.assumeIsolated { onFinish([]) }
             }
 
             func documentCameraViewController(_ controller: VNDocumentCameraViewController,
                                               didFailWithError error: Error) {
-                DiagnosticsLog.shared.fail("Import", "Document scanner failed: \(error.localizedDescription)")
-                onFinish([])
+                MainActor.assumeIsolated {
+                    DiagnosticsLog.shared.fail("Import",
+                                               "Document scanner failed: \(error.localizedDescription)")
+                    onFinish([])
+                }
             }
         }
     }

@@ -53,12 +53,14 @@ struct ImportLabView: View {
                     .controlSize(.large)
                 }
 
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    Label("Choose a photo", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
+                // The branch is over the view rather than over the argument:
+                // `.bordered` and `.borderedProminent` are different concrete
+                // types and a ternary between them has nothing to unify to.
+                if DocumentCameraView.isAvailable {
+                    libraryPicker.buttonStyle(.bordered)
+                } else {
+                    libraryPicker.buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(DocumentCameraView.isAvailable ? .bordered : .borderedProminent)
-                .controlSize(.large)
 
                 if isProcessing {
                     HStack { ProgressView(); Text("Reading your report…").foregroundStyle(.secondary) }
@@ -113,6 +115,14 @@ struct ImportLabView: View {
                 process(pages)
             }
         }
+    }
+
+    private var libraryPicker: some View {
+        PhotosPicker(selection: $pickerItem, matching: .images) {
+            Label("Choose a photo", systemImage: "photo.on.rectangle")
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.large)
     }
 
     /// Read a scan's pages and keep the first value found for each kind.
