@@ -23,7 +23,7 @@ the place to look.
   - `ScreenTimeEntry` :57
   - `ScreenTimePrecedence` :88
   - `ScreenTimeProvenance` :10
-  - `ScreenTimeWeekBreakdown` :145
+  - `ScreenTimeWeekBreakdown` :164
 - `Documents/ScreenTimeScreenshotParser.swift`
   - `ScreenTimeScreenshotParser` :26
 - `Feedback/Feedback.swift`

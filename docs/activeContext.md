@@ -76,8 +76,19 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**⚠️ OPEN DEFECT — Screen Time week import refuses a good screenshot
-(2026-08-03, found on the device, NOT fixed).**
+**✅ FIXED — Screen Time week import refused a good screenshot (2026-08-03,
+found on the device, fixed the same session).**
+
+**The answer was (a) *and* it did not matter.** Rather than establish which of
+the two candidate causes it was, `weeklyTotal` stopped guessing: it now
+**chooses by agreement with the printed daily average**, the same cross-check
+`totalAgreesWithAverage()` already used to reject. 99h 33m agrees with
+14h 13m/day and 22h does not, so the right row wins whatever OCR did to the
+text around it. The named-row and largest-wins rules survive as the fallback
+for a screenshot cropped past the average. Selection and check share one
+tolerance, so a total this type chose can never be one it then rejects.
+Five regression tests, built from the reader's own screenshot transcribed in
+OCR order. The diagnosis below is kept because the mechanism is worth knowing:
 
 The reader's Week screenshot carries everything the import needs and is
 rejected. The app says:

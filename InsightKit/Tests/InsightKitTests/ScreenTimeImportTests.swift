@@ -333,4 +333,68 @@ final class ScreenTimeImportTests: XCTestCase {
         XCTAssertFalse(ScreenTimeProvenance.dayExact.isEstimate)
         XCTAssertFalse(ScreenTimeProvenance.manual.isEstimate)
     }
+    // MARK: - Re-importing the same day
+
+    private func day(_ minutes: Double, _ prov: ScreenTimeProvenance,
+                     recordedAt: Date) -> ScreenTimeEntry {
+        ScreenTimeEntry(day: TestClock.now, minutes: minutes,
+                        provenance: prov, recordedAt: recordedAt)
+    }
+
+    /// **Screen time only accumulates within a day.** A screenshot captured at
+    /// 23:00 shows the whole day; one captured at noon shows half of it. Which
+    /// was *imported* first says nothing about which was *captured* later, so
+    /// the larger figure wins between two exact readings of the same day.
+    func testLaterInTheDayWinsEvenWhenImportedFirst() {
+        let complete = day(1260, .dayExact, recordedAt: TestClock.now)
+        let partial = day(400, .dayExact,
+                          recordedAt: TestClock.now.addingTimeInterval(3600))
+        XCTAssertEqual(ScreenTimePrecedence.winner(among: [complete, partial]),
+                       complete,
+                       "the partial midday capture was imported later and must not win")
+    }
+
+    /// The reader's third case: incremental re-uploads of the same day, each
+    /// with a higher figure. Every one of them should take.
+    func testIncrementalReuploadsOfOneDayClimb() {
+        var seen: [ScreenTimeEntry] = []
+        for (i, m) in [200.0, 480.0, 1_010.0].enumerated() {
+            let e = day(m, .dayExact,
+                        recordedAt: TestClock.now.addingTimeInterval(Double(i) * 3600))
+            XCTAssertTrue(ScreenTimePrecedence.wouldWin(e, over: seen),
+                          "a higher figure for the same day must take")
+            seen.append(e)
+        }
+        XCTAssertEqual(ScreenTimePrecedence.winner(among: seen)?.minutes, 1_010)
+    }
+
+    /// A week estimate is a **share** of a total, not an accumulation, so the
+    /// larger-wins rule must not reach it — a fuller week re-uploaded later
+    /// wins on when it was recorded, and may legitimately lower a day.
+    func testWeekEstimateStillResolvesByRecency() {
+        let first = day(900, .weekEstimate, recordedAt: TestClock.now)
+        let refined = day(300, .weekEstimate,
+                          recordedAt: TestClock.now.addingTimeInterval(3600))
+        XCTAssertEqual(ScreenTimePrecedence.winner(among: [first, refined]), refined)
+    }
+
+    /// An exact day still beats a bigger week estimate — authority first, and
+    /// the accumulation rule must not have overtaken it.
+    func testExactDayStillBeatsALargerWeekEstimate() {
+        let estimate = day(1_200, .weekEstimate,
+                           recordedAt: TestClock.now.addingTimeInterval(7200))
+        let exact = day(300, .dayExact, recordedAt: TestClock.now)
+        XCTAssertEqual(ScreenTimePrecedence.winner(among: [estimate, exact]), exact)
+    }
+
+    /// And the reader correcting the app by hand, afterwards, still wins —
+    /// even with a smaller number. Their word beats the device's accounting
+    /// when it is the more recent act.
+    func testAManualCorrectionAfterwardsStillWins() {
+        let exact = day(1_260, .dayExact, recordedAt: TestClock.now)
+        let correction = day(120, .manual,
+                             recordedAt: TestClock.now.addingTimeInterval(3600))
+        XCTAssertEqual(ScreenTimePrecedence.winner(among: [exact, correction]),
+                       correction)
+    }
 }

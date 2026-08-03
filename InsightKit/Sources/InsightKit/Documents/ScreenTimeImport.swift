@@ -95,6 +95,25 @@ public enum ScreenTimePrecedence {
             if left.provenance.authority != right.provenance.authority {
                 return left.provenance.authority < right.provenance.authority
             }
+            // **Screen time only accumulates within a day**, so between two
+            // exact readings of the *same* day the larger one was captured
+            // later in that day and is the more complete figure.
+            //
+            // The reader's rule, and it is deliberately **not** "newer
+            // recordedAt wins": a screenshot taken at 23:00 shows the whole day
+            // and one taken at noon shows half of it, and which was *imported*
+            // first says nothing about which was *captured* later. Importing
+            // the midday shot second would otherwise overwrite the complete day
+            // with a partial one — one of the three re-import cases the reader
+            // reported from the device on 2026-08-03.
+            //
+            // Only `.dayExact`. A `.weekEstimate` is a *share* of a total, not
+            // an accumulation, so a bigger split is not a more complete one; a
+            // week re-uploaded in full is newer and wins on recordedAt below,
+            // which is the right rule for that case.
+            if left.provenance == .dayExact, left.minutes != right.minutes {
+                return left.minutes < right.minutes
+            }
             return left.recordedAt < right.recordedAt
         }
         let newestManual = manuals.max { $0.recordedAt < $1.recordedAt }

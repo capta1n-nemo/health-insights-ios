@@ -155,4 +155,94 @@ final class ScreenTimeScreenshotParserTests: XCTestCase {
         XCTAssertNil(result.dayTotal)
         XCTAssertEqual(result.readings.first?.kind, .unlabelled)
     }
+    // MARK: - The chart's y-axis beat the real total row
+
+    /// The reader's own Week screenshot, 2026-08-03, transcribed in OCR order.
+    ///
+    /// Everything the import needs is on it — "Total Screen Time 99h 33m" and
+    /// "Last Week's Average 14h 13m", and 99h33m / 7 is 14h13m exactly — and it
+    /// was refused, because the parser took the **chart's y-axis maximum** as
+    /// the week's total. "↑ 55% from last week" sits directly above the axis
+    /// label, `classify` reads the line above for context, and anything
+    /// containing "week" becomes a weekly total.
+    private var deviceWeekScreenshot: String {
+        """
+        Screen Time
+        Show This Week
+        Last Week's Average
+        14h 13m
+        55% from last week
+        22h
+        avg.
+        0
+        M
+        Tu
+        W
+        Th
+        F
+        Sa
+        Su
+        Productivity & Finance
+        43h 14m
+        Other
+        18h 12m
+        Entertainment
+        8h 35m
+        Total Screen Time
+        99h 33m
+        Updated today at 9:04 am
+        """
+    }
+
+    func testAxisLabelDoesNotBecomeTheWeeklyTotal() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshot,
+                                                      capturedAt: now, calendar: cal)
+        // 22h is the axis maximum: 1320 minutes. The real total is 99h33m.
+        XCTAssertEqual(result.weeklyTotal?.minutes, 99 * 60 + 33)
+        XCTAssertNotEqual(result.weeklyTotal?.minutes, 22 * 60)
+    }
+
+    /// The regression the reader actually saw: a valid screenshot refused.
+    func testTheDeviceScreenshotIsAccepted() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshot,
+                                                      capturedAt: now, calendar: cal)
+        XCTAssertEqual(result.dailyAverage?.minutes, 14 * 60 + 13)
+        XCTAssertEqual(result.totalAgreesWithAverage(), true,
+                       "99h33m is exactly seven times the printed 14h13m average")
+    }
+
+    /// A category subtotal must still lose, which is what the *previous* fix
+    /// was for — the five-fold under-count. Agreement picks the total; it does
+    /// not merely pick the largest, and it must not pick a category either.
+    func testCategorySubtotalStillLoses() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshot,
+                                                      capturedAt: now, calendar: cal)
+        XCTAssertNotEqual(result.weeklyTotal?.minutes, 43 * 60 + 14)
+    }
+
+    /// **Agreement can only decide when there is something to agree with.** A
+    /// screenshot cropped past the average falls back to the older rules, and
+    /// they must still work.
+    func testFallsBackToTheNamedRowWithoutAnAverage() {
+        let result = ScreenTimeScreenshotParser.parse("""
+        Screen Time
+        This Week
+        Productivity & Finance
+        43h 14m
+        Total Screen Time
+        99h 33m
+        """, capturedAt: now, calendar: cal)
+        XCTAssertNil(result.dailyAverage)
+        XCTAssertEqual(result.weeklyTotal?.minutes, 99 * 60 + 33)
+    }
+
+    /// A total this type *chose* can never be one it then rejects — the
+    /// selection and the check share one tolerance. Canary: they were separate
+    /// constants for about ten minutes and nothing would have caught a drift.
+    func testChosenTotalAlwaysAgreesWithItsOwnCheck() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshot,
+                                                      capturedAt: now, calendar: cal)
+        XCTAssertNotNil(result.weeklyTotal)
+        XCTAssertNotEqual(result.totalAgreesWithAverage(), false)
+    }
 }

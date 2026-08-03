@@ -128,13 +128,58 @@ public enum ScreenTimeScreenshotParser {
         /// time" wins outright. Otherwise the **largest** wins, because the
         /// week's total is by construction the sum of its categories and cannot
         /// be smaller than any of them.
+        /// ## The chart's own axis is a candidate, and it beat the real row
+        ///
+        /// **Found on the device 2026-08-03**, on a screenshot that was
+        /// perfectly valid. The Week view prints "↑ 55% from last week" directly
+        /// above the bar chart, and the chart's y-axis maximum ("22h") is the
+        /// next line OCR reads. `classify` takes its context from the line above
+        /// and returns `.weeklyTotal` for anything containing "week" — so the
+        /// **axis label became a weekly total**, and the import refused the
+        /// screenshot for disagreeing with its own average.
+        ///
+        /// The two rules below could not save it: an axis label carries no
+        /// words, so the named rule skipped it, and whether `max` reached the
+        /// real row depended on how OCR happened to split "Total Screen Time"
+        /// from "99h 33m". Neither rule is *wrong*; both are guesses about which
+        /// number is the total.
+        ///
+        /// **So stop guessing.** The screenshot prints the total *and*
+        /// `total ÷ 7`, and `totalAgreesWithAverage()` already used that to
+        /// reject a wrong answer. Using it to **choose** costs nothing and is
+        /// strictly better: 99h 33m agrees with 14h 13m/day and 22h does not, so
+        /// the right row wins whatever OCR did to the text around it.
+        ///
+        /// The old rules stay as the fallback, for a screenshot cropped past the
+        /// average — agreement can only decide when there is something to agree
+        /// with.
         public var weeklyTotal: Reading? {
             let weeklies = readings.filter { $0.kind == .weeklyTotal }
+
+            // The printed average is an independent statement of the same
+            // quantity. Whichever candidate is closest to seven times it — and
+            // within tolerance of it — is the total, by measurement rather than
+            // by which words landed near it.
+            if let average = dailyAverage, average.minutes > 0 {
+                let implied = average.minutes * 7
+                let agreeing = weeklies.filter {
+                    abs($0.minutes - implied) / implied <= Self.agreementTolerance
+                }
+                if let best = agreeing.min(by: {
+                    abs($0.minutes - implied) < abs($1.minutes - implied)
+                }) { return best }
+            }
+
             if let named = weeklies.first(where: {
                 $0.label.lowercased().contains("total screen time")
             }) { return named }
             return weeklies.max { $0.minutes < $1.minutes }
         }
+
+        /// How far a claimed weekly total may sit from seven times the printed
+        /// daily average. Shared by the selection above and the check below, so
+        /// a total this type *chose* can never be one it then rejects.
+        public static let agreementTolerance = 0.1
 
         /// The daily average printed on a Week view, which is an independent
         /// statement of the same quantity.
@@ -153,7 +198,7 @@ public enum ScreenTimeScreenshotParser {
         /// Returns nil when either figure is missing — unknown is not the same
         /// as disagreeing, and a screenshot cropped past the average is still
         /// perfectly importable.
-        public func totalAgreesWithAverage(tolerance: Double = 0.1) -> Bool? {
+        public func totalAgreesWithAverage(tolerance: Double = agreementTolerance) -> Bool? {
             guard let weeklyTotal, let dailyAverage, dailyAverage.minutes > 0 else {
                 return nil
             }
