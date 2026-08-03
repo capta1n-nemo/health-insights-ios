@@ -5,6 +5,66 @@ about confidence.**
 
 ## Shipped
 
+### Screen Time import, closed out (2026-08-03)
+
+The reader's three device reports plus a fourth found while fixing them. All
+four are done and tested; the OCR import feature has no open items.
+
+- [x] **The chart's y-axis label no longer beats the real total** (`2a65453`).
+      "↑ 55% from last week" sits directly above the bar chart, `classify` takes
+      its context from the line above, so the axis maximum ("22h") became a
+      `.weeklyTotal` and the average cross-check refused an entirely valid
+      screenshot. `Result.weeklyTotal` now **chooses by agreement with the
+      printed daily average** — the same check that was already used to reject —
+      so the right row wins whatever OCR did to the words around it. Named-row
+      and largest-wins survive as the fallback when the average is cropped off.
+      Selection and check share one tolerance, with a canary for the drift.
+- [x] **Re-importing a day is an accumulation, not a recency question**
+      (`2a65453`). Between two `.dayExact` readings of one day the **larger**
+      wins: screen time only accumulates within a day, so the bigger figure was
+      captured later. Deliberately *not* "newer `recordedAt` wins" — a 23:00
+      capture imported after a midday one would otherwise be overwritten by the
+      partial. A week estimate is a *share* of a total, not an accumulation, so
+      it still resolves by recency; a manual correction afterwards still beats
+      both.
+- [x] **A Week import hides the day picker** (`02fc5c3`). The date picker and
+      hours/minutes wheels describe one day and a week writes seven. They return
+      if the week is discarded.
+- [x] **One Save** (`02fc5c3`). "Save these 7 days" is gone; the toolbar Save
+      commits whichever thing is on screen. It does not dismiss when a week wrote
+      nothing, because "those days already have better figures" is an outcome
+      the reader has to see — dismissing would look identical to having saved.
+
+⚠️ The two UI changes are app-target SwiftUI, so **CI is their only gate** and it
+had not reported when the session closed. The parser and precedence work is
+covered by 1331 local tests.
+
+### Deploy and runner tooling (2026-08-03)
+
+- [x] **`concurrency: deploy-to-iphone`** on `deploy.yml`, `cancel-in-progress:
+      false` — deploys serialise instead of sharing the runner's `_work`. False
+      deliberately: the verdict step is `if: always()`, so a cancelled run would
+      push `refs/deploy/failed` for a commit nobody tried to install.
+- [x] **`refs/deploy/errors` can describe a pre-build failure**
+      (`.github/deploy-prebuild-failure.txt`). It only read `build.log` and
+      `install.log`, so four deploys that died at *checkout* reached the reader
+      as one sentence naming no step, no cause and no fix.
+- [x] **`scripts/fix-runner.sh`** — the repair for two `Runner.Listener`
+      processes in one installation directory, which is what killed those four.
+      `runner-doctor.sh` diagnoses, this repairs; both now say so.
+- [x] **`deploy.yml`'s setup note no longer says `sudo ./svc.sh stop`.** This
+      runner is a LaunchAgent, so sudo makes the stop a silent no-op — the
+      advice cost three password prompts during a recovery that then did nothing.
+- [x] **A short sha no longer reads as "no verdict"** (`15792b3`). Both status
+      scripts passed `$sha` to `git ls-remote` untouched, and the refs are keyed
+      on the full 40-character hash — so naming a commit reported no result for
+      one that had `passed`, `failed` and `errors` refs all pushed. Cost a
+      15-minute wait and a wrong report to the user. `ci-status.sh` had it
+      identically.
+- [x] **The commit-signing nag is deleted** (`1f95030`) — hook registration,
+      script and `commit.gpgsign` all gone at the user's instruction.
+
+
 ### Retrospective Screen Time import (2026-08-02)
 
 - [x] **Screenshots file to the week they were taken, not the week they were

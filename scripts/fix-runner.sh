@@ -9,6 +9,16 @@
 #   cd ~/actions-runner/health-app-ios/health-insights-ios/health-insights-ios
 #   ./scripts/fix-runner.sh
 #
+# **`./scripts/runner-doctor.sh` is the diagnosis; this is the repair.** Doctor
+# tells an unclaimed job from an unreachable phone by reading the deploy refs.
+# This one fixes the specific fault below and asserts the fix took.
+#
+# ⚠️ Written on 2026-08-03 **without checking that runner-doctor.sh already
+# existed**, which is precisely the class CLAUDE.md ▸ "Check before you Write"
+# is about. One `ls scripts/ | grep runner` would have cost nothing. The two do
+# genuinely different jobs and both are kept — but the division is written here
+# because nobody derived it, it was rationalised afterwards.
+#
 # ── Why this exists ───────────────────────────────────────────────────────────
 #
 # On 2026-08-03 four deploys in a row (dabfd3a, 4a5137b, 18969e4, 4d095b4) died

@@ -6,6 +6,12 @@
 #
 #     ./scripts/runner-doctor.sh
 #
+# **This diagnoses; `./scripts/fix-runner.sh` repairs.** Doctor answers "why did
+# nothing install", which is usually an unclaimed job. fix-runner answers the one
+# cause doctor cannot talk you through — two `Runner.Listener` processes in one
+# installation directory — and it is a sequence of commands, not a report. Run
+# doctor first; it will point here when the tell is a duplicate listener.
+#
 # ## Why this exists
 #
 # `deploy.yml` is `runs-on: self-hosted`, so a push to `main` only installs if

@@ -164,6 +164,67 @@ that is not yet automated is the next thing to automate.
 | **A count assigned from `parsed.x.count` with no merge call** | 1 | ⬜ open — the import alert said "12 side effects" and meant "12 seen", not "12 kept". Found only because a new `DataDomain` case demanded something to render. The grep shape is recorded in the `add-data-or-input` skill; no lint, because the assignment is legitimate wherever a merge really did happen |
 | Device verification | every | ❌ not automatable — only the user can do it |
 
+### Session 23 notes
+
+**Red CI: 0** across ten pushes. Measured, not recalled:
+`git log --format=%H 4d095b4..HEAD | while read s; do git ls-remote origin "refs/ci/failed/$s"; done | wc -l` → 0.
+
+**Rework: 1.** `102d840` exists to correct `4637b28`, pushed twenty minutes
+earlier. Two faults in one commit: it credited the new `concurrency` group with
+preventing the duplicate-listener fault (it serialises *runs*; two listeners
+racing inside one install directory is a level below that), and it put the
+failure prose in a `<<'WHY'` heredoc — which **does not terminate when
+indented**, and it has to be indented to sit inside a YAML block scalar, so the
+terminator and everything after it would have been swallowed. The second was
+caught by a `python3 -c "yaml.safe_load(...)"` before pushing; the first was
+only caught because the user sent the companion error. **The lesson is the
+first one**: a cause was written into a doc comment before the evidence
+supported it, and a wrong cause written down is what this repo's whole
+docs-are-the-audit rule exists to prevent.
+
+**Re-derivations: 1, and it is the embarrassing kind.** `scripts/fix-runner.sh`
+was written without checking that **`scripts/runner-doctor.sh` already existed**
+— built last session, for the same Mac, for an adjacent question. `ls scripts/ |
+grep runner` would have cost nothing. This is precisely the class CLAUDE.md ▸
+"Check before you Write" was added for on 2026-08-03 after `BodyModelParameters`
+was implemented twice, and it recurred **the same day the rule was written**.
+The two scripts do genuinely different jobs (diagnose vs repair) and both are
+kept, but the division was rationalised afterwards rather than designed, and
+both headers now say so.
+
+**Unmeasured, and worth more than either column.** Two wasted user round trips
+on the Mac, both my fault and both avoidable:
+
+- Recovery commands with **`sudo ./svc.sh stop`**, on a LaunchAgent runner where
+  sudo makes the stop a silent no-op. Three password prompts, and the duplicate
+  listener the commands existed to clear was still running afterwards. The
+  source of the bad advice was `deploy.yml`'s own setup note, which had said it
+  since the file was written — so this was a *repo* defect I repeated rather
+  than invented, and it is corrected at the source now.
+- Command blocks pasted with **trailing `#` comments**, into a zsh without
+  `INTERACTIVE_COMMENTS`. Every one became arguments (`grep: expect: No such
+  file or directory`). Recorded in `fix-runner.sh`'s header.
+
+**And one wrong report to the user, which is the worst outcome of the session.**
+`./scripts/deploy-status.sh 102d840` answered "no verdict yet" for a commit that
+had `passed`, `failed` *and* `errors` refs already pushed — the refs are keyed
+on the full 40-character hash and `git ls-remote` matches an exact ref name, not
+a prefix. It cost a 15-minute `--wait` for a deploy that had installed eleven
+minutes earlier, and then a confident statement that the app was not on the
+user's phone when it was. **It survived because the no-argument path was never
+affected** — `git rev-parse HEAD` is already full-length, and that is how the
+script is normally run. A wrong answer that appears *only when you name the
+commit* is the worse kind, because naming the commit is what you do when
+checking a specific claim. Fixed in both status scripts.
+
+**What was automated so it cannot recur:**
+
+- The weekly-total selection no longer guesses from surrounding words at all.
+- A pre-build deploy failure names itself, with commands, in a git ref.
+- Deploy runs serialise.
+- Both status scripts resolve a short sha.
+- The signing nag is deleted at the root rather than documented for a fifth time.
+
 ### Session 22 notes
 
 **Rework (1).** `534cf96` removed the pinned device UDID from `deploy.yml` and
@@ -196,7 +257,14 @@ right line" but `totalAgreesWithAverage()`, which validates against a figure the
 screenshot *already prints*. **Where a source states the same quantity twice,
 cross-checking it is free and retires the category.**
 
-### ⬜ Read before Write on a predictable path — new, session 22
+### ⬜ Read before Write on a predictable path — **session 22, recurred 23**
+
+**Count: 2, and the second was the same day the rule was written.**
+`scripts/fix-runner.sh` was created without checking for `runner-doctor.sh`.
+The rule exists in CLAUDE.md and was not consulted, which is the signature of a
+rule that needs a *check* rather than more prose. Candidate: a `verify.sh` lint
+is impossible here (a new script is legitimately new), but a `scripts/new.sh
+<name>` helper that refuses when a similar name already exists would retire it.
 
 `BodyModelParameters` was implemented twice in one session because a `Write` was
 issued against a path the session had already created. The Write tool refused
@@ -214,7 +282,22 @@ retire the category rather than the instance.
 
 ## The efficiency roadmap
 
-### ⬜ A textual cross-target symbol check — the top open item (session 21)
+### ⬜ A `scripts/new-script.sh` guard — the top open item (session 23)
+
+The ledger's `Read before Write` row is now at 2 and both instances are the same
+shape: a file created on a predictable path that already had a neighbour doing
+adjacent work. Prose did not stop the second one *on the day the prose was
+written*, so the fix has to be a command.
+
+Shape: `./scripts/new-script.sh fix-runner` refuses when `scripts/` already holds
+a name sharing a significant token (`runner`), printing the existing file's first
+comment block so the author can decide whether it is the same job. Cheap, and it
+puts the check at the moment of creation rather than in a document nobody re-reads.
+
+Same reasoning as `where.sh`: the previous fix for "don't guess a path" was a
+sentence, and it failed three sessions running until it became a command.
+
+### ⬜ A textual cross-target symbol check — session 21, still open
 
 **Three of session 21's four red CI pushes were the same failure**, and it is now
 the ledger's top unautomated row: an app-target symbol the local gate cannot
@@ -518,6 +601,7 @@ with guesses.
 | 20 | 2026-08-02 | 23 (24 commits) | **1** | 4 | 2 (named below) | 914 → 1067 | **`DataDomain`** — every kind of data has a Data-tab section or it does not build; **`InputKind` + `cardRequirement` + three checks** — the four input surfaces cannot drift apart, and the `verify.sh` lint binds the inputs *nobody declared*; **`add-data-or-input` skill** + `docs/architecture.md` ▸ "The structural invariants"; **`refs/deploy/errors/<sha>` + `deploy-status.sh --errors/--fresh`**; `ci-status.sh --errors`; `MedicationResponse` (+16), `SharedInbox` (+7, reverted with the extension), `MedicationLevelMetricTests` (+11), `InputKindTests` (+12), `SharedInbox`/dose tests; `RenderMemo`; `MetricSource.calculated` and the modelled-metric guards | **Worse than 19 on the ratio, and the biggest session recorded.** 7 waste / 23 pushes = 0.30, against 19's 0.17 and a 0.56 baseline — better than baseline, behind the last three. The honest sting is elsewhere: **ten deploys installed nothing**, and two of those were mine |
 | 21 | 2026-08-02 | 25 (26 commits) | **4** | 4 | 2 (named below) | 1067 → 1182 | **`ScoreCurve` + `ScoreContinuityTests` + a band-table lint + scoring rules in `add-insight`** — a 4000-point sweep per curve, both axes separately, retiring the class behind seven shipped score cliffs; **`verify.sh` self-check for a stray `fail=0`** and the `testfail` split, after the mandated gate was found to be weaker than the plain one; **`ban` skips comment lines**, so documenting a fix stops tripping the lint for it; **assertion-free test files fail the gate**; `CandidateReachabilityTests` (the reverse contributor invariant); `MetricDataCategory`; `DomainDataScaffold` + two data-page lints; `ShortcutIngest.url` round-tripped against its own parser for all 102 metrics; `LogHealthDataIntent` + `AppShortcutsProvider`; `RawMetricGroup.suspectValues` | **Worse than the last five on the ratio, better than baseline.** 10 waste / 25 pushes = 0.40, against 20's 0.30, 19's 0.17 and a 0.56 baseline. **All four red CI pushes are one cause** — an app-target symbol no local compile can see — now the roadmap's top item. The compounding column is the strongest since 16: one card's visible crater was chased into a seven-instance defect class and closed with a sweep |
 | 22 | 2026-08-02/03 | 15 (16 commits) | **0** | 1 (named below) | 1 (named below) | 1182 → 1321 | **`ScanComparability`** — capture conditions stored per scan and a repeatability band below which a change is not reported, aimed at the one thing every consumer body scanner is reviewed for failing; **`BodyScanPolicy`** — two independent matrices (*used* vs *saved*) with `retained ⊆ captured` normalised rather than trapped; **`BodyMeasurementReconciliation`** — sources ranked by **method** rather than by which app they came through, with disagreements surfaced instead of resolved; **`ScreenTimeScreenshotParser.totalAgreesWithAverage()`** — a free cross-check against a figure the screenshot already prints, which catches the whole class the week under-count belonged to; **`runner-doctor.sh`** + the deploy-ref table in `docs/deployment.md` — tells an unclaimed job from an unreachable phone, which cost most of a day; **`verify.sh` identifier lint** (canary-proved, path-exempted); `BodyScan`/`BodySite` stored as `(site, side, value)` so re-parsing survives a schema change; `BodySymmetry` + `PostureAssessment` from synthetic skeletons; `BodyModelParameters` morph and forecast; 7 new `MetricType`s | **Better than 21 and 20 on the ratio; the best long session since 16.** 2 waste / 15 pushes = 0.13, against 21's 0.40, 20's 0.30, 19's 0.17 and a 0.56 baseline. **Zero red CI across fifteen pushes** — the session-21 roadmap item's cause never fired. The sting is entirely in the unmeasured column: **five deploys failed**, one of them self-inflicted, and hours went into a network that was never the problem |
+| 23 | 2026-08-03 | 10 | **0** | 1 (named below) | 1 (named below) | 1321 → 1331 | **`ScreenTimeScreenshotParser.weeklyTotal` chooses by agreement** — the free cross-check that already *rejected* a wrong total now *selects* the right one, retiring "which nearby word names the total" as a class rather than patching the axis-label instance; **`concurrency: deploy-to-iphone`** + **`.github/deploy-prebuild-failure.txt`** — a deploy that dies before `xcodebuild` can now say so, name the cause and give the commands; **`scripts/fix-runner.sh`** — the repair for the duplicate-listener fault, beside the doctor that diagnoses it; **the full-sha fix in `deploy-status.sh` and `ci-status.sh`** — a named commit no longer reports "no verdict" for a result already recorded; **the commit-signing nag deleted at the root** (hook, script, `commit.gpgsign`) rather than documented again; screen-time day precedence as an accumulation; `deploy.yml`'s `sudo` advice corrected | **Worse than 22, better than 21 and 20, well under baseline.** 2 waste / 10 pushes = 0.20, against 22's 0.13, 21's 0.40, 20's 0.30 and a 0.56 baseline. Zero red CI across ten pushes. **The sting is that both waste items were self-inflicted and both were preventable by a rule already written down** — one by "Check before you Write", one by not asserting a cause before the evidence supported it |
 
 ### Session 20 notes
 

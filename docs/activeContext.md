@@ -76,6 +76,49 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 23 (2026-08-03) — the OCR import is closed; the deploy path is fixed.**
+
+The Screen Time screenshot import has **no open items**. Four defects closed
+(the axis-label selection bug, day re-import precedence, the day picker on a
+week import, the double Save) — see `docs/progress.md` ▸ "Screen Time import,
+closed out". 1331 tests.
+
+⚠️ **The two UI changes are app-target SwiftUI and CI had not reported when the
+session closed.** `./scripts/ci-status.sh --wait` before trusting the sheet on
+the phone; the parser and precedence halves are covered locally.
+
+**What the next session should pick up, in order:**
+
+1. **The body scanner's mesh.** Decided and specified this session — see
+   `docs/planned-modules.md` ▸ "The body scanner's visual target". The reader
+   chose the Visbody wireframe layout, wants to **spin the model**, and wants
+   the 12-week scrubber kept. Highest value, needs no new capture, and the
+   geometry half is testable on Linux: girths → ring vertices → lofted surface
+   in InsightKit, only the SceneKit rendering and the leader lines in the app
+   target. **Do not let the geometry live in the view.**
+2. **Settings ▸ Body scans** — `BodyScanPolicy` is still read by nothing.
+3. **The 30-day reminder** — `BodyScanCadence` is built; `SuggestionEngine`
+   still does not call it.
+
+**The deploy path, now understood.** Four deploys died at *checkout* because two
+`Runner.Listener` processes shared one installation directory. It was never the
+code, the signing or the phone. `runner-doctor.sh` diagnoses, **`fix-runner.sh`
+repairs**, and `deploy.yml` no longer tells you to use `sudo` (this runner is a
+LaunchAgent; sudo makes the stop a silent no-op).
+
+⚠️ **Two status-script bugs bit this session and are worth not re-learning.**
+`deploy-status.sh <short-sha>` reported "no verdict" for a commit that had
+already installed — the refs are keyed on the full 40-character hash and
+`git ls-remote` matches an exact name. Fixed in both scripts. And a `<<'WHY'`
+heredoc **does not terminate when indented**, which it must be to sit inside a
+YAML block scalar; the prose lives in `.github/deploy-prebuild-failure.txt` now.
+
+**The paper the user supplied is paywalled** (Clinical Nutrition ESPEN 2026, a
+technical review of MeThreeSixty). 403 from both ScienceDirect and the journal,
+so **no accuracy figure from it is quoted anywhere and none should be invented.**
+Its argument is recorded in `planned-modules.md`.
+
+
 **✅ FIXED — Screen Time week import refused a good screenshot (2026-08-03,
 found on the device, fixed the same session).**
 
