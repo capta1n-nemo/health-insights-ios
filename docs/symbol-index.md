@@ -504,17 +504,17 @@ the place to look.
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :309
-  - `LastNightCard` :159
+  - `InsightCard` :301
+  - `LastNightCard` :151
   - `TodayView` :8
-  - `VitalsGlance` :234
+  - `VitalsGlance` :226
 - `Features/Data/BodyScanDataView.swift`
   - `BodyScanDataView` :14
 - `Features/Data/CardDataView.swift`
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :482
+  - `OtherDataDetailView` :487
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
@@ -544,11 +544,11 @@ the place to look.
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
   - `AddInputMenu` :148
-  - `BodyTypeSheet` :264
-  - `InputSheet` :183
-  - `PushedInSheet` :237
-  - `ScreenTimeEntrySheet` :343
-  - `SideEffectEntrySheet` :692
+  - `BodyTypeSheet` :287
+  - `InputSheet` :206
+  - `PushedInSheet` :260
+  - `ScreenTimeEntrySheet` :366
+  - `SideEffectEntrySheet` :715
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :182

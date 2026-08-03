@@ -76,6 +76,32 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 24 (2026-08-03) — the roadmap has a table, and four items came off
+it. Nothing here has been on the phone: the user's device was disconnected by
+choice and will validate later.**
+
+- **`docs/progress.md` opens with a generated table of every open item** —
+  `scripts/roadmap-table.sh`, `--check` wired into `handover-check.sh`. Read it
+  instead of grepping for `- [ ]`. 33 open items became 29.
+- **The `+` is on Insights and Data**, through
+  `View.addInputToolbar(_:)` — one modifier carrying the toolbar item, the menu
+  and the sheets, which Today now uses too. **Still unsettled and device-only:
+  toolbar item versus floating button.** It is one edit now, in one file.
+- **The body-scan reminder fires**: `SuggestionEngine.bodyScanDue` calls
+  `BodyScanCadence`, which had been built, tested and called by nothing.
+  `AppModel` passes `lastBodyScan`; `BodyScanSuggestionTests` covers the three
+  decisions (never-scanned belongs to `unusedInputs`, the id carries the state
+  so a dismissal cannot swallow a cycle, strength ranks below a grounding gap).
+- **Two items were closed by reading the code rather than by building**: Body
+  Composition's "view & add" scan entry already ships as `.bodyMeasurements`,
+  and the Oura history question was answered two sessions ago and stayed open
+  as a question. **An answered question is not an open item** — check the prose
+  under a `- [ ]` before assuming it is work.
+
+**What needs the phone when it reconnects** (nothing below is verified): the
+`+` on both new tabs and whether its placement is right, and the body-scan
+reminder's wording once a scan is 24+ days old.
+
 **Session 23 (2026-08-03) — the OCR import is closed; the deploy path is fixed.**
 
 The Screen Time screenshot import has **no open items**. Four defects closed

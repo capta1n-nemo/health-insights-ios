@@ -40,6 +40,9 @@ struct InsightsListView: View {
     /// Set by tapping a spoke on the web. See `heroSection` for why the vertices
     /// are not `NavigationLink`s themselves.
     @State private var selectedInsight: InsightID?
+    /// The `+`, same one Today and Data carry. This tab shows what the app
+    /// makes of your data and had no way to give it any.
+    @State private var activeInput: InputKind?
 
     private var trendResults: [InsightResult] {
         model.results.filter { $0.id.cadence == .trend && $0.isWorthShowing }
@@ -57,6 +60,7 @@ struct InsightsListView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Insights")
+            .addInputToolbar($activeInput)
             // On the `ScrollView`, not on the hero card inside the `LazyVStack`:
             // a lazy stack discards the views it has scrolled past, and a
             // destination registered on one of them goes with it — so tapping a

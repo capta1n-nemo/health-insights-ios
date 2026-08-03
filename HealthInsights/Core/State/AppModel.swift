@@ -719,7 +719,14 @@ final class AppModel {
         let built = SuggestionEngine.suggestions(results: results, samples: samples,
                                                  profile: profile,
                                                  substanceEvents: substanceEvents,
-                                                 usedInputs: usedInputs)
+                                                 usedInputs: usedInputs,
+                                                 // `max` rather than `.first`:
+                                                 // the reminder is wrong in the
+                                                 // direction that nags if the
+                                                 // ordering ever changes, and a
+                                                 // scan can be entered for a
+                                                 // date after the newest row.
+                                                 lastBodyScan: bodyScans.map(\.capturedAt).max())
         suggestionCache = built
         return built
     }

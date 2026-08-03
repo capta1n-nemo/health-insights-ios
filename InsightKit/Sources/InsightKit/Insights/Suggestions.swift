@@ -94,6 +94,10 @@ public enum SuggestionEngine {
                                    /// Anything `promptsWhenNeverUsed` and absent
                                    /// from this earns a dismissible row.
                                    usedInputs: Set<InputKind> = Set(InputKind.allCases),
+                                   /// When the reader last measured themselves.
+                                   /// Nil means never, which this list leaves to
+                                   /// `unusedInputs` — see `bodyScanDue`.
+                                   lastBodyScan: Date? = nil,
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
@@ -106,6 +110,7 @@ public enum SuggestionEngine {
         out += substanceResponse(events: substanceEvents, samples: samples, now: now)
         out += unlocks(results: results, profile: profile, now: now)
         out += unusedInputs(used: usedInputs)
+        out += bodyScanDue(lastScan: lastBodyScan, now: now, calendar: calendar)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
         // as part of a pattern and once as an isolated fact, reads as two
@@ -399,6 +404,50 @@ public enum SuggestionEngine {
                     insight: nil, metric: nil,
                     strength: 0.15)
             }
+    }
+
+    /// **The body-scan interval, finally said out loud.**
+    ///
+    /// `BodyScanCadence` has been built and tested since the scan engine landed
+    /// and nothing called it, so the app knew when the next measurement was due
+    /// and had no way to mention it. This is that way. The wording is the
+    /// cadence type's own — a reminder and a Settings row disagreeing about how
+    /// overdue something is would be two answers to one question.
+    ///
+    /// **Never scanned is deliberately not this clause's business.** That is
+    /// what `unusedInputs` covers: `.bodyMeasurements` prompts while it has
+    /// never been used, and two rows about the same missing measurement is the
+    /// duplication the ranking exists to avoid. So this needs a last scan to
+    /// have an opinion at all, and `.current` says nothing — a reminder that
+    /// appears every day stops being one.
+    ///
+    /// **The id carries the state, which is the opposite of `unlocks`'s rule**,
+    /// and for a reason those two do not share: a dismissal lasts thirty days
+    /// and the interval *is* thirty days, so one stable id would let a
+    /// dismissal at day 25 swallow the whole of the next cycle. Overdue is also
+    /// a stronger claim than due-soon rather than a restatement of it, and
+    /// earns the right to be made once.
+    static func bodyScanDue(lastScan: Date?, now: Date, calendar: Calendar) -> [Suggestion] {
+        guard let lastScan,
+              let prompt = BodyScanCadence.prompt(lastScan: lastScan, now: now,
+                                                  calendar: calendar) else { return [] }
+        let state = BodyScanCadence.state(lastScan: lastScan, now: now, calendar: calendar)
+        let overdueBy = -(BodyScanCadence.daysUntilDue(lastScan: lastScan, now: now,
+                                                       calendar: calendar) ?? 0)
+        // Below every grounding gap that costs a card its score, and above "a
+        // feature you have not tried". Overdue climbs with the size of the hole
+        // it is reporting and stops climbing at one whole interval late, past
+        // which more days do not make it a different finding.
+        let strength = state == .overdue
+            ? 0.3 + 0.3 * Swift.min(1, Double(overdueBy) / Double(BodyScanCadence.intervalDays))
+            : 0.18
+        return [Suggestion(id: "body-scan-\(state.rawValue)",
+                           title: prompt.title,
+                           detail: prompt.detail,
+                           basis: .unlockAnInsight,
+                           insight: .bodyComposition,
+                           metric: nil,
+                           strength: strength)]
     }
 
     /// Four sentences over two independent questions — is it costing a score,

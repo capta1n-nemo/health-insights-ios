@@ -50,21 +50,13 @@ struct TodayView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Today")
             .refreshable { await model.refresh() }
-            .toolbar {
-                // A menu rather than a button, and its contents come from
-                // `InputKind` rather than from a list written out here. It
-                // went straight to the substance log once, then to a
-                // hand-written four; both times the app's one global "add"
-                // affordance offered less than the app accepted.
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        AddInputMenu(active: $activeInput)
-                    } label: {
-                        Label("Add", systemImage: "plus.circle")
-                    }
-                }
-            }
-            .inputSheet($activeInput)
+            // A menu rather than a button, and its contents come from
+            // `InputKind` rather than from a list written out here. It went
+            // straight to the substance log once, then to a hand-written four;
+            // both times the app's one global "add" affordance offered less
+            // than the app accepted. Its placement is shared with Insights and
+            // Data for the same reason — see `addInputToolbar`.
+            .addInputToolbar($activeInput)
         }
     }
 

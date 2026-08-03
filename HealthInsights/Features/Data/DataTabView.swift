@@ -16,6 +16,10 @@ import InsightKit
 struct DataTabView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
+    /// The `+`, same one Today and Insights carry. This is the screen that says
+    /// what the app knows about you, so it is the likeliest place to notice
+    /// something missing — and it had no way to add it.
+    @State private var activeInput: InputKind?
 
     /// Identified by its title, not by a fresh `UUID()`.
     ///
@@ -211,6 +215,7 @@ struct DataTabView: View {
             .navigationTitle("Data")
             .searchable(text: $query, prompt: "Search your data")
             .refreshable { await model.refresh() }
+            .addInputToolbar($activeInput)
         }
     }
 

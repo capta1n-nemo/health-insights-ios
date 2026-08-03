@@ -427,3 +427,92 @@ final class SubstanceSuggestionTests: XCTestCase {
         XCTAssertTrue(text.contains("not a claim about cause"), text)
     }
 }
+
+/// The body-scan interval as a row in "Improve your health".
+///
+/// `BodyScanCadence` owns the arithmetic and has its own tests; these are about
+/// the three decisions the *list* makes — who owns the never-scanned case, what
+/// the row is ranked against, and whether a dismissal can swallow a cycle.
+final class BodyScanSuggestionTests: XCTestCase {
+
+    private func suggestions(lastScan: Date?,
+                             usedInputs: Set<InputKind> = Set(InputKind.allCases))
+        -> [Suggestion] {
+        SuggestionEngine.suggestions(results: [], samples: [], profile: .init(),
+                                     usedInputs: usedInputs, lastBodyScan: lastScan,
+                                     now: sugNow, calendar: sugCalendar, limit: 20)
+    }
+
+    private func scanRow(_ all: [Suggestion]) -> Suggestion? {
+        all.first { $0.id.hasPrefix("body-scan-") }
+    }
+
+    /// Inside the interval there is nothing to say. A reminder that appears
+    /// every day stops being a reminder.
+    func testAScanInsideTheIntervalSaysNothing() {
+        XCTAssertNil(scanRow(suggestions(lastScan: sugDay(3))))
+    }
+
+    func testAScanNearingTheIntervalIsFlaggedOnce() throws {
+        let row = try XCTUnwrap(scanRow(suggestions(lastScan: sugDay(26))))
+        XCTAssertEqual(row.id, "body-scan-expiringSoon")
+        XCTAssertEqual(row.basis, .unlockAnInsight)
+        XCTAssertEqual(row.insight, .bodyComposition)
+        // The days remaining have to be countable from the sentence — "due
+        // soon" without a number is not a reminder.
+        XCTAssertTrue(row.title.contains("4 days"), row.title)
+    }
+
+    func testAnOverdueScanReportsTheSizeOfTheGap() throws {
+        let row = try XCTUnwrap(scanRow(suggestions(lastScan: sugDay(45))))
+        XCTAssertEqual(row.id, "body-scan-overdue")
+        XCTAssertTrue(row.title.contains("45 days"), row.title)
+    }
+
+    /// The two states are different claims and must be separately dismissible:
+    /// a dismissal lasts thirty days and the interval is thirty days, so one
+    /// shared id would let a wave-away at day 25 silence the whole next cycle.
+    func testDueSoonAndOverdueAreDifferentRows() throws {
+        let soon = try XCTUnwrap(scanRow(suggestions(lastScan: sugDay(26))))
+        let over = try XCTUnwrap(scanRow(suggestions(lastScan: sugDay(45))))
+        XCTAssertNotEqual(soon.id, over.id)
+        XCTAssertGreaterThan(over.strength, soon.strength)
+    }
+
+    /// Further past due is a bigger hole in the trend, up to the point where it
+    /// stops being a different finding.
+    func testOverdueClimbsWithTheGapAndThenStops() throws {
+        let strengths = try [31, 45, 60, 200].map {
+            try XCTUnwrap(scanRow(suggestions(lastScan: sugDay($0)))).strength
+        }
+        XCTAssertLessThan(strengths[0], strengths[1])
+        XCTAssertLessThan(strengths[1], strengths[2])
+        XCTAssertEqual(strengths[2], strengths[3], accuracy: 0.0001)
+    }
+
+    /// Never scanned belongs to `unusedInputs`, which already prompts for
+    /// `.bodyMeasurements` — two rows about one missing measurement is the
+    /// duplication the ranking exists to avoid.
+    func testNeverScannedIsLeftToTheUnusedInputRow() {
+        let all = suggestions(lastScan: nil,
+                              usedInputs: Set(InputKind.allCases)
+                                  .subtracting([.bodyMeasurements]))
+        XCTAssertNil(scanRow(all))
+        XCTAssertTrue(all.contains { $0.id == "input-bodyMeasurements" })
+    }
+
+    /// A due scan is a gap in the app's inputs, not a finding about the body,
+    /// and it must not outrank a grounding fact that is costing a card a score.
+    func testItRanksBelowAGroundingGapThatCostsAScore() throws {
+        let blocked = InsightResult(
+            id: .bloodPressure, title: "", primaryValue: nil, headline: "", score: nil,
+            confidence: .low, explanation: "", drivers: [],
+            unmetRequirements: [.init(kind: .cuffSystolic, isMandatory: true, rationale: "")])
+        let all = SuggestionEngine.suggestions(
+            results: [blocked], samples: [], profile: .init(),
+            lastBodyScan: sugDay(200), now: sugNow, calendar: sugCalendar, limit: 20)
+        let scan = try XCTUnwrap(all.firstIndex { $0.id.hasPrefix("body-scan-") })
+        let grounding = try XCTUnwrap(all.firstIndex { $0.id.hasPrefix("grounding-") })
+        XCTAssertLessThan(grounding, scan)
+    }
+}

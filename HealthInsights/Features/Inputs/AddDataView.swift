@@ -177,6 +177,29 @@ extension View {
             InputSheet(kind: kind)
         }
     }
+
+    /// The app's one global add affordance — the `+` menu and every sheet it can
+    /// open — as a single modifier.
+    ///
+    /// It lived on Today alone until 2026-08-03, so the reader looking at
+    /// Insights or at Data had to go back a tab to give the app anything. The
+    /// fix is deliberately not three copies of Today's `ToolbarItem`: the
+    /// menu's *contents* already come from `InputKind`, and this makes its
+    /// *placement* one decision as well, so the open judgement call — whether
+    /// it stays a toolbar item or becomes a floating button, which only the
+    /// phone can settle — is one edit rather than a hunt for three.
+    func addInputToolbar(_ active: Binding<InputKind?>) -> some View {
+        toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    AddInputMenu(active: active)
+                } label: {
+                    Label("Add", systemImage: "plus.circle")
+                }
+            }
+        }
+        .inputSheet(active)
+    }
 }
 
 /// What each input opens. The single exhaustive switch behind `inputSheet`.

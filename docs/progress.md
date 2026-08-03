@@ -28,38 +28,34 @@ section it sits in rather than by judgement:
 | # | Open item | Section | Gate |
 |---|---|---|---|
 | 1 | Not yet device-verified: the bar measurement is the half CI cannot check | Retrospective Screen Time import | loose end |
-| 2 | Body Composition — the "view & add" scan entry the user asked for… | Card consistency, Phase 2 — the remaining unique sections | loose end |
-| 3 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
-| 4 | Calories from the Shotsy import are still unmodelled | The screenshot-review session — 2026-08-02 | loose end |
-| 5 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
-| 6 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
-| 7 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
-| 8 | The nine cards on the phone | In progress / not yet device-verified | device |
-| 9 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
-| 10 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
-| 11 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
-| 12 | Explain why Oura's API serves only ~4–6 months of history against years of ri… | Integrations | next |
-| 13 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
-| 14 | Ultrahuman, Garmin, Fitbit | Integrations | next |
-| 15 | The `+` is still on Today only | The master add button | next |
-| 16 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
-| 17 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
-| 18 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
-| 19 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 20 | Settings ▸ Body scans — the two-matrix screen | Body scanner — the engine, the section and the data | next |
-| 21 | The 30-day reminder — `BodyScanCadence` is built; `SuggestionEngine` does not… | Body scanner — the engine, the section and the data | next |
-| 22 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 23 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 24 | Travel drain | Three insight cards the user asked for | next |
-| 25 | Stress card | Three insight cards the user asked for | next |
-| 26 | Work impact | Three insight cards the user asked for | next |
-| 27 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 28 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 29 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 30 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 31 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 32 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 33 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 2 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
+| 3 | Calories from the Shotsy import are still unmodelled | The screenshot-review session — 2026-08-02 | loose end |
+| 4 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
+| 5 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
+| 6 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
+| 7 | The nine cards on the phone | In progress / not yet device-verified | device |
+| 8 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
+| 9 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
+| 10 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
+| 11 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
+| 12 | Ultrahuman, Garmin, Fitbit | Integrations | next |
+| 13 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
+| 14 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
+| 15 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
+| 16 | ECG photo/PDF import with metadata… | Unstructured data | next |
+| 17 | Settings ▸ Body scans — the two-matrix screen | Body scanner — the engine, the section and the data | next |
+| 18 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
+| 19 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
+| 20 | Travel drain | Three insight cards the user asked for | next |
+| 21 | Stress card | Three insight cards the user asked for | next |
+| 22 | Work impact | Three insight cards the user asked for | next |
+| 23 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 24 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 25 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 26 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 27 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 28 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 29 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -778,13 +774,17 @@ decide that in advance.
       read the same numbers or the picture and the sentence beside it drift.
       `PeerStandingModel.Band` now owns them, `phrase` reads it, and
       `PeerStandingBandTests` sweeps 0–100. Same shape as `PressureBandTests`.
-- [ ] **Body Composition** — the **"view & add" scan entry** the user asked for
-      (a fourth `ContributionRoute`). **Deferred by request 2026-08-01** to a
-      later session. Worth knowing before picking it up: the capture it would
-      point at is the camera + LiDAR body scan, which is deliberately a roadmap
-      note rather than a build and is ARKit, so nothing about it can be
-      exercised from a sandbox. The composition split half is done, above, and
-      carries a stacked-area history (`BodyCompositionTrendChart`).
+- [x] **Body Composition** — the **"view & add" scan entry** the user asked for
+      (a fourth `ContributionRoute`). **Delivered by the body-scanner session
+      2026-08-03, not by a later build of its own**: `.bodyMeasurements` is a
+      route, `BodyCompositionInsight.contributions` declares it alongside
+      `.fileImport`, `.medication` and `.bodyType`, and `ViewAndAddSection`'s
+      exhaustive switch renders it. It opens `BodyMeasurementsSheet` — a tape
+      today, and the ARKit capture behind the same button when that lands, which
+      is why this was never blocked on the capture the way it was written up as
+      being. The composition split half carries a stacked-area history
+      (`BodyCompositionTrendChart`). Closed 2026-08-03 after checking the code
+      rather than the note.
 - [x] **Readiness — a z-score strip over the vitals it scans** (`dc5fae6`).
       `VitalDepartureStrip`, one row per fresh vital on a shared
       distance-from-baseline axis. The scan judges up to seventeen signals and
@@ -1261,13 +1261,17 @@ Listed cheapest-first — the second one can't start without new plumbing.
       consistent weekend lie-in reads as regular rather than as randomness.
 
 ### Integrations
-- [ ] Explain why Oura's API serves only ~4–6 months of history against years of
-      ring data mirrored through Apple Health. No `next_token`, byte counts match
-      record counts, so it isn't client-side truncation. **Narrowed 2026-08-01**:
-      it is not our request window either — `OAuthIntegration.sync()` asks for
-      730 days unconditionally, and the export confirms Oura returns 2026-03-16
-      onward against Apple Health's 2024-08. The limit is Oura's; nothing on our
-      side is worth re-investigating.
+- [x] **Why Oura's API serves only ~4–6 months of history** against years of
+      ring data mirrored through Apple Health — **answered, and the answer is
+      "not ours"**. No `next_token`, byte counts match record counts, so it is
+      not client-side truncation; and it is not our request window either —
+      `OAuthIntegration.sync()` asks for 730 days unconditionally, while the
+      export confirms Oura returns 2026-03-16 onward against Apple Health's
+      2024-08. The limit is Oura's. **Closed 2026-08-03 as investigated rather
+      than as built**: it stayed open as a question for two sessions after it
+      had been answered, which is a different thing from an open item. Apple
+      Health remains the long-history source and the merge already prefers
+      whichever source has the data.
 - [ ] Hume Band direct API (today flows in via Apple Health only).
 - [ ] Ultrahuman, Garmin, Fitbit — drop in via `HealthIntegration` protocol.
 
@@ -1286,11 +1290,16 @@ Listed cheapest-first — the second one can't start without new plumbing.
       whether a never-used one earns a dismissible prompt. Three checks
       enforce it — `InputKindTests`, a `verify.sh` lint on `…Sheet` views the
       master list cannot open, and `SuggestionEngine.unusedInputs`.
-- [ ] **The `+` is still on Today only.** Insights and Data have no add
-      affordance. One shared component, not three copies — `AddInputMenu` is
-      already that component, so this is a placement decision rather than a
-      build. Whether it stays a toolbar item or becomes a floating button is
-      a device-only judgement call.
+- [x] **The `+` is on all three tabs** (2026-08-03). Insights and Data had no
+      add affordance at all, so the reader who noticed something missing while
+      looking at what the app knows had to go back a tab to add it.
+      **`View.addInputToolbar(_:)` in `AddDataView.swift` is the one shared
+      component** — the toolbar item, the menu and every sheet it can open, in
+      one modifier — and Today now uses it too rather than keeping the copy it
+      had. The menu's *contents* already came from `InputKind`; this makes its
+      *placement* one decision as well, which is what makes the remaining
+      judgement call cheap: **toolbar item versus floating button is still
+      device-only and unsettled**, and it is now one edit rather than three.
 - [ ] **Camera-based input (AI + LiDAR) is still the open half** — test
       results beyond the shipped blood-test photo, body-composition scans,
       food for nutrition reporting.
@@ -1350,8 +1359,19 @@ Listed cheapest-first — the second one can't start without new plumbing.
 - [ ] **Settings ▸ Body scans** — the two-matrix screen. `BodyScanPolicy` is
       built and tested but **nothing reads it**, so retention is not yet the
       reader's choice. Must land with or before the capture.
-- [ ] **The 30-day reminder** — `BodyScanCadence` is built; `SuggestionEngine`
-      does not call it.
+- [x] **The 30-day reminder** (2026-08-03). `SuggestionEngine.bodyScanDue`
+      calls `BodyScanCadence` and takes its wording from it, so the reminder
+      and the Settings row cannot disagree about how overdue a scan is.
+      Three decisions, all tested (`BodyScanSuggestionTests`, 7 tests):
+      **never-scanned belongs to `unusedInputs`**, which already prompts for
+      `.bodyMeasurements` — two rows about one missing measurement is the
+      duplication the ranking exists to avoid, so this clause needs a last scan
+      to say anything. **The id carries the state** (`body-scan-overdue`), which
+      is the opposite of `unlocks`' one-id-per-kind rule and deliberately so: a
+      dismissal lasts thirty days and the interval *is* thirty days, so a shared
+      id would let a wave-away at day 25 silence the whole next cycle.
+      **Strength sits below a grounding gap that costs a card its score** and
+      climbs with the size of the hole, stopping at one interval late.
 - [ ] **The ARKit capture and guided flow** — the largest remaining piece, and
       device-only. See `activeContext.md` for the design.
 - [ ] **A 3D mesh instead of the silhouette.** `BodySilhouetteView.outline` is
