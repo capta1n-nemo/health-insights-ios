@@ -796,7 +796,9 @@ unused despite tens of thousands of samples.
 | stepCount, activeEnergyBurned | Cardio Trajectory, Energy |
 | exerciseMinutes | Fitness (weekly WHO dose via `ActivityDoseModel`) |
 | sleepLatencyMinutes | Sleep (Ohayon 2017 term; typed Oura parser only, nap-aware) |
-| dietaryEnergy | Body Composition — **charted at weight 0, never scored.** No reference range either: what the right number is depends on what somebody is aiming for, and a band would be a target |
+| dietaryEnergy | Body Composition, Nutrition, **Metabolism** (one of the two terms it solves) — **charted at weight 0, never scored.** No reference range either: what the right number is depends on what somebody is aiming for, and a band would be a target |
+| dietaryProtein, dietaryFibre, dietarySaturatedFat, dietaryFat, dietarySodium, dietaryPotassium, dietaryWater, dietaryCaffeine | Nutrition — each against a named published figure (WHO, EFSA, SACN). Protein is scored **per kg of body mass**; two are percentages of energy; water is sex-specific |
+| dietaryCarbohydrates, dietarySugar | Nutrition — charted, never scored. Sugar because HealthKit reports *total* sugars while WHO's under-10% figure limits *free* sugars |
 | dayStrain | *(no reader — Whoop not connected)* |
 
 ## Keychain storage

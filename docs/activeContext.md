@@ -118,6 +118,29 @@ choice and will validate later.**
   camera does not prompt, it terminates the app**, and this is the app's first
   camera use, so nothing had ever needed the key before.
 
+**Both new cards are built and on `main` (2026-08-03), neither seen on a
+phone.** `NutritionInsight` scores eight terms against WHO/EFSA/SACN figures
+with the source on each row — protein per kilogram as a **floor**, at the
+user's request — and charts calories, carbohydrates and sugar unscored, each
+saying why. `MetabolismInsight` back-calculates expenditure from intake and the
+weight trend and divides it by a prediction, so the headline is a *speed*.
+
+Three findings from building them that a later session should not have to
+rediscover:
+
+1. **The weight slope for energy balance must be fitted to the raw weigh-ins,
+   not to `CompositionVelocity`'s smoothed series.** The EWMA lags by ~9 days at
+   α = 0.10, so a four-week fit under-reads 0.5 kg/week as 0.36 — and × 7,700
+   that is 150 kcal/day of expenditure gone, which the card would have reported
+   as metabolic suppression that never happened. Smoothing is right for a score,
+   wrong for this arithmetic.
+2. **`MetricReferenceRange.Band` has optional bounds**, so a floor with no
+   ceiling is expressible. Two published figures written off as card-table-only
+   (fibre, potassium) carry real bands because of it. Check the type before
+   concluding a figure has no home.
+3. **`add-insight` said five exhaustive switches and there are six** —
+   `shortTitle` in `BalanceWeb.swift`. The skill now lists it.
+
 **The scope is now stated, and it is bigger than the current card set.** The
 user, 2026-08-03: *"this is a master health app, in future it will need to
 support every domain of health and wellbeing."* The default answer to "does

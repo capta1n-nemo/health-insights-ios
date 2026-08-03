@@ -35,6 +35,7 @@ public extension InsightID {
         case .bloodPressure: return 7
         case .bodyComposition: return 8
         case .nutrition: return 9
+        case .metabolism: return 10
         }
     }
 }

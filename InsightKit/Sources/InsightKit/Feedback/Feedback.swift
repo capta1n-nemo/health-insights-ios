@@ -151,6 +151,7 @@ public extension InsightID {
         case .energy: return "energy-v1"
         case .substanceImpact: return "substance-v1"
         case .nutrition: return "nutrition-v1"
+        case .metabolism: return "metabolism-v1"
         }
     }
 }

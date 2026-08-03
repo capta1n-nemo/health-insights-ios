@@ -100,14 +100,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :73
-  - `InsightCadence` :42
-  - `InsightConfidence` :65
-  - `InsightDriver` :101
+  - `GroundingRequirement` :76
+  - `InsightCadence` :45
+  - `InsightConfidence` :68
+  - `InsightDriver` :104
   - `InsightID` :15
-  - `InsightModel` :293
-  - `InsightResult` :118
-  - `RequirementStatus` :89
+  - `InsightModel` :296
+  - `InsightResult` :121
+  - `RequirementStatus` :92
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -115,12 +115,16 @@ the place to look.
 - `Insights/LaggedCorrelation.swift`
   - `LagFinder` :27
   - `LaggedRelationship` :14
+- `Insights/MetabolismInsight.swift`
+  - `EnergyBalance` :43
+  - `EnergyBalanceModel` :72
+  - `MetabolismInsight` :223
 - `Insights/MetricPatterns.swift`
   - `MetricPattern` :16
   - `PatternFinder` :48
   - `PatternKind` :4
 - `Insights/NutritionInsight.swift`
-  - `NutritionInsight` :282
+  - `NutritionInsight` :283
   - `NutritionModel` :19
 - `Insights/PeerStanding.swift`
   - `PeerStandingModel` :21
@@ -227,7 +231,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :50
+  - `InsightPalette` :51
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -305,6 +309,8 @@ the place to look.
   - `MedicationResponse` :25
 - `Signals/NightSleepDetail.swift`
   - `NightSleepDetail` :17
+- `Signals/NutritionLogging.swift`
+  - `NutritionLogging` :14
 - `Signals/Pharmacokinetics.swift`
   - `ActiveCompoundPoint` :105
   - `AdministeredDose` :79

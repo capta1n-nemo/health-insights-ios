@@ -53,29 +53,25 @@ section it sits in rather than by judgement:
 | 17 | Travel drain | Three insight cards the user asked for | next |
 | 18 | Stress card | Three insight cards the user asked for | next |
 | 19 | Work impact | Three insight cards the user asked for | next |
-| 20 | `EnergyBalanceModel` — the back-calculation | Metabolism speed — the card the user asked for | next |
-| 21 | The speed ratio — observed ÷ predicted | Metabolism speed — the card the user asked for | next |
-| 22 | The logging gate, which is the whole card's honesty | Metabolism speed — the card the user asked for | next |
-| 23 | The medication panel | Metabolism speed — the card the user asked for | next |
-| 24 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
-| 25 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
-| 26 | One completeness figure, read from one place | Nutrition — capture everything, then the card | next |
-| 27 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 28 | Symptoms — the strongest candidate, and it connects to something the app alre… | Every domain of health — the direction, and what is already arriving | next |
-| 29 | Hearing | Every domain of health — the direction, and what is already arriving | next |
-| 30 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
-| 32 | Mind | Every domain of health — the direction, and what is already arriving | next |
-| 33 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
-| 34 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
-| 35 | Oral health | Every domain of health — the direction, and what is already arriving | next |
-| 36 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 37 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 38 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 39 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 40 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 41 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 42 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 20 | The medication panel — still open | Metabolism speed — the card the user asked for | next |
+| 21 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
+| 22 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
+| 23 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
+| 24 | Symptoms — the strongest candidate, and it connects to something the app alre… | Every domain of health — the direction, and what is already arriving | next |
+| 25 | Hearing | Every domain of health — the direction, and what is already arriving | next |
+| 26 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
+| 27 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
+| 28 | Mind | Every domain of health — the direction, and what is already arriving | next |
+| 29 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
+| 30 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Oral health | Every domain of health — the direction, and what is already arriving | next |
+| 32 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 33 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 34 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 35 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 36 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 37 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 38 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1479,23 +1475,50 @@ never say.** The short version: the back-calculated TDEE service
 which **stopped being a blocker on 2026-08-03**. Everything below is now
 buildable in the sandbox.
 
-- [ ] **`EnergyBalanceModel` — the back-calculation.** `meanIntake +
-      kgLostPerDay × 7,700`, on a smoothed weight trend over 14 days minimum
-      and 28 preferred. Summing basal + active instead would inherit every
-      wearable's calibration error; this only needs the scale and the food log,
-      and it self-corrects.
-- [ ] **The speed ratio — observed ÷ predicted.** A rate in kcal/day does not
+- [x] **`EnergyBalanceModel` — the back-calculation** (2026-08-03), and it
+      is fitted to the **raw** weigh-ins rather than the smoothed ones. That is
+      a correction to this item's own wording: `CompositionVelocity`'s EWMA lags
+      a real trend by about nine days at α = 0.10, so over four weeks a third of
+      the series is still catching up and the fitted slope under-reads — 0.36
+      kg/week on a body losing exactly 0.5. Multiplied by 7,700 that is **150
+      kcal a day of expenditure gone missing, which the card would have
+      reported as metabolic suppression that never happened.** Smoothing is
+      right for a score and wrong for this arithmetic; least squares on the raw
+      series is unbiased for a linear trend with symmetric noise, which is what
+      water weight is.
+- [x] **The speed ratio — observed ÷ predicted** (2026-08-03). Katch-McArdle
+      where a scale reports lean mass (and it then needs no age or sex at all),
+      Mifflin-St Jeor otherwise — with the sex constant split rather than
+      guessed when sex is unknown, so the error is bounded at ±83 kcal instead
+      of landing 166 out for half of readers. Plus measured active energy and a
+      10% thermic effect. **The score rewards nothing above 100%**: running
+      "fast" is usually an incomplete diary, and paying the reader for it would
+      be paying them to log less. Original wording follows.
+      **The speed ratio — observed ÷ predicted.** A rate in kcal/day does not
       answer "is my metabolism fast"; a comparison does. Predicted is
       Katch-McArdle where lean mass is known (this app has it from Withings and
       Shotsy), Mifflin-St Jeor otherwise, plus *measured* active energy and a
       10% thermic effect — never a lifestyle multiplier off a dropdown.
-- [ ] **The logging gate, which is the whole card's honesty.** The
+- [x] **The logging gate** (2026-08-03) — and it measures completeness over
+      **the reader's own logging window**, not a nominal 28 days: somebody who
+      started a fortnight ago and has logged every day since is logging
+      perfectly, and both terms of the subtraction are then taken over that same
+      stretch, which they have to be for the arithmetic to mean anything. Below
+      80% the card withholds the number and says why. Above 110% the first
+      driver line names the food log. Original wording follows.
+      **The logging gate, which is the whole card's honesty.** The
       back-calculation charges every logging error to metabolism, so
       under-reporting reads as a fast metabolism — and under-reporting is the
       normal finding, routinely 20–30%. Below ~80% of days logged the card says
       "can't judge" (the `ActivityDoseModel` floor's shape), and a ratio above
       ~110% names the food log first, before any metabolic reading.
-- [ ] **The medication panel.** Intake and expenditure are both dated series and
+- [ ] **The medication panel — still open.** The card charts
+      `activeMedicationLevel` and states on the row that the evidence is about
+      intake rather than expenditure, but the before/after contrast itself is
+      not built: it needs a logged stretch on each side of the first dose, and
+      the honest version reports the two deltas (what intake did, what
+      expenditure did) rather than one number. Original scope follows.
+      **The medication panel.** Intake and expenditure are both dated series and
       `activeMedicationLevel` is a third, so this is Substance Impact's
       before/after shape with a different pair of quantities. The expected
       honest finding is *"the drug moved what you eat, not what you burn"*.
@@ -1553,10 +1576,9 @@ sources."* Designed in `docs/planned-modules.md` ▸ module 6.
       elsewhere. Split out rather than left inside the item above, because a
       multi-clause `[x]` hiding an unfinished clause is how six of them once
       survived a "closed" list.
-- [ ] **One completeness figure, read from one place.** The nutrition card
-      computes logged-days itself and the metabolism card will need the same
-      number to gate on. Two cards disagreeing about how well the reader logs is
-      one number contradicting itself — extract it when the second card lands.
+- [x] **One completeness figure, read from one place** (2026-08-03).
+      `NutritionLogging` owns logged-days, the window and the 80% threshold;
+      both cards read it.
 - [x] **Decided 2026-08-03 — published reference bands are wanted.** The
       user's words: *"I am happy with all dietary guidelines, why wouldn't I
       be?"* So a nutrition row may carry a band from a named body with its

@@ -28,10 +28,9 @@ public enum NutritionModel {
     /// `ActivityDoseModel` uses, for the same reason.
     public static let minimumLoggedDays = 3
 
-    /// Where logging stops being complete enough to describe a diet. Above it
-    /// the reader is logging most days; below it the means are drawn from a
-    /// sample the reader chose, which flatters.
-    public static let completeEnough = 0.8
+    /// Where logging stops being complete enough to describe a diet.
+    /// `NutritionLogging` owns the figure; this is the alias the card reads.
+    public static var completeEnough: Double { NutritionLogging.completeEnough }
 
     /// kcal per gram, for the two terms the guidance states as a share of
     /// energy. Atwater factors, which is what the guidance itself assumes.
@@ -126,9 +125,11 @@ public enum NutritionModel {
                                 profile: UserHealthProfile,
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
-        let energyDays = VitalReader.dailyValues(.dietaryEnergy, from: samples,
-                                                 days: windowDays, now: now,
-                                                 calendar: calendar)
+        // One figure, one place — see `NutritionLogging`. The metabolism card
+        // gates on the same number, and two cards computing "how well do you
+        // log" separately would eventually disagree in front of the reader.
+        let energyDays = NutritionLogging.loggedDays(samples, days: windowDays,
+                                                     now: now, calendar: calendar)
         guard energyDays.count >= minimumLoggedDays else { return nil }
         let completeness = Double(energyDays.count) / Double(windowDays)
 

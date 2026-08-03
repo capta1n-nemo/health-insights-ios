@@ -34,6 +34,9 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// nothing to do with weight, and it applies to a reader who is not trying
     /// to change their weight at all.
     case nutrition
+    /// How fast the reader's metabolism is running, from their own energy
+    /// balance rather than a wearable's estimate.
+    case metabolism
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
