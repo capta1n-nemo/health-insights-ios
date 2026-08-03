@@ -1,0 +1,2 @@
+--- install ---
+::error::IPHONE_DEVICE_ID is not set. Add it under Settings ▸ Secrets and variables ▸ Actions. Run 'xcrun devicectl list devices' on this Mac to find the identifier of the phone you want.
