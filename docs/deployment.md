@@ -74,6 +74,37 @@ to the signing key's partition list when a `KEYCHAIN_PASSWORD` repo secret is
 set; without it, the workaround is running the runner interactively
 (`sudo ./svc.sh stop` then `./run.sh` from Terminal while logged in).
 
+## When a push does not reach the phone: run the doctor
+
+```bash
+./scripts/runner-doctor.sh          # ON THE MAC, not in a sandbox
+```
+
+**Read the refs before blaming the phone.** `deploy.yml` is `runs-on:
+self-hosted`, so a push to `main` only installs if the runner on the Mac claims
+the job. The distinction that matters:
+
+| What you see | What it means |
+| --- | --- |
+| `refs/deploy/passed/<sha>` | Installed. This is the only thing that means installed. |
+| `refs/deploy/failed/<sha>` | The job **ran** and failed — build, signing or device. Use `deploy-status.sh --errors`. |
+| **No ref at all** | The job **never ran**. That is the runner, not the phone. |
+
+On 2026-08-03 four commits sat unclaimed for hours while the phone was both
+hotspotting the Mac *and* plugged in by cable. Neither was the problem, and
+hours went into the network because "no verdict" was read as "cannot reach the
+device". It is not — it is "nothing tried".
+
+Two things worth knowing while travelling:
+
+- **A hotspot is fine for the runner.** It makes an *outbound* long poll to
+  GitHub, so nothing needs to reach the Mac from outside. A captive portal is
+  the one exception.
+- **A hotspot is fine for the phone too** — the phone *is* the network, so the
+  Mac is on its subnet by construction. `devicectl` reporting the device as
+  `disconnected` or `unavailable` is not a fault; it brings the tunnel up on
+  demand during install.
+
 ## Wi-Fi deploy to the pinned iPhone
 
 `deploy.yml`'s install step targets **one specific device by identifier**,
