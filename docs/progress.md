@@ -43,19 +43,18 @@ section it sits in rather than by judgement:
 | 14 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
 | 15 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
 | 16 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 17 | Settings ▸ Body scans — the two-matrix screen | Body scanner — the engine, the section and the data | next |
-| 18 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 19 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 20 | Travel drain | Three insight cards the user asked for | next |
-| 21 | Stress card | Three insight cards the user asked for | next |
-| 22 | Work impact | Three insight cards the user asked for | next |
-| 23 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 24 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 25 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 26 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 27 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 28 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 29 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 17 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
+| 18 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
+| 19 | Travel drain | Three insight cards the user asked for | next |
+| 20 | Stress card | Three insight cards the user asked for | next |
+| 21 | Work impact | Three insight cards the user asked for | next |
+| 22 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 23 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 24 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 25 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 26 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 27 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 28 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1356,9 +1355,21 @@ Listed cheapest-first — the second one can't start without new plumbing.
       the first time since they shipped.
 - [x] **HealthKit `waistCircumference` read**, so Apple Health alone can put the
       card on the RFM route.
-- [ ] **Settings ▸ Body scans** — the two-matrix screen. `BodyScanPolicy` is
-      built and tested but **nothing reads it**, so retention is not yet the
-      reader's choice. Must land with or before the capture.
+- [x] **Settings ▸ Body scans** — the two-matrix screen (2026-08-03).
+      `BodyScanSettingsView` under Settings ▸ Privacy, where it belongs because
+      the second matrix is a retention choice. Both bindings write a whole
+      `BodyScanPolicy` back rather than flipping a flag, so `retained ⊆
+      captured` stays enforced in the initialiser that already tests it — a keep
+      row for something not being collected is disabled and says so, and
+      switching a capture off visibly takes its retention with it. The derived
+      half is said out loud too: `canMeasure` false is a warning, `isReparseable`
+      false says a future version could not re-measure these scans.
+      `AppModel.bodyScanPolicy` is a **stored** property over `UserDefaults` —
+      defaults are as invisible to SwiftUI observation as SwiftData is, and
+      toggles that don't move when tapped is that same defect one layer over.
+      **The screen says the capture does not exist yet**, because a settings
+      page that reads as though it is doing something today would be the quiet
+      overclaim this app's rules exist to stop.
 - [x] **The 30-day reminder** (2026-08-03). `SuggestionEngine.bodyScanDue`
       calls `BodyScanCadence` and takes its wording from it, so the reminder
       and the Settings row cannot disagree about how overdue a scan is.

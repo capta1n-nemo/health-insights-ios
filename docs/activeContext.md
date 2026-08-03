@@ -92,6 +92,12 @@ choice and will validate later.**
   `AppModel` passes `lastBodyScan`; `BodyScanSuggestionTests` covers the three
   decisions (never-scanned belongs to `unusedInputs`, the id carries the state
   so a dismissal cannot swallow a cycle, strength ranks below a grounding gap).
+- **Settings ▸ Body scans exists** (`BodyScanSettingsView`, under Privacy).
+  `BodyScanPolicy` had been built and tested with nothing reading it, so
+  retention was the app's choice and not the reader's. `AppModel.bodyScanPolicy`
+  is a stored property over `UserDefaults` — a computed defaults read is as
+  invisible to observation as a computed SwiftData read, which is the toggle
+  that doesn't move when tapped. The screen states that capture is not built.
 - **Two items were closed by reading the code rather than by building**: Body
   Composition's "view & add" scan entry already ships as `.bodyMeasurements`,
   and the Oura history question was answered two sessions ago and stayed open

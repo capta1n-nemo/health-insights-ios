@@ -592,14 +592,16 @@ the place to look.
 - `Features/Onboarding/OnboardingView.swift`
   - `OnboardingPanel` :213
   - `OnboardingView` :7
+- `Features/Settings/BodyScanSettingsView.swift`
+  - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
   - `FullExport` :294
   - `OtherDataListView` :307
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :269
-  - `IntegrationRow` :170
-  - `IntegrationSummaryRow` :226
+  - `DisclaimerView` :289
+  - `IntegrationRow` :190
+  - `IntegrationSummaryRow` :246
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

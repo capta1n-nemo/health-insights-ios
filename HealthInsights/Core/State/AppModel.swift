@@ -341,6 +341,40 @@ final class AppModel {
     /// which is the defect `sideEffects` and `activeMedication` were fixed for.
     private(set) var bodyScans: [BodyScan] = []
 
+    /// What a scan may use, and separately what it may keep.
+    ///
+    /// A **stored** property, deliberately: `UserDefaults` is invisible to
+    /// SwiftUI observation exactly as SwiftData is, and a settings screen whose
+    /// toggles do not move when tapped is the same defect one layer over. The
+    /// defaults are the durable copy; this is the one the views read.
+    ///
+    /// `UserDefaults`-backed rather than a store row because it is a preference
+    /// and nothing scores off it — the same reasoning as `buildOverride`. Held
+    /// as the type's own `Codable` form, so a build that adds a
+    /// `BodyScanAsset` case cannot half-decode an older policy: it either
+    /// decodes whole or falls back to `.standard`, which is what a fresh
+    /// install gets anyway.
+    private(set) var bodyScanPolicy: BodyScanPolicy = AppModel.storedBodyScanPolicy()
+
+    static let bodyScanPolicyKey = "bodyScanPolicy"
+
+    private static func storedBodyScanPolicy() -> BodyScanPolicy {
+        guard let data = UserDefaults.standard.data(forKey: bodyScanPolicyKey),
+              let decoded = try? JSONDecoder().decode(BodyScanPolicy.self, from: data)
+        else { return .standard }
+        return decoded
+    }
+
+    /// The screen hands back a whole policy rather than a toggle, because
+    /// `BodyScanPolicy` normalises `retained ⊆ captured` in its initialiser and
+    /// a per-toggle setter here would be a second place for that rule to live.
+    func setBodyScanPolicy(_ policy: BodyScanPolicy) {
+        bodyScanPolicy = policy
+        if let data = try? JSONEncoder().encode(policy) {
+            UserDefaults.standard.set(data, forKey: Self.bodyScanPolicyKey)
+        }
+    }
+
     /// Save a scan and fold its measurements into the canonical series.
     ///
     /// The promoted sites become samples so they trend, chart and export through

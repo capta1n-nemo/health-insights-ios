@@ -159,9 +159,29 @@ struct SettingsView: View {
             } label: {
                 Label("Data & model improvement", systemImage: "lock.shield")
             }
+            // In privacy rather than under "Your data" because the second of
+            // its two matrices is a retention choice — what a scan writes to
+            // this phone and keeps.
+            NavigationLink {
+                BodyScanSettingsView()
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Body scans", systemImage: "figure.mixed.cardio")
+                    Text(bodyScanPolicySummary)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         } footer: {
-            Text("See exactly what would ever leave your phone to make the models better. Off by default; nothing is sent in this build.")
+            Text("See exactly what would ever leave your phone to make the models better. Off by default; nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps.")
         }
+    }
+
+    /// The policy in one line, so the row is a state rather than a door.
+    private var bodyScanPolicySummary: String {
+        let policy = model.bodyScanPolicy
+        let kept = policy.retained.count
+        if kept == 0 { return "Measurements only — nothing raw kept" }
+        return "\(kept) of \(BodyScanAsset.allCases.count) raw captures kept"
     }
 
 }
