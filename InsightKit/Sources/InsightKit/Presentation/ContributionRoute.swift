@@ -42,6 +42,15 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// the place.
     case bodyType
 
+    /// The reader's own body measurements — a tape, or a camera/LiDAR scan.
+    ///
+    /// Its own route rather than folded into `.bodyType`, which is an *opinion*
+    /// about build that nothing scores from. This is a measurement, and it is
+    /// the one input that moves Body Composition off BMI: `BuildAssessmentModel`
+    /// needs a waist, and without one the card scores on the weakest instrument
+    /// it has.
+    case bodyMeasurements
+
     /// A day's screen time, entered by hand or from a Shortcuts automation.
     ///
     /// On the Sleep card because that is where it earns its keep: it turns
@@ -73,6 +82,7 @@ public extension ContributionRoute {
         case .groundingFacts: return [.profileFacts]
         case .medication: return [.medicationRegimen, .medicationDose, .sideEffect]
         case .bodyType: return [.bodyType]
+        case .bodyMeasurements: return [.bodyMeasurements]
         case .screenTime: return [.screenTime]
         }
     }

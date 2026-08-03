@@ -178,6 +178,45 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// The reader's body measurements, from a tape or a scan.
+    ///
+    /// **Grounded means a waist exists**, not that every site does. The waist is
+    /// what `BuildAssessmentModel` needs to move the card off BMI, and a summary
+    /// that waited for a full set would report a card as ungrounded while it was
+    /// already scoring on the better instrument.
+    ///
+    /// `lastMeasured` is a formatted phrase rather than a `Date`, so this stays
+    /// testable without pinning a locale — the same shape `fileImport` uses.
+    public static func bodyMeasurements(sitesMeasured: Int, hasWaist: Bool,
+                                        lastMeasured: String?,
+                                        isOverdue: Bool) -> ContributionSummary {
+        ContributionSummary(
+            isGrounded: hasWaist,
+            figure: sitesMeasured > 0
+                ? "\(sitesMeasured) measurement\(sitesMeasured == 1 ? "" : "s")"
+                : "Nothing measured yet",
+            guidance: {
+                if !hasWaist {
+                    return "A waist measurement is the one that counts here — it lets the "
+                        + "card judge where your weight sits instead of guessing from BMI. "
+                        + "A tape does the job; a scan takes the rest at the same time."
+                }
+                if isOverdue, let lastMeasured {
+                    return "Last measured \(lastMeasured). Measuring about once a month is "
+                        + "what turns single numbers into a trend — and taking it the same "
+                        + "way each time is what makes two of them comparable."
+                }
+                if let lastMeasured {
+                    return "Last measured \(lastMeasured). Your waist is feeding the card's "
+                        + "score directly."
+                }
+                return "Your waist is feeding the card's score directly."
+            }(),
+            progress: nil,
+            addLabel: sitesMeasured > 0 ? "Measure again" : "Add measurements",
+            detailLabel: sitesMeasured > 0 ? "All measurements" : nil)
+    }
+
     /// A day's screen time.
     ///
     /// `lastEntered` is a formatted phrase and `daysRecorded` the count, so this

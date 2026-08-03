@@ -220,8 +220,8 @@ the place to look.
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :208
-  - `InputGroup` :219
+  - `CardRequirement` :227
+  - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :49
@@ -417,17 +417,18 @@ the place to look.
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
-  - `DoseLogRecord` :259
-  - `FeedbackRecord` :204
+  - `BodyScanRecord` :84
+  - `DoseLogRecord` :301
+  - `FeedbackRecord` :246
   - `GroundingRecord` :9
-  - `InsightScoreRecord` :83
-  - `IntegrationRecord` :110
+  - `InsightScoreRecord` :125
+  - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :234
-  - `PredictionOutcomeRecord` :171
-  - `SideEffectRecord` :291
-  - `SubstanceEventRecord` :124
-  - `SuggestionDismissalRecord` :153
+  - `MedicationRecord` :276
+  - `PredictionOutcomeRecord` :213
+  - `SideEffectRecord` :333
+  - `SubstanceEventRecord` :166
+  - `SuggestionDismissalRecord` :195
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -530,20 +531,23 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :239
+  - `GroundingKindList` :244
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :150
+  - `GroundedSummary` :159
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `AddInputMenu` :143
-  - `BodyTypeSheet` :257
-  - `InputSheet` :178
-  - `PushedInSheet` :230
-  - `ScreenTimeEntrySheet` :336
-  - `SideEffectEntrySheet` :647
+  - `AddInputMenu` :148
+  - `BodyTypeSheet` :264
+  - `InputSheet` :183
+  - `PushedInSheet` :237
+  - `ScreenTimeEntrySheet` :343
+  - `SideEffectEntrySheet` :654
+- `Features/Inputs/BodyMeasurementsSheet.swift`
+  - `BodyMeasurementsSheet` :27
+  - `BodyScanParserVersion` :182
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :18

@@ -130,6 +130,7 @@ final class AppModel {
     private func reloadLoggedData() {
         activeMedication = dataStore.loadActiveMedication()
         sideEffects = dataStore.loadSideEffects()
+        bodyScans = dataStore.bodyScans()
     }
 
     /// The active-compound curve for the visible window, or empty when there
@@ -244,6 +245,11 @@ final class AppModel {
                 hasBeenUsed = ShotsyIntegration.lastImportDate != nil
             case .bodyType:
                 hasBeenUsed = buildOverride != nil
+            // Any measured site counts as having used it. Not "a waist",
+            // deliberately: the prompt asks whether the reader has ever tried
+            // this input, and somebody who measured their chest has.
+            case .bodyMeasurements:
+                hasBeenUsed = !bodyScans.isEmpty
             case .screenTime:
                 hasBeenUsed = !samples.samples(of: .screenTimeMinutes).isEmpty
             }
@@ -326,6 +332,96 @@ final class AppModel {
             .partitionedVitals().kept
         recompute()
         return written
+    }
+
+    // MARK: - Body scans
+
+    /// Every scan, newest first. Reloaded rather than computed off the store —
+    /// a computed property reading SwiftData is invisible to SwiftUI observation,
+    /// which is the defect `sideEffects` and `activeMedication` were fixed for.
+    private(set) var bodyScans: [BodyScan] = []
+
+    /// Save a scan and fold its measurements into the canonical series.
+    ///
+    /// The promoted sites become samples so they trend, chart and export through
+    /// the machinery every other metric already uses; the full set stays on the
+    /// scan for its own page.
+    func saveBodyScan(_ scan: BodyScan) {
+        dataStore.saveBodyScan(scan)
+        bodyScans = dataStore.bodyScans()
+        let source: MetricSource = scan.mode == .tape ? .manual : .screenshot
+        for sample in scan.samples(source: source) {
+            dataStore.replaceManualSamples(of: sample.type,
+                                           on: Calendar.current.startOfDay(for: sample.start),
+                                           with: [sample])
+        }
+        reloadScanSamples()
+        recompute()
+    }
+
+    func deleteBodyScan(id: UUID) {
+        dataStore.deleteBodyScan(id: id)
+        bodyScans = dataStore.bodyScans()
+        recompute()
+    }
+
+    /// Pull the scan-derived metrics back out of the store into `samples`.
+    private func reloadScanSamples() {
+        let scanMetrics = Set(BodySite.allCases.compactMap(\.metricType))
+        samples = (samples.filter { !scanMetrics.contains($0.type) }
+                   + dataStore.loadManualSamples().filter { scanMetrics.contains($0.type) })
+            .partitionedVitals().kept
+    }
+
+    /// Every body measurement the app holds, from every source, reconciled.
+    ///
+    /// This is what makes a reader with Apple Health well populated get a body
+    /// model without ever opening the scanner: Health's own waist arrives as a
+    /// sample, a scan arrives as a scan, and `BodyMeasurementReconciliation`
+    /// ranks them by **method** rather than by which app they came through.
+    func reconciledMeasurements(now: Date = Date()) -> BodyMeasurements {
+        BodyMeasurementReconciliation.merge(measurementCandidates(), now: now)
+    }
+
+    /// Every measurement the app holds, from every source, unreconciled.
+    ///
+    /// One list feeding both the merge and the dispute report, so the two cannot
+    /// disagree about what was on the table.
+    private func measurementCandidates() -> [SourcedMeasurement] {
+        var candidates: [SourcedMeasurement] = []
+        for scan in bodyScans {
+            let provenance: BodyMeasurementProvenance
+            switch scan.mode {
+            case .lidarDepth: provenance = .lidarScan
+            case .cameraSegmentation: provenance = .cameraScan
+            case .tape: provenance = .tape
+            }
+            for value in scan.measurements.values {
+                candidates.append(SourcedMeasurement(site: value.site,
+                                                     centimetres: value.centimetres,
+                                                     provenance: provenance,
+                                                     measuredAt: scan.capturedAt))
+            }
+        }
+        // Anything the same site arrived as through Apple Health or a provider.
+        for site in BodySite.allCases {
+            guard let metric = site.metricType else { continue }
+            let external = samples.samples(of: metric)
+                .filter { $0.source.id != MetricSource.manual.id
+                          && $0.source.id != MetricSource.screenshot.id }
+            if let latest = external.max(by: { $0.start < $1.start }) {
+                candidates.append(SourcedMeasurement(site: site, centimetres: latest.value,
+                                                     provenance: .externalHealthApp,
+                                                     measuredAt: latest.start))
+            }
+        }
+        return candidates
+    }
+
+    /// Sites where two sources disagree beyond the noise — shown rather than
+    /// silently resolved.
+    func measurementDisputes(now: Date = Date()) -> [BodyMeasurementReconciliation.Outcome] {
+        BodyMeasurementReconciliation.disputes(measurementCandidates(), now: now)
     }
 
     /// Stored screen-time figures with their provenance, newest first.

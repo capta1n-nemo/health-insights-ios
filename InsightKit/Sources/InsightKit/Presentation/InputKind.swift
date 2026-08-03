@@ -51,6 +51,14 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// model — see `MetricType.screenTimeMinutes`. The reader reads it off
     /// Settings ▸ Screen Time, or has a Shortcuts automation supply it.
     case screenTime
+    /// Body measurements — a tape today, a camera/LiDAR scan once that ships.
+    ///
+    /// One input for both, deliberately. They produce the same thing (a
+    /// `BodyScan`), they answer the same question, and splitting them would put
+    /// two near-identical rows on every surface while the reader is choosing
+    /// between "get the tape out" and "stand in front of the phone" — which is
+    /// a choice inside the sheet, not a different kind of data.
+    case bodyMeasurements
 
     public var id: String { rawValue }
 
@@ -66,6 +74,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .fileImport: return "File from another app"
         case .bodyType: return "Your build"
         case .screenTime: return "Screen time"
+        case .bodyMeasurements: return "Body measurements"
         }
     }
 
@@ -89,6 +98,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Photograph a pathology report; the values are read on-device and you confirm them."
         case .fileImport:
             return "Shotsy's JSON backup — injections, weight and body composition in one file."
+        case .bodyMeasurements:
+            return "Waist, hips, chest and the rest — from a tape, or a scan. A waist is what lets the body composition card stop guessing from BMI."
         case .bodyType:
             return "Override the app's read of your build if you disagree with it. It estimates from your own measurements; you know your frame."
         case .screenTime:
@@ -108,6 +119,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .fileImport: return "square.and.arrow.down"
         case .bodyType: return "figure.stand"
         case .screenTime: return "iphone"
+        case .bodyMeasurements: return "figure.mixed.cardio"
         }
     }
 
@@ -118,7 +130,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect,
              .screenTime:
             return .asItHappens
-        case .medicationRegimen, .bodyType: return .aboutYou
+        case .medicationRegimen, .bodyType, .bodyMeasurements: return .aboutYou
         case .bloodTestPhoto, .fileImport: return .bringItIn
         }
     }
@@ -134,7 +146,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
-             .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime:
+             .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
+             .bodyMeasurements:
             return nil
         }
     }
@@ -186,6 +199,12 @@ public extension InputKind {
         // the one input that turns "is it tech time?" from a question the model
         // names as unanswerable into one it can actually contrast.
         case .screenTime: return .offeredAndPrompted
+        // Prompted, and it is the clearest case in this switch: a waist
+        // measurement is the one input that moves Body Composition off BMI —
+        // `BuildAssessmentModel` cannot run without it — and until one exists
+        // the card is scoring on the weakest instrument it has. The 30-day
+        // re-scan nudge is separate and comes from `BodyScanCadence`.
+        case .bodyMeasurements: return .offeredAndPrompted
         }
     }
 

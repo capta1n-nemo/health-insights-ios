@@ -121,6 +121,11 @@ struct AddDataView: View {
             return ShotsyIntegration.lastImportDate.map {
                 $0.formatted(.relative(presentation: .named))
             }
+        case .bodyMeasurements:
+            guard let latest = model.bodyScans.first else { return nil }
+            let sites = latest.measurements.sites.count
+            return "\(sites) site\(sites == 1 ? "" : "s"), "
+                + latest.capturedAt.formatted(.relative(presentation: .named))
         case .bodyType:
             // The reader's word first, the app's estimate second and marked as
             // such — the row must not read as though they chose something they
@@ -205,6 +210,8 @@ private struct InputSheet: View {
             PushedInSheet(title: "Import") { ImportLabView() }
         case .fileImport:
             PushedInSheet(title: "Shotsy") { ShotsyIntegrationView() }
+        case .bodyMeasurements:
+            BodyMeasurementsSheet()
         case .bodyType:
             BodyTypeSheet()
         case .screenTime:

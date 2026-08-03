@@ -44,7 +44,8 @@ public struct BodyCompositionInsight: InsightModel {
     /// a chart and named nowhere else, which is precisely the failure
     /// `InputKind.cardRequirement` now makes checkable.
     public var contributions: [ContributionRoute] {
-        [.groundingFacts(requirements.map(\.kind)), .fileImport, .medication, .bodyType]
+        [.groundingFacts(requirements.map(\.kind)), .fileImport, .medication,
+         .bodyMeasurements, .bodyType]
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
@@ -127,8 +128,18 @@ public struct BodyCompositionInsight: InsightModel {
         // about, and it was contributing nothing to the number that narrative
         // sits under. See `SupportingSignal`.
         let bodyFat = samples.latestValue(.bodyFatPercentage)
+        // **Route 2 is reachable now.** `BodyDimensions` shipped with no input,
+        // no storage and no source, so `build` was always nil and the RFM route
+        // was dead code that a reader of the audit reasonably mistook for a bug.
+        // A waist can arrive three ways — a tape entered here, a camera or LiDAR
+        // scan, or Apple Health's own `waistCircumference` — and all three land
+        // in `samples` as `.waistCircumference`, so this needs no plumbing of
+        // its own and cannot disagree with what the Data tab shows.
+        let build = Self.buildAssessment(samples: samples, profile: profile,
+                                         weightKg: weight, now: now)
         let dial = Self.score(bodyFat: bodyFat, bmi: bmi,
-                              age: profile.age(asOf: now), sex: profile.sex)
+                              age: profile.age(asOf: now), sex: profile.sex,
+                              build: build)
         let velocity = CompositionVelocityModel.evaluate(samples: samples, now: now)
         let goal = profile.weightGoal
 
@@ -431,15 +442,40 @@ public struct BodyCompositionInsight: InsightModel {
     /// instrument" argument that put fat ahead of BMI: Relative Fat Mass is
     /// validated against DXA and BMI is validated against nothing but itself.
     ///
-    /// ⚠️ **The middle route is unreachable today, and not because of a
-    /// mis-wiring.** It needs a waist measurement, and nothing in this app can
-    /// yet produce one — `BodyDimensions` is a type with no input, no storage
-    /// and no source, because the LiDAR capture it was designed around is a
-    /// roadmap note (`docs/planned-modules.md`). So `build` is always nil at the
-    /// one call site, and the route is dead code that a reader of the audit
-    /// reasonably mistook for a bug. It is kept, and kept **tested**, so that it
-    /// works the day a waist arrives rather than being rediscovered then; what
-    /// is fixed here is the comment claiming it already displaces BMI.
+    /// **The middle route is live as of 2026-08-03.** It was dead for months —
+    /// `BodyDimensions` was a type with no input, no storage and no source, so
+    /// `build` was always nil at the one call site and a reader of the audit
+    /// reasonably mistook the route for a bug. Keeping it tested through that
+    /// period is what made turning it on a one-line change.
+    ///
+    /// A waist now arrives three ways, all landing in `samples` as
+    /// `.waistCircumference`: a tape entered in the app, a camera or LiDAR scan,
+    /// or Apple Health's own `waistCircumference`, which many readers already
+    /// have. See `buildAssessment(samples:profile:weightKg:now:)`.
+    /// The reader's own dimensions, where enough of them exist to judge.
+    ///
+    /// Needs a waist and a height and nothing else — deliberately the smallest
+    /// possible ask, because it is the one measurement that moves this card off
+    /// BMI and a form demanding a full set would be abandoned part-way.
+    static func buildAssessment(samples: [HealthMetricSample],
+                                profile: UserHealthProfile,
+                                weightKg: Double, now: Date) -> BuildAssessment? {
+        guard let waist = samples.latestValue(.waistCircumference),
+              let height = samples.latestValue(.height),
+              let sex = profile.sex else { return nil }
+        let dimensions = BodyDimensions(
+            capturedAt: now, heightMetres: height, waistCentimetres: waist,
+            hipCentimetres: samples.latestValue(.hipCircumference),
+            chestCentimetres: samples.latestValue(.chestCircumference),
+            neckCentimetres: samples.latestValue(.neckCircumference),
+            shoulderCentimetres: samples.latestValue(.shoulderWidth),
+            // The samples carry no method, so this is the honest label: the
+            // scan that produced them says which it was on its own page.
+            source: .tape)
+        return BuildAssessmentModel.evaluate(dimensions: dimensions,
+                                             weightKg: weightKg, sex: sex)
+    }
+
     static func score(bodyFat: Double?, bmi: Double?, age: Double?, sex: BiologicalSex?,
                       build: BuildAssessment? = nil)
         -> (value: Double, metric: MetricType)? {

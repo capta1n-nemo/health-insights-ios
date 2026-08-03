@@ -128,6 +128,15 @@ struct ContributionRouteStatus {
             summary = .medication(hasRegimen: medication != nil,
                                   doses: medication?.doses.count ?? 0,
                                   sideEffects: model.sideEffects.count)
+        case .bodyMeasurements:
+            title = "Body measurements"
+            let latest = model.bodyScans.first
+            summary = .bodyMeasurements(
+                sitesMeasured: latest?.measurements.sites.count ?? 0,
+                hasWaist: latest?.measurements.mean(.waist) != nil,
+                lastMeasured: latest?.capturedAt.formatted(.relative(presentation: .named)),
+                isOverdue: BodyScanCadence.state(lastScan: latest?.capturedAt,
+                                                 now: Date()) == .overdue)
         case .bodyType:
             title = "Your build"
             summary = .bodyType(estimated: model.estimatedBuildName,

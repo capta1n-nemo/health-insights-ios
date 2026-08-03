@@ -70,6 +70,48 @@ final class ManualSampleRecord {
     }
 }
 
+/// One body scan — the derived measurements, and where its raw assets live.
+///
+/// **The measurements are stored as encoded JSON, not as columns.** A scan's
+/// shape is `(site, side, value)` triples precisely so a later parser can find
+/// sites this one did not, and a column per site would defeat that on the first
+/// schema change — which is the failure the reader asked to design around.
+///
+/// `assetFolder` is nil for a tape measurement, which has no raw data to keep.
+/// The camera and LiDAR captures fill it, and `BodyScan.isReparseable` already
+/// answers whether a given scan can take part in a re-derivation.
+@Model
+final class BodyScanRecord {
+    var id: UUID = UUID()
+    var capturedAt: Date = Date()
+    var modeRaw: String = BodyScan.CaptureMode.tape.rawValue
+    /// Which parser produced the stored measurements. A later build sweeps
+    /// every scan behind its own version and re-derives from the assets.
+    var parserVersion: Int = 1
+    /// A `BodyScan`, JSON-encoded.
+    var payload: Data?
+    /// Folder name under Application Support/BodyScans, when assets were kept.
+    var assetFolder: String?
+
+    init(scan: BodyScan, assetFolder: String? = nil) {
+        self.id = scan.id
+        self.capturedAt = scan.capturedAt
+        self.modeRaw = scan.mode.rawValue
+        self.parserVersion = scan.parserVersion
+        self.payload = try? JSONEncoder().encode(scan)
+        self.assetFolder = assetFolder
+    }
+
+    /// The scan, or nil if the payload cannot be decoded.
+    ///
+    /// Decoding failure is survivable rather than fatal: a row written by a
+    /// future build and read by an older one is exactly the case where losing
+    /// the whole history would be worse than losing one row.
+    var scan: BodyScan? {
+        payload.flatMap { try? JSONDecoder().decode(BodyScan.self, from: $0) }
+    }
+}
+
 /// One day's computed score for one insight.
 ///
 /// Scores were never stored, so "how has my readiness been trending?" had no

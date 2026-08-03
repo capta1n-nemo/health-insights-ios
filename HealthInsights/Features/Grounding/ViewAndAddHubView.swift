@@ -107,6 +107,7 @@ struct ViewAndAddHubView: View {
         case .groundingFacts(let kinds): factsSection(status, kinds: kinds)
         case .fileImport: fileImportSection(status)
         case .medication: medicationSection(status)
+        case .bodyMeasurements: bodyMeasurementsSection(status)
         case .bodyType: bodyTypeSection(status)
         case .screenTime: screenTimeSection(status)
         }
@@ -182,6 +183,10 @@ struct ViewAndAddHubView: View {
     }
 
     // MARK: - Body type
+
+    private func bodyMeasurementsSection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(status, addAction: { activeInput = .bodyMeasurements })
+    }
 
     private func bodyTypeSection(_ status: ContributionRouteStatus) -> some View {
         sectionBody(status, addAction: { activeInput = .bodyType })

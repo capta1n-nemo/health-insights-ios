@@ -104,6 +104,7 @@ struct CardDataView: View {
         case .substanceLog: substanceSection
         case .medication: medicationSection
         case .fileImport: importSection
+        case .bodyMeasurements: bodyMeasurementsSection
         case .bodyType: bodyTypeSection
         case .screenTime: screenTimeSection
         case .groundingFacts(let kinds): factsSection(kinds)
@@ -196,6 +197,38 @@ struct CardDataView: View {
                         Spacer()
                         Text(last.formatted(.relative(presentation: .named)))
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The card-scoped view of what has been measured.
+    ///
+    /// Sites rather than a scan count: "5 measurements" answers what the reader
+    /// wants to know, and "2 scans" does not. A disputed site is called out
+    /// here rather than resolved silently — two sources disagreeing beyond the
+    /// noise is information, and `BodyMeasurementReconciliation` deliberately
+    /// keeps the loser rather than hiding it.
+    @ViewBuilder private var bodyMeasurementsSection: some View {
+        let measurements = model.reconciledMeasurements()
+        if !measurements.values.isEmpty {
+            Section("Body measurements") {
+                ForEach(measurements.sites, id: \.self) { site in
+                    if let value = measurements.mean(site) {
+                        HStack {
+                            Text(site.displayName)
+                            Spacer()
+                            Text(String(format: "%.1f cm", value))
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
+                ForEach(model.measurementDisputes(), id: \.chosen.site) { dispute in
+                    if let note = dispute.note {
+                        Text(note)
+                            .font(.caption).foregroundStyle(Theme.warn)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

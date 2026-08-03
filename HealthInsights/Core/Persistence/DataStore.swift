@@ -15,7 +15,7 @@ final class DataStore {
                              PredictionOutcomeRecord.self, FeedbackRecord.self,
                              InsightScoreRecord.self, SuggestionDismissalRecord.self,
                              MedicationRecord.self, DoseLogRecord.self,
-                             SideEffectRecord.self])
+                             SideEffectRecord.self, BodyScanRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -83,6 +83,48 @@ final class DataStore {
             predicate: #Predicate { $0.kindRaw == raw },
             sortBy: [SortDescriptor(\.recordedAt, order: .reverse)])
         return (try? context.fetch(descriptor))?.first
+    }
+
+    // MARK: - Body scans
+
+    /// Every scan, newest first.
+    ///
+    /// A row whose payload will not decode is skipped rather than fatal — see
+    /// `BodyScanRecord.scan`.
+    func bodyScans() -> [BodyScan] {
+        let records = (try? context.fetch(FetchDescriptor<BodyScanRecord>(
+            sortBy: [SortDescriptor(\.capturedAt, order: .reverse)]))) ?? []
+        return records.compactMap(\.scan)
+    }
+
+    /// Save a scan, replacing any row with the same id.
+    ///
+    /// An upsert rather than an append, so re-deriving an existing scan with a
+    /// newer parser updates it in place instead of leaving two versions of one
+    /// capture for the reader to tell apart.
+    func saveBodyScan(_ scan: BodyScan, assetFolder: String? = nil) {
+        let id = scan.id
+        let existing = (try? context.fetch(FetchDescriptor<BodyScanRecord>(
+            predicate: #Predicate { $0.id == id }))) ?? []
+        for record in existing { context.delete(record) }
+        context.insert(BodyScanRecord(scan: scan, assetFolder: assetFolder))
+        try? context.save()
+    }
+
+    func deleteBodyScan(id: UUID) {
+        let records = (try? context.fetch(FetchDescriptor<BodyScanRecord>(
+            predicate: #Predicate { $0.id == id }))) ?? []
+        for record in records { context.delete(record) }
+        try? context.save()
+    }
+
+    /// Scans a newer parser could improve — behind the current version and still
+    /// holding the assets to re-derive from.
+    ///
+    /// The sweep itself belongs to the capture layer, which owns the assets;
+    /// this only answers which rows are candidates.
+    func bodyScansAwaitingReparse(currentVersion: Int) -> [BodyScan] {
+        bodyScans().filter { $0.parserVersion < currentVersion && $0.isReparseable }
     }
 
     // MARK: - Manual samples

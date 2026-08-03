@@ -1544,7 +1544,11 @@ struct InsightDetailView: View {
                 leanMassKg: model.samples.latestValue(.leanBodyMass),
                 weightKg: model.samples.latestValue(.bodyMass) ?? 0,
                 heightMetres: model.samples.latestValue(.height) ?? 0,
-                dimensions: nil,
+                // Live since 2026-08-03. This was `nil` from the day the model
+                // shipped, so the shoulder-to-waist lift for mesomorphy — the
+                // one component with a measured input — never once ran.
+                dimensions: model.bodyScans.first?
+                    .dimensions(heightMetres: model.samples.latestValue(.height) ?? 0),
                 age: model.profile.age() ?? 35,
                 sex: model.profile.sex ?? .male)
         }
