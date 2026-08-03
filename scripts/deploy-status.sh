@@ -47,7 +47,22 @@ for arg in "$@"; do
         *) sha="$arg" ;;
     esac
 done
-[ -z "$sha" ] && sha=$(git rev-parse HEAD)
+# **Always a full sha.** The refs are keyed on the 40-character hash, and
+# `git ls-remote origin refs/deploy/passed/<short>` matches nothing — it is an
+# exact ref name, not a prefix. So a short sha on the command line reported
+# "no verdict yet" for a commit that had *both* a failed and a passed ref
+# already pushed.
+#
+# On 2026-08-03 that cost a 15-minute `--wait` for a deploy that had installed
+# eleven minutes before the wait started, and then a report to the user saying
+# it had not installed. No-argument callers were never affected, which is
+# exactly why it survived: `git rev-parse HEAD` is already full-length, and
+# that is how the script is normally run.
+if [ -z "$sha" ]; then
+    sha=$(git rev-parse HEAD)
+else
+    sha=$(git rev-parse "$sha" 2>/dev/null || echo "$sha")
+fi
 
 look() {
     git ls-remote origin "refs/deploy/passed/$sha" "refs/deploy/failed/$sha" 2>/dev/null

@@ -35,7 +35,17 @@ for arg in "$@"; do
         *) sha="$arg" ;;
     esac
 done
-[ -z "$sha" ] && sha=$(git rev-parse HEAD)
+# Full sha, always — see the same block in deploy-status.sh. refs/ci/<result>/
+# is keyed on the 40-character hash and `git ls-remote` matches an exact ref
+# name, so a short sha on the command line silently reports "no verdict" for a
+# commit whose result is already recorded. Found in deploy-status.sh on
+# 2026-08-03 after it cost a 15-minute wait and a wrong report; identical here,
+# and fixed in the same commit rather than left for the next person to hit.
+if [ -z "$sha" ]; then
+    sha=$(git rev-parse HEAD)
+else
+    sha=$(git rev-parse "$sha" 2>/dev/null || echo "$sha")
+fi
 
 look() {
     # One network round trip, filtered server-side to the two refs that matter.
