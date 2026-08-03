@@ -1,0 +1,4 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Features/Documents/ImportLabView.swift:60:64: error: type 'ButtonStyle' has no member 'bordered'
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Features/Documents/ImportLabView.swift:60:76: error: type 'ButtonStyle' has no member 'borderedProminent'
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Features/Documents/DocumentCameraView.swift:85:39: error: call to main actor-isolated instance method 'fail(_:_:detail:)' in a synchronous nonisolated context
+** BUILD FAILED **
