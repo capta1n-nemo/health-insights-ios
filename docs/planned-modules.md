@@ -552,7 +552,47 @@ timeline scrubber works, and the somatotype block below is genuinely good. The
 | **Comparison heatmap** — two scan dates, ±5 mm colour ramp over the body surface | **Change as a surface, not a number.** Directly answers "where did it go?" | ⚠️ Needs a mesh and two comparable scans. `ScanComparability` + the ±10 mm repeatability band already gate this correctly. |
 | **Guided capture + measurements list** — silhouette overlay, 45° arm guide, foot marks, then a plain measurements table | Confirms the capture design already in this doc: drawn guides, live validators. | Design done, build not started. |
 
-### The build order this implies
+### ✅ Decided 2026-08-03 — the wireframe mesh, spinnable, with the slider kept
+
+The user picked the **Visbody-style default-mesh screen** over the other three,
+and added two requirements:
+
+- **"manipulate and spin the model"** — a drag gesture orbits it. Not a
+  gimmick: a girth is a *ring* around the body, and a front-on projection shows
+  one diameter of it. Rotating is how a reader sees that waist 125 cm is a
+  circumference and not a width. Pinch to zoom, double-tap to reset to front.
+- **"again have the slider to see how it changes over time + preview"** — the
+  12-week scrubber we already ship stays, unchanged in behaviour, driving the
+  mesh instead of the polygon. It is the one thing our card has that none of the
+  four references do, and the projected half must keep saying it is a
+  projection.
+
+Everything else on the card — the caption, the somatotype block, "Set it
+yourself" — stays where it is. This replaces a renderer, not a screen.
+
+**The split that makes it testable on Linux**, which is how everything in this
+repo gets built: the mesh *generation* is pure geometry and belongs in
+InsightKit — girths → ring vertices → lofted surface between rings → a
+`BodyMesh` value type of vertices and indices, with tests on ring
+circumference, monotonic interpolation and vertex count. Only the *rendering*
+(SceneKit/RealityKit, the orbit gesture, the leader lines) is app-target code
+that CI is the only gate for. Do not let the geometry live in the view.
+
+**Leader lines are the hard part of the layout, not the mesh.** Each label
+anchors to a projected 3D point and must not collide with its neighbours as the
+model spins — so the anchor is a vertex on the girth ring, the label parks in a
+left/right gutter, and labels re-sort by projected Y each frame. Hide a label
+when its anchor rotates behind the body rather than letting the line cross the
+mesh.
+
+⚠️ **Colour must not be decorative here.** The reference tints some figures
+amber and some cyan; ours has a meaning available and should use it —
+**measured girths one hue, estimated girths another, and say so in the legend**.
+That is the per-label version of the honesty the blanket caption does now, and
+it is the `add-chart` dash-means-inferred rule applied to text. Do not copy the
+reference's palette without giving it a meaning.
+
+### The rest of the build order
 
 1. **Replace the polygon with a mesh.** The single highest-value change on the
    card, and it needs no new capture — the same `BodyModelParameters` that drive
