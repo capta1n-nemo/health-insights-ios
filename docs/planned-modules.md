@@ -968,3 +968,147 @@ only new surface. Build it after the symptoms domain (`progress.md` ▸ "Every
 domain of health") rather than before: without the tags there is nothing to
 grade the radar against, and an early-warning card that cannot say how often it
 is right is the one shape this app should not ship.
+
+---
+
+## 8. Cycle tracking — its own tab (user request, 2026-08-03)
+
+*"This will be a major feature that gets its own tab. Huge amount of work, I
+want to essentially replicate an app like 'Flo' the period tracker, but use all
+the data we have to be even better."*
+
+**The fifth tab.** Today · Insights · Data · Settings today (`RootView`), and
+this adds a fifth — the first structural change to the app's navigation since it
+shipped. Which means one decision comes before any code: **the tab appears for a
+reader it applies to and is absent otherwise**, which the profile's
+`biologicalSex` can answer but should not decide alone (a reader may want it off,
+or on, regardless). See the open decisions at the end.
+
+### What the field does, so this is built against the real bar
+
+| Product | How it predicts | What it claims |
+| --- | --- | --- |
+| **Flo** | a neural network with ~442 inputs over logged cycle history, plus 70+ loggable symptoms and moods; ~1.4 M new data points a day across its base | prediction, education, cycle-phase content. Not a medical device |
+| **Apple Cycle Tracking** | logged periods plus **wrist temperature** on Series 8+ | **retrospective ovulation estimates** — it says *after the fact* when you likely ovulated, and improves the next prediction. Deliberately never a live fertile-window claim |
+| **Oura Cycle Insights** | temperature deviation to detect the biphasic shift; trained on 42 M+ nights; ovulation prediction reported >96% accurate against calendar tracking | phases, period prediction, fertile window. Partners with Natural Cycles for anything contraceptive |
+| **Natural Cycles** | basal temperature + LH tests, statistical model with ML | **FDA-cleared Class II contraceptive.** The only app of its kind cleared as birth control |
+| **Whoop** | "Cardiovascular Amplitude" — the size of the RHR/HRV swing across a cycle | training guidance by phase, not prediction |
+
+**Flo's own privacy history is the cautionary tale and the opening.** The FTC
+found (settled January 2021, finalised June 2021) that Flo shared users' cycle
+and pregnancy events with Facebook, Google, AppsFlyer and Flurry despite
+promising privacy, with no way for a user to opt out. This app's data never
+leaves the phone. **That is not a feature to mention in passing — for this
+category it is the strongest claim the app has**, and it should be on the tab,
+not buried in Settings.
+
+### The line this app does not cross
+
+**No contraceptive claim, ever.** Natural Cycles is a *regulated Class II
+medical device* precisely because "you are not fertile today" used to prevent
+pregnancy is a medical claim. This app is explicitly not a medical device
+(`docs/progress.md` ▸ Guardrails). So:
+
+- Ovulation is reported **retrospectively**, on Apple's precedent — "your
+  temperature shifted on the 14th, which is consistent with ovulation around
+  then" — never as a live green light.
+- A fertile window, if it is drawn at all, is drawn as an *estimate with its
+  uncertainty*, labelled not-contraception, and **that is an open decision for
+  the user rather than a session's call.**
+- Nothing here diagnoses PCOS, endometriosis, pregnancy or menopause. Patterns
+  can be *described* — "your last three cycles ran 38, 41 and 36 days, which is
+  outside the 21–35 day range" — with the reader told to take it to a clinician.
+
+### Why this app can be better than Flo, specifically
+
+Flo predicts from a calendar and from what you type in. This app already holds
+the four signals that *physiologically* mark the phases, every night, from a
+ring or a watch:
+
+1. **Temperature** — the biphasic shift is the ovulation marker both Apple and
+   Oura use. `.skinTemperature` and `.skinTemperatureDeviation` are canonical
+   metrics here already.
+2. **Resting heart rate** — measured 2–7 bpm higher in the mid-luteal phase
+   (one prospective study of 91 women: +3.8 bpm against menstruation).
+3. **HRV** — falls the other way; a meta-analysis over 1,000+ participants found
+   vagally-mediated HRV reduced from follicular to luteal, one study reporting
+   SDNN 154 → 136 ms (−12%).
+4. **Respiratory rate** — elevated in the luteal phase alongside the other two.
+
+So a cycle here can be **confirmed rather than guessed**, an anovulatory cycle
+can be *noticed* (no shift, no confirmation), and a prediction that disagrees
+with the physiology can say so instead of quietly being wrong.
+
+### The four things no period tracker can do, because they need the rest of the app
+
+1. **Stop this app's other cards from lying.** This is the biggest one and it is
+   not a nice-to-have. A luteal phase raises resting heart rate and respiratory
+   rate and lowers HRV — **which is exactly the pattern `HealthWatchModel` reads
+   as illness**, and exactly what Readiness reads as a bad night. A cycle-aware
+   baseline (compare against the same phase, or subtract the phase effect) fixes
+   a defect the app has today and cannot otherwise see. **The symptom radar
+   (module 7) must not ship to a cycling reader without this.**
+2. **The GLP-1 interaction, which is real and specific.** Tirzepatide's label
+   states that it may reduce the efficacy of **oral** hormonal contraceptives
+   through delayed gastric emptying, and advises a non-oral method or an added
+   barrier method **for 4 weeks after initiation and for 4 weeks after each dose
+   escalation**. Non-oral hormonal methods are unaffected. This app knows the
+   dose dates and the titration schedule; Flo cannot. Surfacing the
+   manufacturer's own labelling with its provenance is the same shape as the
+   published dietary bands — **and it is still a decision for the user**, listed
+   below.
+3. **Cycle × metabolism.** The metabolism card exists as of 2026-08-03, and
+   resting expenditure and appetite both move across the cycle. "Your intake ran
+   180 kcal a day higher in the ten days before your period, and your
+   expenditure rose with it" is a true, useful sentence that needs both halves —
+   and it stops a luteal-phase intake rise reading as a lapse.
+4. **Cycle × energy availability.** Rapid weight loss and low energy
+   availability disturb cycles. The app holds intake, expenditure, weight
+   velocity and the cycle in one place, so "your cycle lengthened by six days
+   during the fortnight your deficit was largest" is available to it and to
+   nobody else.
+
+### The build, in the order it should happen
+
+**Phase 1 — the log and the tab.** `DataDomain.cycles`; a `CycleEvent` model
+(period start/end, flow, and the symptom set); the tab with a calendar and a
+"log today" entry; `InputKind.cycleLog` on all four input surfaces. HealthKit
+already writes `menstrualFlow`, `basalBodyTemperature` and `sexualActivity` into
+the raw pile — read them rather than asking the reader to re-enter a history
+they already have.
+
+**Phase 2 — the prediction, from the calendar.** Cycle length statistics with
+their own spread, next-period prediction as a *range* rather than a date, and
+"your cycles vary by ±4 days" said out loud. A single confident date is the
+first dishonest thing every tracker does.
+
+**Phase 3 — the physiology.** `CyclePhaseModel`: the temperature shift for
+retrospective ovulation, plus RHR/HRV/respiratory-rate corroboration; a
+confirmed-versus-predicted distinction on every phase boundary; anovulatory
+cycles reported as *unconfirmed* rather than assumed.
+
+**Phase 4 — the cross-card work**, which is where the app pulls ahead:
+phase-aware baselines for Readiness, Sleep and the symptom radar; the metabolism
+and nutrition contrasts; the energy-availability finding.
+
+**Phase 5 — the content layer.** Flo's real product is education tied to phase.
+That is a writing job more than an engineering one and should be scoped
+separately; without it the tab is a chart, and with somebody else's copy it is a
+liability.
+
+### Open decisions for the user
+
+- **Does the tab draw a fertile window at all?** Retrospective ovulation is
+  clearly safe; a forward-looking fertile window is where the regulated line
+  sits. Recommendation: not in Phase 3 — add it only with an explicit
+  not-for-contraception statement, if at all.
+- **Should the app surface the tirzepatide/oral-contraceptive labelling?** It is
+  the manufacturer's own published advice and the app uniquely knows the dose
+  dates. It is also the most medical thing the app would ever say.
+- **Who is the tab for?** Presence keyed to `biologicalSex`, to an explicit
+  setting, or to whether any cycle data exists at all. The third is the most
+  honest and the least presumptuous.
+- **This repository is public** (`docs/privacy-and-ip.md`). Cycle data is the
+  most sensitive category the app will hold, and the rule for docs — *the shape
+  of a finding, never the reading* — applies to it more than to anything else.
+  Worth settling before Phase 1, not after.

@@ -71,13 +71,23 @@ section it sits in rather than by judgement:
 | 35 | Never call a dose reaction an infection | Symptom radar — the sickness early warning | next |
 | 36 | Track the episode, not just the onset — start, peak, and each signal's return… | Symptom radar — the sickness early warning | next |
 | 37 | Grade itself against the reader's own symptom tags | Symptom radar — the sickness early warning | next |
-| 38 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 39 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 40 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 41 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 42 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 43 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 44 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 38 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
+| 39 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
+| 40 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
+| 41 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
+| 42 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
+| 43 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
+| 44 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
+| 45 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
+| 46 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
+| 47 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
+| 48 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 49 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 50 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 51 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 52 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 53 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 54 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1725,6 +1735,70 @@ is currently a section inside Readiness. What is missing is the card.
       average". **Build the symptoms domain first** (see "Every domain of
       health"); an early-warning card that cannot say how often it is right is
       the one shape this app should not ship.
+
+### Cycle tracking — the fifth tab (user request, 2026-08-03)
+
+*"A major feature that gets its own tab. Huge amount of work — essentially
+replicate an app like Flo, but use all the data we have to be even better."*
+
+**Designed in `docs/planned-modules.md` ▸ module 8. Read it before starting** —
+it carries the competitive table (Flo, Apple, Oura, Natural Cycles, Whoop), the
+regulated line this app must not cross, and the four things no period tracker
+can do because they need the rest of this app.
+
+Two things to know before any of it: **the app's other cards are wrong for a
+cycling reader today** — a luteal phase raises resting heart rate and
+respiratory rate and lowers HRV, which is precisely what `HealthWatchModel`
+reads as illness — and **no contraceptive claim is ever available to this app**,
+because that is what makes Natural Cycles a regulated Class II device.
+
+- [ ] **Phase 1 — the log and the tab.** `DataDomain.cycles`, a `CycleEvent`
+      model (period start/end, flow, symptoms), the fifth tab in `RootView`, and
+      `InputKind.cycleLog` on all four input surfaces. HealthKit already writes
+      `menstrualFlow`, `basalBodyTemperature` and `sexualActivity` into the raw
+      pile — read them rather than asking for a history the phone already has.
+- [ ] **Phase 2 — prediction from the calendar**, as a *range* with its own
+      spread ("your cycles vary by ±4 days"), never a single confident date. A
+      confident date is the first dishonest thing every tracker does.
+- [ ] **Phase 3 — the physiology, which is the point.** `CyclePhaseModel`: the
+      biphasic temperature shift for **retrospective** ovulation on Apple's
+      precedent, corroborated by resting heart rate (+2–7 bpm mid-luteal), HRV
+      (−12% in one SDNN study) and respiratory rate. Confirmed versus predicted
+      marked on every phase boundary; an anovulatory cycle reported as
+      *unconfirmed* rather than assumed.
+- [ ] **Phase 4 — phase-aware baselines everywhere else.** Readiness, Sleep and
+      the symptom radar all compare against a baseline that the cycle moves. Fix
+      this before the radar ships to a cycling reader, or it will call a luteal
+      phase an infection.
+- [ ] **Phase 4b — cycle × metabolism and × energy availability.** Intake and
+      resting expenditure both move across the cycle, and the metabolism card
+      exists now; rapid weight loss and low energy availability disturb cycles,
+      and the app holds intake, expenditure, weight velocity and the cycle in
+      one place. Nobody else has both halves.
+- [ ] **Phase 5 — the content layer.** Flo's real product is education tied to
+      phase. A writing job more than an engineering one: scope it separately,
+      because without it the tab is a chart and with somebody else's copy it is
+      a liability.
+- [ ] **Decision — does the tab draw a fertile window at all?** Retrospective
+      ovulation is safe; a forward-looking fertile window is where the regulated
+      line sits. Recommendation: not in Phase 3, and only ever with an explicit
+      not-for-contraception statement.
+- [ ] **Decision — surface the tirzepatide/oral-contraceptive labelling?** The
+      Mounjaro label advises a non-oral or added barrier method for 4 weeks
+      after initiation and 4 weeks after each dose escalation, because delayed
+      gastric emptying may reduce oral contraceptive efficacy; non-oral methods
+      are unaffected. This app knows the dose dates and Flo cannot. It is also
+      the most medical thing the app would ever say.
+- [ ] **Decision — who is the tab for?** Keyed to `biologicalSex`, to an
+      explicit setting, or to whether any cycle data exists. The third is the
+      most honest and the least presumptuous.
+- [ ] **Settle the privacy posture first.** This repository is public
+      (`docs/privacy-and-ip.md`) and cycle data is the most sensitive category
+      the app will ever hold. **Flo was found by the FTC to have shared cycle
+      and pregnancy events with Facebook and Google while promising privacy**
+      (settled 2021) — this app's on-device-only posture is the strongest claim
+      it has in this category, and it belongs on the tab rather than in
+      Settings.
 
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸

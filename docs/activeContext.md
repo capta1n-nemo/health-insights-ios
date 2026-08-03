@@ -159,6 +159,24 @@ rediscover:
   domain first — the HealthKit symptom tags are what the radar grades itself
   against.
 
+**Cycle tracking is on the roadmap as the fifth tab** (`planned-modules.md` ▸
+module 8, ten items in `progress.md`). Two findings a session must not
+rediscover, and one it must not ignore:
+
+- **The app's existing cards are wrong for a cycling reader.** A luteal phase
+  raises resting heart rate and respiratory rate and lowers HRV — which is
+  exactly the pattern `HealthWatchModel` reads as illness and Readiness reads as
+  a bad night. Phase-aware baselines are a *fix*, not an enhancement, and the
+  symptom radar must not ship to a cycling reader without them.
+- **No contraceptive claim is available to this app.** "You are not fertile
+  today", used to prevent pregnancy, is what makes Natural Cycles a regulated
+  Class II device. Ovulation is reported retrospectively on Apple's precedent;
+  a forward fertile window is an open decision, not a default.
+- The physiology is already in this app's metrics — the biphasic temperature
+  shift, +2–7 bpm mid-luteal resting heart rate, ~12% lower HRV, elevated
+  respiratory rate. That is what lets a cycle be *confirmed* rather than
+  guessed, which is the whole "better than Flo" claim.
+
 **The scope is now stated, and it is bigger than the current card set.** The
 user, 2026-08-03: *"this is a master health app, in future it will need to
 support every domain of health and wellbeing."* The default answer to "does
