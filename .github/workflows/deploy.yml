@@ -155,10 +155,19 @@ jobs:
           fi
 
           # The target device is pinned, never auto-detected: several iPhones are
-          # paired to this Mac and the app must only ever reach the intended one
-          # (the iPhone 16 Pro). The IPHONE_DEVICE_ID secret overrides it — needed
-          # after an erase/restore, which issues the device a new identifier.
-          DEVICE="${IPHONE_DEVICE_ID:-26642940-2E82-5266-8527-0A0351F9D4D8}"
+          # paired to this Mac and the app must only ever reach the intended one.
+          #
+          # **The identifier lives only in the IPHONE_DEVICE_ID secret.** It used
+          # to have a hardcoded default here, which put a personal hardware
+          # identifier into a public repository — and into its history, where
+          # redacting it later does not remove it. Auto-selecting "whichever
+          # device is connected" is still refused for the original reason: it
+          # risks installing onto the wrong phone.
+          DEVICE="${IPHONE_DEVICE_ID:-}"
+          if [ -z "$DEVICE" ]; then
+            echo "::error::IPHONE_DEVICE_ID is not set. Add it under Settings ▸ Secrets and variables ▸ Actions. Run 'xcrun devicectl list devices' on this Mac to find the identifier of the phone you want."
+            exit 1
+          fi
 
           # Confirm the pinned device is the one that's reachable before installing,
           # so a mismatch fails loudly instead of landing somewhere unexpected. The

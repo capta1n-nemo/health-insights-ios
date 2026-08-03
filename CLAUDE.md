@@ -124,6 +124,12 @@ So:
   somatotype: models, service interfaces, algorithms, UI shape, build order and
   the open decisions. Also scores the outside analysis that prompted them,
   claim by claim, so a wrong diagnosis isn't re-acted on.
+- `docs/privacy-and-ip.md` -> **This repo is public and holds one person's
+  health data.** What was found exposed on 2026-08-03 and what was done about
+  it, why git history cannot be redacted in place, the real cost of going
+  private (self-hosted runners are free; `macos-15` is 10x), and the rule for
+  quoting evidence in the docs: **the shape of a finding, never the reading**.
+  Read before pasting a real health value into a doc or a commit message.
 - `docs/data-conventions.md` -> **The Data tab's three rules, enforced.** Every
   kind of data has a `DataDomain` and a Data-tab section (exhaustive switch);
   every domain opens a read-only detail page built with `DomainDataScaffold`

@@ -29,8 +29,11 @@ note() { printf '       %s\n' "$1"; }
 head() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 FAILED=0
-PINNED_DEFAULT="26642940-2E82-5266-8527-0A0351F9D4D8"
-DEVICE="${IPHONE_DEVICE_ID:-$PINNED_DEFAULT}"
+# No default: the identifier is personal hardware and belongs in the
+# IPHONE_DEVICE_ID secret, not in a public repository. Export it locally to have
+# this script check a specific phone; without it, every paired device is listed
+# and none is singled out.
+DEVICE="${IPHONE_DEVICE_ID:-}"
 
 head "1. The runner process"
 
@@ -138,15 +141,17 @@ for device in devices:
         found = (state, transport)
 
 print()
-if found:
+if not wanted:
+    print("\033[33m warn\033[0m  IPHONE_DEVICE_ID is not set here, so no device was singled out.")
+    print("       The deploy needs that secret set on GitHub — pick an identifier above.")
+elif found:
     print(f"\033[32m  ok\033[0m   The pinned device IS paired (transport={found[1]}).")
     print("       A tunnel state of 'unavailable' or 'disconnected' is NOT a problem —")
     print("       devicectl brings it up on demand during install. deploy.yml stopped")
     print("       treating that as fatal on 2026-07-31 for exactly this reason.")
 else:
     print("\033[31m FAIL\033[0m  The pinned device is not in the paired list.")
-    print(f"       Looking for: {wanted}")
-    print("       Either pair it, or set the IPHONE_DEVICE_ID repo secret to one above.")
+    print("       Either pair it, or set IPHONE_DEVICE_ID to one of those above.")
 PY
 else
     fail "devicectl returned no device list."

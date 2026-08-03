@@ -476,6 +476,38 @@ if [ -d docs ]; then
     fi
 fi
 
+# --- No personal identifiers in a public repository ------------------------
+#
+# This repo is public and holds one person's health app. Two classes of thing
+# must never be committed, and both were found in it on 2026-08-03:
+#
+#   * a device UDID, hardcoded as a fallback in deploy.yml, and
+#   * real health values quoted in the docs as evidence.
+#
+# The second is the harder one to police and is deliberately NOT linted: the
+# docs are an audit and their numbers are what make findings checkable. The rule
+# there is judgement — quote a *shape* ("the median rose"), not a reading.
+#
+# What is linted is the mechanical class: identifiers that are unambiguously
+# personal hardware or accounts, which have no business in source at all.
+#
+# ⚠️ **A lint cannot unpublish anything.** Git history keeps what was committed,
+# so this stops the next one rather than removing the last one. See
+# docs/privacy-and-ip.md.
+pii_hits=$(grep -rInE \
+    '\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b|\b[0-9]{8}-[0-9A-F]{16}\b' \
+    --include='*.swift' --include='*.yml' --include='*.yaml' --include='*.sh' \
+    --include='*.plist' --include='*.pbxproj' --include='*.json' \
+    . 2>/dev/null \
+    | grep -viE 'UUID\(\)|uuidString|test|mock|fixture|00000000-0000|E621E1F8|deadbeef' \
+    | head -5 || true)
+if [ -n "$pii_hits" ]; then
+    printf '\033[31m✗\033[0m %s\n' 'A hardware or account identifier looks committed:'
+    printf '    %s\n' "$pii_hits"
+    note 'If it is a device UDID or similar, move it to a repository secret.'
+    fail=1
+fi
+
 # --- The symbol index must not rot -----------------------------------------
 # A stale index is worse than no index, because it gets trusted.
 
