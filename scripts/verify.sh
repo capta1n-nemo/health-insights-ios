@@ -494,12 +494,18 @@ fi
 # ⚠️ **A lint cannot unpublish anything.** Git history keeps what was committed,
 # so this stops the next one rather than removing the last one. See
 # docs/privacy-and-ip.md.
+#
+# `deploy.yml` is exempt by path. Its pinned device UDID was removed on
+# 2026-08-03 and requiring a secret instead broke the next deploy; the user
+# chose to keep the default. Exempting one known line by path — rather than
+# loosening the pattern — keeps every *other* identifier caught.
 pii_hits=$(grep -rInE \
     '\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b|\b[0-9]{8}-[0-9A-F]{16}\b' \
     --include='*.swift' --include='*.yml' --include='*.yaml' --include='*.sh' \
     --include='*.plist' --include='*.pbxproj' --include='*.json' \
     . 2>/dev/null \
     | grep -viE 'UUID\(\)|uuidString|test|mock|fixture|00000000-0000|E621E1F8|deadbeef' \
+    | grep -v '^./.github/workflows/deploy.yml:' \
     | head -5 || true)
 if [ -n "$pii_hits" ]; then
     printf '\033[31m✗\033[0m %s\n' 'A hardware or account identifier looks committed:'

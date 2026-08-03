@@ -155,19 +155,21 @@ jobs:
           fi
 
           # The target device is pinned, never auto-detected: several iPhones are
-          # paired to this Mac and the app must only ever reach the intended one.
+          # paired to this Mac and the app must only ever reach the intended one
+          # (the iPhone 16 Pro). The IPHONE_DEVICE_ID secret overrides it — needed
+          # after an erase/restore, which issues the device a new identifier.
           #
-          # **The identifier lives only in the IPHONE_DEVICE_ID secret.** It used
-          # to have a hardcoded default here, which put a personal hardware
-          # identifier into a public repository — and into its history, where
-          # redacting it later does not remove it. Auto-selecting "whichever
-          # device is connected" is still refused for the original reason: it
-          # risks installing onto the wrong phone.
-          DEVICE="${IPHONE_DEVICE_ID:-}"
-          if [ -z "$DEVICE" ]; then
-            echo "::error::IPHONE_DEVICE_ID is not set. Add it under Settings ▸ Secrets and variables ▸ Actions. Run 'xcrun devicectl list devices' on this Mac to find the identifier of the phone you want."
-            exit 1
-          fi
+          # ⚠️ **The default is deliberate, and it is a decision the user made.**
+          # On 2026-08-03 it was removed as a privacy measure — a device UDID in
+          # a public repo — and requiring the secret instead broke the very next
+          # deploy (`refs/deploy/failed/534cf96`), because the secret was not
+          # set. The user's call, in their words: *"Don't worry about the UUID."*
+          # A UDID identifies hardware, not an account, and cannot be used to
+          # reach the phone; the value has also been in this repo's history for
+          # months, where removing it now changes nothing. `verify.sh`'s
+          # identifier lint exempts this line by path for the same reason, so a
+          # *new* identifier elsewhere still fails the gate.
+          DEVICE="${IPHONE_DEVICE_ID:-26642940-2E82-5266-8527-0A0351F9D4D8}"
 
           # Confirm the pinned device is the one that's reachable before installing,
           # so a mismatch fails loudly instead of landing somewhere unexpected. The
