@@ -18,7 +18,15 @@ name: Deploy to iPhone over Wi-Fi
 #     is installed as a background service, which leaves it unable to use the
 #     signing key (codesign fails with errSecInternalComponent). The
 #     alternative, with no secret, is to run the runner interactively:
-#     `sudo ./svc.sh stop` then `./run.sh` from Terminal while logged in.
+#     `./svc.sh stop` then `./run.sh` from Terminal while logged in.
+#
+# ⚠️ **No sudo, and never leave both alive.** This runner is a LaunchAgent, so
+# `sudo ./svc.sh stop` answers "Must not run with sudo" and the stop silently
+# does not happen — the advice above said `sudo` until 2026-08-03 and cost three
+# password prompts during a recovery that then did nothing. And the service plus
+# an interactive `./run.sh` is *two* listeners in one installation directory,
+# which is what killed four deploys that day at checkout. To recover, run
+# `./scripts/fix-runner.sh` from the repo checkout on the Mac.
 
 on:
   push:
