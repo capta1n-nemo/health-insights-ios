@@ -60,6 +60,8 @@
     <string>Health Insights reads your heart rate, HRV, cardio fitness, blood pressure and body measurements to estimate your heart health, cardiovascular risk and blood pressure trends. Your data stays on your device.</string>
     <key>NSHealthUpdateUsageDescription</key>
     <string>Health Insights can save the readings you log, such as blood-pressure measurements, back to Apple Health.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Health Insights uses the camera to scan a blood-test report so the values can be read on your device. The pages are read and discarded — no photo is saved, and nothing is uploaded.</string>
 
     <!-- Custom URL scheme used as the OAuth redirect target for Oura/Withings.
          Credentials are entered in-app and stored in the Keychain; there is no

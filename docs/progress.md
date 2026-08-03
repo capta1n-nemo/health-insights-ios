@@ -39,21 +39,20 @@ section it sits in rather than by judgement:
 | 10 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
 | 11 | Ultrahuman, Garmin, Fitbit | Integrations | next |
 | 12 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
-| 13 | Live document scanner (VisionKit) instead of library-only picking | Unstructured data | next |
-| 14 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
-| 15 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 16 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 17 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 18 | Travel drain | Three insight cards the user asked for | next |
-| 19 | Stress card | Three insight cards the user asked for | next |
-| 20 | Work impact | Three insight cards the user asked for | next |
-| 21 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 22 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 23 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 24 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 25 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 26 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 27 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 13 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
+| 14 | ECG photo/PDF import with metadata… | Unstructured data | next |
+| 15 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
+| 16 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
+| 17 | Travel drain | Three insight cards the user asked for | next |
+| 18 | Stress card | Three insight cards the user asked for | next |
+| 19 | Work impact | Three insight cards the user asked for | next |
+| 20 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 21 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 22 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 23 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 24 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 25 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 26 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1340,7 +1339,20 @@ Listed cheapest-first — the second one can't start without new plumbing.
         capture routes in device-verifiable slices.
 
 ### Unstructured data
-- [ ] Live document scanner (VisionKit) instead of library-only picking.
+- [x] **Live document scanner** (VisionKit), 2026-08-03. `DocumentCameraView`
+      wraps `VNDocumentCameraViewController` — the scanner Notes uses, so edge
+      detection and perspective correction come from the system rather than
+      from us — and `ImportLabView` leads with it, keeping the library picker
+      as the second route. **It reads every page and keeps the first value
+      found per kind**: a pathology report runs to several sheets and the panel
+      this app reads is rarely on the first, so a one-page reader would make a
+      two-page report look unreadable. `NSCameraUsageDescription` went into
+      `Support/Info.plist` in the same commit — without it the camera does not
+      prompt, it terminates the app. Gated on
+      `VNDocumentCameraViewController.isSupported`, so a device without a
+      camera sees the picker alone rather than a button that presents nothing.
+      **Device-only to exercise**: CI compiles it, and nothing about a camera
+      can be checked from a sandbox.
 - [ ] Foundation Models structured extraction for arbitrary lab analytes.
 - [ ] ECG photo/PDF import with metadata (no automated interpretation — that's
       a regulated medical-device claim, out of scope by design).

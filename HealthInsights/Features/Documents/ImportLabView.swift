@@ -15,6 +15,11 @@ struct ImportLabView: View {
     @State private var isProcessing = false
     @State private var processedOnce = false
     @State private var savedMessage: String?
+    @State private var isScanning = false
+    /// How many pages the last scan carried, so the "nothing found" line can
+    /// say what it looked at. Two blank pages and one blank photo are the same
+    /// message otherwise, and they are not the same problem.
+    @State private var pagesRead = 0
     private let scanner = DocumentScanService()
 
     var body: some View {
@@ -28,11 +33,31 @@ struct ImportLabView: View {
                     }
                 }
 
+                // The camera first, the library second: a reader holding the
+                // report in their hand is the common case, and until now the
+                // only route was to photograph it, leave the app, and come back
+                // to pick the photo they had just taken. The system scanner
+                // also does the two things a raw camera photo does not — edge
+                // detection and perspective correction — and a straight-on,
+                // cropped page is exactly what the OCR asks for in the failure
+                // message below.
+                if DocumentCameraView.isAvailable {
+                    Button {
+                        savedMessage = nil
+                        isScanning = true
+                    } label: {
+                        Label("Scan the report", systemImage: "doc.viewfinder")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+
                 PhotosPicker(selection: $pickerItem, matching: .images) {
                     Label("Choose a photo", systemImage: "photo.on.rectangle")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(DocumentCameraView.isAvailable ? .bordered : .borderedProminent)
                 .controlSize(.large)
 
                 if isProcessing {
@@ -64,7 +89,9 @@ struct ImportLabView: View {
                     }
                 } else if processedOnce && !isProcessing {
                     Card {
-                        Text("Couldn't find recognised values in that image. Try a sharper, straight-on photo, or add the numbers manually in Settings.")
+                        Text(pagesRead > 1
+                             ? "Couldn't find recognised values across those \(pagesRead) pages. Blood-test reports vary — you can add the numbers manually in Settings."
+                             : "Couldn't find recognised values in that image. Try a sharper, straight-on photo, or add the numbers manually in Settings.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
@@ -80,11 +107,51 @@ struct ImportLabView: View {
         .navigationTitle("Import")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: pickerItem) { _, newItem in process(newItem) }
+        .fullScreenCover(isPresented: $isScanning) {
+            DocumentCameraView { pages in
+                isScanning = false
+                process(pages)
+            }
+        }
+    }
+
+    /// Read a scan's pages and keep the first value found for each kind.
+    ///
+    /// **All the pages, not the first.** A pathology report runs to several
+    /// sheets and the panel this app reads is rarely on the one scanned first;
+    /// reading only page one would make a two-page report look unreadable.
+    ///
+    /// First-found wins per kind, in page order. A report that states a value
+    /// twice states it identically — a repeated cholesterol is the summary line
+    /// and the table row — so the tie-break only decides which of two equal
+    /// numbers is shown, and page order is the one the reader can predict.
+    private func process(_ pages: [PlatformImage]) {
+        guard !pages.isEmpty else { return }
+        savedMessage = nil
+        pagesRead = pages.count
+        Task {
+            isProcessing = true
+            defer { isProcessing = false; processedOnce = true }
+            var found: [LabReportParser.Extracted] = []
+            for page in pages {
+                for value in await scanner.extractLabValues(from: page)
+                where !found.contains(where: { $0.kind == value.kind }) {
+                    found.append(value)
+                }
+            }
+            extracted = found
+            if found.isEmpty {
+                DiagnosticsLog.shared.null("Import", "Scanned \(pages.count) page(s) — no recognised values")
+            } else {
+                DiagnosticsLog.shared.ok("Import", "Scanned \(pages.count) page(s) — \(found.count) value(s) found")
+            }
+        }
     }
 
     private func process(_ item: PhotosPickerItem?) {
         guard let item else { return }
         savedMessage = nil
+        pagesRead = 1
         Task {
             isProcessing = true
             defer { isProcessing = false; processedOnce = true }

@@ -522,6 +522,8 @@ the place to look.
   - `MedicationDataView` :59
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
+- `Features/Documents/DocumentCameraView.swift`
+  - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
 - `Features/Grounding/AddBloodPressureView.swift`

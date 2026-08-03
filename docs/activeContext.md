@@ -112,9 +112,17 @@ choice and will validate later.**
   as a question. **An answered question is not an open item** — check the prose
   under a `- [ ]` before assuming it is work.
 
+- **The blood test can be scanned rather than photographed-then-picked**
+  (`DocumentCameraView`). All pages, first value per kind wins.
+  `NSCameraUsageDescription` is in `Support/Info.plist` now — **without it the
+  camera does not prompt, it terminates the app**, and this is the app's first
+  camera use, so nothing had ever needed the key before.
+
 **What needs the phone when it reconnects** (nothing below is verified): the
-`+` on both new tabs and whether its placement is right, and the body-scan
-reminder's wording once a scan is 24+ days old.
+`+` on both new tabs and whether its placement is right; the body-scan
+reminder's wording once a scan is 24+ days old; the document scanner end to end
+(the permission prompt is the first thing to watch, then a multi-page report);
+and Body Composition's chart with a calorie line on it.
 
 **Session 23 (2026-08-03) — the OCR import is closed; the deploy path is fixed.**
 
