@@ -1,0 +1,32 @@
+The job failed before xcodebuild ran, so there is no build or install log.
+
+This is a runner fault, not the code: CI compiles the same commit on GitHub's
+runners, and signing and the phone are only reached later in this job.
+
+The one seen here: `##[error]Missing file at path:
+<runner>/_temp/_runner_file_commands/set_output_<uuid>` during Checkout — the
+runner lost the temp file backing $GITHUB_OUTPUT mid-step. Causes, in order:
+
+  1. **Two runner processes sharing one installation directory** — confirmed
+     here by the companion error `The file '<runner>/_diag/pages/<id>_<id>_1.log'
+     already exists.` A page log is named for the job, so a collision means two
+     listeners in one folder, each clearing _temp and _diag under the other.
+     Almost always the service and an interactive `./run.sh` both alive, which
+     the setup note at the top of this file invites by offering them as
+     alternatives.
+  2. The runner service restarting, or the Mac sleeping, mid-job.
+  3. Something outside Actions clearing the runner's _temp directory.
+
+Fix for (1), on the Mac, and only the Mac's owner can do it:
+
+    ps aux | grep -i '[R]unner.Listener'      # expect exactly one
+    cd ~/actions-runner && sudo ./svc.sh stop # then kill any stray ./run.sh
+    rm -rf _diag/pages                        # stale page logs
+    sudo ./svc.sh start                       # one listener, service only
+
+Then re-run: Actions ▸ Deploy ▸ Run workflow.
+
+⚠️ The `concurrency` group above serialises *runs*, which stops two deploys
+overlapping — it does **not** stop two listeners racing inside one install
+directory. Do not read a green deploy after this commit as evidence (1) is
+fixed; the duplicate process has to be cleared on the Mac.

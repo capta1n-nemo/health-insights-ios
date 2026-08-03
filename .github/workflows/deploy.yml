@@ -32,6 +32,11 @@ on:
 # `Missing file at path: …/_runner_file_commands/set_output_…`, which is how
 # four deploys died at *checkout* on 2026-08-03 with the build never started.
 #
+# ⚠️ **This is insurance, not the cure.** The Mac's actual fault that day was
+# two runner *processes* in one installation directory (`_diag/pages/<id>.log
+# already exists`), and serialising runs cannot stop two listeners racing. See
+# the "Record why it failed" step for the commands that clear it.
+#
 # ⚠️ **`cancel-in-progress` stays false on purpose.** The verdict step is
 # `if: always()`, so it runs on a cancellation too, and `job.status` for a
 # cancelled job is not `success` — a cancelled run would push
@@ -295,24 +300,7 @@ jobs:
           # signing and never the phone; say so, because "deploy failed" reads
           # as all three.
           if [ ! -s /tmp/deploy-errors.txt ]; then
-            cat > /tmp/deploy-errors.txt <<'WHY'
-The job failed before xcodebuild ran, so there is no build or install log.
-
-This is a runner fault, not the code: CI compiles the same commit on GitHub's
-runners, and signing and the phone are only reached later in this job.
-
-The one seen here: `##[error]Missing file at path:
-<runner>/_temp/_runner_file_commands/set_output_<uuid>` during Checkout — the
-runner lost the temp file backing $GITHUB_OUTPUT mid-step. Causes, in order:
-
-  1. Two jobs sharing this runner's _work folder (now prevented by the
-     `concurrency: deploy-to-iphone` group at the top of deploy.yml).
-  2. The runner service restarting, or the Mac sleeping, mid-job.
-  3. Something outside Actions clearing the runner's _temp directory.
-
-Fix: re-run the deploy (Actions ▸ Deploy ▸ Run workflow). If it repeats, check
-for a second runner registered against the same _work folder on the Mac.
-WHY
+            cp .github/deploy-prebuild-failure.txt /tmp/deploy-errors.txt
           fi
           blob=$(git hash-object -w /tmp/deploy-errors.txt)
           tree=$(printf '100644 blob %s\terrors.txt\n' "$blob" | git mktree)
