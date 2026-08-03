@@ -40,6 +40,14 @@ final class HealthKitService {
             (.bodyFatPercentage, .bodyFatPercentage, .percent()),
             (.leanBodyMass, .leanBodyMass, .gramUnit(with: .kilo)),
             (.height, .height, .meter()),
+            // **Apple Health already holds a waist**, and reading it costs one
+            // line. It is the single measurement `BuildAssessmentModel` needs,
+            // so a reader who has ever typed one into Health — or owns a scale
+            // or tape app that writes one — gets the RFM route without ever
+            // opening this app's scanner. Centimetres, because that is what
+            // `MetricType.waistCircumference` is defined in and the conversion
+            // belongs at this boundary rather than in the model.
+            (.waistCircumference, .waistCircumference, .meterUnit(with: .centi)),
             (.stepCount, .stepCount, .count()),
             (.activeEnergyBurned, .activeEnergyBurned, .kilocalorie()),
             // Promoted out of the raw pile because it earned a score: Apple's

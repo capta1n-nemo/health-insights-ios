@@ -269,6 +269,10 @@ the place to look.
   - `VitalDeparturePanel` :132
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
+- `Signals/BodyMeasurementSource.swift`
+  - `BodyMeasurementProvenance` :15
+  - `BodyMeasurementReconciliation` :88
+  - `SourcedMeasurement` :72
 - `Signals/BodyModelParameters.swift`
   - `BodyModelParameters` :110
   - `BodyStation` :11
