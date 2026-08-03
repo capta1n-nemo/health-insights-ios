@@ -1,10 +1,12 @@
-# Four planned modules — architecture of record
+# Planned modules — architecture of record
 
-_Written 2026-08-02 from the user's brief, alongside an outside (Gemini) analysis
-of their full export. **Module 1 is built; modules 3 and 4 have their maths
-built and their capture/UI outstanding; module 2 is next.** Each section gives
-the data models, the service interface, the algorithm, and the UI shape, in the
-order the brief asked for._
+_Modules 1–4 written 2026-08-02 from the user's brief, alongside an outside
+(Gemini) analysis of their full export; **5 and 6 added 2026-08-03 at the
+user's request** — metabolism speed, and nutrition capture. **Module 1 is
+built; modules 3 and 4 have their maths built and their capture/UI outstanding;
+module 2 is next; 5 and 6 are designed only.** Each section gives the data
+models, the service interface, the algorithm, and the UI shape, in the order the
+brief asked for._
 
 **Read `docs/architecture.md` first for the pipeline these plug into**, and the
 `add-metric-type` / `add-insight` skills before touching either registry — a new
@@ -172,9 +174,12 @@ public enum EnergyBalanceModel {
 kcalPerKilogram)` — the MacroFactor approach. Summing basal + active energy
 inherits every wearable's calibration error; the back-calculation only needs
 intake and the scale, and it self-corrects. It requires
-`HKQuantityTypeIdentifierDietaryEnergyConsumed`, which is sitting **unmodelled**
-in the export (107 readings, MyFitnessPal). Without intake the service returns
-`nil` and the card says so rather than guessing.
+`HKQuantityTypeIdentifierDietaryEnergyConsumed`, which **was** sitting
+unmodelled in the export (107 readings, MyFitnessPal) and is
+`MetricType.dietaryEnergy` as of 2026-08-03 — read from Apple Health and parsed
+from Shotsy's joules. **This service is unblocked.** Without intake it still
+returns `nil` and the card says so rather than guessing. What the reader asked
+for on top of the rate — a *speed*, and the medication question — is module 5.
 
 ---
 
@@ -510,10 +515,16 @@ struct SomatotypeCard: View {          // Body Composition's bespoke slot, neste
    functions, fully testable in the sandbox. The SwiftData models and onboarding
    flow follow; `MetricType.activeMedicationLevel` last, when the curve is
    trusted, because it is the expensive registration.
-4. **Module 1's TDEE half** — needs dietary energy promoted out of the raw pile
-   first.
+4. **Module 1's TDEE half** — **unblocked 2026-08-03**, when dietary energy
+   became a `MetricType`. Pure InsightKit maths, testable today.
 5. **Modules 3 and 4** — the maths first (RFM, somatotype components are pure
    and testable); the LiDAR capture last, since only the device can run it.
+6. **Module 5 (metabolism speed)** follows straight on from 4 — it is the same
+   back-calculation plus a prediction to divide it by, and every input already
+   exists. All InsightKit, all testable in the sandbox; only the card's layout
+   needs the phone.
+7. **Module 6 (nutrition)** — the capture is a promotion job and can go any
+   time; the card wants the one decision below settled first.
 
 ## Open decisions for the user
 
@@ -525,6 +536,12 @@ struct SomatotypeCard: View {          // Body Composition's bespoke slot, neste
   simplest is a single stated goal (lose / maintain / gain) in grounding.
 - **Module 2 is medical.** Confirm the posture: describe and project, never
   recommend; inferred titration always confirmed before it counts.
+- **Does any nutrition row carry a published reference band?** See module 6.
+  Calorie targets stay refused; a protein floor for preserving lean mass during
+  rapid weight loss is the arguable case, and it is the user's call.
+- **Module 5 will sometimes report a metabolism "faster" than predicted, and
+  the honest first explanation is an incomplete food log.** Confirm that the
+  card should say so plainly rather than let the flattering reading stand.
 
 ---
 
@@ -648,3 +665,190 @@ until it is known the labels should stay conservative.
 **Do not** treat the review as validation of our own estimates. It reviews one
 commercial tool's method; it says nothing about a girth this app inferred from
 height, weight and body fat.
+
+---
+
+## 5. Metabolism speed — the card (user request, 2026-08-03)
+
+The user's ask, in their words: *"I'm always wanting to know how fast my
+metabolism is at the moment, and how it's sped up by Mounjaro or similar
+medications, and how it's helping me lose weight — or making it harder."*
+
+**The service for this is already designed above** — `EnergyBalanceModel`, the
+back-calculated TDEE in Module 1 — and **its blocker was removed on
+2026-08-03**: dietary energy is `MetricType.dietaryEnergy` now, parsed from
+Shotsy's joules and read from Apple Health. What is missing is the rest: a
+*speed* rather than a rate, the medication question, and a card to put them on.
+
+### The number the user is actually asking for
+
+TDEE in kcal/day answers "how much do I burn", not "is my metabolism fast".
+Fast is a **comparison**, so the card's headline figure is a ratio:
+
+```
+speed = observedTDEE / predictedTDEE
+```
+
+- **Observed** is the back-calculation already specified:
+  `meanIntake + kgLostPerDay × kcalPerKilogram`. It is the only route to a
+  measured-ish figure — summing basal + active inherits every wearable's
+  calibration error, and Apple's own basal energy is a *formula*, not a
+  measurement (see the trap below).
+- **Predicted** is `BMR + meanActiveEnergy + TEF`, where:
+  - `BMR` is **Katch-McArdle when lean body mass is known** (`370 + 21.6 × LBM`),
+    Mifflin-St Jeor otherwise. This app has lean mass from Withings and Shotsy,
+    which is exactly the case where Katch-McArdle is the better instrument;
+  - `meanActiveEnergy` is measured (`activeEnergyBurned`), not a lifestyle PAL
+    multiplier somebody picked off a dropdown;
+  - `TEF` ≈ 10% of intake, the conventional figure.
+
+So 100% is "exactly what your size and your movement predict", below is
+suppression, above is — usually — **not a fast metabolism**, see next.
+
+### The failure mode that has to be on the card, not in a footnote
+
+The back-calculation attributes **every** logging error to metabolism. A reader
+who under-reports by 400 kcal/day gets a number that says their metabolism is
+20% faster than predicted, and it is the most flattering possible reading of an
+incomplete food diary. Under-reporting is not a fringe case: it is the normal
+finding in the literature, routinely 20–30%.
+
+Therefore:
+
+1. **Logging completeness is a gate, not a caveat.** Days with intake ÷ days in
+   the window, and below ~80% the card says "can't judge" rather than printing a
+   number — the same shape as `ActivityDoseModel`'s three-recorded-day floor.
+2. **A speed above ~110% names under-logging first**, in the driver line, before
+   any metabolic reading. That is the honest ordering of explanations.
+3. **Two weeks minimum, four preferred**, on a *smoothed* weight trend. Water
+   weight swamps a fortnight of real change and endpoints are the worst possible
+   estimator of it; the velocity machinery from Module 1 already smooths.
+
+### The Mounjaro question, answered honestly
+
+Two quantities can produce weight loss and the reader wants to know which one
+the drug moved. The card splits it:
+
+- **Intake**, measured from `dietaryEnergy`.
+- **Expenditure**, from the observed TDEE above.
+
+Both are already dated series, `activeMedicationLevel` is a third, and the
+before/after window machinery plus the exponential load kernel exist in
+Substance Impact — this is that shape with a different pair of quantities.
+
+**What the evidence supports, and what the card must therefore not say.**
+GLP-1 receptor agonists act principally by reducing intake. Resting expenditure
+generally *falls* during weight loss, because a smaller body costs less to run;
+the live research question is whether it falls more than body size alone
+predicts. So:
+
+- The expected honest finding is **"the drug moved what you eat, not what you
+  burn"**, with both numbers stated.
+- **Never "Mounjaro speeds up your metabolism."** No such effect is
+  established, and if this card's ratio rises during treatment the more likely
+  explanation is that logging got worse as appetite fell — which the card should
+  say in the same breath.
+- The claim that *is* worth making, and is this card's real contribution:
+  **observed TDEE against predicted-for-your-current-size**, tracked across the
+  medication period. That is adaptive thermogenesis, it is what "my metabolism
+  has slowed" actually means, and nothing else in the app can see it.
+
+### The trap: Apple's basal energy is not a measurement
+
+`HKQuantityTypeIdentifierBasalEnergyBurned` sits in the raw pile and is
+tempting. **Do not promote it as "your metabolism."** Apple derives it from
+height, weight, age and sex — it is a formula the phone evaluated, so charting
+it as a measured metabolic rate is precisely the modelled-dressed-as-measured
+failure `MetricSource.calculated` exists to prevent. It is legitimate only as a
+labelled comparator beside the prediction, and even then it adds little the
+Katch-McArdle line does not.
+
+### A refinement worth having, but not first
+
+`kcalPerKilogram = 7,700` is a whole-body average. Fat tissue is ~9,400 kcal/kg
+and lean ~1,800, and on a GLP-1 the lean fraction of loss is not negligible.
+Where body fat percentage is trending, split the loss and weight the two — it
+moves the observed figure by a few per cent, which matters only once the logging
+gate above is being met.
+
+### Shape
+
+- Its own `InsightID` (`.metabolism`), trend cadence — see the `add-insight`
+  skill for the five switches and two silent registrations.
+- Contributors: `dietaryEnergy`, `bodyMass`, `activeEnergyBurned`,
+  `leanBodyMass`, `activeMedicationLevel`.
+- Requirements: date of birth, sex, height — all existing grounding facts, all
+  needed by the prediction rather than by the observation, so a reader without
+  them still gets a TDEE and loses only the ratio.
+- Sections, in the order the questions arrive: the speed ratio with its
+  confidence; observed against predicted; where the deficit comes from (ate
+  less / moved more); what that predicts for the week's weight; and the
+  medication panel when a regimen exists.
+
+---
+
+## 6. Nutrition capture and its card (user request, 2026-08-03)
+
+The user's ask: *"a nutrition card in future, to capture all nutrition possible
+from all sources."*
+
+**Capture first, card second** — and the capture is mostly a promotion job
+rather than new plumbing.
+
+### What is already arriving and going nowhere
+
+- **Apple Health** writes ~25 dietary identifiers into this app's raw "other
+  data" bucket today: carbohydrates, fibre, sugar, total/saturated/mono/poly
+  fat, cholesterol, protein, sodium, potassium, calcium, iron, water, caffeine
+  and the rest. Nothing reads any of them.
+- **Shotsy** carries protein, fat, carbs and fibre, with the kg → g conversions
+  already worked out in `ShotsyUnit.pendingNutritionKinds`.
+- **The camera route** (meal photo → on-device extraction) is already on the
+  roadmap under camera-based input, and is the only one of the three that needs
+  a model rather than a mapping.
+
+### The promotion, and where to stop
+
+First-class `MetricType`s for the four that have a reader in sight — **protein,
+carbohydrates, total fat, fibre** — in grams, plus water and caffeine, which
+earn their place for different reasons (hydration; caffeine already meets the
+substance log and sleep onset). Everything else stays in the raw layer, visible
+in the Data tab and unscored: per "a metric with no reader is invisible", four
+more series nobody consults would be four charts nobody asked for.
+
+The Nutrition data-tab group and the `.nutrition` metric family exist as of
+2026-08-03 — they arrived with dietary energy, so the macros inherit both.
+
+### What the card can honestly say
+
+- **Composition** — the protein/carb/fat split, and how it moves.
+- **Consistency** — how much intake varies day to day, which is a description
+  rather than a judgement.
+- **Completeness** — how many days were logged. This is the same figure the
+  metabolism card gates on, and the two must read it from one place: a card
+  saying "well logged" beside a card saying "can't judge" is one number
+  disagreeing with itself.
+- **Relationships from the reader's own history**, the app's existing strongest
+  claim: protein against lean-mass retention while weight falls; caffeine
+  against sleep onset; fibre and water against whatever they track with.
+
+### The decision this needs from the user
+
+**Does any nutrition row get a published reference band?** The app refuses
+calorie targets deliberately, and that stays. Protein is the arguable case:
+there is real evidence for a protein floor to preserve lean mass during rapid
+weight loss, which is exactly the reader's situation on a GLP-1, and the app
+already carries one published dose (WHO's 150–300 exercise minutes) with its
+provenance stated. A protein floor is closer to that than to a calorie target —
+but it is still dietary guidance, and **it is the user's call, not a session's.**
+
+Everything else on the card is descriptive and needs no such decision.
+
+### Order
+
+Nutrition capture is **not** a blocker for the metabolism card — calories are
+modelled already and calories are what the back-calculation needs. It is a
+blocker for the metabolism card's *confidence* being any good, because a reader
+who logs food properly is the reader whose energy balance can be trusted. Build
+the promotion first, the card second, and let the metabolism card land whenever
+it is ready.

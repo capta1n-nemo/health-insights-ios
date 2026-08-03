@@ -46,13 +46,22 @@ section it sits in rather than by judgement:
 | 17 | Travel drain | Three insight cards the user asked for | next |
 | 18 | Stress card | Three insight cards the user asked for | next |
 | 19 | Work impact | Three insight cards the user asked for | next |
-| 20 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 21 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 22 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 23 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 24 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 25 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 26 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 20 | `EnergyBalanceModel` — the back-calculation | Metabolism speed — the card the user asked for | next |
+| 21 | The speed ratio — observed ÷ predicted | Metabolism speed — the card the user asked for | next |
+| 22 | The logging gate, which is the whole card's honesty | Metabolism speed — the card the user asked for | next |
+| 23 | The medication panel | Metabolism speed — the card the user asked for | next |
+| 24 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
+| 25 | Promote the macros | Nutrition — capture everything, then the card | next |
+| 26 | The card — composition, consistency and completeness, plus the relationships… | Nutrition — capture everything, then the card | next |
+| 27 | Decision for the user: does any nutrition row carry a published reference ban… | Nutrition — capture everything, then the card | next |
+| 28 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
+| 29 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 30 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 31 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 32 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 33 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 34 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 35 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1442,6 +1451,85 @@ machinery exists — what each of these needs is a *source of events*.
 **The common blocker is an event source, not modelling.** A calendar connector
 would unlock two of the three, and the timezone signal would unlock travel
 without any new permission at all.
+
+### Metabolism speed — the card the user asked for (2026-08-03)
+
+*"I'm always wanting to know how fast my metabolism is at the moment, and how
+it's sped up by Mounjaro or similar medications, and how it's helping me lose
+weight — or making it harder."*
+
+**Designed in `docs/planned-modules.md` ▸ module 5. Read that before building —
+it carries the algorithm, the failure mode and the two things this card must
+never say.** The short version: the back-calculated TDEE service
+(`EnergyBalanceModel`) was designed in module 1 and blocked on dietary energy,
+which **stopped being a blocker on 2026-08-03**. Everything below is now
+buildable in the sandbox.
+
+- [ ] **`EnergyBalanceModel` — the back-calculation.** `meanIntake +
+      kgLostPerDay × 7,700`, on a smoothed weight trend over 14 days minimum
+      and 28 preferred. Summing basal + active instead would inherit every
+      wearable's calibration error; this only needs the scale and the food log,
+      and it self-corrects.
+- [ ] **The speed ratio — observed ÷ predicted.** A rate in kcal/day does not
+      answer "is my metabolism fast"; a comparison does. Predicted is
+      Katch-McArdle where lean mass is known (this app has it from Withings and
+      Shotsy), Mifflin-St Jeor otherwise, plus *measured* active energy and a
+      10% thermic effect — never a lifestyle multiplier off a dropdown.
+- [ ] **The logging gate, which is the whole card's honesty.** The
+      back-calculation charges every logging error to metabolism, so
+      under-reporting reads as a fast metabolism — and under-reporting is the
+      normal finding, routinely 20–30%. Below ~80% of days logged the card says
+      "can't judge" (the `ActivityDoseModel` floor's shape), and a ratio above
+      ~110% names the food log first, before any metabolic reading.
+- [ ] **The medication panel.** Intake and expenditure are both dated series and
+      `activeMedicationLevel` is a third, so this is Substance Impact's
+      before/after shape with a different pair of quantities. The expected
+      honest finding is *"the drug moved what you eat, not what you burn"*.
+      **"Mounjaro speeds up your metabolism" is a claim this card must never
+      make** — no such effect is established, and a rising ratio during
+      treatment is more likely a food log that got worse as appetite fell. What
+      it *can* say, and what nothing else in the app can see: observed against
+      predicted-for-your-current-size, tracked across the treatment period —
+      which is what "my metabolism has slowed" actually means.
+**The trap, which is a rule rather than a task:** do not promote Apple's
+`basalEnergyBurned` as "your metabolism". It is a formula the phone evaluated
+from height, weight, age and sex — the modelled-dressed-as-measured failure
+this app has rules against. A labelled comparator at most.
+
+- [ ] **Composition-aware kcal/kg, later.** Fat is ~9,400 kcal/kg and lean
+      ~1,800 against the blanket 7,700, and on a GLP-1 the lean fraction of loss
+      is not negligible. Worth a few per cent, once the logging gate is being
+      met.
+
+### Nutrition — capture everything, then the card (2026-08-03)
+
+*"A nutrition card in future, to capture all nutrition possible from all
+sources."* Designed in `docs/planned-modules.md` ▸ module 6.
+
+- [ ] **Promote the macros.** Protein, carbohydrates, total fat and fibre as
+      `MetricType`s in grams, plus water and caffeine. Apple Health already
+      writes ~25 dietary identifiers into the raw pile and Shotsy carries four
+      with the conversions worked out (`ShotsyUnit.pendingNutritionKinds`) — so
+      most of this is promotion, not plumbing. The `.nutrition` family and the
+      Nutrition data-tab group arrived with dietary energy on 2026-08-03 and the
+      macros inherit both. Everything past those six stays raw and visible: a
+      metric no card consults is a chart nobody asked for.
+- [ ] **The card** — composition, consistency and completeness, plus the
+      relationships the reader's own history supports (protein against lean-mass
+      retention while weight falls; caffeine against sleep onset). Completeness
+      must be the *same* figure the metabolism card gates on, read from one
+      place, or two cards will disagree about how well the reader logs.
+- [ ] **Decision for the user: does any nutrition row carry a published
+      reference band?** Calorie targets stay refused. Protein is the arguable
+      case — real evidence for a floor that preserves lean mass during rapid
+      weight loss, which is this reader's exact situation, and the app already
+      ships one published dose (WHO's exercise minutes) with its provenance
+      stated. Still dietary guidance, so it is the user's call and not a
+      session's.
+- [ ] **Meal photo → nutrition** is the camera half, already on the roadmap
+      under camera-based input. It is the only one of the three sources that
+      needs a model rather than a mapping, and the accuracy claim needs the same
+      honesty framework as the BP estimator.
 
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸

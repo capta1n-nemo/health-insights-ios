@@ -118,6 +118,24 @@ choice and will validate later.**
   camera does not prompt, it terminates the app**, and this is the app's first
   camera use, so nothing had ever needed the key before.
 
+**Two cards were added to the roadmap at the user's request (2026-08-03):
+metabolism speed, and nutrition.** Designed in `docs/planned-modules.md` ▸
+modules 5 and 6; nine open items in `progress.md`. Two things a future session
+should not re-derive:
+
+- **The metabolism service was already designed** (module 1's
+  `EnergyBalanceModel`) and blocked on dietary energy — **that blocker went the
+  same day**, so it is buildable in the sandbox now. What the user asked for on
+  top of it is a *speed*: observed TDEE ÷ predicted, because a rate in kcal/day
+  does not answer "is my metabolism fast".
+- **The card's honesty rests on one gate.** The back-calculation charges every
+  logging error to metabolism, so an incomplete food log reads as a fast
+  metabolism — and under-reporting is the normal finding, 20–30%. The card
+  gates on logging completeness and names the food log before any metabolic
+  reading. And it must never say a GLP-1 speeds metabolism up: the evidence is
+  that these drugs move intake, and a rising ratio on treatment is more likely
+  a log that got worse as appetite fell.
+
 **What needs the phone when it reconnects** (nothing below is verified): the
 `+` on both new tabs and whether its placement is right; the body-scan
 reminder's wording once a scan is 24+ days old; the document scanner end to end
