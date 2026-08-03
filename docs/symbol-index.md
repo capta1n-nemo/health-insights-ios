@@ -289,6 +289,8 @@ the place to look.
 - `Signals/BodyScanPolicy.swift`
   - `BodyScanAsset` :6
   - `BodyScanPolicy` :79
+- `Signals/BodySymmetry.swift`
+  - `BodySymmetry` :19
 - `Signals/BuildAssessment.swift`
   - `BodyDimensions` :9
   - `BuildAssessment` :49
@@ -308,6 +310,10 @@ the place to look.
   - `MedicationScanner` :338
   - `PharmacokineticsModel` :115
   - `TitrationEngine` :244
+- `Signals/PostureAssessment.swift`
+  - `JointPosition` :11
+  - `PostureAssessment` :52
+  - `PostureJoint` :28
 - `Signals/ScanComparability.swift`
   - `ScanComparability` :22
 - `Signals/SleepNights.swift`
