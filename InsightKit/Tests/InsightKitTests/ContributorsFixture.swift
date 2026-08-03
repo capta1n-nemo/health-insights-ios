@@ -34,7 +34,14 @@ enum ContributorsFixture {
             // Charted by Body Composition at weight 0. Here for the same
             // reason the promoted vitals are: a card that declares it has to
             // be given something to report, or "full coverage" is not.
-            .dietaryEnergy: 2100
+            .dietaryEnergy: 2100,
+            // A day's eating that lands near the published figures rather than
+            // on them — a fixture sitting exactly on every threshold would let
+            // a curve with the wrong shape pass.
+            .dietaryProtein: 110, .dietaryCarbohydrates: 220, .dietaryFat: 70,
+            .dietarySaturatedFat: 20, .dietarySugar: 60, .dietaryFibre: 26,
+            .dietarySodium: 2300, .dietaryPotassium: 3200, .dietaryWater: 2.0,
+            .dietaryCaffeine: 180
         ]
         var out: [HealthMetricSample] = []
         for i in stride(from: days - 1, through: 0, by: -1) {

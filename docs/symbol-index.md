@@ -100,14 +100,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :68
-  - `InsightCadence` :37
-  - `InsightConfidence` :60
-  - `InsightDriver` :96
+  - `GroundingRequirement` :73
+  - `InsightCadence` :42
+  - `InsightConfidence` :65
+  - `InsightDriver` :101
   - `InsightID` :15
-  - `InsightModel` :288
-  - `InsightResult` :113
-  - `RequirementStatus` :84
+  - `InsightModel` :293
+  - `InsightResult` :118
+  - `RequirementStatus` :89
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -119,6 +119,9 @@ the place to look.
   - `MetricPattern` :16
   - `PatternFinder` :48
   - `PatternKind` :4
+- `Insights/NutritionInsight.swift`
+  - `NutritionInsight` :282
+  - `NutritionModel` :19
 - `Insights/PeerStanding.swift`
   - `PeerStandingModel` :21
 - `Insights/PeriodContrast.swift`
@@ -224,7 +227,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :49
+  - `InsightPalette` :50
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14

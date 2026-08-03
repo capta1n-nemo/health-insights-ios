@@ -58,26 +58,24 @@ section it sits in rather than by judgement:
 | 22 | The logging gate, which is the whole card's honesty | Metabolism speed — the card the user asked for | next |
 | 23 | The medication panel | Metabolism speed — the card the user asked for | next |
 | 24 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
-| 25 | Promote the macros | Nutrition — capture everything, then the card | next |
-| 26 | The card — composition, consistency and completeness, plus the relationships… | Nutrition — capture everything, then the card | next |
-| 27 | Fixed bands go in `referenceRange`; relative ones cannot | Nutrition — capture everything, then the card | next |
-| 28 | Energy keeps no band on its chart, and that is not a refusal of guidance | Nutrition — capture everything, then the card | next |
-| 29 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 30 | Symptoms — the strongest candidate, and it connects to something the app alre… | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Hearing | Every domain of health — the direction, and what is already arriving | next |
-| 32 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
-| 33 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
-| 34 | Mind | Every domain of health — the direction, and what is already arriving | next |
-| 35 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
-| 36 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
-| 37 | Oral health | Every domain of health — the direction, and what is already arriving | next |
-| 38 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 39 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 40 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 41 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 42 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 43 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 44 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 25 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
+| 26 | One completeness figure, read from one place | Nutrition — capture everything, then the card | next |
+| 27 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
+| 28 | Symptoms — the strongest candidate, and it connects to something the app alre… | Every domain of health — the direction, and what is already arriving | next |
+| 29 | Hearing | Every domain of health — the direction, and what is already arriving | next |
+| 30 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
+| 32 | Mind | Every domain of health — the direction, and what is already arriving | next |
+| 33 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
+| 34 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
+| 35 | Oral health | Every domain of health — the direction, and what is already arriving | next |
+| 36 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 37 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 38 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 39 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 40 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 41 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 42 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1522,19 +1520,43 @@ this app has rules against. A labelled comparator at most.
 *"A nutrition card in future, to capture all nutrition possible from all
 sources."* Designed in `docs/planned-modules.md` ▸ module 6.
 
-- [ ] **Promote the macros.** Protein, carbohydrates, total fat and fibre as
-      `MetricType`s in grams, plus water and caffeine. Apple Health already
+- [x] **The macros are promoted** (2026-08-03) — ten of them, not six:
+      protein, carbohydrates, total fat, saturated fat, sugar, fibre, sodium,
+      potassium, water and caffeine. Sugar, saturated fat, sodium and potassium
+      joined the list because the published figures the user approved name them.
+      Original scope for the record: protein, carbohydrates, total fat and fibre
+      as `MetricType`s in grams, plus water and caffeine. Apple Health already
       writes ~25 dietary identifiers into the raw pile and Shotsy carries four
       with the conversions worked out (`ShotsyUnit.pendingNutritionKinds`) — so
       most of this is promotion, not plumbing. The `.nutrition` family and the
       Nutrition data-tab group arrived with dietary energy on 2026-08-03 and the
       macros inherit both. Everything past those six stays raw and visible: a
       metric no card consults is a chart nobody asked for.
-- [ ] **The card** — composition, consistency and completeness, plus the
-      relationships the reader's own history supports (protein against lean-mass
-      retention while weight falls; caffeine against sleep onset). Completeness
-      must be the *same* figure the metabolism card gates on, read from one
-      place, or two cards will disagree about how well the reader logs.
+- [x] **The card ships** (2026-08-03). `NutritionInsight` / `NutritionModel`,
+      `InsightID.nutrition`, on the Insights tab. Eight scored terms, each
+      naming the body whose figure it uses — protein per kg (WHO/FAO 0.83 safe
+      intake, 1.2–1.6 g/kg for holding lean mass in rapid loss, **a floor at the
+      user's request**), fibre (EFSA/SACN), saturated fat and total fat as
+      percentages of energy (WHO), sodium and potassium (WHO), water (EFSA,
+      sex-specific and discounted to what drinks carry), caffeine (EFSA).
+      Three rows are charted and unscored with the reason on each: calories (no
+      published figure says what one person should eat), carbohydrates (the
+      guidance is about which, not how many grams), and **sugar — because
+      HealthKit reports total sugars while WHO's under-10% figure limits *free*
+      sugars, so scoring one against the other would mark a reader down for
+      eating fruit.** Completeness leads the card and is notable below 80%.
+      11 tests, including a 4,000-point sweep of all eight curves.
+- [ ] **The relationships from the reader's own history** — protein against
+      lean-mass retention while weight falls, caffeine against sleep onset. The
+      card scores against published figures today and says nothing yet about
+      what the reader's own data shows, which is this app's strongest claim
+      elsewhere. Split out rather than left inside the item above, because a
+      multi-clause `[x]` hiding an unfinished clause is how six of them once
+      survived a "closed" list.
+- [ ] **One completeness figure, read from one place.** The nutrition card
+      computes logged-days itself and the metabolism card will need the same
+      number to gate on. Two cards disagreeing about how well the reader logs is
+      one number contradicting itself — extract it when the second card lands.
 - [x] **Decided 2026-08-03 — published reference bands are wanted.** The
       user's words: *"I am happy with all dietary guidelines, why wouldn't I
       be?"* So a nutrition row may carry a band from a named body with its
@@ -1542,7 +1564,13 @@ sources."* Designed in `docs/planned-modules.md` ▸ module 6.
       minutes. **What this licenses is a published band, not an app-invented
       target** — the rule that survives is the one about provenance, not a
       refusal.
-- [ ] **Fixed bands go in `referenceRange`; relative ones cannot.** Only four of
+- [x] **Done 2026-08-03 — and the `Band` type made two more of them fit than
+      expected.** Its bounds are optional, so a floor with no ceiling ("at least
+      25 g of fibre") draws honestly: fibre, potassium, sodium and caffeine all
+      carry real bands with their sources on the caption. The finding worth
+      keeping: a floor is expressible, so check the type before concluding a
+      published figure has no home. Original wording:
+      **Fixed bands go in `referenceRange`; relative ones cannot.** Only four of
       the published figures are absolute and can live on the metric: fibre
       (EFSA 25 g, SACN 30 g), sodium (WHO < 2,000 mg), potassium (WHO ≥ 3,510
       mg) and caffeine (EFSA ≤ 400 mg habitual). Protein is **per kilogram**
@@ -1553,8 +1581,9 @@ sources."* Designed in `docs/planned-modules.md` ▸ module 6.
       food included). Those four belong in the card's own table, the way
       `HeartHealthScore` holds the age-and-sex VO₂max tables and
       `MetricType.vo2Max` returns nil.
-- [ ] **Energy keeps no band on its chart, and that is not a refusal of
-      guidance.** Published energy requirements are a *personal calculation*
+- [x] **Done 2026-08-03 — energy keeps no band, and the nutrition card says
+      why on the row.** Original wording: **Energy keeps no band on its chart,
+      and that is not a refusal of guidance.** Published energy requirements are a *personal calculation*
       rather than a population band, and a deliberate deficit is the entire
       point for a reader on a GLP-1 — a band would mark intentional loss as
       out-of-range. The guidance still appears, as the metabolism card's

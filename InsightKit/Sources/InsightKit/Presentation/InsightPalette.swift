@@ -34,6 +34,7 @@ public extension InsightID {
         case .cardiovascularRisk: return 6
         case .bloodPressure: return 7
         case .bodyComposition: return 8
+        case .nutrition: return 9
         }
     }
 }

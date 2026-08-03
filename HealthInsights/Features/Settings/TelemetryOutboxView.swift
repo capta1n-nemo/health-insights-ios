@@ -84,6 +84,7 @@ struct TelemetryOutboxView: View {
             case .sleep: return "Sleep"
             case .energy: return "Energy"
             case .substanceImpact: return "Substance impact"
+            case .nutrition: return "Nutrition"
             case .heartHealth: return "Heart health"
             case .fitness: return "Fitness"
             case .cardiovascularRisk: return "Heart attack & stroke risk"

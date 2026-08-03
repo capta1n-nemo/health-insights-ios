@@ -29,6 +29,11 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     case readiness
     case energy
     case substanceImpact
+    /// What the reader eats, against published guidance. Its own card rather
+    /// than a section of Body Composition: the guidance it scores against is
+    /// nothing to do with weight, and it applies to a reader who is not trying
+    /// to change their weight at all.
+    case nutrition
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

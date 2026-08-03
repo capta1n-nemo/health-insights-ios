@@ -206,6 +206,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Nutrition | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Four cards
 draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
@@ -418,6 +419,7 @@ invalidates.
 | Heart Attack & Stroke Risk | trend | 10 | `.groundingFacts` | heart age |
 | Blood Pressure | trend | 2 | `.bloodPressureReadings` (override) | — |
 | Body Composition | trend | 2 | `.groundingFacts` | — |
+| Nutrition | trend | 1 (sex, optional) | `.groundingFacts` | — |
 
 ### How each card's number divides
 

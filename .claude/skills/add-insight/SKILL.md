@@ -19,7 +19,7 @@ card on the wrong tab.
 persisted (`InsightScoreRecord`, feedback, telemetry), so **renaming an existing
 case orphans stored history**. Choose the name once.
 
-## 2. Five switches, two targets
+## 2. Six switches, two targets
 
 | File | Symbol | Exhaustive? |
 | --- | --- | --- |
@@ -28,6 +28,12 @@ case orphans stored history**. Choose the name once.
 | `HealthInsights/Features/Settings/TelemetryOutboxView.swift` | `prettyInsight` | **yes — compile error** |
 | `HealthInsights/Features/Dashboard/DashboardView.swift` | `iconName` | **yes — compile error** |
 | `InsightKit/.../Presentation/InsightPalette.swift` | `colourSlot` | **yes — compile error** |
+| `InsightKit/.../Presentation/BalanceWeb.swift` | `shortTitle` | **yes — compile error** |
+
+**`shortTitle` was the sixth, and this table said five until 2026-08-03**, when
+adding `.nutrition` broke on it. It is the one-word label the balance web rings
+its circle with, exhaustive on purpose so a new insight gets a compile error
+asking for its word rather than an ellipsis chosen for it.
 
 `cadence` decides the tab: `.daily` → Today, `.trend` → Insights. The deep-dive
 cards (lagged correlation, period contrast) are gated on `.trend`.

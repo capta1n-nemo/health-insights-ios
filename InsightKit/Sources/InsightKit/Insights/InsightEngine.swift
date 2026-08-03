@@ -25,7 +25,8 @@ public struct InsightEngine: Sendable {
             FitnessInsight(),
             CardiovascularRiskInsight(preferredEngine: .combined),
             BloodPressureInsight(),
-            BodyCompositionInsight()
+            BodyCompositionInsight(),
+            NutritionInsight()
         ]
     }
 

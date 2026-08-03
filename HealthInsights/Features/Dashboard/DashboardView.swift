@@ -363,6 +363,7 @@ struct InsightCard: View {
         case .sleep: return "moon.stars.fill"
         case .energy: return "bolt.batteryblock"
         case .substanceImpact: return "wineglass"
+        case .nutrition: return "carrot"
         case .heartHealth: return "heart.fill"
         case .fitness: return "figure.run"
         case .cardiovascularRisk: return "waveform.path.ecg"
