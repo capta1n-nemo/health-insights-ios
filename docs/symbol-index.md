@@ -508,11 +508,13 @@ the place to look.
   - `LastNightCard` :159
   - `TodayView` :8
   - `VitalsGlance` :234
+- `Features/Data/BodyScanDataView.swift`
+  - `BodyScanDataView` :14
 - `Features/Data/CardDataView.swift`
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :442
+  - `OtherDataDetailView` :482
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
@@ -592,8 +594,8 @@ the place to look.
   - `OnboardingView` :7
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :293
-  - `OtherDataListView` :306
+  - `FullExport` :294
+  - `OtherDataListView` :307
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :269
   - `IntegrationRow` :170

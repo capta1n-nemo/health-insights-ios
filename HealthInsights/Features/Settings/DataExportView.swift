@@ -259,6 +259,7 @@ struct DataExportView: View {
             sideEffects: model.sideEffects.map {
                 .init(name: $0.name, severity: $0.severity, date: $0.date)
             },
+            bodyScans: model.bodyScans,
             profile: model.profile,
             derivedScores: model.results.map { result in
                 HealthDataExport.DerivedScore(

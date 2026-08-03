@@ -125,6 +125,10 @@ struct DataTabView: View {
                            medication.compound?.displayName ?? "")
         case .sideEffects:
             return !filteredSideEffects.isEmpty
+        case .bodyScans:
+            guard !model.bodyScans.isEmpty else { return false }
+            return matches(domain.title, "body", "measurement", "scan", "waist",
+                           "hip", "chest", "tape")
         case .derivedScores:
             return model.results.contains { $0.score != nil }
                 && (matches(domain.title, "score", "estimate", "risk", "heart age")
@@ -222,6 +226,7 @@ struct DataTabView: View {
         case .substances: substanceSection
         case .medication: medicationSection
         case .sideEffects: sideEffectSection
+        case .bodyScans: bodyScanSection
         case .derivedScores: derivedScoreSection
         case .unmodelled: otherDataSection
         }
@@ -316,6 +321,41 @@ struct DataTabView: View {
     /// — no sub-page, no way to see the seventh, and a second one logged from
     /// the `+` menu could not even reach it. The row shows the newest and the
     /// count; the page holds the rest.
+    /// Body measurements, as a shape rather than a series.
+    ///
+    /// The seven promoted sites also chart under Measurements — that is not a
+    /// duplicate. This row is about the *scan*: when, how, under what
+    /// conditions, and whether it can still be re-derived. None of that fits a
+    /// metric row, which is why `DataDomain.bodyScans` exists at all.
+    @ViewBuilder private var bodyScanSection: some View {
+        if let latest = model.bodyScans.first {
+            Section {
+                NavigationLink {
+                    BodyScanDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(latest.mode.displayName)
+                            Spacer()
+                            Text("\(latest.measurements.sites.count) sites")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                            Text("· \(latest.capturedAt.formatted(.relative(presentation: .named)))")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        Text(model.bodyScans.count == 1
+                             ? "1 measurement session"
+                             : "\(model.bodyScans.count) measurement sessions")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.bodyScans.title)
+            } footer: {
+                Text(DataDomain.bodyScans.summary)
+            }
+        }
+    }
+
     @ViewBuilder private var sideEffectSection: some View {
         let effects = filteredSideEffects
         if !effects.isEmpty {

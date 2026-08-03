@@ -113,6 +113,8 @@ public struct HealthDataExport: Encodable, Sendable {
     public let substances: [SubstanceEvent]
     public let medication: Medication?
     public let sideEffects: [SideEffect]
+    /// Every body scan, whole — measurements, conditions and capture method.
+    public let bodyScans: [BodyScan]
     /// The standing facts the reader entered: age, sex, cholesterol, weight goal.
     public let profile: UserHealthProfile
     /// What each card computed from all of the above.
@@ -121,7 +123,8 @@ public struct HealthDataExport: Encodable, Sendable {
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
                 substances: [SubstanceEvent], medication: Medication?,
-                sideEffects: [SideEffect], profile: UserHealthProfile,
+                sideEffects: [SideEffect], bodyScans: [BodyScan] = [],
+                profile: UserHealthProfile,
                 derivedScores: [DerivedScore]) {
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
@@ -131,6 +134,7 @@ public struct HealthDataExport: Encodable, Sendable {
         self.substances = substances
         self.medication = medication
         self.sideEffects = sideEffects
+        self.bodyScans = bodyScans
         self.profile = profile
         self.derivedScores = derivedScores
     }
@@ -151,6 +155,7 @@ public struct HealthDataExport: Encodable, Sendable {
         case .substances: return "substances"
         case .medication: return "medication"
         case .sideEffects: return "sideEffects"
+        case .bodyScans: return "bodyScans"
         case .derivedScores: return "derivedScores"
         case .unmodelled: return "unmodelled"
         }
@@ -172,7 +177,7 @@ public struct HealthDataExport: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
-        case medication, sideEffects, profile, derivedScores
+        case medication, sideEffects, bodyScans, profile, derivedScores
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -191,6 +196,7 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(substances, forKey: .substances)
         try c.encode(medication, forKey: .medication)
         try c.encode(sideEffects, forKey: .sideEffects)
+        try c.encode(bodyScans, forKey: .bodyScans)
         try c.encode(profile, forKey: .profile)
         try c.encode(derivedScores, forKey: .derivedScores)
     }

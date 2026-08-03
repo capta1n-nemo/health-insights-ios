@@ -36,6 +36,15 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     case medication
     /// Dated side-effect records — severity against a name.
     case sideEffects
+    /// Body measurements and the scans that produced them.
+    ///
+    /// Its own domain rather than folded into `metrics`, even though seven of
+    /// the sites *are* metrics and chart there. A scan is a **shape**, not a
+    /// series: it carries a date, a capture method, the conditions it was taken
+    /// under, the sites it did and did not reach, and whether its raw data was
+    /// kept — none of which a metric row can express, and all of which decides
+    /// whether two of them can be compared.
+    case bodyScans
     /// **What the app worked out**, as opposed to what it measured: each card's
     /// score, and the clinical estimates behind them — SCORE2, ASCVD, heart age.
     ///
@@ -59,6 +68,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .substances: return "Substances"
         case .medication: return "Medication"
         case .sideEffects: return "Side effects"
+        case .bodyScans: return "Body measurements"
         case .derivedScores: return "Scores & estimates"
         case .unmodelled: return "Other data"
         }
@@ -77,6 +87,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Your regimen, the doses logged, and how much is still active."
         case .sideEffects:
             return "What you recorded feeling, and how strongly."
+        case .bodyScans:
+            return "Every measurement you've taken, how it was taken, and whether two of them can be compared."
         case .derivedScores:
             return "What the app worked out from everything above — each card's score, and the clinical estimates behind them."
         case .unmodelled:
