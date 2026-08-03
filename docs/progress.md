@@ -3,6 +3,13 @@
 Philosophy unchanged: **use every signal, get creative with it, and be honest
 about confidence.**
 
+**And the scope, stated by the user 2026-08-03: *"this is a master health app,
+in future it will need to support every domain of health and wellbeing."*** So
+the default answer to "does this domain belong here" is **yes, eventually** —
+what decides the order is which data is already arriving and which questions the
+reader is actually asking. See "Every domain of health" under Next for what is
+already in the export and unread.
+
 ## Open items at a glance
 
 Every unticked box in this file, in the order it appears below. **Generated —
@@ -53,15 +60,24 @@ section it sits in rather than by judgement:
 | 24 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
 | 25 | Promote the macros | Nutrition — capture everything, then the card | next |
 | 26 | The card — composition, consistency and completeness, plus the relationships… | Nutrition — capture everything, then the card | next |
-| 27 | Decision for the user: does any nutrition row carry a published reference ban… | Nutrition — capture everything, then the card | next |
-| 28 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 29 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 30 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 31 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 32 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 33 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 34 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 35 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 27 | Fixed bands go in `referenceRange`; relative ones cannot | Nutrition — capture everything, then the card | next |
+| 28 | Energy keeps no band on its chart, and that is not a refusal of guidance | Nutrition — capture everything, then the card | next |
+| 29 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
+| 30 | Symptoms — the strongest candidate, and it connects to something the app alre… | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Hearing | Every domain of health — the direction, and what is already arriving | next |
+| 32 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
+| 33 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
+| 34 | Mind | Every domain of health — the direction, and what is already arriving | next |
+| 35 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
+| 36 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
+| 37 | Oral health | Every domain of health — the direction, and what is already arriving | next |
+| 38 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 39 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 40 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 41 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 42 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 43 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 44 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1519,17 +1535,89 @@ sources."* Designed in `docs/planned-modules.md` ▸ module 6.
       retention while weight falls; caffeine against sleep onset). Completeness
       must be the *same* figure the metabolism card gates on, read from one
       place, or two cards will disagree about how well the reader logs.
-- [ ] **Decision for the user: does any nutrition row carry a published
-      reference band?** Calorie targets stay refused. Protein is the arguable
-      case — real evidence for a floor that preserves lean mass during rapid
-      weight loss, which is this reader's exact situation, and the app already
-      ships one published dose (WHO's exercise minutes) with its provenance
-      stated. Still dietary guidance, so it is the user's call and not a
-      session's.
+- [x] **Decided 2026-08-03 — published reference bands are wanted.** The
+      user's words: *"I am happy with all dietary guidelines, why wouldn't I
+      be?"* So a nutrition row may carry a band from a named body with its
+      provenance stated, exactly as `exerciseMinutes` carries WHO's 150–300
+      minutes. **What this licenses is a published band, not an app-invented
+      target** — the rule that survives is the one about provenance, not a
+      refusal.
+- [ ] **Fixed bands go in `referenceRange`; relative ones cannot.** Only four of
+      the published figures are absolute and can live on the metric: fibre
+      (EFSA 25 g, SACN 30 g), sodium (WHO < 2,000 mg), potassium (WHO ≥ 3,510
+      mg) and caffeine (EFSA ≤ 400 mg habitual). Protein is **per kilogram**
+      (WHO/FAO 0.83 g/kg safe intake; 1.2–1.6 g/kg is the range cited for
+      preserving lean mass during rapid loss, which is this reader's case),
+      free sugars and saturated fat are **percentages of energy** (WHO < 10%
+      each), and total water is **sex-specific** (EFSA 2.5 L men, 2.0 L women,
+      food included). Those four belong in the card's own table, the way
+      `HeartHealthScore` holds the age-and-sex VO₂max tables and
+      `MetricType.vo2Max` returns nil.
+- [ ] **Energy keeps no band on its chart, and that is not a refusal of
+      guidance.** Published energy requirements are a *personal calculation*
+      rather than a population band, and a deliberate deficit is the entire
+      point for a reader on a GLP-1 — a band would mark intentional loss as
+      out-of-range. The guidance still appears, as the metabolism card's
+      predicted line with its equation named, which is the honest place for it.
+      Say the word if a band on the chart is wanted anyway.
 - [ ] **Meal photo → nutrition** is the camera half, already on the roadmap
       under camera-based input. It is the only one of the three sources that
       needs a model rather than a mapping, and the accuracy claim needs the same
       honesty framework as the BP estimator.
+
+### Every domain of health — the direction, and what is already arriving (2026-08-03)
+
+The user's scope, quoted at the top of this file: the app has to reach every
+domain of health and wellbeing. The useful thing about that ambition here is
+how much of it is **already in the export and unread** — `HealthKitService`
+scrapes ~50 quantity types and ~28 category types into the raw "other data"
+bucket, and a domain below is mostly a promotion plus a reader, not new
+plumbing. Ordered by how much is already arriving.
+
+- [ ] **Symptoms — the strongest candidate, and it connects to something the
+      app already does.** Fifteen `HKCategoryType` symptoms are scraped and read
+      by nothing: nausea, fatigue, headache, dizziness, abdominal cramps,
+      bloating, heartburn, mood changes, sleep changes, hot flashes. On a GLP-1
+      the first four are *the* side-effect profile, and this app already takes a
+      side-effect log by hand (`InputKind.sideEffect`). Reconciling the two —
+      what the reader logged here, what Health already knew — is a card, and it
+      is the same reconciliation shape `BodyMeasurementReconciliation` uses.
+- [ ] **Hearing.** Environmental and headphone audio exposure, plus the three
+      exposure *events*, all already scraped. It has a published dose in the
+      same form as the exercise one — WHO/NIOSH's 85 dB over 40 hours a week,
+      halving the allowance per 3 dB — so it can be scored honestly rather than
+      described.
+- [ ] **Daylight and UV.** `TimeInDaylight` and `UVExposure`, both arriving.
+      This one earns its place by connecting to something the app already
+      models: light exposure is the main input to circadian timing, and
+      `SleepOnsetModel` and `CircadianConsistencyModel` are already here asking
+      what moves bedtime.
+- [ ] **Respiratory function.** Forced vital capacity, FEV1, peak expiratory
+      flow and inhaler usage are all scraped and unread — real spirometry, with
+      published age/sex/height reference equations (GLI-2012), so a "how are
+      your lungs" card is a reader away for anyone whose device or clinic
+      writes them.
+- [ ] **Mind.** Mindful minutes and the mood-changes category are arriving, and
+      HRV is already central to Readiness. **The posture needs deciding before
+      the build, not during it**: this app describes and never diagnoses, and
+      mental health is where that line matters most.
+- [ ] **Cycle and reproductive health.** Menstrual flow, basal body temperature
+      and sexual activity are scraped. A large domain with real published
+      structure (cycle phase against temperature and resting heart rate, both
+      of which this app already trends) — and sex-specific, so it also forces
+      the profile question of what a card does when it does not apply.
+- [ ] **Falls and balance.** `NumberOfTimesFallen` and the walking-steadiness
+      event, beside `walkingSteadiness` and `walkingAsymmetry`, which are
+      already canonical metrics. The smallest of these, and the one most likely
+      to matter later rather than now.
+- [ ] **Oral health.** Toothbrushing events, arriving and unread. Thin data, a
+      real domain, and honest to report as a streak rather than a score.
+
+**What the whole list has in common:** each is a promotion out of the raw pile
+plus one reader, and each needs a `DataDomain` or a data category so it appears
+in the Data tab — the invariant that already exists. None needs a new
+integration. Load `add-data-or-input` and `add-metric-type` before starting any
+of them.
 
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸

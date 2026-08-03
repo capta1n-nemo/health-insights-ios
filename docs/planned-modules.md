@@ -536,9 +536,10 @@ struct SomatotypeCard: View {          // Body Composition's bespoke slot, neste
   simplest is a single stated goal (lose / maintain / gain) in grounding.
 - **Module 2 is medical.** Confirm the posture: describe and project, never
   recommend; inferred titration always confirmed before it counts.
-- **Does any nutrition row carry a published reference band?** See module 6.
-  Calorie targets stay refused; a protein floor for preserving lean mass during
-  rapid weight loss is the arguable case, and it is the user's call.
+- ~~**Does any nutrition row carry a published reference band?**~~ **Decided
+  2026-08-03: yes, where a named body publishes one and the row states its
+  provenance.** See module 6 for the table and for why four of the figures
+  cannot live in `referenceRange`.
 - **Module 5 will sometimes report a metabolism "faster" than predicted, and
   the honest first explanation is an incomplete food log.** Confirm that the
   card should say so plainly rather than let the flattering reading stand.
@@ -832,17 +833,43 @@ The Nutrition data-tab group and the `.nutrition` metric family exist as of
   claim: protein against lean-mass retention while weight falls; caffeine
   against sleep onset; fibre and water against whatever they track with.
 
-### The decision this needs from the user
+### ✅ Decided 2026-08-03 — published bands are wanted
 
-**Does any nutrition row get a published reference band?** The app refuses
-calorie targets deliberately, and that stays. Protein is the arguable case:
-there is real evidence for a protein floor to preserve lean mass during rapid
-weight loss, which is exactly the reader's situation on a GLP-1, and the app
-already carries one published dose (WHO's 150–300 exercise minutes) with its
-provenance stated. A protein floor is closer to that than to a calorie target —
-but it is still dietary guidance, and **it is the user's call, not a session's.**
+The user, asked whether any nutrition row should carry a published reference
+band: *"I am happy with all dietary guidelines, why wouldn't I be? This is a
+master health app, in future it will need to support every domain of health and
+wellbeing."*
 
-Everything else on the card is descriptive and needs no such decision.
+So a nutrition row may carry a band from a **named body, with its provenance
+stated on the row**, exactly as `exerciseMinutes` carries WHO's 150–300
+minutes. The rule that survives is provenance, not refusal: a published band is
+evidence, an app-invented target is not.
+
+| Row | Band | Source | Where it lives |
+| --- | --- | --- | --- |
+| Fibre | 25 g (EFSA AI), 30 g (SACN) | EFSA 2010; SACN 2015 | `referenceRange` |
+| Sodium | < 2,000 mg | WHO 2012 | `referenceRange` |
+| Potassium | ≥ 3,510 mg | WHO 2012 | `referenceRange` |
+| Caffeine | ≤ 400 mg habitual (200 mg single dose) | EFSA 2015 | `referenceRange` |
+| Protein | 0.83 g/kg safe intake; 1.2–1.6 g/kg cited for preserving lean mass in rapid loss | WHO/FAO/UNU 2007 | card table — **per kg** |
+| Free sugars | < 10% of energy (< 5% conditional) | WHO 2015 | card table — **% of energy** |
+| Saturated fat | < 10% of energy | WHO 2023 | card table — **% of energy** |
+| Total water | 2.5 L men / 2.0 L women, food included | EFSA 2010 | card table — **sex-specific** |
+| Dietary energy | none on the chart | — | metabolism card's predicted line |
+
+**`MetricType.referenceRange` is a fixed band and cannot express the other
+four.** Per-kilogram, percentage-of-energy and sex-specific figures belong in
+the card's own table, which is the pattern `HeartHealthScore` already uses —
+`MetricType.vo2Max` returns nil precisely because its reference is age- and
+sex-banded and a fixed band would contradict it.
+
+**Energy keeps no band, and that is not a refusal of guidance.** A published
+energy requirement is a personal calculation rather than a population band, and
+a deliberate deficit is the whole point for a reader on a GLP-1 — a band would
+draw intentional weight loss as out-of-range. The guidance appears instead as
+module 5's predicted line, with the equation named, which is where it is honest.
+
+Everything else on the card is descriptive and needs no decision.
 
 ### Order
 

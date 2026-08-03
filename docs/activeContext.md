@@ -118,6 +118,25 @@ choice and will validate later.**
   camera does not prompt, it terminates the app**, and this is the app's first
   camera use, so nothing had ever needed the key before.
 
+**The scope is now stated, and it is bigger than the current card set.** The
+user, 2026-08-03: *"this is a master health app, in future it will need to
+support every domain of health and wellbeing."* The default answer to "does
+this domain belong" is **yes, eventually**; order is decided by what data is
+already arriving. `progress.md` ▸ "Every domain of health" lists eight, each
+already being scraped into the raw pile and read by nothing — symptoms (the
+fifteen HealthKit categories, which meet this app's own side-effect log),
+hearing, daylight/UV, spirometry, mind, cycle, falls, oral.
+
+**And the dietary-guidelines question is settled: published bands are wanted**
+(*"I am happy with all dietary guidelines, why wouldn't I be?"*). A row may
+carry a band from a named body with its provenance stated, like WHO's exercise
+minutes. Two things a session must not get wrong: **`referenceRange` is a fixed
+band**, so protein (per kg), sugars and saturated fat (% of energy) and water
+(sex-specific) go in the card's table, the way `HeartHealthScore` holds the
+VO₂max tables; and **energy still gets no band on its chart** — a deliberate
+deficit would draw as out-of-range — with the guidance appearing as the
+metabolism card's predicted line instead.
+
 **Two cards were added to the roadmap at the user's request (2026-08-03):
 metabolism speed, and nutrition.** Designed in `docs/planned-modules.md` ▸
 modules 5 and 6; nine open items in `progress.md`. Two things a future session
