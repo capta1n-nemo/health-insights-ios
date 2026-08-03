@@ -525,3 +525,86 @@ struct SomatotypeCard: View {          // Body Composition's bespoke slot, neste
   simplest is a single stated goal (lose / maintain / gain) in grounding.
 - **Module 2 is medical.** Confirm the posture: describe and project, never
   recommend; inferred titration always confirmed before it counts.
+
+---
+
+## The body scanner's visual target (2026-08-03, from the user's references)
+
+The user supplied four reference apps and a screenshot of **our** current
+"Your body over time". Read the last one first, because it is the gap:
+
+**What we ship today is a pink polygon.** `BodySilhouetteView.outline` draws a
+convex-ish blob with shoulder, waist and hip vertices. On the device it reads as
+a *shield* or a kite — not a body, not the user's body, and not obviously
+anything. The caption under it is honest ("A representation built from your
+measurements, not a picture of you"), and the machinery beneath it is real: the
+morph is driven by measured girths, the projection is right, the 12-week
+timeline scrubber works, and the somatotype block below is genuinely good. The
+**renderer** is the only weak link, and it was always meant to be replaceable —
+`outline` is static and pure precisely so this swap costs nothing upstream.
+
+### What each reference contributes
+
+| Reference | The idea worth taking | Do we have the data? |
+| --- | --- | --- |
+| **Hume Body Pod** — segmental muscle mass, callout cards pinned to a body render, per-segment "High / Standard / Low" | **Callouts pinned to body regions** beat a table. Each is tappable (`→`) into that segment's history. | ⚠️ **No.** Segmental lean mass needs 8-electrode BIA. We must not draw per-limb muscle we cannot measure. |
+| **Visbody / Styku** — cyan wireframe mesh, girth labels with leader lines to the exact site, Default / Side-by-side / ColorMetric tabs | **The mesh + leader-line labels.** This is the closest to what we already have data for. | ✅ **Yes** — seven girths land as `MetricType`s today, the rest are in the `BodyScan` payload. |
+| **Comparison heatmap** — two scan dates, ±5 mm colour ramp over the body surface | **Change as a surface, not a number.** Directly answers "where did it go?" | ⚠️ Needs a mesh and two comparable scans. `ScanComparability` + the ±10 mm repeatability band already gate this correctly. |
+| **Guided capture + measurements list** — silhouette overlay, 45° arm guide, foot marks, then a plain measurements table | Confirms the capture design already in this doc: drawn guides, live validators. | Design done, build not started. |
+
+### The build order this implies
+
+1. **Replace the polygon with a mesh.** The single highest-value change on the
+   card, and it needs no new capture — the same `BodyModelParameters` that drive
+   the outline can drive a parametric mesh. SceneKit/RealityKit, a base human
+   mesh, girth-driven scaling per body region. Everything above `outline` stays.
+2. **Leader-line girth labels** in the Visbody style, reading the seven
+   `MetricType` girths. **A label for a girth we estimated rather than measured
+   must say so** — the dash-means-inferred rule from `add-chart`, applied to
+   text. This is where the current caption's honesty becomes per-label instead
+   of one blanket paragraph.
+3. **Side-by-side and heatmap tabs**, gated on `ScanComparability` — two scans
+   that are not comparable must refuse to draw a difference surface rather than
+   colour in noise. The ±10 mm band means most honest heatmaps will be mostly
+   grey, and that is correct.
+4. **Segmental cards, only if a source appears.** Hume's per-limb muscle is the
+   most attractive screen of the four and the one we have no right to draw. If
+   an 8-electrode scale is ever connected it becomes reachable; until then it
+   would be the exact "modelled dressed as measured" failure `MetricSource
+   .calculated` exists to prevent.
+
+### The paper the user supplied
+
+**"Using mobile applications for body composition analysis: A technical review
+of an artificial intelligence-based tool"**, *Clinical Nutrition ESPEN* (2026),
+PII S2405-4577(26)00201-9 — a technical review of **MeThreeSixty®**, a
+smartphone-photo body composition app.
+
+⚠️ **Paywalled — the full text returned 403 from both ScienceDirect and the
+journal, so no accuracy figure from it is quoted here and none should be
+invented.** What is established from the abstract and title is the *argument*,
+and the argument is the useful part:
+
+> Smartphone-photo body composition is accessible and usable by non-experts,
+> **but clinicians, researchers and users need clarity on the technical
+> development and estimation process** — how the number was produced, not just
+> what it is.
+
+That is a methods-transparency claim, and it lands squarely on choices this app
+has already made: `MetricSource.calculated`, its own metric family, weight 0 and
+no reference range for anything modelled; "a representation built from your
+measurements, not a picture of you"; `BodyScan` storing `(site, side, value)`
+so a scan can be re-parsed when the method improves; and `ScanComparability`
+recording the conditions rather than silently plotting incomparable scans.
+
+**What to do with it when someone has access:** read it for the *pipeline*, which
+is the part we are about to copy — two photos (front + side), silhouette
+extraction, a statistical shape model fitted to the silhouettes, girths measured
+off the fitted mesh rather than off the photo. Our LiDAR path is a better input
+to the same back half. Extract per-site error against the reference standard and
+put it here; that number is what a girth label should be allowed to claim, and
+until it is known the labels should stay conservative.
+
+**Do not** treat the review as validation of our own estimates. It reviews one
+commercial tool's method; it says nothing about a girth this app inferred from
+height, weight and body fat.
