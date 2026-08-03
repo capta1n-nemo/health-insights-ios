@@ -25,6 +25,23 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# One phone, one Mac, one work directory. Overlapping runs share
+# `_work/health-app-ios/` — including `_temp`, where the runner keeps the
+# per-step files backing `$GITHUB_OUTPUT` and `$GITHUB_ENV`. A second job
+# clearing that folder under a first one is one of the few things that produces
+# `Missing file at path: …/_runner_file_commands/set_output_…`, which is how
+# four deploys died at *checkout* on 2026-08-03 with the build never started.
+#
+# ⚠️ **`cancel-in-progress` stays false on purpose.** The verdict step is
+# `if: always()`, so it runs on a cancellation too, and `job.status` for a
+# cancelled job is not `success` — a cancelled run would push
+# `refs/deploy/failed/<sha>` for a commit nobody ever tried to install. The
+# whole point of refs/deploy is that a red there is a real red, so deploys
+# queue rather than pre-empt each other.
+concurrency:
+  group: deploy-to-iphone
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: self-hosted
@@ -270,8 +287,32 @@ jobs:
             tail -25 "$RUNNER_TEMP/install.log" >> /tmp/deploy-errors.txt
           fi
 
+          # Neither log exists ⇒ the job died before xcodebuild. That used to
+          # print one sentence naming no cause and no fix, which is what the
+          # reader got four times on 2026-08-03 — every one of them the runner
+          # losing `_temp/_runner_file_commands/set_output_…` during *checkout*.
+          # The build was never attempted, so this is never the code, never
+          # signing and never the phone; say so, because "deploy failed" reads
+          # as all three.
           if [ ! -s /tmp/deploy-errors.txt ]; then
-            echo "The job failed before the build or install step ran, or produced no log." > /tmp/deploy-errors.txt
+            cat > /tmp/deploy-errors.txt <<'WHY'
+The job failed before xcodebuild ran, so there is no build or install log.
+
+This is a runner fault, not the code: CI compiles the same commit on GitHub's
+runners, and signing and the phone are only reached later in this job.
+
+The one seen here: `##[error]Missing file at path:
+<runner>/_temp/_runner_file_commands/set_output_<uuid>` during Checkout — the
+runner lost the temp file backing $GITHUB_OUTPUT mid-step. Causes, in order:
+
+  1. Two jobs sharing this runner's _work folder (now prevented by the
+     `concurrency: deploy-to-iphone` group at the top of deploy.yml).
+  2. The runner service restarting, or the Mac sleeping, mid-job.
+  3. Something outside Actions clearing the runner's _temp directory.
+
+Fix: re-run the deploy (Actions ▸ Deploy ▸ Run workflow). If it repeats, check
+for a second runner registered against the same _work folder on the Mac.
+WHY
           fi
           blob=$(git hash-object -w /tmp/deploy-errors.txt)
           tree=$(printf '100644 blob %s\terrors.txt\n' "$blob" | git mktree)
