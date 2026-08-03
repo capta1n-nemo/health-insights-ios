@@ -32,6 +32,26 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case bodyWaterPercentage       // %
     case height                    // m
 
+    // Body dimensions — a tape measure, or a camera/LiDAR scan.
+    //
+    // Seven of the fourteen-to-twenty locations a dedicated scanner takes. The
+    // rest — left and right separately, forearm, calf, underbust, inseam — live
+    // inside `BodyScan` and are surfaced on the scan's own page. A `MetricType`
+    // is for what earns a chart, a Data-tab row and a reference range; the rest
+    // is scan data, and promoting all twenty would cost nine exhaustive
+    // switches each to draw twenty near-identical lines.
+    //
+    // A paired site (thigh, upper arm) carries the **mean of left and right**
+    // here, with the difference reported by `BodySymmetry` instead: two lines a
+    // centimetre apart say less than one line and a symmetry figure.
+    case waistCircumference        // cm
+    case hipCircumference          // cm
+    case chestCircumference        // cm
+    case neckCircumference         // cm
+    case shoulderWidth             // cm
+    case thighCircumference        // cm — mean of left and right
+    case upperArmCircumference     // cm — mean of left and right
+
     // Activity & sleep
     case stepCount                 // count
     case activeEnergyBurned        // kcal
@@ -132,6 +152,13 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .boneMass: return "Bone Mass"
         case .bodyWaterPercentage: return "Body Water"
         case .height: return "Height"
+        case .waistCircumference: return "Waist"
+        case .hipCircumference: return "Hips"
+        case .chestCircumference: return "Chest"
+        case .neckCircumference: return "Neck"
+        case .shoulderWidth: return "Shoulders"
+        case .thighCircumference: return "Thigh"
+        case .upperArmCircumference: return "Upper Arm"
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
         case .exerciseMinutes: return "Exercise Minutes"
@@ -174,6 +201,10 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bodyMass, .leanBodyMass, .muscleMass, .boneMass: return "kg"
         case .bodyFatPercentage, .bodyWaterPercentage: return "%"
         case .height: return "m"
+        case .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference:
+            return "cm"
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .exerciseMinutes: return "min"

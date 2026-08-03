@@ -235,7 +235,7 @@ the place to look.
   - `LegendCaption` :29
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :503
+  - `MetricPalette` :540
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -269,6 +269,18 @@ the place to look.
   - `VitalDeparturePanel` :132
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
+- `Signals/BodyScan.swift`
+  - `BodyMeasurement` :71
+  - `BodyMeasurements` :84
+  - `BodyScan` :166
+  - `BodySide` :65
+  - `BodySite` :10
+  - `ScanConditions` :124
+- `Signals/BodyScanCadence.swift`
+  - `BodyScanCadence` :13
+- `Signals/BodyScanPolicy.swift`
+  - `BodyScanAsset` :6
+  - `BodyScanPolicy` :79
 - `Signals/BuildAssessment.swift`
   - `BodyDimensions` :9
   - `BuildAssessment` :49
@@ -288,6 +300,8 @@ the place to look.
   - `MedicationScanner` :338
   - `PharmacokineticsModel` :115
   - `TitrationEngine` :244
+- `Signals/ScanComparability.swift`
+  - `ScanComparability` :22
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9

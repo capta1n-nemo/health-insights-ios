@@ -80,7 +80,10 @@ public extension MetricType {
         case .bloodGlucose: return .metabolic
         case .walkingSteadiness, .walkingAsymmetry: return .mobility
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage, .height: return .body
+             .boneMass, .bodyWaterPercentage, .height,
+             .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference: return .body
         case .stepCount, .activeEnergyBurned, .exerciseMinutes, .vo2Max,
              .dayStrain: return .activity
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
@@ -169,6 +172,16 @@ public extension MetricType {
         // where hues resolve per chart anyway.
         case .activeMedicationLevel: return 37
         case .screenTimeMinutes: return 38
+        // Appended in scan order — waist first because it is the one
+        // circumference with a published action line and the one most likely
+        // to share a chart with weight and body fat.
+        case .waistCircumference: return 39
+        case .hipCircumference: return 40
+        case .chestCircumference: return 41
+        case .neckCircumference: return 42
+        case .shoulderWidth: return 43
+        case .thighCircumference: return 44
+        case .upperArmCircumference: return 45
         }
     }
 
@@ -230,7 +243,12 @@ public extension MetricType {
     var presentation: MetricPresentation {
         switch self {
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage:
+             .boneMass, .bodyWaterPercentage,
+             // A circumference moves the way a weight does — slowly, with a
+             // real value on every measured day and nothing in between.
+             .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference:
             return .cumulativeTrend
 
         case .heartRate, .restingHeartRate, .walkingHeartRateAverage,
@@ -299,6 +317,11 @@ public extension MetricType {
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .vo2Max, .vascularAge,
              .bloodPressureSystolic, .bloodPressureDiastolic, .height,
+             // Scans are asked for every 30 days, so the join distance has to
+             // outlast that cadence or every trend line would be dots.
+             .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference,
              // Apple computes the walking measures over a rolling window and
              // publishes them irregularly, so a fortnight is not a gap.
              .walkingSteadiness, .walkingAsymmetry:
@@ -330,6 +353,20 @@ public extension MetricType {
         // circulates is for children, and none of it is a clinical band for an
         // adult. Drawing one would invent a target the literature has not set.
         case .screenTimeMinutes: return nil
+
+        // **No band, and the reason is that this switch has no sex.**
+        // The published waist thresholds are sex-specific (WHO: 94/102 cm for
+        // men, 80/88 cm for women) and ethnicity-specific on top of that, so a
+        // single band drawn here would be wrong for roughly half the people
+        // who see it. The honest home for that judgement is
+        // `BuildAssessmentModel`, which already reads waist **against the
+        // reader's own height** — a ratio that needs no population table at
+        // all, and whose 0.5 action line is the one anthropometric threshold
+        // that applies to everybody.
+        case .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference:
+            return nil
         case .oxygenSaturation:
             return R(normal: B(low: 95, high: 100),
                      cautionBelow: B(low: 90, high: 95),

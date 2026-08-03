@@ -46,7 +46,13 @@ public extension MetricType {
              .peripheralPerfusionIndex:
             return .heart
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
-             .boneMass, .bodyWaterPercentage, .height, .bloodGlucose:
+             .boneMass, .bodyWaterPercentage, .height, .bloodGlucose,
+             // Circumferences sit with the rest of the body, not in a domain of
+             // their own: the scan they come from gets its own Data-tab section,
+             // but a waist measurement read off a tape belongs beside a weight.
+             .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference:
             return .body
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,

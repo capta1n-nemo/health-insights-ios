@@ -19,6 +19,9 @@ public extension MetricType {
              .vascularAge,
              .respiratoryRate, .oxygenSaturation,
              .bloodPressureSystolic, .bloodPressureDiastolic,
+             .waistCircumference, .hipCircumference, .chestCircumference,
+             .neckCircumference, .shoulderWidth, .thighCircumference,
+             .upperArmCircumference,
              .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height,
              .bodyTemperature, .skinTemperature,
@@ -110,6 +113,15 @@ public extension MetricType {
         case .boneMass: return 0.5...10
         case .bodyFatPercentage, .bodyWaterPercentage: return 1...80
         case .height: return 0.5...2.6
+        // Dimensions. Wide for the same reason the masses above are: being
+        // wrong about somebody's body is worst here, and these bounds exist to
+        // reject a unit slip (a waist in metres, or in inches read as cm), not
+        // to disagree with a real measurement.
+        case .waistCircumference, .hipCircumference, .chestCircumference:
+            return 30...250
+        case .shoulderWidth: return 25...90
+        case .thighCircumference, .upperArmCircumference: return 10...120
+        case .neckCircumference: return 20...80
         case .bloodGlucose: return 1...40
         // Percentages that are percentages.
         case .walkingSteadiness, .walkingAsymmetry, .sleepEfficiency,

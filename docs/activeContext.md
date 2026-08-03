@@ -76,7 +76,55 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**Screen Time screenshots file themselves retrospectively (latest, 2026-08-02).**
+**Body scanner, push 1 of 2 — the testable core (latest, 2026-08-03).**
+
+Approved plan: `/root/.claude/plans/can-you-work-on-validated-stallman.md`.
+Most of the *judgement* for this feature already existed and was dead:
+`BuildAssessmentModel` was wired into `BodyCompositionInsight.score` as route 2
+but always nil, and `SomatotypeModel.estimate(dimensions:)` was always passed
+nil, because nothing in the app could produce a waist.
+
+Landed so far (InsightKit, 68 new tests):
+
+- **Seven new `MetricType`s** — waist, hip, chest, neck, shoulder, thigh, upper
+  arm. **Not all twenty locations** a dedicated scanner takes: a `MetricType`
+  costs nine exhaustive switches and earns a chart, a Data-tab row and a
+  reference range; the rest live in the `BodyScan` payload. A paired site
+  carries the **mean**, with the difference left to `BodySymmetry`.
+- **`referenceRange` is nil for all seven, with the reason written down**: the
+  published waist thresholds are sex- *and* ethnicity-specific and this switch
+  has no sex, so a single band would be wrong for half its readers.
+  `BuildAssessmentModel` already reads waist against the reader's own height,
+  which needs no population table at all.
+- **`BodyScan`** stores measurements as `(site, side, value)` rather than a
+  property per site — that is what makes re-parsing possible, since adding a
+  site later must not change the shape of what is already on disk.
+- **`BodyScanPolicy`** — the reader's two matrices, *what is used* and *what is
+  saved*, with `retained ⊆ captured` normalised rather than trapped. They come
+  apart usefully: a scan can **use** the colour frames to find the silhouette
+  and never write one to disk. Photographs are the one asset a reader switches
+  **on**; everything else is kept by default because re-parsing needs it and
+  none of it is recognisable.
+- **`ScanComparability`** — the market gap, attacked directly. Every consumer
+  scanner is reviewed as "inconsistent" and the cause is always the same:
+  clothing, distance, camera height and lighting move between scans and nobody
+  records them. Conditions are stored per scan, differing clothing or capture
+  mode makes two scans **not comparable** rather than silently plotted
+  together, and `isMeaningfulChange` refuses any difference inside the method's
+  own ±10 mm repeatability band — the restraint `ScoreChange` already applies
+  to scores, and what stops a scanner announcing ten pounds of muscle overnight.
+- **`BodyScanCadence`** — the reader's 30-day interval, shaped like
+  `GroundingRenewal`. Silent while current, because a reminder shown every day
+  is not one. The overdue copy is about *a gap in the trend*, never about an old
+  measurement being wrong — a scan is not a fact that expires.
+
+**Still to do in push 1:** `BodySymmetry` and `PostureAssessment` (both fall out
+of the skeleton the capture needs anyway), `BodyModelParameters` and the SceneKit
+renderer, the tape-measure input that makes all of the above reachable, the
+`DataDomain.bodyScans` section and store, and wiring the two dead routes live.
+**Push 2** is the ARKit capture and the guided flow.
+
+**Screen Time screenshots file themselves retrospectively (2026-08-02).**
 
 ⚠️ **Three defects found on the device after the first push** (`e566fbd`), all
 from the reader's own screenshots, all fixed and tested:
