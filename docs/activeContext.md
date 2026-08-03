@@ -76,6 +76,49 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**⚠️ OPEN DEFECT — Screen Time week import refuses a good screenshot
+(2026-08-03, found on the device, NOT fixed).**
+
+The reader's Week screenshot carries everything the import needs and is
+rejected. The app says:
+
+> The figures on that screenshot don't add up: it reads **22h 0m** for the week
+> but 14h 13m a day, which would be a different total. Nothing has been
+> imported.
+
+**`22h` is the chart's y-axis maximum label**, printed top-right of the bars.
+The real row — "Total Screen Time 99h 33m" — is on the same screenshot, and
+99h 33m ÷ 7 = 14h 13m, matching the printed average *exactly*. So the data is
+good, the cross-check is right to fire on a 22h "total", and the fault is
+upstream in **which reading becomes the weekly total**.
+
+Established, from the screenshot and the code:
+
+- `Result.weeklyTotal` (`ScreenTimeScreenshotParser.swift:131`) picks a reading
+  whose label says "total screen time", else the **largest**. 99h 33m (5,973 min)
+  is far larger than 22h (1,320 min), so `max` would have chosen correctly —
+  which means either **(a)** "99h 33m" never became a `Reading` at all, or
+  **(b)** the label "Total Screen Time" bound to the *22h* value, so the named
+  rule fired on the wrong one. **Which of the two has not been established** and
+  must be, before anything is changed.
+- The likely accomplice is the Week post-pass that relabels every total on a
+  Week view as `.weeklyTotal`. It has no notion of the chart's own axis, so
+  "22h" and "0" are promoted to weekly totals alongside the real figures.
+
+⚠️ **This is a regression in effect, though not in intent.** `4a5137b` added
+`totalAgreesWithAverage()`, and before it this screenshot would have imported
+silently wrong. Refusing is better than the five-fold under-count it replaced —
+but the reader now cannot import a screenshot that is entirely valid, and that
+is worse than either for them.
+
+**Where to start:** write the failing test first from the OCR lines of this
+exact screenshot (the file is in the session upload, and the visible strings are
+in this note), and determine (a) versus (b) before touching `weeklyTotal`. The
+fix probably belongs in classification — an axis label is a bare hour-only token
+with no minutes, repeated as a gridline, inside the chart's bounding box — not
+in the selection rule, which is correct as written.
+
+
 **Body scanner — the engine and the section are built; the capture is not
 (latest, 2026-08-03).**
 
