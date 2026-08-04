@@ -255,7 +255,7 @@ public struct BalanceWebSnapshot: Sendable, Equatable {
                             changes: [InsightID: ScoreChange]) -> BalanceWebSnapshot {
         let spokes = results
             .compactMap { result -> Spoke? in
-                guard let score = result.score else { return nil }
+                guard let score = result.score, result.id.belongsOnBalanceWeb else { return nil }
                 let change = changes[result.id]
                 return Spoke(id: result.id, title: result.title,
                              shortTitle: result.id.shortTitle,
@@ -269,6 +269,36 @@ public struct BalanceWebSnapshot: Sendable, Equatable {
 }
 
 public extension InsightID {
+
+    /// Whether this card's score belongs on "How your scores compare".
+    ///
+    /// **Not every 0–100 number is a score in the sense this chart compares.**
+    /// The web asks *how well is each dimension going*, with radius as the
+    /// answer and hue as the band. A **detector** does not answer that: the
+    /// symptom radar reports 100 when it has found nothing, so on a real record
+    /// it drew as the single highest spoke — silence rendered as excellence, on
+    /// the one card whose entire design exists to stop exactly that.
+    ///
+    /// The card's own copy is careful ("Nothing stirring", and it says outright
+    /// that it catches fewer than half of illnesses early); the chart was
+    /// undoing that in a glance, which is worse, because the web is what the
+    /// reader sees first and it is the one surface where cards are read against
+    /// each other. A quiet night moves the odds of being ill from roughly 7% to
+    /// roughly 4% — see `docs/research-notes.md`. That is not a 100.
+    ///
+    /// Exhaustive on purpose: a new card must decide, and "it is a score people
+    /// compare" is a judgement, not a default.
+    var belongsOnBalanceWeb: Bool {
+        switch self {
+        case .readiness, .sleep, .energy, .substanceImpact, .heartHealth,
+             .fitness, .cardiovascularRisk, .bloodPressure, .bodyComposition,
+             .nutrition, .metabolism:
+            return true
+        case .symptomRadar:
+            return false
+        }
+    }
+
     /// One word for the chart, where nine labels ring a phone-width circle and
     /// "Body Composition" would collide with both its neighbours.
     ///

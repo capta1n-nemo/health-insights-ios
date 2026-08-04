@@ -248,4 +248,35 @@ final class BalanceWebTests: XCTestCase {
         ])
         XCTAssertNil(snapshot.referenceDescription)
     }
+
+    // MARK: - What belongs on the chart at all
+
+    /// **A detector is not a score.** The symptom radar reports 100 when it has
+    /// found nothing, so on the reader's real record it drew as the single
+    /// highest spoke — silence rendered as excellence, on the one card whose
+    /// entire design exists to prevent that. Seen on 2026-08-04 with real data
+    /// loaded into a simulator; no synthetic fixture would have shown it,
+    /// because it needs every other card to be scoring realistically for the
+    /// radar's 100 to stand out.
+    func testTheSymptomRadarIsNotDrawnAsAScoreToCompare() {
+        let snapshot = BalanceWebSnapshot.build(
+            results: [
+                InsightResult(id: .symptomRadar, title: "Symptom radar", primaryValue: nil,
+                              headline: "Nothing stirring", score: 100, confidence: .moderate,
+                              explanation: "", drivers: [], unmetRequirements: []),
+                InsightResult(id: .sleep, title: "Sleep", primaryValue: nil,
+                              headline: "Poor", score: 49, confidence: .moderate,
+                              explanation: "", drivers: [], unmetRequirements: [])
+            ],
+            changes: [:])
+        XCTAssertEqual(snapshot.spokes.map(\.id), [.sleep],
+                       "the radar is on the web, where its quiet 100 reads as perfect health")
+    }
+
+    /// And the exclusion is narrow — nothing else was swept up with it.
+    func testEveryOtherScoringCardStillBelongsOnTheWeb() {
+        for id in InsightID.allCases where id != .symptomRadar {
+            XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
+        }
+    }
 }
