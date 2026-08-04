@@ -10,6 +10,55 @@ what decides the order is which data is already arriving and which questions the
 reader is actually asking. See "Every domain of health" under Next for what is
 already in the export and unread.
 
+## ⚠️ Outstanding from the 2026-08-04 Mac session — READ THIS FIRST
+
+**Thirty-four tracked items, twelve done, twenty-two open.** These are the
+reader's own requests plus defects found by loading their real export. They are
+**not** in the generated table below — that table indexes the older roadmap.
+Nothing here is speculative: every item is either something the reader asked for
+in their own words, or a defect diagnosed to a file and line.
+
+### Diagnosed to the line, not yet built
+
+| # | Item | Where the diagnosis is |
+| --- | --- | --- |
+| 26 | **Two day-stamp conventions** — records at exactly midnight UTC belong to the night the intraday feeds label one day earlier (+0.79 correlation at that lag, ≤0.44 elsewhere). Every multi-signal statistic mixes two nights; roughly halves sensitivity for any sustained-shift detector. **Affects cards already shipping.** Fix at ingestion, not in one feature | `~/HealthSeed/research/illness-detection.md` |
+| 27 | **Three more ingestion defects** — duplicate feeds (partly fixed by `525582c`, the rest remain), sleep fragments (median ~11 min alongside full nights; filtering cuts HR noise 21%, sleep-efficiency noise 59%; `SleepSegment.Kind` has no fragment concept yet), cross-device averaging (watch reads ~13 bpm above ring — never average, reset baseline on source change), exact zeros as "missing" in one temperature series on 26% of records | same |
+| 15 | **BP accuracy section + 30-day projection** — headline done (`f6c85ae`). Missing: `HoldOutCheck` series type (the residual series already exists inside `drift()` and is discarded), capture-at-sync, ledger fields, and the projection. ⚠️ **Fix the estimator's "current resting HR" input first** — it is a ~2-year mean, so the estimate is near-constant by construction, and any ledger recorded before that grades a constant | `~/HealthSeed/research/card-defect-diagnosis.md` |
+| 18 | **All-providers age chart** — labels fixed (`d0836d9`); the chart aggregating Oura vascular age, our fitness age and any others is not built. Open question Q6: does the norm-anchor table hold below VO₂ 36? It is shared with `HeartHealthScore.vo2Score`, so changing it moves two cards | same |
+| 19 | **Micronutrients into Nutrition** — reader decided: promote all 11 to first-class `MetricType`s. Needs the `add-metric-type` skill's eight switches each, plus a mg-vs-mcg unit decision per vitamin | same |
+| 31 | **New/Deprecated data types** — **not derivable today.** No import clock exists on samples; `FieldCatalogue` stamps with the *sample's* date and its plumbed-in `now` is never used. Deriving "new" from earliest sample date is wrong for 202 of 203 identifiers (every connector backfills). "Deprecated" is self-erasing because rolling windows drop quiet identifiers entirely. Needs a `TypeSightingLedger` sidecar seeded with `seededFromHistory` | same |
+| 22 | **Timeframe-aware sleep chart** — the Oura time axis (`f971541`) and Apple stages (`8ab542e`) are fixed. The third part, per-stage averages across sources obeying the page timeframe, is not started | — |
+| 28 | **Re-found Health Watch on the research** — 4 channels not many, one combined cardiac axis (HR/HRV correlate −0.93 from one stream), illness-direction only, sequential accumulation (CUSUM), threshold from the personal empirical null at a stated budget, hard reset on dose/device change. `Baseline` needs median and MAD added | `docs/research-notes.md` |
+
+### Asked for, not started
+
+| # | Item |
+| --- | --- |
+| 14 | **Today summary → highlights.** Reader: "what you're doing very well and very poorly, and any overall insights that are most important. like, hey! looks like you're about to get sick." Currently enumerates all ten cards. Also fix "body composition is Body fat 30.6%" phrasing |
+| 16 | **Substance card, three parts** — score everything currently "charted, not scored"; a recovery-time section (single vs several close together vs a big weekend); and a per-substance good-vs-bad section. ⚠️ Real data is 16 events, 15 stimulant + 1 cannabis, in ~25 days → **4 exposure episodes**. A per-substance stimulant panel will near-duplicate the pooled card; cannabis at n=1 is unattributable and must show an honest empty state |
+| 17 | **Energy card** — reader cannot read the Today chart. Needs "How does this work?" and "So what?" |
+| 21 | **Readiness bespoke section** — research-driven, creative licence granted |
+| 23 | **Signal audit** — every card × every available signal, with justified weightings, against the 45 modelled types and 320,913 raw rows |
+| 32 | **Event confirmation feed** — the app flags an event ("heart rate spiked 30 mins this evening — sexual activity?") and the reader confirms or corrects. GPS map, time, why it was flagged. ⚠️ **Location is a new permission surface and a serious privacy decision — needs an explicit ruling before any code** |
+| 33 | **In-app Research section** — why each card decides as it does. Source: `docs/research-notes.md` (publishable) only |
+| 34 | **HRV and every other term in plain language** — reader: "what even is HRV… am i about to die?" Three parts everywhere: what it is, what *mine* means (own baseline, never a population table), and so-what. Applies to rMSSD/SDNN, VO₂max, SpO2, sleep efficiency, latency, vascular age, TDEE, cardiovascular load |
+| 20 | **Web time-slider + DeepDive** — banding, grey underlay, dots and the legend are done. The morph slider with granularity selection, and renaming "Over time" → DeepDive with life-wide trends, are not |
+| 5 | **Apple Health `export.xml` converter** — scope confirmed: keep everything. The *app's own* export loads today (`32e6ce1`); Apple's raw XML does not |
+| 8 | **Body scanner capture** — the mesh renders (`2dfde08`) but **ARKit capture does not exist at all**. No camera, LiDAR or guided flow anywhere in the repo |
+| 24/25 | **Model accuracy screen** — per-card prediction-vs-actual over time |
+
+### Decisions the reader has already made — do not re-ask
+
+- Fitness projection: **show both** (fitness-age years with VO₂max secondary)
+- BP estimator input: **fix it, but show old and new side by side for a while**
+- Oura mirror: **collapse — one instrument, one vote** ✅ done
+- Micronutrients: **promote all 11**
+- Converter scope: **keep everything**
+- Real data on the managed Mac: **acceptable**
+- Crowd-shared substance data: **effect-estimate form** ("cannabis raised my resting HR by ~4 bpm for 2 days"), never raw readings
+- LLM: **free only** — Apple on-device first, then Private Cloud Compute behind a visible opt-in (WWDC 2026 opened it free under 2M downloads), then deterministic prose. **PCC is off-device and the app promises "no health data leaves your phone", so it needs a toggle stating exactly what leaves**
+
 ## Open items at a glance
 
 Every unticked box in this file, in the order it appears below. **Generated —

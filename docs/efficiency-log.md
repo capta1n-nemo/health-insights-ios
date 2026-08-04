@@ -143,6 +143,10 @@ that is not yet automated is the next thing to automate.
 | **A test suite that can only be correct in one timezone** | **1 (3 tests)** | ⚠️ **open as a category** — CI runs Linux/UTC and the product runs on a phone in the reader's zone, so for 24 sessions nothing exercised the other case. The first Mac session (UTC+8) found `ScoreChangeReader.trend(for:)` silently taking `Calendar.current` because it could not forward one, and three Oura tests failing in **both** directions off `SleepOnset.hoursFromMidnight`'s ±6 h local-midnight window. Fixed by making the calendar injectable and pinning it in the fixtures (`parseSleepUTC`). No mechanical check exists yet; the tractable one is a CI job that runs the suite under a second `TZ` |
 | **A workaround inherited from a constraint, never re-checked against the environment** | **1** | ⬜ open — the textual cross-target symbol check was carried forward for four sessions as "the tractable half" because Linux has no iOS SDK. The first session with Xcode found it obsolete in one command: `verify.sh --tests` now runs the real `xcodebuild`. The rule is *before building a workaround, check the constraint still holds here* |
 | **A gitignored build directory syncing to the user's cloud account** | **1** | ✅ fixed — `build/` held 766 MB inside iCloud Drive, which syncs by folder and ignores `.gitignore` entirely; `fileproviderd` was measured at 150% CPU. `verify.sh` and `simulator.sh` write to `~/Library/Caches/health-insights/` now. Also the cause of a codesign failure — iCloud stamps extended attributes and `codesign` refuses them ("resource fork, Finder information, or similar detritus") |
+| **A wall-clock performance assertion** | **2 (one of them my replacement)** | ✅ automated — `LaunchParticleFieldTests` timed the machine, not the code: it failed the local gate at 2.07s and 4.20s against a 2.0s budget while passing 3/3 in isolation and passing CI, because a simulator was decoding 237k samples at the time. **It also cost a red gate that was pushed through.** Replaced with a size-ratio test, which then flaked *itself* at microsecond scale; now minimum-of-five at millisecond sizes, verified nine consecutive passes. The rule that generalises: **replacing a bad measurement still requires measuring the new one** — the ratio version was asserted load-immune and shipped without checking that claim under load, which is the same shape as the failure it fixed |
+| **Pushing on a red gate because the shell chained with `;`** | **1** | ⬜ open — `./scripts/verify.sh --tests; git commit` runs the commit regardless. `main` happened to be green (CI passed), which is luck, not process. No mechanical check; the rule is `verify.sh --tests && git commit`. A `pre-push` hook exists but the commit had already been made |
+| **Shipping code nothing references and reporting it as a feature** | **1** | ⬜ open — a fleet produced 1,667 lines of `BodyMesh` geometry and tests, described with a judged design panel and a renderer contract, and **no view consumed any of it**: the card on the phone was unchanged. Caught only because the reader asked "didn't you build the body scanner?". No lint can see this in general; the rule is **a build is not shipped until something in the app target calls it**, and the honest one-line summary is what the user sees, not what compiles |
+| **Diagnosis substituted for delivery** | **1 session** | ⬜ open — ~5.6M subagent tokens across four research/diagnosis fleets before much was built; of eleven items the reader listed, one and a half were shipped when they asked "where are all the things I asked for?". The diagnoses were correct and are all recorded, so the work was not wasted — the *sequencing* was. Converting requests into a well-organised 34-item backlog is not progress. No mechanical check; the rule is **ship the smallest diagnosed thing before diagnosing the next one** |
 | **A test that re-types the code it checks** | **1** | ⬜ open — caught by this session's own handover audit: the Readiness oxygen sweep duplicated the arithmetic because it lived inline, so it would have passed whatever the shipped path did. Fixed by extracting `ReadinessScore.oxygenComponent`. The rule is *nothing is testable that is not callable*; no mechanical check yet |
 | Assert a close-out state instead of checking it | 3 | ✅ `handover-check.sh` (2026-07-31) |
 | **Report "deployed" when nothing was installed** | 1 session, 4 times in it | ✅ automated — `deploy.yml` writes `refs/deploy/*`, `scripts/deploy-status.sh` reads it, `CLAUDE.md` and `ship-to-main` now require it |
@@ -335,6 +339,30 @@ domain-specific — it applies to every file this repo creates.
 Not automated this session; the tooling to enforce it would be a `PreToolUse`
 hook on `Write`, which is the same shape as `bash-workdir-hook.sh` and would
 retire the category rather than the instance.
+
+### Session 25 — 2026-08-04 (the first Mac session)
+
+| Measure | Value |
+| --- | --- |
+| Commits to `main` | 19 |
+| **Red CI** | **0** |
+| Rework commits | 2 (the timing test, twice) |
+| Named re-derivations | 0 |
+| Compounding fixes | 6 — app-target typecheck in the gate; `SyntheticSeed`; the real-export loader; the quoted workdir hook; `verify.sh` reading `git ls-files`; derived data out of iCloud |
+| Reader-reported defects fixed | 7 |
+| Defects found by looking at the running app | 6 |
+| Defects found only because real data was loaded | 2 |
+
+**Verdict: cheaper on the metrics that are measurable, worse on sequencing.**
+Zero red CI across 19 commits is the best result the log records, and the gate
+now compiles the app target on this Mac so the whole "app-target-only compile
+error" category is closed here. Six compounding fixes is also the highest.
+
+Against that: the session spent its first half on research and diagnosis fleets
+and had to be told to build. That is not visible in any column above, which is
+itself worth noting — **the log measures what it can count, and "built the wrong
+thing first" is not counted.** Three of the four new ledger rows are about that
+class rather than about correctness.
 
 ## The efficiency roadmap
 

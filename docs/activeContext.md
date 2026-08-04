@@ -76,6 +76,84 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 25 (2026-08-04) — the first Mac session, and the first with the
+reader's real data. 19 commits, zero red CI.**
+
+### The four things worth knowing before anything else
+
+1. **`~/HealthSeed/` holds the reader's real data and is outside the repo AND
+   outside iCloud.** `./scripts/load-real-export.sh` copies their export into a
+   booted simulator; the debug Settings section then replays score history.
+   **This repo is public — the loader refuses any path inside the working tree.**
+2. **Real data finds defects synthetic data structurally cannot.** The symptom
+   radar drew as the highest spoke at 100 because it had found nothing; on
+   generated data every card scored high and it looked unremarkable. If a
+   finding depends on *other* cards being realistic, only the real export shows
+   it.
+3. **If a simulator will not boot on this Mac: `sudo chmod 1777
+   /private/var/tmp`.** It was 1775; `launchd_sim` died on "could not create
+   temporary state directory". Two hours went into ruling out device
+   corruption, the sandbox, the GUI session, uptime, load, the Xcode version,
+   the runtime, disk and — wrongly, twice — SentinelOne.
+4. **`docs/progress.md` now opens with the outstanding list from this session.**
+   Twenty-two open items, each traced to a file or to the reader's own words.
+   Read that before the generated table beneath it.
+
+### What shipped
+
+Ingestion: the Oura night-dating fix (one line — `day` is the *wake* date and
+was first in `startDateKeys`, so 15,604 rows sat at midnight UTC and the sleep
+chart drew nights starting at 07:30); Apple's sleep stages, which were fetched,
+mapped and thrown away; and the mirror collapse, which stopped the reader's
+Shortcut making one ring vote twice.
+
+Surfaces: the balance web banded by score with a grey usual underlay, grey
+reference dots and a legend that says which window "usual" means; the symptom
+radar off that web; Blood Pressure showing both its figures; the body mesh
+rendering and spinning; Fitness units named.
+
+Tooling: the app-target typecheck in the gate, `SyntheticSeed`, the real-export
+loader, and the symptoms domain.
+
+### Traps this session paid for — do not re-learn them
+
+- **A wall-clock performance assertion measures the machine.** Cost a red gate
+  that got pushed through. Replaced with a size-ratio test — which then flaked
+  too, because microsecond runs are noise. Now minimum-of-five at millisecond
+  sizes. **Replacing a bad measurement still requires measuring the new one.**
+- **`;` instead of `&&` after the gate** is how a red gate gets pushed. Always
+  `./scripts/verify.sh --tests && git commit`.
+- **The gate exits non-zero on its first run after any new top-level type** —
+  it regenerates `docs/symbol-index.md` and says so. Second run is clean. This
+  is not a failure.
+- **iOS 26 draws every toolbar item as a glass circle.** What looks like a
+  floating button is `ToolbarItem`. The "toolbar or floating?" question is
+  answered: it was always a toolbar item.
+- **iOS 26 confirms every externally-opened URL**, so `simctl openurl` cannot
+  bulk-seed. Use the debug Settings section.
+- **Building from iCloud Drive breaks codesigning** ("resource fork, Finder
+  information, or similar detritus"). Build products go to
+  `~/Library/Caches/health-insights/`. `.gitignore` means nothing to iCloud —
+  766 MB was syncing to the reader's account.
+- **The suite had only ever run in UTC.** CI is UTC, the reader's Mac is UTC+8,
+  and two real bugs fell out. A suite correct in one timezone says nothing about
+  the phone.
+- **The export writes ISO8601 strings; the cache decodes with a plain
+  `JSONDecoder`** (numeric dates). Mismatched, it decodes to nothing *silently*
+  and the app looks freshly installed.
+
+### The honest note on how this session went
+
+Roughly 5.6M subagent tokens went into four research and diagnosis fleets before
+much was built, and the reader had to say so directly — *"where are all the
+things I asked for?"* — before the balance shifted. The diagnoses were good and
+are all recorded above; the sequencing was not. **Diagnosis is cheap to feel
+productive about.** A later fleet also produced 1,667 lines of body-mesh geometry
+that no view consumed, reported as a delivered feature; the card on the phone was
+unchanged until the renderer was written by hand afterwards. **Code that compiles
+and passes tests but is referenced by nothing has not shipped.**
+
+
 **Session 25 (2026-08-04) — the first Mac session. A simulator can show a chart
 now, and looking at the app changed four answers.**
 
