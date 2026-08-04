@@ -239,7 +239,18 @@ struct InsightDetailView: View {
                         }
                     }
                     Spacer()
-                    ConfidenceBadge(confidence: result.confidence)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ConfidenceBadge(confidence: result.confidence)
+                        // Same reason as on the card row: the badge says
+                        // "Experimental" while the dial may be reading a real
+                        // cuff, so the other figure belongs next to the badge
+                        // that is describing it.
+                        if let subheadline = result.subheadline {
+                            Text(subheadline)
+                                .font(.caption2).foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
                 }
                 Text(result.explanation)
                     .font(.subheadline)

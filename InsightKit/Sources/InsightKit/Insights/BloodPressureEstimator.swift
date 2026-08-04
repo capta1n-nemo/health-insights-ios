@@ -727,6 +727,13 @@ public struct BloodPressureInsight: InsightModel {
         }
         let hasFreshReading = freshPair != nil
 
+        // Both figures, so whichever one the dial does *not* show can still be
+        // seen. The card is badged "Experimental" and was leading with a cuff
+        // reading — badge and number disagreeing — while the estimate the badge
+        // refers to could never reach the headline at all. See
+        // `InsightResult.subheadline`.
+        var estimatePair: (systolic: Double, diastolic: Double)?
+
         var score: Double?
         if let s = sys, let d = dia {
             let cat = BloodPressureEstimator.category(systolic: s, diastolic: d)
@@ -821,6 +828,7 @@ public struct BloodPressureInsight: InsightModel {
                         text: "Estimate accuracy — \(drift.band.lowercased()). \(drift.summary)",
                         isNotable: !drift.isWithinStatedUncertainty))
                 }
+                estimatePair = (est.systolic, est.diastolic)
                 if primary == nil {
                     headline = String(format: "~%.0f/%.0f", est.systolic, est.diastolic)
                     primary = est.systolic
@@ -912,9 +920,45 @@ public struct BloodPressureInsight: InsightModel {
                                        + "\(trend.spanDays) days")
         }
 
+        // **The number the dial is not showing, with its date.**
+        //
+        // Whichever route claimed the headline, the other figure is the one the
+        // reader has to go looking for — and on this card that mattered twice
+        // over: the card is badged "Experimental" while often leading with a
+        // *measured* cuff value, and `sys`/`dia` prefer `profile.cuffSystolic`,
+        // a grounding fact carrying no date at all. So a reader saw a badge
+        // that disagreed with the number, and a number that would not say how
+        // old it was.
+        //
+        // The date comes from `latestPair`, the dated sample — never from the
+        // profile fact, which is exactly the value that has no date to give.
+        let subheadline: String? = {
+            let showingEstimate = headline.hasPrefix("~")
+            if showingEstimate {
+                guard let latestPair else { return nil }
+                let ago = RelativeDateTimeFormatter()
+                ago.unitsStyle = .full
+                return "Last cuff \(Int(latestPair.systolic.rounded()))/"
+                    + "\(Int(latestPair.diastolic.rounded())) — "
+                    + ago.localizedString(for: latestPair.date, relativeTo: now)
+            }
+            // The dial is on a measured reading. Show the estimate beside it so
+            // the "Experimental" badge has something it can actually refer to,
+            // and mark it as modelled in the same breath.
+            guard let estimatePair else {
+                guard let latestPair, sys != nil else { return nil }
+                let ago = RelativeDateTimeFormatter()
+                ago.unitsStyle = .full
+                return "Cuff, \(ago.localizedString(for: latestPair.date, relativeTo: now))"
+            }
+            return String(format: "Estimate ~%.0f/%.0f — a model, not a measurement",
+                          estimatePair.systolic, estimatePair.diastolic)
+        }()
+
         return InsightResult(
             id: id, title: title, primaryValue: primary,
-            headline: headline, score: score, confidence: confidence,
+            headline: headline, subheadline: subheadline,
+            score: score, confidence: confidence,
             explanation: explanation,
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },

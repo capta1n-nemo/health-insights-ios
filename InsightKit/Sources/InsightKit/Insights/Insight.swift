@@ -131,6 +131,18 @@ public struct InsightResult: Sendable, Equatable {
     public let primaryValue: Double?
     /// Preformatted headline, e.g. "5.2%" or "Good".
     public let headline: String
+    /// A second figure the card is also about, shown beneath the headline.
+    ///
+    /// **Added because one number was hiding another.** Blood Pressure is
+    /// badged "Experimental" and led with a *cuff* reading — the badge and the
+    /// number disagreed, the reading carried no date, and the experimental
+    /// estimate the badge referred to could never reach the headline at all.
+    /// The reader asked to see both: what was actually measured and when,
+    /// alongside what the model currently thinks.
+    ///
+    /// Optional and defaulted, so no other card changes. A card with one number
+    /// leaves it nil rather than inventing a second.
+    public let subheadline: String?
     /// A 0…100 score for dial rendering, when meaningful.
     public let score: Double?
     public let confidence: InsightConfidence
@@ -262,6 +274,7 @@ public struct InsightResult: Sendable, Equatable {
         title: String,
         primaryValue: Double?,
         headline: String,
+        subheadline: String? = nil,
         score: Double?,
         confidence: InsightConfidence,
         explanation: String,
@@ -274,6 +287,7 @@ public struct InsightResult: Sendable, Equatable {
         invitesInput: Bool = false
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
+                  subheadline: subheadline,
                   score: score, confidence: confidence, explanation: explanation,
                   driverLines: drivers.map { InsightDriver(text: $0) },
                   unmetRequirements: unmetRequirements, contributors: contributors,
@@ -286,6 +300,7 @@ public struct InsightResult: Sendable, Equatable {
         title: String,
         primaryValue: Double?,
         headline: String,
+        subheadline: String? = nil,
         score: Double?,
         confidence: InsightConfidence,
         explanation: String,
@@ -298,6 +313,7 @@ public struct InsightResult: Sendable, Equatable {
         invitesInput: Bool = false
     ) {
         self.invitesInput = invitesInput
+        self.subheadline = subheadline
         self.id = id
         self.title = title
         self.primaryValue = primaryValue

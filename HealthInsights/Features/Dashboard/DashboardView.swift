@@ -333,6 +333,17 @@ struct InsightCard: View {
                             ScoreChangeChip(change: change)
                         }
                     }
+                    // The figure the headline is *not* showing — on Blood
+                    // Pressure, the measured cuff reading with its age when the
+                    // dial is on the model, and the model when the dial is on a
+                    // reading. Directly beneath the number it qualifies, since a
+                    // reader looking at 144/88 under an "Experimental" badge is
+                    // looking right here.
+                    if let subheadline = result.subheadline {
+                        Text(subheadline)
+                            .font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                     if let first = result.drivers.first {
                         Text(first).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     } else if !result.unmetRequirements.isEmpty {
