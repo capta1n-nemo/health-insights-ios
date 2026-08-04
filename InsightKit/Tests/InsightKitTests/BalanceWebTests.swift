@@ -205,4 +205,47 @@ final class BalanceWebTests: XCTestCase {
         XCTAssertEqual(Set(titles).count, InsightID.allCases.count)
         XCTAssertTrue(titles.allSatisfy { $0.count <= 11 }, "\(titles)")
     }
+
+    // MARK: - What "usual" means
+
+    private func spoke(_ id: InsightID, score: Double,
+                       reference: Double?, referenceDays: Int?) -> BalanceWebSnapshot.Spoke {
+        BalanceWebSnapshot.Spoke(id: id, title: id.rawValue, shortTitle: id.shortTitle,
+                                 score: score, reference: reference,
+                                 direction: nil, referenceDays: referenceDays)
+    }
+
+    /// **The legend used to say "Usual" and nothing else**, and the reader asked
+    /// what it was averaging over. The honest answer is that it is not one
+    /// window: a `.daily` card is judged against the trailing week and a
+    /// `.trend` card against the quarter, so the grey shape is a composite and a
+    /// legend claiming a single period would be wrong on most of its vertices.
+    func testItNamesBothWindowsWhenTheSpokesDisagree() throws {
+        let snapshot = BalanceWebSnapshot(spokes: [
+            spoke(.readiness, score: 70, reference: 68, referenceDays: 7),
+            spoke(.heartHealth, score: 80, reference: 76, referenceDays: 90)
+        ])
+        let described = try XCTUnwrap(snapshot.referenceDescription)
+        XCTAssertTrue(described.contains("week"), described)
+        XCTAssertTrue(described.contains("3 months"), described)
+    }
+
+    func testItNamesOneWindowWhenEverySpokeAgrees() throws {
+        let snapshot = BalanceWebSnapshot(spokes: [
+            spoke(.readiness, score: 70, reference: 68, referenceDays: 7),
+            spoke(.energy, score: 60, reference: 62, referenceDays: 7)
+        ])
+        let described = try XCTUnwrap(snapshot.referenceDescription)
+        XCTAssertTrue(described.contains("last week"), described)
+        XCTAssertFalse(described.contains("months"), described)
+    }
+
+    /// Nothing to describe when nothing has a reference — the grey shape is not
+    /// drawn either, and a legend for an absent mark is worse than no legend.
+    func testThereIsNothingToSayWithNoReference() {
+        let snapshot = BalanceWebSnapshot(spokes: [
+            spoke(.readiness, score: 70, reference: nil, referenceDays: nil)
+        ])
+        XCTAssertNil(snapshot.referenceDescription)
+    }
 }

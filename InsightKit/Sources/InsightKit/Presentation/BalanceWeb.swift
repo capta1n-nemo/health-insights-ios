@@ -130,15 +130,24 @@ public struct BalanceWebSnapshot: Sendable, Equatable {
         /// chip — so the web and the chip cannot disagree.
         public let direction: ScoreChange.Direction?
 
+        /// How many days back the reference averages over, from the same
+        /// `ScoreChange`. Carried so the legend can say what "usual" means
+        /// instead of leaving the reader to guess — and because **it is not one
+        /// number**: a `.daily` card compares against the trailing week and a
+        /// `.trend` card against the quarter, so the grey shape is a composite.
+        public let referenceDays: Int?
+
         public init(id: InsightID, title: String, shortTitle: String,
                     score: Double, reference: Double?,
-                    direction: ScoreChange.Direction?) {
+                    direction: ScoreChange.Direction?,
+                    referenceDays: Int? = nil) {
             self.id = id
             self.title = title
             self.shortTitle = shortTitle
             self.score = score
             self.reference = reference
             self.direction = direction
+            self.referenceDays = referenceDays
         }
 
         public var radiusFraction: Double {
@@ -205,6 +214,37 @@ public struct BalanceWebSnapshot: Sendable, Equatable {
             + "\(Int(lowest.score.rounded()))."
     }
 
+    /// What the grey shape is actually averaging over, in words.
+    ///
+    /// **The reader asked what "usual" means, and the honest answer is that it
+    /// is not one window.** `ScoreChangeReader` gives a `.daily` card the
+    /// trailing week and a `.trend` card the trailing quarter, because a card
+    /// seen every morning and a card seen once a month are asking different
+    /// questions. So the grey web is a composite, and a legend claiming a single
+    /// period would be wrong on most of its own vertices.
+    ///
+    /// Returns nil when nothing has a reference — there is no shape to describe.
+    public var referenceDescription: String? {
+        let windows = Set(spokes.compactMap(\.referenceDays))
+        guard !windows.isEmpty else { return nil }
+        func phrase(_ days: Int) -> String {
+            switch days {
+            case 7: return "week"
+            case 28: return "4 weeks"
+            case 30: return "month"
+            case 90: return "3 months"
+            default: return "\(days) days"
+            }
+        }
+        if windows.count == 1, let only = windows.first {
+            return "Your average over the last \(phrase(only))."
+        }
+        let sorted = windows.sorted()
+        guard let shortest = sorted.first, let longest = sorted.last else { return nil }
+        return "Your own average — the last \(phrase(shortest)) for the daily cards, "
+            + "the last \(phrase(longest)) for the slower ones."
+    }
+
     /// Build from what the tab already holds.
     ///
     /// Pure and `Sendable` in both directions, so it can run on a detached task
@@ -220,7 +260,8 @@ public struct BalanceWebSnapshot: Sendable, Equatable {
                 return Spoke(id: result.id, title: result.title,
                              shortTitle: result.id.shortTitle,
                              score: score, reference: change?.reference,
-                             direction: change?.direction)
+                             direction: change?.direction,
+                             referenceDays: change?.referenceDays)
             }
             .sorted { $0.id.colourSlot < $1.id.colourSlot }
         return BalanceWebSnapshot(spokes: spokes)

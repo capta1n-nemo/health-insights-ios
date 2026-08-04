@@ -282,21 +282,35 @@ struct InsightsListView: View {
     /// being judged against. Both need saying — an unexplained second outline
     /// reads as a rendering fault.
     @ViewBuilder private func legend(for snapshot: BalanceWebSnapshot) -> some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 5) {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Theme.accent.opacity(0.85))
-                    .frame(width: 14, height: 2)
-                Text("Now").font(.caption2).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                HStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Theme.accent.opacity(0.85))
+                        .frame(width: 14, height: 2)
+                    Text("Now").font(.caption2).foregroundStyle(.secondary)
+                }
+                HStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.secondary.opacity(0.55))
+                        .frame(width: 14, height: 2)
+                    Text(snapshot.hasCompleteReference ? "Usual" : "Usual, where measured")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
-            HStack(spacing: 5) {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.secondary.opacity(0.55))
-                    .frame(width: 14, height: 2)
-                Text(snapshot.hasCompleteReference ? "Usual" : "Usual, where measured")
-                    .font(.caption2).foregroundStyle(.secondary)
+            // **"Usual" on its own is a word, not a definition.** The reader
+            // asked what it was averaging over, and the answer is not one
+            // window — a daily card is judged against the trailing week and a
+            // trend card against the quarter, so the grey shape is a composite.
+            // `BalanceWebSnapshot.referenceDescription` says which, from the
+            // same `ScoreChange` the vertices came from, so the sentence cannot
+            // drift away from the drawing.
+            if let described = snapshot.referenceDescription {
+                Text(described)
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
     }
 
