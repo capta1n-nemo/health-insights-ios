@@ -324,7 +324,76 @@ public enum MultiSource {
                           hundredths: Int((s.value * 100).rounded()))
             if seen.insert(key).inserted { out.append(s) }
         }
-        return out
+        return collapseMirrors(out)
+    }
+
+    /// Collapse a reading that arrives under two different device families with
+    /// **exactly** the same value at the same minute.
+    ///
+    /// ## Why the family-keyed pass above is not enough
+    ///
+    /// `deviceFamily` recognises a mirror by *name* — "oura" in the display name
+    /// collapses the direct API and the Apple Health copy. That works when the
+    /// mirror keeps the name, and fails silently when it does not. The reader
+    /// runs a Shortcut that writes Oura's VO₂max, HRV, resting heart rate, SpO2
+    /// and temperature into Apple Health under a name with no "oura" in it, so
+    /// `deviceFamily` filed it as `apple_health` and **the same ring became a
+    /// second independent voter**: it doubled its weight in every daily mean and
+    /// could flip `VitalReader`'s winner-take-all tie-break, which is where the
+    /// ±13-year week-to-week sawtooth in the fitness-age history came from.
+    /// A separate analysis of the same export found three nightly signals
+    /// arriving twice under different source IDs, bit-identical on essentially
+    /// every co-reported night.
+    ///
+    /// ## Why identity rather than another name rule
+    ///
+    /// A name rule needs updating every time the reader renames a shortcut. Two
+    /// instruments producing **the same value to the hundredth in the same
+    /// minute** are not two measurements of the world; they are one measurement
+    /// copied. Two real devices genuinely agreeing that precisely, that
+    /// simultaneously, does not happen — they disagree by more than illness
+    /// does (a watch reads about 13 bpm above a ring on the same night).
+    ///
+    /// The surviving copy is the one **not** from Apple Health when there is a
+    /// choice, because a mirror lands in Apple Health and the direct connector
+    /// is the original — it keeps the true instrument's name on the row, which
+    /// is what the per-source breakdown and the export show the reader.
+    private static func collapseMirrors(_ samples: [HealthMetricSample]) -> [HealthMetricSample] {
+        struct Moment: Hashable {
+            let minute: Int
+            let hundredths: Int
+        }
+        var bestAt: [Moment: Int] = [:]      // moment → index into `samples`
+        var dropped = Set<Int>()
+        var families: [MetricSource: String] = [:]
+        func family(_ s: HealthMetricSample) -> String {
+            if let f = families[s.source] { return f }
+            let f = s.source.deviceFamily
+            families[s.source] = f
+            return f
+        }
+
+        for (i, s) in samples.enumerated() {
+            let moment = Moment(minute: Int(s.start.timeIntervalSince1970 / 60),
+                                hundredths: Int((s.value * 100).rounded()))
+            guard let held = bestAt[moment] else {
+                bestAt[moment] = i
+                continue
+            }
+            // Same family is already handled above; reaching here means two
+            // families agree exactly, which is a mirror.
+            guard family(samples[held]) != family(s) else { continue }
+            let heldIsMirror = family(samples[held]) == "apple_health"
+            let newIsMirror = family(s) == "apple_health"
+            if heldIsMirror && !newIsMirror {
+                dropped.insert(held)
+                bestAt[moment] = i
+            } else {
+                dropped.insert(i)
+            }
+        }
+        guard !dropped.isEmpty else { return samples }
+        return samples.enumerated().filter { !dropped.contains($0.offset) }.map(\.element)
     }
 
     /// Build the per-source breakdown for a metric from a mixed sample set.
