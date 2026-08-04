@@ -133,6 +133,7 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var aboutSection: some View {
         Section {
             NavigationLink {
@@ -150,7 +151,54 @@ struct SettingsView: View {
         } footer: {
             Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Version and build time tell you which deploy is on the phone.")
         }
+
+        #if DEBUG
+        syntheticDataSection
+        #endif
     }
+
+    #if DEBUG
+    /// **Debug builds only, and that is enforced by the compiler rather than by
+    /// a flag someone can flip.**
+    ///
+    /// The Health app does not ship on the iOS Simulator, so HealthKit returns
+    /// nothing there and every card renders empty — which is exactly where the
+    /// invisible-cards defect lived, but also why a chart, a reference band and
+    /// the substance shading were phone-only. This fills the store with
+    /// `SyntheticSeed`'s generated series so those can be looked at on a Mac.
+    ///
+    /// **Why not the URL scheme.** `ShortcutIngest` already accepts
+    /// `healthinsights://shortcut?…` and `xcrun simctl openurl` can deliver it,
+    /// which was tried first and does work — but iOS 26 puts an "Open in
+    /// Health Insights?" confirmation on every externally-opened URL, so
+    /// seeding four months meant a hundred and twenty taps. The write below
+    /// goes through `DataStore.replaceManualSamples`, the same per-day upsert
+    /// that route uses, so what is exercised downstream is the real path; only
+    /// the trigger is debug-only.
+    ///
+    /// It is **not** a substitute for the phone, and the footer says so on
+    /// screen rather than only here: no finding about the reader may ever come
+    /// from a screenshot of generated data.
+    @ViewBuilder
+    private var syntheticDataSection: some View {
+        Section {
+            Button {
+                model.seedSyntheticData(days: 120)
+            } label: {
+                Label("Seed 120 days of synthetic data", systemImage: "wand.and.stars")
+            }
+            Button(role: .destructive) {
+                model.clearSyntheticData()
+            } label: {
+                Label("Clear seeded data", systemImage: "trash")
+            }
+        } header: {
+            Text("Developer (debug builds only)")
+        } footer: {
+            Text("Generated series, not measurements — for checking that charts, bands and shading draw correctly on a simulator, where Apple Health does not exist. Never read anything about yourself from it.")
+        }
+    }
+    #endif
 
     private var privacySection: some View {
         Section {

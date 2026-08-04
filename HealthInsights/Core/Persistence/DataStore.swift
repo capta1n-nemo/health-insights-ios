@@ -201,6 +201,27 @@ final class DataStore {
         try? context.save()
     }
 
+    #if DEBUG
+    /// Delete every manual sample of one metric that came from a given source.
+    ///
+    /// Debug builds only, and it exists for exactly one job: undoing
+    /// `AppModel.seedSyntheticData`, so the empty state stays reachable on a
+    /// seeded simulator without erasing the device. Scoped by **source** so it
+    /// can only remove what the seeder wrote (`.shortcuts`) — a blanket delete
+    /// by metric would take the reader's own typed entries with it, and on a
+    /// real phone that is their data.
+    func deleteManualSamples(of metric: MetricType, from source: MetricSource) {
+        let raw = metric.rawValue
+        let sourceID = source.id
+        let existing = (try? context.fetch(FetchDescriptor<ManualSampleRecord>(
+            predicate: #Predicate { $0.metricRaw == raw }))) ?? []
+        for record in existing where record.sourceID == sourceID {
+            context.delete(record)
+        }
+        try? context.save()
+    }
+    #endif
+
     // MARK: - Synced-sample cache
     //
     // HealthKit and wearable samples are fetched live and held in memory. So the

@@ -348,6 +348,8 @@ the place to look.
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
   - `SubstanceWindow` :775
+- `Testing/SyntheticSeed.swift`
+  - `SyntheticSeed` :41
 - `Text/CardStateExport.swift`
   - `CardStateExport` :26
 - `Text/DataInventory.swift`
@@ -612,9 +614,9 @@ the place to look.
   - `FullExport` :305
   - `OtherDataListView` :318
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :289
-  - `IntegrationRow` :190
-  - `IntegrationSummaryRow` :246
+  - `DisclaimerView` :337
+  - `IntegrationRow` :238
+  - `IntegrationSummaryRow` :294
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

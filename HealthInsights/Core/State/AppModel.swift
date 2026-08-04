@@ -536,6 +536,42 @@ final class AppModel {
     /// a mistyped metric or a value outside its plausible range. A shortcut is
     /// a hand-built thing and silently dropping half of it would leave the
     /// reader believing they are collecting something they are not.
+    #if DEBUG
+    /// Fill the store with generated data so a simulator can show a chart.
+    ///
+    /// Debug builds only — see `SettingsView.syntheticDataSection` for why this
+    /// exists and why it is not the URL scheme. **Writes through
+    /// `replaceManualSamples`, exactly as `ingestShortcut` does**, so the
+    /// per-day upsert, the reload and the recompute are the shipped ones rather
+    /// than a parallel path that could drift from them.
+    func seedSyntheticData(days: Int) {
+        let calendar = Calendar.current
+        let generated = SyntheticSeed.samples(days: days, endingOn: Date(), calendar: calendar)
+        let byDayAndType = Dictionary(grouping: generated) { sample in
+            "\(sample.type.rawValue)|\(calendar.startOfDay(for: sample.start).timeIntervalSince1970)"
+        }
+        for (_, group) in byDayAndType {
+            guard let first = group.first else { continue }
+            dataStore.replaceManualSamples(of: first.type,
+                                           on: calendar.startOfDay(for: first.start),
+                                           with: group)
+        }
+        samples = dataStore.loadManualSamples().partitionedVitals().kept
+        recompute()
+    }
+
+    /// Remove everything `seedSyntheticData` wrote, so the empty state — the one
+    /// every reader sees first, and the one the invisible-cards defect lived in
+    /// — is still reachable without erasing the whole simulator.
+    func clearSyntheticData() {
+        for type in MetricType.allCases {
+            dataStore.deleteManualSamples(of: type, from: .shortcuts)
+        }
+        samples = dataStore.loadManualSamples().partitionedVitals().kept
+        recompute()
+    }
+    #endif
+
     @discardableResult
     func ingestShortcut(_ url: URL) -> String? {
         guard let result = ShortcutIngest.parse(url) else { return nil }
