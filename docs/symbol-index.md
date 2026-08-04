@@ -503,11 +503,12 @@ the place to look.
 - `DesignSystem/RecoveryScale.swift`
   - `RecoveryScale` :22
 - `DesignSystem/ScoreBalanceWeb.swift`
-  - `ScoreBalanceWeb` :41
-  - `ScoreBalanceWebSkeleton` :343
-  - `WebPolygonShape` :245
-  - `WebReferenceTicksShape` :296
-  - `WebSpokesShape` :273
+  - `ScoreBalanceWeb` :49
+  - `ScoreBalanceWebSkeleton` :386
+  - `WebPolygonShape` :288
+  - `WebReferenceTicksShape` :339
+  - `WebSpokesShape` :316
+  - `WebWedgeShape` :434
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :40
 - `DesignSystem/ScoreComparisonChart.swift`

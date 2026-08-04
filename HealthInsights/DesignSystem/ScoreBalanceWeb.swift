@@ -25,19 +25,27 @@ import InsightKit
 ///   `InsightPalette.slots` is forced into a collision at nine spokes, and a
 ///   collision is unreadable on a chart whose whole point is comparing all of
 ///   them at once.
-/// - **The fill is flat, not a gradient.** `Theme.scoreFill(peak:)` is a
-///   *vertical* ramp, and `add-chart` §7 is that a gradient resolves against its
-///   mark's own bounding box: on a polygon that would shade by which spoke
-///   happens to point up, which encodes nothing. Bands are carried by the grid
-///   rings and by the vertex colours instead.
+/// - **The fill is banded per spoke, and never a gradient.** The reader asked
+///   to see which cards have moved into green, amber and red, so the area is cut
+///   into one wedge per spoke, each taking that spoke's own `Theme
+///   .color(forScore:)`. Both gradient forms are forbidden and for different
+///   reasons: a *linear* one resolves against the mark's bounding box (§7), so
+///   it would shade by whichever spoke happens to point up and encode nothing;
+///   an *angular* one would interpolate through amber between a green spoke and
+///   a red one, inventing a band for a stretch of chart where no card sits,
+///   which is §8's hatch-never-blend in polar form. Wedges give every coloured
+///   region exactly one owner. See `WebWedgeShape`.
 /// - **The reference outline is solid, never dashed.** Dash means "not
 ///   measured" and nothing else (§3). The reference is the mean of *stored*
 ///   score rows — days the app really did tell the reader a number — so it is
 ///   measured, and it is separated by weight and opacity rather than by dash.
-/// - **Two outlines, one fill.** §8 is hatch-never-blend for one quantity drawn
-///   over another; here it is met by geometry rather than by hatching, because
-///   only the current shape is filled. Two translucent fills would mix into a
-///   third colour that means nothing, which is the defect §8 exists to stop.
+/// - **Two fills, and they are allowed to overlap because one is colourless.**
+///   The usual web is filled a flat unsaturated grey beneath the banded current
+///   one, which is what the reader asked for — two outlines alone had to be
+///   traced by eye to be compared. §8's hatch-never-blend is about two
+///   *quantities* mixing into a third colour that reads as a real value; grey
+///   under a band cannot be misread as a different band, because grey is not one
+///   of the three. If the backdrop ever gains a hue, this stops being true.
 struct ScoreBalanceWeb: View {
     let snapshot: BalanceWebSnapshot
     /// Tapping a spoke opens that card. The web is the tab's index as well as
@@ -120,6 +128,14 @@ struct ScoreBalanceWeb: View {
     @ViewBuilder private var referenceLayer: some View {
         let referenceFractions = snapshot.spokes.map { $0.referenceFraction ?? 0 }
         if snapshot.hasCompleteReference {
+            // **Filled, faintly.** The reader asked for the usual web to sit
+            // *under* the current one as a light grey body rather than a bare
+            // outline, so the two shapes can be compared at a glance instead of
+            // by tracing two lines. Grey and unsaturated on purpose: it is the
+            // backdrop, and colour on this chart means a score band.
+            WebPolygonShape(fractions: referenceFractions,
+                            radiusRatio: Self.plotRadiusRatio, progress: progress)
+                .fill(Color.secondary.opacity(0.10))
             WebPolygonShape(fractions: referenceFractions,
                             radiusRatio: Self.plotRadiusRatio, progress: progress)
                 .stroke(Color.secondary.opacity(0.55),
@@ -132,12 +148,39 @@ struct ScoreBalanceWeb: View {
         }
     }
 
-    /// Today's scores — the only filled shape on the chart.
+    /// Today's scores, **each wedge coloured by its own spoke's band**.
+    ///
+    /// ## Why wedges rather than one gradient
+    ///
+    /// The reader asked to see which parts of the web have moved into green,
+    /// amber or red — the same reading the dials and the score-over-time charts
+    /// give. The obvious implementation, one gradient across the polygon, is
+    /// the thing `add-chart` §7 forbids and this file's own header already
+    /// rejected: a linear gradient resolves against the mark's bounding box, so
+    /// it would shade by *which spoke happens to point up* and encode nothing.
+    ///
+    /// An angular gradient is no better. Between a green spoke and a red one it
+    /// interpolates through amber — inventing a middle band for a stretch of
+    /// chart where no card sits. That is hatch-never-blend (§8) in polar form:
+    /// two quantities drawn over one another must never mix into a third
+    /// colour that reads as a real value.
+    ///
+    /// So the fill is **one wedge per spoke**, each running from the centre out
+    /// to that spoke's vertex and halfway to each neighbour. Every coloured
+    /// region therefore belongs to exactly one score and takes exactly that
+    /// score's band colour, with hard edges where ownership changes. Nothing is
+    /// interpolated and nothing is implied about the space between two cards.
     private var currentLayer: some View {
         ZStack {
-            WebPolygonShape(fractions: fractions,
-                            radiusRatio: Self.plotRadiusRatio, progress: progress)
-                .fill(Theme.accent.opacity(0.16))
+            ForEach(Array(snapshot.spokes.enumerated()), id: \.offset) { index, spoke in
+                WebWedgeShape(fractions: fractions, index: index,
+                              radiusRatio: Self.plotRadiusRatio, progress: progress)
+                    .fill(Theme.color(forScore: spoke.score).opacity(0.22))
+            }
+            // The outline stays one accent-coloured path rather than following
+            // the bands: it is the shape's silhouette, and a stroke that
+            // changed colour per segment would read as eleven separate marks
+            // instead of one reading.
             WebPolygonShape(fractions: fractions,
                             radiusRatio: Self.plotRadiusRatio, progress: progress)
                 .stroke(Theme.accent.opacity(0.85),
@@ -366,5 +409,66 @@ struct ScoreBalanceWebSkeleton: View {
         .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: dim)
         .onAppear { dim = true }
         .accessibilityLabel("Working out how your scores compare")
+    }
+}
+
+/// One spoke's share of the filled area: centre → halfway to the previous
+/// spoke → this spoke's vertex → halfway to the next.
+///
+/// **Why the fill is cut up at all.** The reader wanted the web to show which
+/// cards sit in green, amber and red, the way the dials do. One gradient across
+/// the polygon cannot: a linear one resolves against the bounding box and shades
+/// by whichever spoke points up, and an angular one interpolates *through* amber
+/// between a green spoke and a red one — inventing a band for a stretch of chart
+/// where no card sits. `add-chart` §7 and §8 forbid both.
+///
+/// Cutting the area into per-spoke wedges makes every coloured region belong to
+/// exactly one score, so its colour is that score's band and nothing is implied
+/// about the space between two cards. The midpoint boundary is the only neutral
+/// place to divide two neighbours.
+///
+/// The halfway points are taken along the **straight edge** between the two
+/// vertices rather than at a fixed radius, so the wedges tile the polygon
+/// exactly — no seams, no overlap, and the union is the same shape the outline
+/// strokes.
+private struct WebWedgeShape: Shape {
+    let fractions: [Double]
+    let index: Int
+    let radiusRatio: CGFloat
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let count = fractions.count
+        guard count >= 3, fractions.indices.contains(index) else { return path }
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+        let radius = min(rect.width, rect.height) * radiusRatio
+
+        func vertex(_ i: Int) -> CGPoint {
+            let wrapped = ((i % count) + count) % count
+            let p = BalanceWebGeometry.point(index: wrapped, count: count,
+                                             radiusFraction: fractions[wrapped] * progress)
+            return CGPoint(x: centre.x + CGFloat(p.x) * radius,
+                           y: centre.y + CGFloat(p.y) * radius)
+        }
+        func midpoint(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
+            CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+        }
+
+        let here = vertex(index)
+        let beforeMid = midpoint(vertex(index - 1), here)
+        let afterMid = midpoint(here, vertex(index + 1))
+
+        path.move(to: centre)
+        path.addLine(to: beforeMid)
+        path.addLine(to: here)
+        path.addLine(to: afterMid)
+        path.closeSubpath()
+        return path
     }
 }
