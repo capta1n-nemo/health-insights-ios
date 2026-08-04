@@ -179,6 +179,8 @@ struct SettingsView: View {
     /// It is **not** a substitute for the phone, and the footer says so on
     /// screen rather than only here: no finding about the reader may ever come
     /// from a screenshot of generated data.
+    @State private var importedScoreRows: Int?
+
     @ViewBuilder
     private var syntheticDataSection: some View {
         Section {
@@ -186,6 +188,13 @@ struct SettingsView: View {
                 model.seedSyntheticData(days: 120)
             } label: {
                 Label("Seed 120 days of synthetic data", systemImage: "wand.and.stars")
+            }
+            Button {
+                importedScoreRows = model.importScoreHistory()
+            } label: {
+                Label(importedScoreRows.map { "Imported \($0) score rows" }
+                        ?? "Import score history from export",
+                      systemImage: "clock.arrow.circlepath")
             }
             Button(role: .destructive) {
                 model.clearSyntheticData()

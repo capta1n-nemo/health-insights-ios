@@ -642,9 +642,9 @@ the place to look.
   - `FullExport` :306
   - `OtherDataListView` :319
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :337
-  - `IntegrationRow` :238
-  - `IntegrationSummaryRow` :294
+  - `DisclaimerView` :346
+  - `IntegrationRow` :247
+  - `IntegrationSummaryRow` :303
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

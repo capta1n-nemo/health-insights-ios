@@ -582,6 +582,46 @@ final class AppModel {
         recompute()
     }
 
+    /// Replay the score history from a loaded export, so the balance web's
+    /// reference shape can be seen.
+    ///
+    /// **Debug only, and it exists because a file copy cannot reach this.**
+    /// `scripts/load-real-export.sh` writes samples straight into the sample
+    /// cache, which is JSON — but score rows live in SwiftData, so they need
+    /// code. Without them the web's grey "usual" polygon and its legend are
+    /// invisible on any simulator: both read stored score rows, and neither
+    /// generated data nor a fresh install has any.
+    ///
+    /// Goes through `recordScore`, the same per-day upsert a real day uses, so
+    /// the rows land exactly as they would have — no parallel write path that
+    /// could drift from the shipped one.
+    @discardableResult
+    func importScoreHistory() -> Int {
+        struct Card: Decodable {
+            let card: String
+            let history: [Point]
+            struct Point: Decodable { let date: Date; let score: Double }
+        }
+        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                      in: .userDomainMask,
+                                                      appropriateFor: nil, create: false),
+              let data = try? Data(contentsOf: base.appendingPathComponent("score_history_import.json")),
+              let cards = try? JSONDecoder().decode([Card].self, from: data)
+        else { return 0 }
+
+        var written = 0
+        for card in cards {
+            guard let id = InsightID(rawValue: card.card) else { continue }
+            for point in card.history {
+                dataStore.recordScore(id, score: point.score, confidence: .moderate,
+                                      contributorCount: 0, on: point.date)
+                written += 1
+            }
+        }
+        recompute()
+        return written
+    }
+
     /// Remove everything `seedSyntheticData` wrote, so the empty state — the one
     /// every reader sees first, and the one the invisible-cards defect lived in
     /// — is still reachable without erasing the whole simulator.

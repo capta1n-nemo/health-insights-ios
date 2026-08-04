@@ -113,6 +113,23 @@ compact = os.path.join(support, "synced_samples.hisc")
 if os.path.exists(compact):
     os.remove(compact)
 
+# Score history lives in SwiftData, not in a JSON cache, so it cannot be
+# written by copying a file. It is dropped here for the debug importer in
+# `AppModel.importScoreHistory()` to pick up and replay through `recordScore`
+# — the shipped upsert, so the rows land exactly as a real day would write
+# them. Without this the balance web's grey "usual" shape and its legend
+# cannot be seen at all: both need stored score rows, and generated data has
+# no history by construction.
+history = [
+    {"card": x["card"], "history": x.get("history") or []}
+    for x in (d.get("derivedScores") or []) if x.get("history")
+]
+for card in history:
+    for point in card["history"]:
+        point["date"] = to_interval(point["date"])
+with open(os.path.join(support, "score_history_import.json"), "w") as f:
+    json.dump(history, f)
+
 types = {}
 for s in samples:
     types[s.get("type")] = types.get(s.get("type"), 0) + 1
