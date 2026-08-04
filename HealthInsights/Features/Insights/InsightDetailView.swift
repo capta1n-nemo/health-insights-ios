@@ -309,7 +309,13 @@ struct InsightDetailView: View {
         return InsightSection(
             title: insightID == .fitness ? "Fitness age over time"
                                          : "Heart age over time",
-            trailing: points.yearsPerYear.map { String(format: "%.1f a year", $0) },
+            // "+1.4 years a year" rather than "1.4 a year". The unit was
+            // missing on both this section and the projection beneath it, and
+            // two unitless figures in different units stacked on one card is
+            // how 68 and 31.7 came to look like a contradiction. The sign is
+            // explicit too: for an age, up is the bad direction, and a bare
+            // number does not say which way it is going.
+            trailing: points.yearsPerYear.map { String(format: "%+.1f years a year", $0) },
             caveat: placeholder == nil ? SectionCaveat.replayedHistory
                                        : SectionCaveat.none,
             expansion: expansion(preview: placeholder?.headline)
@@ -416,8 +422,19 @@ struct InsightDetailView: View {
         } else if let trajectory {
             Divider()
             NestedInsightSection(
-                title: "Where this is heading",
-                trailing: String(format: "%.1f in a year", trajectory.projectedIn12Months),
+                // **Both quantities, both named.** This section plots VO₂max
+                // and sits directly beneath "Fitness age over time", which
+                // plots years — and until 2026-08-04 its trailing figure was a
+                // bare "29.9 in a year" with the unit rendered nowhere at all.
+                // So a *falling* VO₂max line read as a *falling* (improving)
+                // fitness age, the exact opposite of what the model says: the
+                // reader saw 31.7 here against 68 above and asked why the card
+                // contradicted itself. It never did — one card, one series, two
+                // units, neither of them stated.
+                title: "Where your VO₂max is heading",
+                trailing: String(format: "%.1f mL/kg·min · age %.0f",
+                                 trajectory.projectedIn12Months,
+                                 trajectory.fitnessAgeIn12Months),
                 caveat: .ifTodaysNumbersHold
             ) {
                 FitnessProjectionChart(trajectory: trajectory)
