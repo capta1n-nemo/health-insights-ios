@@ -80,6 +80,7 @@ struct ScoreBalanceWeb: View {
                 grid
                 referenceLayer
                 currentLayer
+                referenceDots(centre: centre, radius: radius)
                 vertices(centre: centre, radius: radius)
                 labels(centre: centre, radius: radius)
             }
@@ -127,24 +128,63 @@ struct ScoreBalanceWeb: View {
     /// draws per-spoke ticks, which can be individually absent without lying.
     @ViewBuilder private var referenceLayer: some View {
         let referenceFractions = snapshot.spokes.map { $0.referenceFraction ?? 0 }
+
+        // **The grey body is drawn per spoke, so a partial reference still
+        // shows one.**
+        //
+        // This used to be all-or-nothing: a filled polygon when *every* spoke
+        // had a reference, and bare ticks otherwise. The reasoning for refusing
+        // the closed outline is sound — its edges would run straight past the
+        // vertices it has no value for, and nothing on screen would say which
+        // were skipped — but the conclusion was too strong. On a real record
+        // only four of eight cards had accumulated stored score rows, so the
+        // reader got ticks and could not see the comparison the shape exists to
+        // make. "Correct" is not the same as "useful", and an honest partial
+        // beats an accurate blank.
+        //
+        // Per-spoke wedges have neither problem: grey appears exactly where
+        // there is a usual to show and is absent where there is not, so the
+        // gaps are visible as gaps rather than bridged by a straight edge that
+        // invents values for them. Same geometry as the banded current fill, so
+        // the two shapes tile identically and can be read against each other.
+        ForEach(Array(snapshot.spokes.enumerated()), id: \.offset) { index, spoke in
+            if spoke.referenceFraction != nil {
+                WebWedgeShape(fractions: referenceFractions, index: index,
+                              radiusRatio: Self.plotRadiusRatio, progress: progress)
+                    .fill(Color.secondary.opacity(0.16))
+            }
+        }
+
         if snapshot.hasCompleteReference {
-            // **Filled, faintly.** The reader asked for the usual web to sit
-            // *under* the current one as a light grey body rather than a bare
-            // outline, so the two shapes can be compared at a glance instead of
-            // by tracing two lines. Grey and unsaturated on purpose: it is the
-            // backdrop, and colour on this chart means a score band.
-            WebPolygonShape(fractions: referenceFractions,
-                            radiusRatio: Self.plotRadiusRatio, progress: progress)
-                .fill(Color.secondary.opacity(0.10))
+            // With every spoke present the closed outline is honest, and it
+            // reads better than eight wedge edges.
             WebPolygonShape(fractions: referenceFractions,
                             radiusRatio: Self.plotRadiusRatio, progress: progress)
                 .stroke(Color.secondary.opacity(0.55),
                         style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
-        } else {
-            WebReferenceTicksShape(fractions: snapshot.spokes.map(\.referenceFraction),
-                                   radiusRatio: Self.plotRadiusRatio, progress: progress)
-                .stroke(Color.secondary.opacity(0.55),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        }
+    }
+
+    /// Each spoke's usual, as a dot on its own spoke.
+    ///
+    /// **Dots rather than the short perpendicular ticks this used to draw.** The
+    /// ticks read as "stoppers" — little barriers across the spoke — rather than
+    /// as a value sitting on it, and they matched nothing else on the chart. The
+    /// current score is a dot; its usual should be the same mark in grey, so the
+    /// eye pairs them without being told to. Smaller and hollow-free so the
+    /// coloured dot stays the louder of the two: today is the reading, the usual
+    /// is the context.
+    private func referenceDots(centre: CGPoint, radius: CGFloat) -> some View {
+        ForEach(Array(snapshot.spokes.enumerated()), id: \.element.id) { index, spoke in
+            if let fraction = spoke.referenceFraction {
+                Circle()
+                    .fill(Color.secondary.opacity(0.75))
+                    .frame(width: 6, height: 6)
+                    .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 1))
+                    .position(position(index: index, fraction: fraction * progress,
+                                       centre: centre, radius: radius))
+                    .allowsHitTesting(false)
+            }
         }
     }
 

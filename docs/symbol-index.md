@@ -504,11 +504,11 @@ the place to look.
   - `RecoveryScale` :22
 - `DesignSystem/ScoreBalanceWeb.swift`
   - `ScoreBalanceWeb` :49
-  - `ScoreBalanceWebSkeleton` :386
-  - `WebPolygonShape` :288
-  - `WebReferenceTicksShape` :339
-  - `WebSpokesShape` :316
-  - `WebWedgeShape` :434
+  - `ScoreBalanceWebSkeleton` :426
+  - `WebPolygonShape` :328
+  - `WebReferenceTicksShape` :379
+  - `WebSpokesShape` :356
+  - `WebWedgeShape` :474
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :40
 - `DesignSystem/ScoreComparisonChart.swift`
