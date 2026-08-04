@@ -38,10 +38,13 @@ struct BodyOverTimeSection: View {
                              trailing: trailingLabel,
                              caveat: caveat) {
             if let shown {
-                BodySilhouetteView(parameters: shown.parameters,
-                                   isProjected: shown.isProjected)
-                    .frame(height: 260)
-                    .animation(.easeInOut(duration: 0.25), value: position)
+                // The mesh replaces the outline, which read as a shield rather
+                // than a body. Geometry comes from InsightKit (tested on
+                // Linux); this section only chooses *when* to build it.
+                BodyMeshView(mesh: BodyMeshBuilder.mesh(for: shown.parameters),
+                             isProjected: shown.isProjected)
+                    .frame(height: 300)
+                BodyMeshLegend(hasMeasured: !shown.parameters.isWhollyEstimated)
                 scrubber
                 readout(shown)
             } else {

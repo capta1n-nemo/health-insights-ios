@@ -467,6 +467,9 @@ the place to look.
   - `BloodPressureChart` :18
 - `DesignSystem/BodyCompositionTrendChart.swift`
   - `BodyCompositionTrendChart` :39
+- `DesignSystem/BodyMeshView.swift`
+  - `BodyMeshLegend` :190
+  - `BodyMeshView` :35
 - `DesignSystem/BodySilhouetteView.swift`
   - `BodySilhouetteView` :28
 - `DesignSystem/EnergyCurveChart.swift`
