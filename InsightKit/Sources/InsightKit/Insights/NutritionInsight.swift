@@ -307,8 +307,12 @@ public struct NutritionInsight: InsightModel {
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
         guard let out = NutritionModel.evaluate(samples: samples, profile: profile, now: now) else {
+            // `invitesInput` because the missing thing is a food log, which
+            // the reader can supply — without it this card is filtered off the
+            // tab and cannot ask.
             return notReady(id, title,
-                            "Log what you eat — through Apple Health, or by sharing a Shotsy backup — and this card scores it against the published guidance. It needs \(NutritionModel.minimumLoggedDays) days before it will say anything.")
+                            "Log what you eat — through Apple Health, MyFitnessPal or any app that writes to it, or by sharing a Shotsy backup — and this card scores it against published guidance from WHO, EFSA and SACN. It needs \(NutritionModel.minimumLoggedDays) days of logging before it will say anything.",
+                            invitesInput: true)
         }
 
         // Completeness first, because every number under it is a mean over the

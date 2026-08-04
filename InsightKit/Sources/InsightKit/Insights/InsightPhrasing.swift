@@ -6,10 +6,15 @@ import Foundation
 /// widens whatever the moved code touched.
 
 // Shared helpers for the extra insights.
-func notReady(_ id: InsightID, _ title: String, _ message: String) -> InsightResult {
+/// - Parameter invitesInput: pass `true` when what the card is missing is
+///   something the reader can hand it. Without it the card is filtered off both
+///   tabs by `InsightResult.isWorthShowing` and cannot ask for anything — which
+///   is how Nutrition and Metabolism shipped invisible on 2026-08-03.
+func notReady(_ id: InsightID, _ title: String, _ message: String,
+              invitesInput: Bool = false) -> InsightResult {
     InsightResult(id: id, title: title, primaryValue: nil, headline: "No data yet",
                   score: nil, confidence: .low, explanation: message,
-                  drivers: [], unmetRequirements: [])
+                  drivers: [], unmetRequirements: [], invitesInput: invitesInput)
 }
 
 func trendWord(recent: Double, baseline: Double, higherIsBetter: Bool) -> String {

@@ -153,6 +153,7 @@ public struct InsightResult: Sendable, Equatable {
     /// placeholder card cannot help with.
     public var isWorthShowing: Bool {
         primaryValue != nil || !unmetRequirements.isEmpty || isAwaitingTodaysData
+            || invitesInput
     }
     /// A daily card that has real history and is only waiting for today's sync.
     ///
@@ -168,6 +169,21 @@ public struct InsightResult: Sendable, Equatable {
     public let isAwaitingTodaysData: Bool
     /// Grounding requirements still unmet, so the UI can prompt.
     public let unmetRequirements: [GroundingRequirement]
+    /// The card has no number **and** the thing it is missing is something the
+    /// reader can hand it — a food log, a reading, a scan.
+    ///
+    /// **This exists because two cards shipped invisible on 2026-08-03.**
+    /// Nutrition and Metabolism both need logged intake, and with none they
+    /// returned `notReady`, which sets no `primaryValue` and no unmet
+    /// requirement — so `isWorthShowing` filtered them off the Insights tab
+    /// entirely. A card the reader cannot see cannot tell them what it needs,
+    /// and the user found two features missing from a build that contained
+    /// them.
+    ///
+    /// The rule below was already right — a card with no number earns its place
+    /// only when there is something the reader can *do* — and grounding facts
+    /// were simply not the only kind of "something". An input is the other.
+    public let invitesInput: Bool
     /// The metrics that actually fed this result, emitted by the scoring code as
     /// it builds each component. This is what the detail screen charts, so it
     /// cannot drift from the maths the way a hand-written list does.
@@ -231,7 +247,7 @@ public struct InsightResult: Sendable, Equatable {
                 + all.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements, contributors: contributors,
             weighting: weighting, otherFactors: otherFactors,
-            isAwaitingTodaysData: isAwaitingTodaysData)
+            isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput)
     }
 
     /// For insights that don't distinguish notable lines from routine ones.
@@ -248,14 +264,15 @@ public struct InsightResult: Sendable, Equatable {
         contributors: [MetricContribution] = [],
         weighting: ScoreWeighting = .unstated,
         otherFactors: [ScoreFactor] = [],
-        isAwaitingTodaysData: Bool = false
+        isAwaitingTodaysData: Bool = false,
+        invitesInput: Bool = false
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
                   score: score, confidence: confidence, explanation: explanation,
                   driverLines: drivers.map { InsightDriver(text: $0) },
                   unmetRequirements: unmetRequirements, contributors: contributors,
                   weighting: weighting, otherFactors: otherFactors,
-                  isAwaitingTodaysData: isAwaitingTodaysData)
+                  isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput)
     }
 
     public init(
@@ -271,8 +288,10 @@ public struct InsightResult: Sendable, Equatable {
         contributors: [MetricContribution] = [],
         weighting: ScoreWeighting = .unstated,
         otherFactors: [ScoreFactor] = [],
-        isAwaitingTodaysData: Bool = false
+        isAwaitingTodaysData: Bool = false,
+        invitesInput: Bool = false
     ) {
+        self.invitesInput = invitesInput
         self.id = id
         self.title = title
         self.primaryValue = primaryValue

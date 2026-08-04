@@ -248,7 +248,8 @@ public struct MetabolismInsight: InsightModel {
         guard let balance = EnergyBalanceModel.evaluate(samples: samples, profile: profile,
                                                         now: now) else {
             return notReady(id, title,
-                            "This needs \(EnergyBalanceModel.minimumLoggedDays) days of food logging and a run of weigh-ins over the same \(EnergyBalanceModel.windowDays) days. It then works your energy expenditure out from what you ate and what your weight actually did, rather than trusting a wearable's estimate.")
+                            "This needs \(EnergyBalanceModel.minimumLoggedDays) days of food logging and a run of weigh-ins over the same \(EnergyBalanceModel.windowDays) days. It then works your energy expenditure out from what you ate and what your weight actually did, rather than trusting a wearable's estimate.",
+                            invitesInput: true)
         }
 
         // The gate, before anything else: below it the number is a
@@ -256,7 +257,8 @@ public struct MetabolismInsight: InsightModel {
         // would be the most flattering reading of the least data.
         guard balance.isJudgeable else {
             return notReady(id, title,
-                            "Logged \(balance.loggedDays) of the last \(balance.windowDays) days. Working expenditure back from intake charges every missing meal to your metabolism, so under about \(Int(NutritionLogging.completeEnough * 100))% of days logged this card would flatter you rather than inform you. It needs a few more logged days.")
+                            "Logged \(balance.loggedDays) of the last \(balance.windowDays) days. Working expenditure back from intake charges every missing meal to your metabolism, so under about \(Int(NutritionLogging.completeEnough * 100))% of days logged this card would flatter you rather than inform you. It needs a few more logged days.",
+                            invitesInput: true)
         }
 
         var drivers: [InsightDriver] = []

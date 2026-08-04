@@ -159,6 +159,24 @@ rediscover:
   domain first — the HealthKit symptom tags are what the radar grades itself
   against.
 
+**⚠️ Two cards shipped invisible, and the user found them (2026-08-03).**
+Nutrition and Metabolism were in build `0712a74`, registered in the engine, and
+absent from the Insights tab — because both need a food log, and with none they
+returned `notReady`, which sets no `primaryValue` and no unmet requirement, so
+`InsightResult.isWorthShowing` filtered them off the tab. **A card that cannot
+be seen cannot ask for what it needs.**
+
+The rule in `isWorthShowing` was right — a card with no number earns its place
+only when there is something the reader can *do* — and the gap was that a
+*grounding fact* was treated as the only kind of "something". An input the
+reader can hand over is the other. `InsightResult.invitesInput` says so, both
+cards set it in their empty state, and `CardVisibilityTests` evaluates every
+registered model against an empty profile so this class cannot come back.
+
+**The general lesson, which is bigger than the fix: a new card was tested for
+what it says when it has data and never for whether it appears when it has
+none.** The empty path is the one every reader sees first.
+
 **Food and supplement capture is on the roadmap** (`planned-modules.md` ▸
 module 9). Three findings worth more than the feature list:
 
