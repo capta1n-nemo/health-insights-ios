@@ -10,11 +10,27 @@ struct OnboardingView: View {
     @State private var page = 0
     @State private var setupProvider: OAuthIntegration?
 
-    // Profile step. Optional so nothing is pre-filled with a fake value — the
-    // user must confirm a real date of birth and sex (pre-filled from Apple
-    // Health when available) before the risk models will run.
+    // Profile step. Optional so the reader must confirm a real date of birth
+    // and sex before the risk models will run.
     @State private var dob: Date?
     @State private var sex: Int?
+
+    /// Whether either value actually came from Apple Health.
+    ///
+    /// **Not derivable from `dob != nil`, which is what this screen used to
+    /// ask.** Tapping *Set* below fills the date with today minus thirty years
+    /// so the `DatePicker` has something to bind to — so the moment the reader
+    /// set it themselves, the copy told them Apple Health had provided it.
+    /// Found in the simulator on 2026-08-04 with the Health connection
+    /// declined: there was no Health data on the device at all and the screen
+    /// still claimed a Health pre-fill.
+    ///
+    /// That is this app's own cardinal rule broken one layer above the models —
+    /// a fabricated value presented as a measured one — and it is worse here
+    /// than on a card, because a reader told the date came from Health has been
+    /// given a reason *not* to check it, and age drives every cardiovascular
+    /// risk score the app computes.
+    @State private var prefilledFromHealth = false
 
     private let lastPage = 3
 
@@ -126,13 +142,13 @@ struct OnboardingView: View {
     private var profile: some View {
         OnboardingPanel(icon: "person.text.rectangle", title: "A couple of basics") {
             VStack(alignment: .leading, spacing: 16) {
-                Text(dob != nil || sex != nil
-                     ? "We pre-filled these from Apple Health — please check they're right. Both are required by the risk models."
-                     : "These two are required by the risk models. Please set them.")
+                Text(basicsPrompt)
                     .font(.footnote).foregroundStyle(.secondary)
 
-                // Date of birth — no fake default; the user picks (or confirms
-                // the value read from Health).
+                // Date of birth. Tapping *Set* seeds the picker with a round
+                // thirty years so there is something to bind to — that is a
+                // starting point, never a reading, and `basicsPrompt` says so
+                // rather than crediting Apple Health for it.
                 if let dobBinding = Binding($dob) {
                     DatePicker("Date of birth", selection: dobBinding, in: ...Date(), displayedComponents: .date)
                 } else {
@@ -180,13 +196,33 @@ struct OnboardingView: View {
         }
     }
 
+    /// What the profile step says above the two fields.
+    ///
+    /// Three states, because there are three: a value Apple Health supplied, a
+    /// value the reader is being asked to confirm because *Set* seeded it, and
+    /// nothing at all. The middle one used to be told it came from Health.
+    private var basicsPrompt: String {
+        if prefilledFromHealth {
+            return "We pre-filled these from Apple Health — please check they're right. Both are required by the risk models."
+        }
+        if dob != nil || sex != nil {
+            // Deliberately does not say where the date came from, because it
+            // came from nowhere: it is a starting point for the picker.
+            return "Please set these to your own details — the date starts at a placeholder, not a reading. Both are required by the risk models."
+        }
+        return "These two are required by the risk models. Please set them."
+    }
+
     /// Pre-fill date of birth and sex from Apple Health characteristics if we
     /// have them and the user hasn't already entered a value. Never overwrites
     /// a user choice; never invents data.
+    ///
+    /// Records *that* it pre-filled, which is the part the copy above needs and
+    /// could not previously ask for.
     private func prefillBasicsFromHealth() {
         let chars = model.healthService.biologicalCharacteristics()
-        if dob == nil, let d = chars.dateOfBirth { dob = d }
-        if sex == nil, let s = chars.sex { sex = (s == .male) ? 0 : 1 }
+        if dob == nil, let d = chars.dateOfBirth { dob = d; prefilledFromHealth = true }
+        if sex == nil, let s = chars.sex { sex = (s == .male) ? 0 : 1; prefilledFromHealth = true }
     }
 
     private var oauthProviders: [OAuthIntegration] {

@@ -28,7 +28,13 @@ struct ImportLabView: View {
                 Card {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Import a blood test").font(.headline)
-                        Text("Choose a clear photo of your pathology report. The text is read on your device — nothing is uploaded — and any cholesterol values are pulled out for you to confirm.")
+                        // Leads with scanning, because the button below does.
+                        // The prose still said "choose a photo" after the
+                        // scanner became the primary action, so it pointed at
+                        // the tinted secondary button — spotted in the
+                        // simulator on 2026-08-04. Copy that names an action
+                        // has to name the one the eye lands on.
+                        Text("Scan your pathology report with the camera, or pick a photo you already have. The text is read on your device — nothing is uploaded — and any cholesterol values are pulled out for you to confirm.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

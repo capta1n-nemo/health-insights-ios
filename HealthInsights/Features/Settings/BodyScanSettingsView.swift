@@ -47,6 +47,13 @@ struct BodyScanSettingsView: View {
                         ? "Required — no scan can be taken without it."
                         : nil)
                 }
+                // **Say it, don't just enforce it.** A required asset's binding
+                // already refuses to change, so the switch swallowed the tap
+                // and looked identical to the four that work — verified in the
+                // simulator on 2026-08-04. `.disabled` greys it, which is how
+                // iOS says "this one isn't yours to move"; the note underneath
+                // then explains why rather than being the only clue.
+                .disabled(asset.isRequiredToMeasure)
             }
         } header: {
             Text("What a scan uses")

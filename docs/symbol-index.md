@@ -603,14 +603,14 @@ the place to look.
 - `Features/Metrics/StaticAttributeCard.swift`
   - `StaticAttributeCard` :9
 - `Features/Onboarding/OnboardingView.swift`
-  - `OnboardingPanel` :213
+  - `OnboardingPanel` :249
   - `OnboardingView` :7
 - `Features/Settings/BodyScanSettingsView.swift`
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :294
-  - `OtherDataListView` :307
+  - `FullExport` :305
+  - `OtherDataListView` :318
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :289
   - `IntegrationRow` :190

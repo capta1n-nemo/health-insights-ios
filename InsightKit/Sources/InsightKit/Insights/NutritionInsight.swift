@@ -310,9 +310,9 @@ public struct NutritionInsight: InsightModel {
             // `invitesInput` because the missing thing is a food log, which
             // the reader can supply — without it this card is filtered off the
             // tab and cannot ask.
-            return notReady(id, title,
-                            "Log what you eat — through Apple Health, MyFitnessPal or any app that writes to it, or by sharing a Shotsy backup — and this card scores it against published guidance from WHO, EFSA and SACN. It needs \(NutritionModel.minimumLoggedDays) days of logging before it will say anything.",
-                            invitesInput: true)
+            return invitingInput(id, title,
+                                 action: "Log what you eat",
+                                 message: "Log what you eat — through Apple Health, MyFitnessPal or any app that writes to it, or by sharing a Shotsy backup — and this card scores it against published guidance from WHO, EFSA and SACN. It needs \(NutritionModel.minimumLoggedDays) days of logging before it will say anything.")
         }
 
         // Completeness first, because every number under it is a mean over the

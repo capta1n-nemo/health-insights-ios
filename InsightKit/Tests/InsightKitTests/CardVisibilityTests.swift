@@ -39,4 +39,23 @@ final class CardVisibilityTests: XCTestCase {
         XCTAssertEqual(Set(noisy), [.nutrition, .metabolism],
                        "only the cards waiting on a reader-supplied log should invite input")
     }
+
+    /// **Being on the tab is half the job; the other half is asking.**
+    ///
+    /// The 2026-08-03 fix put Nutrition and Metabolism back on the Insights tab
+    /// and the test above proved it. Running the app on 2026-08-04 showed both
+    /// of them sitting there reading **"No data yet"** — visible, and still a
+    /// dead end, because `notReady` hard-coded that headline for every card and
+    /// the row renders the headline rather than the explanation.
+    ///
+    /// The row is the only text most readers see. A card that invites input and
+    /// leads with "No data yet" has told them nothing they could act on, which
+    /// is the same defect the visibility fix was for, one layer in.
+    func testAnInvitingCardLeadsWithTheAskNotWithNoDataYet() {
+        for result in emptyResults() where result.invitesInput {
+            XCTAssertNotEqual(result.headline, "No data yet",
+                              "\(result.id) invites input but its headline asks for nothing — the row shows the headline, not the explanation")
+            XCTAssertFalse(result.headline.isEmpty, "\(result.id) has no headline at all")
+        }
+    }
 }

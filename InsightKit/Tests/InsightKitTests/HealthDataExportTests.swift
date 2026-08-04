@@ -30,6 +30,67 @@ final class HealthDataExportTests: XCTestCase {
                 history: [.init(date: now, score: 72)])])
     }
 
+    /// **Every nested optional survives being nil.**
+    ///
+    /// The top-level encoder was hand-written so the optional `medication`
+    /// would emit an explicit null instead of vanishing, because "takes
+    /// nothing" and "the exporter forgot" must be distinguishable. Every
+    /// *nested* optional was left on the synthesised encoder, which uses
+    /// `encodeIfPresent` — so an unconfirmed dose had no `confirmedAt` key at
+    /// all, which is precisely the ambiguity the top-level fix removed.
+    ///
+    /// The guard that existed could not see it: its one fixture dose left
+    /// `confirmedAt` nil and then asserted only on keys the fixture populated.
+    /// This one builds a bundle in which **every nested optional is nil** and
+    /// insists each key is still there. Canaried by reverting the encoders.
+    func testNestedOptionalsAreWrittenAsNullRatherThanOmitted() throws {
+        let now = TestClock.now
+        let allNil = HealthDataExport(
+            generatedAt: now, build: "test",
+            samples: [], unmodelled: [], substances: [],
+            medication: .init(compound: "tirzepatide", brandName: nil, startedOn: now,
+                              doses: [.init(takenAt: now, milligrams: 5, injectionSite: nil,
+                                            isInferred: true, confirmedAt: nil)]),
+            sideEffects: [], profile: UserHealthProfile(),
+            derivedScores: [.init(card: "sleep", title: "Sleep", score: nil,
+                                  primaryValue: nil, headline: "No data yet",
+                                  confidence: "low", history: [])])
+        let json = try XCTUnwrap(String(data: allNil.json(), encoding: .utf8))
+        for key in ["confirmedAt", "injectionSite", "brandName", "score", "primaryValue"] {
+            XCTAssertTrue(json.contains("\"\(key)\""),
+                          "\(key) disappears from the export when nil, so a missing value is indistinguishable from a forgotten field")
+        }
+    }
+
+    /// A finished regimen is still the reader's data.
+    ///
+    /// `startMedication` deactivates every prior record and the export read
+    /// only the active one, so switching compounds silently dropped the earlier
+    /// course and every dose on it.
+    func testPreviousRegimensAreExportedAlongsideTheActiveOne() throws {
+        let now = TestClock.now
+        let past = HealthDataExport.Medication(
+            compound: "semaglutide", brandName: "Ozempic",
+            startedOn: now.addingTimeInterval(-365 * 86_400),
+            doses: [.init(takenAt: now.addingTimeInterval(-300 * 86_400), milligrams: 1.0,
+                          injectionSite: nil, isInferred: false, confirmedAt: nil)])
+        let export = HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [], substances: [],
+            medication: nil, previousMedication: [past], sideEffects: [],
+            profile: UserHealthProfile(), derivedScores: [])
+        let json = try XCTUnwrap(String(data: export.json(), encoding: .utf8))
+        XCTAssertTrue(json.contains("semaglutide"),
+                      "a regimen the reader has finished is missing from their own export")
+        XCTAssertTrue(json.contains("\"previousMedication\""))
+    }
+
+    /// The key is present even with no history, so an empty array can never be
+    /// mistaken for a field the exporter dropped.
+    func testThePreviousMedicationKeyIsPresentWhenThereIsNone() throws {
+        let json = try XCTUnwrap(String(data: bundle(empty: true).json(), encoding: .utf8))
+        XCTAssertTrue(json.contains("\"previousMedication\""))
+    }
+
     /// **The rule.** Every kind of data the app holds names a key in the export,
     /// and that key is really in the encoded JSON — a switch that merely named
     /// one would still let the payload go out without it.

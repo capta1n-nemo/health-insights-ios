@@ -42,6 +42,31 @@ public struct HealthDataExport: Encodable, Sendable {
                 self.isInferred = isInferred
                 self.confirmedAt = confirmedAt
             }
+
+            /// Hand-written for the same reason the top-level encoder is, and
+            /// it should have been written at the same time.
+            ///
+            /// The top-level fix (see `HealthDataExport.encode`) made the
+            /// optional `medication` emit an explicit null, so "takes nothing"
+            /// could be told from "the exporter forgot". **Every nested
+            /// optional was left on the synthesised encoder**, which uses
+            /// `encodeIfPresent` — so an unconfirmed dose simply had no
+            /// `confirmedAt` key, which is exactly the ambiguity the top-level
+            /// fix existed to remove. Found by audit on 2026-08-04; the guard
+            /// test could not see it because its one fixture dose left
+            /// `confirmedAt` nil and asserted only on keys that were populated.
+            enum CodingKeys: String, CodingKey {
+                case takenAt, milligrams, injectionSite, isInferred, confirmedAt
+            }
+
+            public func encode(to encoder: any Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(takenAt, forKey: .takenAt)
+                try c.encode(milligrams, forKey: .milligrams)
+                try c.encode(injectionSite, forKey: .injectionSite)
+                try c.encode(isInferred, forKey: .isInferred)
+                try c.encode(confirmedAt, forKey: .confirmedAt)
+            }
         }
         public let compound: String
         public let brandName: String?
@@ -53,6 +78,20 @@ public struct HealthDataExport: Encodable, Sendable {
             self.brandName = brandName
             self.startedOn = startedOn
             self.doses = doses
+        }
+
+        /// Explicit nulls, same reason as `Dose.encode`. A generic prescribed
+        /// with no brand must read as `"brandName": null`.
+        enum CodingKeys: String, CodingKey {
+            case compound, brandName, startedOn, doses
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(compound, forKey: .compound)
+            try c.encode(brandName, forKey: .brandName)
+            try c.encode(startedOn, forKey: .startedOn)
+            try c.encode(doses, forKey: .doses)
         }
     }
 
@@ -100,6 +139,26 @@ public struct HealthDataExport: Encodable, Sendable {
             self.confidence = confidence
             self.history = history
         }
+
+        /// Explicit nulls, same reason as `Medication.Dose.encode`. A card that
+        /// is not scoring must read as `"score": null` rather than as a missing
+        /// key — "this card had nothing to say" and "the exporter dropped it"
+        /// are different findings, and the whole point of the file is to let a
+        /// reader tell them apart.
+        enum CodingKeys: String, CodingKey {
+            case card, title, score, primaryValue, headline, confidence, history
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(card, forKey: .card)
+            try c.encode(title, forKey: .title)
+            try c.encode(score, forKey: .score)
+            try c.encode(primaryValue, forKey: .primaryValue)
+            try c.encode(headline, forKey: .headline)
+            try c.encode(confidence, forKey: .confidence)
+            try c.encode(history, forKey: .history)
+        }
     }
 
     public let schemaVersion: Int
@@ -111,7 +170,20 @@ public struct HealthDataExport: Encodable, Sendable {
     /// Imported but not yet modelled — the raw catalogue.
     public let unmodelled: [RawMetricSample]
     public let substances: [SubstanceEvent]
+    /// The regimen the reader is on now, or `null` if none.
     public let medication: Medication?
+    /// **Every regimen they were on before it**, newest first.
+    ///
+    /// `medication` alone loses history, and silently. `startMedication` sets
+    /// `isActive = false` on every prior record and `loadActiveMedication`
+    /// returns only the active one, so a reader who has ever switched compounds
+    /// had the earlier course — and every dose logged against it — missing from
+    /// the file while it sat intact in SwiftData. Found by audit on 2026-08-04,
+    /// before the reader's first real export rather than after.
+    ///
+    /// An array rather than a second optional, so an empty history encodes as
+    /// `[]` and can never disappear the way a nil optional does.
+    public let previousMedication: [Medication]
     public let sideEffects: [SideEffect]
     /// Every body scan, whole — measurements, conditions and capture method.
     public let bodyScans: [BodyScan]
@@ -123,6 +195,7 @@ public struct HealthDataExport: Encodable, Sendable {
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
                 substances: [SubstanceEvent], medication: Medication?,
+                previousMedication: [Medication] = [],
                 sideEffects: [SideEffect], bodyScans: [BodyScan] = [],
                 profile: UserHealthProfile,
                 derivedScores: [DerivedScore]) {
@@ -133,6 +206,7 @@ public struct HealthDataExport: Encodable, Sendable {
         self.unmodelled = unmodelled
         self.substances = substances
         self.medication = medication
+        self.previousMedication = previousMedication
         self.sideEffects = sideEffects
         self.bodyScans = bodyScans
         self.profile = profile
@@ -177,7 +251,7 @@ public struct HealthDataExport: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
-        case medication, sideEffects, bodyScans, profile, derivedScores
+        case medication, previousMedication, sideEffects, bodyScans, profile, derivedScores
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -195,6 +269,7 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(unmodelled, forKey: .unmodelled)
         try c.encode(substances, forKey: .substances)
         try c.encode(medication, forKey: .medication)
+        try c.encode(previousMedication, forKey: .previousMedication)
         try c.encode(sideEffects, forKey: .sideEffects)
         try c.encode(bodyScans, forKey: .bodyScans)
         try c.encode(profile, forKey: .profile)

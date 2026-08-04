@@ -229,6 +229,24 @@ struct DataExportView: View {
         .task { await prepareDocuments() }
     }
 
+    /// One `MedicationRecord` in export shape, or nil when it carries no
+    /// recognisable compound. Shared by the active regimen and the finished
+    /// ones so the two can never drift into different shapes.
+    private static func exported(_ record: MedicationRecord) -> HealthDataExport.Medication? {
+        record.compound.map { compound in
+            HealthDataExport.Medication(
+                compound: compound.rawValue,
+                brandName: record.brandName,
+                startedOn: record.startedOn,
+                doses: record.doses
+                    .sorted { $0.takenAt < $1.takenAt }
+                    .map { .init(takenAt: $0.takenAt, milligrams: $0.milligrams,
+                                 injectionSite: $0.injectionSite,
+                                 isInferred: $0.isInferred,
+                                 confirmedAt: $0.confirmedAt) })
+        }
+    }
+
     private func buildFullExport() {
         exportFailed = nil
         preparingFullExport = true
@@ -242,20 +260,13 @@ struct DataExportView: View {
             samples: model.samples,
             unmodelled: model.otherDataGroups.flatMap(\.samples),
             substances: model.substanceEvents,
-            medication: model.activeMedication.flatMap { record in
-                record.compound.map { compound in
-                    HealthDataExport.Medication(
-                        compound: compound.rawValue,
-                        brandName: record.brandName,
-                        startedOn: record.startedOn,
-                        doses: record.doses
-                            .sorted { $0.takenAt < $1.takenAt }
-                            .map { .init(takenAt: $0.takenAt, milligrams: $0.milligrams,
-                                         injectionSite: $0.injectionSite,
-                                         isInferred: $0.isInferred,
-                                         confirmedAt: $0.confirmedAt) })
-                }
-            },
+            medication: model.activeMedication.flatMap(Self.exported),
+            // Every finished course as well. `activeMedication` alone was
+            // dropping them, and the reader could not tell — see
+            // `HealthDataExport.previousMedication`.
+            previousMedication: model.allMedications
+                .filter { !$0.isActive }
+                .compactMap(Self.exported),
             sideEffects: model.sideEffects.map {
                 .init(name: $0.name, severity: $0.severity, date: $0.date)
             },

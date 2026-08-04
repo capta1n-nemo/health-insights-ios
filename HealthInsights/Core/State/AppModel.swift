@@ -123,12 +123,21 @@ final class AppModel {
     /// not appear on a Data tab that was already on screen.
     private(set) var sideEffects: [SideEffectRecord] = []
 
+    /// Every regimen ever started, newest first — what the *export* needs.
+    ///
+    /// Stored and observed for the same reason as `activeMedication`. Nothing
+    /// that scores reads this: the models take the active regimen only, on
+    /// purpose. It exists so "export my data" stops silently dropping the
+    /// courses the reader has finished.
+    private(set) var allMedications: [MedicationRecord] = []
+
     /// Reload the logged data that lives in SwiftData rather than in `samples`,
     /// so every observed reader of it redraws. Called from `hydrate()` and at
     /// the top of `recompute()`, which every mutation funnels through — the one
     /// place freshness has to be guaranteed.
     private func reloadLoggedData() {
         activeMedication = dataStore.loadActiveMedication()
+        allMedications = dataStore.loadAllMedications()
         sideEffects = dataStore.loadSideEffects()
         bodyScans = dataStore.bodyScans()
     }

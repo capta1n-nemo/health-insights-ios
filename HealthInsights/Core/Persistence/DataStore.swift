@@ -431,6 +431,21 @@ final class DataStore {
         return ((try? context.fetch(descriptor)) ?? []).first { $0.isActive }
     }
 
+    /// Every regimen ever started, newest first — including the ones
+    /// `startMedication` deactivated.
+    ///
+    /// The scoring models are right to read only the active regimen: two GLP-1
+    /// compounds on board at once is not a situation this app describes. **The
+    /// export is not scoring**, and it was using the same accessor, so a reader
+    /// who switched compounds handed back a file with the earlier course and
+    /// every dose on it missing — while the records sat intact on the phone.
+    /// Found by audit 2026-08-04.
+    func loadAllMedications() -> [MedicationRecord] {
+        let descriptor = FetchDescriptor<MedicationRecord>(
+            sortBy: [SortDescriptor(\.startedOn, order: .reverse)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
     /// Start a regimen, optionally seeding the titration history the engine
     /// proposes. **Every seeded dose is stored unconfirmed** — the reader
     /// reviews them, and until they do the curve draws dashed.
