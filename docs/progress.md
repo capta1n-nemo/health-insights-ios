@@ -81,13 +81,19 @@ section it sits in rather than by judgement:
 | 45 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
 | 46 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
 | 47 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
-| 48 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 49 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 50 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 51 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 52 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 53 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 54 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 48 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
+| 49 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
+| 50 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
+| 51 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
+| 52 | Promote the nine micronutrients — vitamin C, D, A, B12, magnesium, zinc, calc… | Food and supplement capture — scanner, AI, and vitamins | next |
+| 53 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
+| 54 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 55 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 56 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 57 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 58 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 59 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 60 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1799,6 +1805,62 @@ because that is what makes Natural Cycles a regulated Class II device.
       (settled 2021) — this app's on-device-only posture is the strongest claim
       it has in this category, and it belongs on the tab rather than in
       Settings.
+
+### Food and supplement capture — scanner, AI, and vitamins (user request, 2026-08-03)
+
+*"Integration with MyFitnessPal, and also build a scanner into our app… leverage
+onboard AI to estimate food and drinks… but also support something they don't:
+vitamins! I had real trouble tracking supplements and all the unique
+ingredients."*
+
+**Designed in `docs/planned-modules.md` ▸ module 9.** Four asks, and the order
+below is deliberate: one of them may already be done, one is closed with an open
+window beside it, and the last is the only one whose accuracy is a research
+problem.
+
+- [ ] **First, check MyFitnessPal already works.** Its API is **private,
+      partner-only, and closed to new requests** — but MFP writes nutrition to
+      Apple Health, and this app has read eleven nutrition metrics out of
+      HealthKit since 2026-08-03. **A reader logging in MFP today probably
+      already sees it here.** Five minutes on the phone, no code. If it holds,
+      the whole "integration" is one Settings row saying so. If it does not, MFP
+      has a CSV export and this app already has a file-import route.
+- [ ] **The barcode scanner, with the lookup on-device.** VisionKit's
+      `DataScannerViewController` reads the barcode; the database is a *privacy*
+      decision first: a lookup against a third-party API sends "what I am about
+      to eat" to a stranger, which breaks the app's standing guarantee.
+      **Open Food Facts publishes downloadable dumps** (ODbL, commercial use
+      allowed) — ship or fetch an extract once and look up locally, with USDA
+      FoodData Central as the second source for generic foods. A cache miss may
+      offer an online lookup as an explicit per-scan choice.
+- [ ] **Supplements — the ingredient problem, which is the real ask.** Every
+      tracker treats a supplement as a food with a calorie count, which is
+      exactly backwards: the calories are irrelevant and the ingredient list is
+      the point. **NIH's Dietary Supplement Label Database carries 200,000+ US
+      labels with every ingredient, its form and its amount, behind a free
+      public API.** Model a supplement as a **regimen** — the app already has
+      `MedicationRegimen`, doses, side effects and a decay curve — not as a
+      food.
+- [ ] **Sum the ingredients across the stack, against published upper limits.**
+      The feature nobody ships. A multivitamin, a greens powder and a magnesium
+      blend overlap constantly, and no tracker adds them up. *"Your three
+      products give you 41 mg of zinc a day; the upper limit is 40"* is a
+      sentence this app can produce and MyFitnessPal cannot. ULs from EFSA and
+      IOM — for a supplement the upper limit matters far more than the RDA, and
+      published bands are already the agreed shape.
+- [ ] **Promote the nine micronutrients** — vitamin C, D, A, B12, magnesium,
+      zinc, calcium, iron and cholesterol are already scraped into the raw pile
+      and read by nothing. They are the reader for the supplement work and it is
+      the reader for them: promote them together, not before.
+- [ ] **The AI estimate, last.** Published accuracy decides the design:
+      identification runs **68–86% in the real world**, and **portion estimation
+      as low as 39%, 15–25% error from a 2D photo and 5–10% with depth**. So
+      the flow is *photo → candidates → the reader confirms → portion → lookup*,
+      never photo → a number; and **this app has depth on the roadmap already**
+      (LiDAR, module 3), where a plate is a far easier subject than a torso. The
+      estimate carries its own error band and is graded against hand-logged
+      days, exactly as the blood-pressure estimator is — a photo-derived calorie
+      figure must never be indistinguishable from a scanned label's.
 
 ### The ten-item feedback list (the working agenda)
 Status audited against the code, not recalled — see `activeContext.md` ▸

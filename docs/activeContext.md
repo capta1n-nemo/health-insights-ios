@@ -159,6 +159,25 @@ rediscover:
   domain first — the HealthKit symptom tags are what the radar grades itself
   against.
 
+**Food and supplement capture is on the roadmap** (`planned-modules.md` ▸
+module 9). Three findings worth more than the feature list:
+
+- **MyFitnessPal's API is private, partner-only and closed to new requests — but
+  it may already work.** MFP writes nutrition to Apple Health, and this app has
+  read eleven nutrition metrics out of HealthKit since 2026-08-03. **Check on the
+  phone before building anything.** If it holds, the integration is one Settings
+  row saying so.
+- **A barcode lookup is a privacy decision before it is a data one.** Sending a
+  barcode to a third-party API tells a stranger what the reader is about to eat,
+  which breaks the app's standing guarantee. Open Food Facts publishes
+  downloadable dumps under ODbL — look up locally, send nothing per scan.
+- **Supplements are a regimen, not a food.** Calories are irrelevant; the
+  ingredient list is the point, and the app already has `MedicationRegimen` with
+  doses, side effects and a decay curve. NIH's DSLD carries 200,000+ US labels
+  with every ingredient and amount behind a free API, and **summing ingredients
+  across a stack against published upper limits is the feature nobody ships** —
+  three products all containing zinc is the normal case.
+
 **Cycle tracking is on the roadmap as the fifth tab** (`planned-modules.md` ▸
 module 8, ten items in `progress.md`). Two findings a session must not
 rediscover, and one it must not ignore:

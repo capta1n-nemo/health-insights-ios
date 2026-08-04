@@ -1112,3 +1112,134 @@ liability.
   most sensitive category the app will hold, and the rule for docs — *the shape
   of a finding, never the reading* — applies to it more than to anything else.
   Worth settling before Phase 1, not after.
+
+---
+
+## 9. Food and supplement capture — the scanner, the AI, and the vitamins (user request, 2026-08-03)
+
+*"Integration with MyFitnessPal, and also build a scanner into our app to do the
+same thing inside the nutrition card. But leverage onboard AI to estimate food
+and drinks… but also support something they don't: vitamins! I had real trouble
+tracking supplements and all the unique ingredients."*
+
+Four asks. One of them may already be done, one is a closed door with an open
+window beside it, one has a published accuracy problem that decides its design,
+and the last is the genuinely novel feature.
+
+### 1. MyFitnessPal — check before building
+
+**MyFitnessPal's API is private and partner-only, and they are not accepting
+requests.** So a direct integration is not available at any price this project
+would pay.
+
+**But it may not be needed.** MyFitnessPal writes nutrition to Apple Health, and
+as of 2026-08-03 this app reads eleven nutrition metrics out of HealthKit —
+energy, the macros, fibre, sodium, potassium, water and caffeine. **A reader
+logging in MyFitnessPal today probably already sees it here.** That is a
+five-minute check on the phone, not a build, and it must happen before anything
+is designed. If it holds, the "integration" is one Settings row explaining that
+MFP flows in through Apple Health, and the work is done.
+
+The fallback if it does not: MyFitnessPal offers a CSV export, and this app
+already has a file-import route (`InputKind.fileImport`, built for Shotsy). Same
+shape, one parser.
+
+### 2. The barcode scanner — and where the lookup happens
+
+VisionKit's `DataScannerViewController` reads barcodes on-device, and this app
+already ships a VisionKit document scanner (`DocumentCameraView`, 2026-08-03),
+so the capture half is a known quantity.
+
+The database is the decision, and it is a **privacy** decision before it is a
+data one. The app's standing guarantee is that health data stays on the device
+and the only network calls are the reader's own wearable APIs. **A barcode
+lookup against a third-party API sends "what I am about to eat" to a stranger.**
+
+| Source | Terms | Coverage | Fit |
+| --- | --- | --- | --- |
+| **Open Food Facts** | ODbL — free, commercial use allowed, attribution and share-alike on the database | largest packaged coverage; keyless API **and downloadable dumps** | **The one to use.** The dump is what preserves the privacy claim: ship or fetch it once, look up on-device, send nothing per scan |
+| **USDA FoodData Central** | free, US government | ~380k foods, the best nutrient depth and provenance | the right second source for generic foods, where Open Food Facts is thin |
+| Nutritionix / Edamam / FatSecret | commercial, enterprise pricing in the four figures a month | branded and restaurant | out |
+
+So: **on-device lookup against a local Open Food Facts extract, USDA for
+generics, and no per-scan network call.** A cache miss can offer an online
+lookup as an explicit, per-scan choice — which is the same consent shape the
+crowd-sourced norms item already requires.
+
+### 3. The AI estimate — and the number that decides how it is presented
+
+Published accuracy for photo-based estimation, 2024–2026: **food identification
+68–86% in the real world** (85–95% top-1 on common foods in papers), and
+**portion estimation as low as 39%, with 15–25% error from a 2D photo — falling
+to 5–10% with depth**.
+
+Two things follow, and they are the whole design:
+
+- **Portion is the error, not recognition.** So the flow is
+  *photo → candidates → the reader confirms → portion estimated → nutrition
+  looked up*, never photo → a number. The confirmation step is not friction; it
+  is where the 39% becomes something else.
+- **This app has depth.** LiDAR is already on the roadmap for the body scanner
+  (module 3) and is the difference between 15–25% and 5–10% portion error. A
+  plate is a far easier subject than a torso.
+
+And the honesty framework is the one the app already uses for an unvalidated
+number beside a validated one — the blood-pressure estimator: the estimate is
+labelled as an estimate, carries its own error band, is stored with what
+produced it, and **is graded against the days the reader logged by hand**. A
+photo-derived calorie figure must never be indistinguishable from a scanned
+label's.
+
+Apple's on-device Foundation Models (already used for the Today summary) handle
+the language half — parsing *"two flat whites and a chicken salad"* into
+candidates. The vision half is Vision-framework classification plus, where
+available, a depth frame.
+
+### 4. Supplements — the part nobody does well, and the reason it is hard
+
+The user's own words: *"I had real trouble tracking supplements and all the
+unique ingredients."* That is the correct diagnosis of a real gap. Every food
+tracker treats a supplement as a food with a calorie count, which is exactly
+wrong: **the calories are irrelevant and the ingredient list is the whole
+point.**
+
+**The database exists and is authoritative.** NIH's **Dietary Supplement Label
+Database (DSLD)** carries **200,000+ US supplement labels** with the name and
+form of every dietary ingredient, the amount of each, label images and all label
+statements, behind a free public API (v9). Nothing else in this space is that
+good, and it is a government resource rather than a commercial one.
+
+**Model a supplement as a regimen, not as a food.** This app already has the
+shape: `MedicationRegimen` with doses logged against it, side effects recorded
+alongside, and a decay model. A supplement stack is several regimens whose
+"dose" carries an ingredient vector. Reusing that machinery is most of the
+build, and it also means the substance shading and the medication chart come
+free.
+
+**The feature nobody ships: sum the ingredients across the stack.** Three
+products can each contain zinc; a multivitamin, a "greens" powder and a
+magnesium blend overlap constantly, and no tracker adds them up. This app can —
+and against **published upper limits**, which is exactly the kind of band the
+user has already approved (EFSA and IOM tolerable upper intake levels for
+vitamin A, vitamin D, iron, zinc, B6, magnesium and others; for a supplement the
+UL matters far more than the RDA). *"Your three products give you 41 mg of zinc
+a day; the upper limit is 40"* is a sentence no food tracker in this market can
+produce.
+
+Nine micronutrients are **already being scraped into this app's raw pile** from
+HealthKit — vitamin C, D, A, B12, magnesium, zinc, calcium, iron and cholesterol
+— and read by nothing. They are the reader for this feature, and this feature is
+the reader for them: promote them when the supplement work lands, not before.
+
+### Build order
+
+1. **Check MyFitnessPal already flows in through Apple Health.** Phone, five
+   minutes, no code. Possibly closes ask #1 outright.
+2. **Barcode scan → Open Food Facts extract on-device → confirm → log.** The
+   highest value per unit of work, and it makes the nutrition card's numbers
+   real rather than dependent on another app.
+3. **Supplements**: DSLD lookup, the regimen model, ingredient summing, the
+   upper-limit bands, and the nine micronutrients promoted to metrics.
+4. **The AI estimate last**, because it is the only one whose accuracy is a
+   research problem rather than an engineering one, and because the scanner and
+   the supplement work give it the database it needs to be checked against.
