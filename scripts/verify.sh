@@ -47,6 +47,10 @@ APP=HealthInsights
 KIT=InsightKit/Sources
 KIT_TESTS=InsightKit/Tests
 
+# Where Xcode build products go. Never inside the working copy — see the
+# app-target compile below for why that costs real money on this Mac.
+DERIVED_ROOT="${HEALTH_INSIGHTS_DERIVED:-$HOME/Library/Caches/health-insights}"
+
 # --- Architecture rules from CLAUDE.md ------------------------------------
 
 # Scoped to where view models live. The three integration services in
@@ -534,13 +538,24 @@ fi
 # 2026-08-03 and requiring a secret instead broke the next deploy; the user
 # chose to keep the default. Exempting one known line by path — rather than
 # loosening the pattern — keeps every *other* identifier caught.
-pii_hits=$(grep -rInE \
-    '\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b|\b[0-9]{8}-[0-9A-F]{16}\b' \
-    --include='*.swift' --include='*.yml' --include='*.yaml' --include='*.sh' \
-    --include='*.plist' --include='*.pbxproj' --include='*.json' \
-    . 2>/dev/null \
+# **Asks `git ls-files`, not the filesystem**, for the same reason the
+# script-exists check does: this lint's own sentence is "looks *committed*", and
+# a filesystem walk cannot know whether anything it found is. It walked `.` until
+# 2026-08-04, when the app-target compile added `build/verify-ios` and Xcode's
+# own build logs — gitignored, never committed, full of activity-log UUIDs —
+# failed the gate. `build/simulator` was the same landmine, armed since the
+# simulator script landed and waiting for the first person to run both.
+#
+# Widening the ignore list would have fixed the instance. Reading the index
+# fixes the category: a file git does not track cannot leak anything, so the
+# question was never about paths.
+pii_hits=$(git ls-files -z -- \
+    '*.swift' '*.yml' '*.yaml' '*.sh' '*.plist' '*.pbxproj' '*.json' 2>/dev/null \
+    | xargs -0 grep -InE \
+      '\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b|\b[0-9]{8}-[0-9A-F]{16}\b' \
+      2>/dev/null \
     | grep -viE 'UUID\(\)|uuidString|test|mock|fixture|00000000-0000|E621E1F8|deadbeef' \
-    | grep -v '^./.github/workflows/deploy.yml:' \
+    | grep -v '^\.github/workflows/deploy\.yml:' \
     | head -5 || true)
 if [ -n "$pii_hits" ]; then
     printf '\033[31m✗\033[0m %s\n' 'A hardware or account identifier looks committed:'
@@ -665,6 +680,74 @@ if [ "${1:-}" = "--tests" ]; then
         fi
     else
         note 'Could not obtain a Swift toolchain (no network?). CI is the gate — say so in the reply.'
+    fi
+
+    # --- The app target, actually type-checked (Darwin only) ----------------
+    #
+    # **This retires the repo's top red-CI category**, and it does so by
+    # compiling rather than by approximating. Four red pushes were app-target
+    # symbols the local gate could not see: an `internal`
+    # `PeerStandingModel.isModelled` read from the app, a missing `.screenTime`
+    # arm in `onsetDriverIcon`, and a missing `import InsightKit`. All three are
+    # name-resolution failures, and `swiftc -parse` above resolves no names at
+    # all — it builds a syntax tree and stops.
+    #
+    # The efficiency roadmap specified a *textual* cross-target symbol check
+    # (collect InsightKit's declarations, grep the app for identifiers, flag any
+    # that resolve to an `internal` one) because the hosted Linux container has
+    # no iOS SDK and therefore no way to run the real thing. That reasoning was
+    # correct for Linux and is simply obsolete on the user's Mac, which has
+    # Xcode: the real compiler answers the real question, with no false
+    # positives and no list to maintain. The textual check is not worth
+    # building — see docs/efficiency-log.md.
+    #
+    # Cost is why this can sit in the gate at all: an incremental no-change
+    # build is ~1.4s. The first run after a clean checkout is minutes, which is
+    # the one time it is worth waiting for.
+    #
+    # `generic/platform=iOS` deliberately — the device SDK, matching what
+    # deploy.yml ships, and **it needs no simulator**. The first Mac session
+    # (2026-08-04) could not boot one at all, and a gate that depends on the
+    # simulator would have been dead that whole session.
+    #
+    # Its own `iosfail`, for the reason `testfail` has one: a flag shared with
+    # the lints above can be cleared by somebody else's recovery.
+    if [ "$(uname -s)" = "Darwin" ]; then
+        if command -v xcodebuild >/dev/null 2>&1 && [ -d "$APP.xcodeproj" ]; then
+            note 'Type-checking the app target against the iOS SDK (Mac only).'
+            ioslog="${TMPDIR:-/tmp}/healthinsights-ios-build.log"
+            iosfail=0
+            # **Derived data lives outside the repo, and on this Mac that is not
+            # a tidiness preference.** The working copy is in iCloud Drive, which
+            # syncs by folder and knows nothing about `.gitignore` — so a
+            # `-derivedDataPath build/…` uploads a few hundred megabytes of
+            # object files to the user's iCloud account and keeps
+            # `fileproviderd` busy churning them. It was measured at 262 MB
+            # after one afternoon. A cache directory is also the right home for
+            # something reproducible from source.
+            xcodebuild build \
+                -project "$APP.xcodeproj" \
+                -scheme "$APP" \
+                -destination 'generic/platform=iOS' \
+                -derivedDataPath "$DERIVED_ROOT/verify-ios" \
+                CODE_SIGNING_ALLOWED=NO > "$ioslog" 2>&1 || iosfail=1
+            if [ "$iosfail" -ne 0 ]; then
+                note 'The app target does not compile for iOS:'
+                grep -E 'error:' "$ioslog" | head -12
+                # A build can fail without printing `error:` (a missing scheme, a
+                # broken project file). Say so rather than printing nothing and
+                # letting the reader conclude the grep found the whole story —
+                # the "guard reporting a failure whose own premise is false"
+                # class, which this repo has hit seven times.
+                grep -qE 'error:' "$ioslog" \
+                    || printf '%s\n' "No 'error:' line — xcodebuild failed for another reason. Full log: $ioslog"
+                fail=1
+            else
+                printf '\033[32m✓\033[0m %s\n' 'App target compiles for iOS.'
+            fi
+        else
+            note 'Darwin but no xcodebuild or no project — skipping the app-target compile. CI is the gate for it.'
+        fi
     fi
 fi
 

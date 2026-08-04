@@ -45,7 +45,12 @@ cd "$(dirname "$0")/.."
 PROJECT="HealthInsights.xcodeproj"
 SCHEME="HealthInsights"
 BUNDLE_ID="com.jasonsalway.healthinsights"
-DERIVED="${SIM_DERIVED_DATA:-build/simulator}"
+# Outside the working copy on purpose. This repo lives in the user's iCloud
+# Drive, which syncs by folder and ignores `.gitignore` entirely — so build
+# products written under `build/` are uploaded to their iCloud account and
+# churned by `fileproviderd`. Measured at 766 MB across `build/` on 2026-08-04,
+# during a session that also watched `fileproviderd` sit at 150% CPU.
+DERIVED="${SIM_DERIVED_DATA:-$HOME/Library/Caches/health-insights/simulator}"
 SHOTS="${SIM_SHOT_DIR:-build/simulator-shots}"
 # Overridable: `SIM_DEVICE="iPhone 16 Pro" ./scripts/simulator.sh run`
 DEVICE="${SIM_DEVICE:-}"
@@ -129,6 +134,29 @@ cmd_run() {
     [ -n "$udid" ] || die "Could not resolve a UDID for '$device'."
     # `boot` fails when already booted, which is not an error here.
     xcrun simctl boot "$udid" 2>/dev/null || true
+
+    # **Wait for the boot, and check it happened.**
+    #
+    # `simctl boot` returns as soon as the request is accepted, so the `install`
+    # below used to run against a device still shutting down — and reported
+    # "Unable to lookup in current state: Shutdown", which names the *install*
+    # and says nothing about the boot that never happened. On 2026-08-04 that
+    # cost the first Mac session ten minutes chasing an install problem that did
+    # not exist. A step must fail with its own diagnosis, not leave the next one
+    # to report a symptom.
+    xcrun simctl bootstatus "$udid" -b >/dev/null 2>&1 || true
+    if [ "$(xcrun simctl list devices | grep "$udid" | grep -c Booted)" -eq 0 ]; then
+        printf '\033[31m✗\033[0m %s\n' "'$device' did not boot." >&2
+        printf '%s\n' "The exact reason, from simctl:" >&2
+        xcrun simctl boot "$udid" 2>&1 | sed 's/^/    /' >&2
+        printf '\n%s\n' "If it says 'launchd_sim ... could not bind to session', the simulator subsystem is wedged. In order of cost:" >&2
+        printf '%s\n' "  1. Check the load average — a boot can time out under a post-restart iCloud/Spotlight storm. \`uptime\`" >&2
+        printf '%s\n' "  2. Quit Simulator.app, then: killall -9 com.apple.CoreSimulator.CoreSimulatorService" >&2
+        printf '%s\n' "  3. Log out and back in, or restart the Mac." >&2
+        printf '\n%s\n' "None of this is the app's fault — the build above succeeded. Say so plainly and fall back to CI." >&2
+        exit 1
+    fi
+
     open -a Simulator 2>/dev/null || true
     xcrun simctl install "$udid" "$(app_path)"
     xcrun simctl launch "$udid" "$BUNDLE_ID" >/dev/null

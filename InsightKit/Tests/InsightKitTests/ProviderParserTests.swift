@@ -30,7 +30,7 @@ final class OuraParserTests: XCTestCase {
     """
 
     func testParsesSleepIntoCanonicalSamples() throws {
-        let samples = try OuraResponseParser.parseSleep(Data(json.utf8))
+        let samples = try OuraResponseParser.parseSleepUTC(Data(json.utf8))
         // 2 nights × 4 metrics = 8 samples.
         XCTAssertEqual(samples.count, 8)
         XCTAssertTrue(samples.allSatisfy { $0.source == .oura })
@@ -52,7 +52,7 @@ final class OuraParserTests: XCTestCase {
         let j = """
         { "data": [ { "day": "2026-07-22", "average_heart_rate": 60, "total_sleep_duration": 3600 } ] }
         """
-        let samples = try OuraResponseParser.parseSleep(Data(j.utf8))
+        let samples = try OuraResponseParser.parseSleepUTC(Data(j.utf8))
         XCTAssertEqual(samples.latestValue(.restingHeartRate), 60)
     }
 }

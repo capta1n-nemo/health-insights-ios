@@ -33,7 +33,7 @@ final class NapContaminationTests: XCTestCase {
     /// `bucketStatistic` averages same-day samples — so a 7.5 h night beside a
     /// 20-minute nap was reported to the user as a 4 h night.
     func testANapOnTheSameDayDoesNotHalveTheNight() throws {
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(nap)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(nap)"))
         let durations = samples.samples(of: .sleepDurationHours)
         XCTAssertEqual(durations.count, 1, "the nap must not become a second night")
         XCTAssertEqual(try XCTUnwrap(durations.first).value, 7.5, accuracy: 0.001)
@@ -41,7 +41,7 @@ final class NapContaminationTests: XCTestCase {
 
     /// A 36-second "rest" period was reaching the user as 0.01 hours of sleep.
     func testAThirtySixSecondRestPeriodIsNotANightsSleep() throws {
-        let samples = try OuraResponseParser.parseSleep(payload(rest))
+        let samples = try OuraResponseParser.parseSleepUTC(payload(rest))
         XCTAssertTrue(samples.samples(of: .sleepDurationHours).isEmpty)
     }
 
@@ -49,14 +49,14 @@ final class NapContaminationTests: XCTestCase {
     /// "lowest heart rate" is an *awake* heart rate, and it was being fed
     /// straight into the resting-HR series that five cards read.
     func testANapsHeartRateNeverBecomesARestingHeartRate() throws {
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(nap),\(rest)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(nap),\(rest)"))
         let resting = samples.samples(of: .restingHeartRate).map(\.value)
         XCTAssertEqual(resting, [48], "only the night's sleeping low is a resting heart rate")
     }
 
     /// HRV and respiratory rate ride the same records and were equally polluted.
     func testTheOtherNightlySignalsAreFilteredToo() throws {
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(nap)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(nap)"))
         XCTAssertEqual(samples.samples(of: .heartRateVariabilityRMSSD).map(\.value), [62])
         XCTAssertEqual(samples.samples(of: .respiratoryRate).map(\.value), [14.2])
     }
@@ -71,7 +71,7 @@ final class NapContaminationTests: XCTestCase {
             let record = """
             {"day":"2026-07-20",\(type)"lowest_heart_rate":48,"total_sleep_duration":27000}
             """
-            let samples = try OuraResponseParser.parseSleep(payload(record))
+            let samples = try OuraResponseParser.parseSleepUTC(payload(record))
             XCTAssertEqual(samples.samples(of: .sleepDurationHours).count, 1,
                            "type \(type.isEmpty ? "(absent)" : type) should count as a night")
         }
@@ -93,7 +93,7 @@ final class NapContaminationTests: XCTestCase {
         {"day":"2026-07-20","type":"late_nap","total_sleep_duration":1200,
          "latency":30}
         """
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(nap)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(nap)"))
         let latencies = samples.samples(of: .sleepLatencyMinutes)
         XCTAssertEqual(latencies.map(\.value), [15],
                        "one night, one latency, in minutes — the nap's 30 s is gone")
@@ -115,7 +115,7 @@ final class NapContaminationTests: XCTestCase {
         {"day":"2026-07-29","type":"late_nap","bedtime_start":"2026-07-29T08:20:00+00:00",
          "total_sleep_duration":15120}
         """
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(reSleep)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(reSleep)"))
         let durations = samples.samples(of: .sleepDurationHours)
         XCTAssertEqual(durations.count, 1)
         XCTAssertEqual(try XCTUnwrap(durations.first).value, 8.5, accuracy: 0.01,
@@ -139,7 +139,7 @@ final class NapContaminationTests: XCTestCase {
         {"day":"2026-07-20","type":"late_nap","bedtime_start":"2026-07-20T15:00:00+00:00",
          "total_sleep_duration":3600}
         """
-        let samples = try OuraResponseParser.parseSleep(payload("\(night),\(siesta)"))
+        let samples = try OuraResponseParser.parseSleepUTC(payload("\(night),\(siesta)"))
         XCTAssertEqual(try XCTUnwrap(samples.samples(of: .sleepDurationHours).first).value,
                        7.5, accuracy: 0.001, "a siesta is still a nap")
     }
@@ -159,7 +159,7 @@ final class NapContaminationTests: XCTestCase {
          "total_sleep_duration":27000}
         """
         let onsets = try OuraResponseParser
-            .parseSleep(payload("\(eveningNap),\(realNight)"))
+            .parseSleepUTC(payload("\(eveningNap),\(realNight)"))
             .samples(of: .sleepOnset)
         XCTAssertEqual(onsets.count, 1)
         // −1.0 is 23:00. −4.0 would be the nap.

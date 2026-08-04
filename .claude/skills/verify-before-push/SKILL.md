@@ -64,9 +64,21 @@ is over 100K tokens. `ci.yml` already writes the grepped errors to
 Actions API call returned 446 KB to deliver one line of compile error that was
 sitting in a git ref the whole time.
 
-The app target still needs CI: `xcodebuild` requires the iOS SDK, so SwiftUI
-and HealthKit code is only compiled there. Local green means *InsightKit* is
-green.
+### Whether the app target needs CI depends on where you are running
+
+**On the user's Mac it does not, since 2026-08-04.** `verify.sh --tests` runs
+the real `xcodebuild` against the iOS SDK, so the gate compiles SwiftUI and
+HealthKit exactly as CI does. ~1.4s incremental; minutes on a cold checkout,
+which is the one time it is worth waiting for. It targets
+`generic/platform=iOS` and so **needs no simulator** — the first Mac session
+could not boot one, and a gate that needed one would have been dead all day.
+
+**In a hosted Linux session it still does.** There is no iOS SDK, so `verify.sh`
+falls back to `swiftc -parse` per app file — which catches an unbalanced brace
+and **nothing else**, because parsing resolves no names. Local green there means
+*InsightKit* is green and says nothing about the app target.
+
+The section below is therefore about a Linux session, and about what CI is for.
 
 ### The class of error CI catches and `swift test` never will
 

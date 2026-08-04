@@ -64,11 +64,35 @@ public enum OuraResponseParser {
     /// The instant is resolved against `Calendar.current`, not against the
     /// offset Oura stamps on it. That is right for someone at home and wrong on
     /// the second night of a trip, where the phone has moved zones and the ring
-    /// recorded the old one. `Calendar` is not a parameter because the typed
-    /// parsers are referenced as `(Data) throws -> [HealthMetricSample]` by the
-    /// provider, and a defaulted argument cannot be dropped from a function
-    /// reference. HealthKit has the same property, so both sources agree.
+    /// recorded the old one. HealthKit has the same property, so both sources
+    /// agree.
+    ///
+    /// **The calendar is injectable, and the entry point above keeps the bare
+    /// signature.** The old comment here said `Calendar` could not be a
+    /// parameter because the provider references the typed parsers as
+    /// `(Data) throws -> [HealthMetricSample]` and a defaulted argument cannot
+    /// be dropped from a function reference. The constraint is real; the
+    /// conclusion was not. A two-line forwarding overload satisfies both, and
+    /// without it *nothing could test this parser's timezone behaviour at all*.
+    ///
+    /// What that cost, found on 2026-08-04 — the first session to run this
+    /// suite outside CI's UTC container: three tests here encode UTC-only
+    /// answers and fail on the user's UTC+8 Mac, in **both** directions.
+    /// `SleepOnset.hoursFromMidnight` keeps only bedtimes within ±6 h of *local*
+    /// midnight, so `23:10+10:00` (13:10 UTC) is discarded in UTC and kept at
+    /// UTC+8, while `23:00+00:00` is kept in UTC and discarded at UTC+8 — where
+    /// it reads as 07:00. `isMorningReSleep`'s "before noon" test moves the same
+    /// way, which disables the split-night fix for a reader far enough east.
+    ///
+    /// **This is a test-reach problem, not a scoring one**: the shipped
+    /// behaviour is deliberate and unchanged. But a suite that can only be
+    /// correct in one timezone is a suite that says nothing about the phone,
+    /// and every night-bucketing bug this file records was found on a device.
     public static func parseSleep(_ data: Data) throws -> [HealthMetricSample] {
+        try parseSleep(data, calendar: .current)
+    }
+
+    static func parseSleep(_ data: Data, calendar: Calendar) throws -> [HealthMetricSample] {
         let list = try JSONDecoder().decode(SleepList.self, from: data)
         var bedtimes: [Date] = []
 
@@ -104,7 +128,8 @@ public enum OuraResponseParser {
             // nap filter exists for (afternoon naps, evening dozes, untimed
             // rest records) stays excluded, and a morning re-sleep still never
             // provides the night's bedtime or latency.
-            guard Self.isNight(record.type) || Self.isMorningReSleep(record) else { continue }
+            guard Self.isNight(record.type)
+                    || Self.isMorningReSleep(record, calendar: calendar) else { continue }
             if Self.isNight(record.type),
                let raw = record.bedtime_start,
                let instant = ISO8601DateFormatter().date(from: raw) {
@@ -173,7 +198,8 @@ public enum OuraResponseParser {
                     efficiencies.reduce(0) { $0 + $1.0 * $1.1 } / efficiencyWeight)
             }
         }
-        samples += SleepOnset.samples(fromSegmentStarts: bedtimes, source: .oura)
+        samples += SleepOnset.samples(fromSegmentStarts: bedtimes, source: .oura,
+                                      calendar: calendar)
         return samples
     }
 
@@ -207,11 +233,12 @@ public enum OuraResponseParser {
     /// by. The start time must be known — an untimed nap record cannot prove
     /// it was a morning, and defaulting it in would re-open the afternoon-nap
     /// contamination this filter exists to stop.
-    private static func isMorningReSleep(_ record: SleepRecord) -> Bool {
+    private static func isMorningReSleep(_ record: SleepRecord,
+                                         calendar: Calendar = .current) -> Bool {
         guard !isNight(record.type),
               let raw = record.bedtime_start,
               let instant = ISO8601DateFormatter().date(from: raw) else { return false }
-        return Calendar.current.component(.hour, from: instant) < 12
+        return calendar.component(.hour, from: instant) < 12
     }
 
     /// The one rule for "does this segment count toward the night", callable

@@ -133,7 +133,7 @@ that is not yet automated is the next thing to automate.
 | **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness. **Hardened 2026-08-02**: the hook was invoked by a relative path and hook processes inherit the shell's *drifted* cwd, so a push issued after a `cd` skipped the gate silently (exit 127 is a non-blocking hook error). Now `$CLAUDE_PROJECT_DIR`-absolute, and `verify.sh` lints settings.json hook commands for relative paths (canaried) |
 | A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
 | A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
-| **An app-target-only compile error the local gate cannot see** | **4** | ⬜ **open, and the session's top waste** — three of this session's four red CI pushes were an app-target symbol the local gate cannot see: an internal `PeerStandingModel.isModelled` read from the app, a missing `.screenTime` arm in `onsetDriverIcon`, and a missing `import InsightKit`. InsightKit builds on Linux and `HealthInsights/` does not, so CI is the only compiler that ever sees them. `verify.sh` already runs `swiftc -parse` per app file — **`-parse` cannot resolve a symbol; only `-typecheck` with the iOS SDK can, and that SDK does not exist here.** See the roadmap: the tractable half is a *textual* cross-target check (a `public` audit for symbols the app names), not a real compile |
+| **An app-target-only compile error the local gate cannot see** | **4** | ✅ **automated on Darwin 2026-08-04 (session 25)** — `verify.sh --tests` now runs the real `xcodebuild` against the iOS SDK, so a Mac session's gate sees exactly what CI sees. Three of session 21's four red CI pushes were this: an internal `PeerStandingModel.isModelled` read from the app, a missing `.screenTime` arm in `onsetDriverIcon`, a missing `import InsightKit` — all three *name resolution*, and `swiftc -parse` resolves no names at all. **The planned fix was a textual cross-target symbol check, and it is now not worth building**: it was a Linux workaround for having no iOS SDK, and the compiler answers the same question exactly, with no list to maintain and no false positives. Canaried both ways — an undefined identifier appended to an app file is parse-clean and fails the new check. Cost is ~1.4s incremental, minutes on a cold checkout. ⚠️ **Still open for a hosted Linux session**, which has no SDK and no Xcode; there, CI remains the only compiler |
 | **A new card invisible rather than empty** | **1** | ✅ automated — `CardVisibilityTests` evaluates *every registered model against an empty profile* and asserts that a card waiting on something the reader can supply stays on screen to ask (2026-08-03, session 24). Nutrition and Metabolism both returned `notReady`, which sets no `primaryValue` and no unmet requirement, so `isWorthShowing` filtered them off the tab — green tests, green CI, successful install, and **the user found two features missing from a build that contained them**. The rule was right and its vocabulary was too narrow: a grounding fact was treated as the only thing a reader can hand a card, and an *input* is the other |
 | **Nothing in the project could see what the app looked like** | **every session until now** | ⚠️ partly — `scripts/simulator.sh` + the `use-the-simulator` skill (2026-08-03, session 24) give a Mac session build/boot/install/screenshot, and `bootstrap-swift.sh` now exits on Darwin so that session does not download a Linux toolchain over Xcode's. **Partly, because the Health app does not ship on the simulator**: every card renders empty there, so charts, bands and shading still need the phone. See the roadmap for the seeding idea that would close the rest |
 | **The local gate disagreeing with CI** | **1** | ✅ automated — `verify.sh --tests` exited 0 on a tree plain `verify.sh` exited 1 on, because the test block's runner-artifact recovery cleared the shared `fail` flag and wiped every lint above it. The mandated mode was the weaker one. Fixed by giving the recovery its own `testfail`, and **`verify.sh` now greps itself** for a stray `fail=0`, with the needle assembled from two string pieces so the check's own source cannot match it (canaried) |
@@ -374,7 +374,29 @@ puts the check at the moment of creation rather than in a document nobody re-rea
 Same reasoning as `where.sh`: the previous fix for "don't guess a path" was a
 sentence, and it failed three sessions running until it became a command.
 
-### ⬜ A textual cross-target symbol check — session 21, still open
+### ✅ A textual cross-target symbol check — SUPERSEDED, do not build it (session 25)
+
+**Do not build what the rest of this entry specifies.** It was designed for a
+hosted Linux container with no iOS SDK, and on the user's Mac that constraint
+does not exist: `verify.sh --tests` now runs the actual `xcodebuild` against the
+iOS SDK (2026-08-04, session 25), which resolves every symbol the textual check
+was going to approximate — with no declaration list to maintain and no false
+positives from a grep that cannot see scope.
+
+**The general shape is worth more than the instance: a workaround inherited from
+a constraint should be re-checked against the environment before it is built.**
+This one had been carried forward across sessions as "the tractable half",
+correctly, and it stopped being the tractable half the moment a session ran
+somewhere with Xcode. The first Mac session found it obsolete in one command.
+
+What survives from it: item 4 below (an app file naming an InsightKit symbol
+with no `import InsightKit`) is caught by the compiler too, and the
+exhaustive-switch instance is covered by widening the generic switch lint's
+search path to the app target — **still worth doing, because that lint is the
+one that works on Linux as well**. The rest of this entry is kept for the
+reasoning, not as a plan.
+
+### ⬜ (superseded) The original specification — session 21
 
 **Three of session 21's four red CI pushes were the same failure**, and it is now
 the ledger's top unautomated row: an app-target symbol the local gate cannot

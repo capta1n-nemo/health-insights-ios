@@ -62,9 +62,12 @@ symbol twice.
   GitHub Actions API for either.** Its smallest response is over 100K tokens;
   on 2026-08-02 one was spent to read a single-line compile error that
   `--errors` prints for nothing.
-- Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
-  (the app target needs the iOS SDK, so CI is still the only gate for it **in a
-  hosted session**).
+- Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`.
+  **On a Mac, `verify.sh --tests` runs that `xcodebuild` for you** (2026-08-04) —
+  so the local gate sees exactly what CI sees, and the four red pushes caused by
+  an app-target symbol the gate could not resolve are a closed category there.
+  ~1.4s incremental. **In a hosted Linux session there is no iOS SDK and CI is
+  still the only gate for the app target.**
 - **On the user's Mac, look at it: `./scripts/simulator.sh run` then
   `./scripts/simulator.sh shot`, and Read the PNG.** Two cards shipped
   *invisible* on 2026-08-03 — green tests, green CI, installed, and filtered off

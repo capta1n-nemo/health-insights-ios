@@ -1,4 +1,5 @@
 import Foundation
+@testable import InsightKit
 
 /// The one anchor and calendar the backward-looking fixtures share.
 ///
@@ -47,4 +48,25 @@ enum TestClock {
     /// An exact offset from `now`, with no day-snapping — for the fixtures that
     /// care about hours rather than calendar days.
     static func hours(_ n: Double) -> Date { now.addingTimeInterval(-n * 3600) }
+}
+
+extension OuraResponseParser {
+
+    /// `parseSleep` with the calendar pinned to UTC.
+    ///
+    /// **Every Oura expectation in this suite is a UTC answer**, because until
+    /// 2026-08-04 the suite had only ever run in CI's UTC container and the
+    /// parser read `Calendar.current` with no way to inject one. On the user's
+    /// UTC+8 Mac three tests failed in two directions:
+    /// `SleepOnset.hoursFromMidnight` keeps bedtimes within ±6 h of *local*
+    /// midnight, so a fixture's `23:00+00:00` reads as 07:00 and is thrown away,
+    /// while `23:10+10:00` — discarded in UTC — becomes a valid bedtime.
+    ///
+    /// Pinning is the same discipline `TestClock.utc` already applies to dates,
+    /// and for the reason stated there: a machine in another zone buckets
+    /// differently. Use this rather than `parseSleep` in any test that asserts
+    /// on nights, bedtimes or nap filtering.
+    static func parseSleepUTC(_ data: Data) throws -> [HealthMetricSample] {
+        try parseSleep(data, calendar: TestClock.utc)
+    }
 }

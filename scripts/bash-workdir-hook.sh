@@ -19,6 +19,14 @@
 # each part, so the prefix needs its own allow entry —
 # "Bash(cd /home/user/health-insights-ios)" in .claude/settings.json —
 # and every existing rule keeps matching its original part.
+#
+# The prefix is *quoted*. On the user's Mac the repo lives in iCloud Drive,
+# under a path containing a space ("…/Library/Mobile Documents/…"), so the
+# unquoted form this hook shipped with expanded to three words and every
+# unanchored shell call in the first Mac session died on
+# `cd:1: no such file or directory`. A hook that rewrites commands must
+# survive its own repo's path; the Linux container's path had no space in it
+# and hid this for five sessions.
 
 set -euo pipefail
 
@@ -36,6 +44,6 @@ esac
 jq -c --arg root "$root" '{
   hookSpecificOutput: {
     hookEventName: "PreToolUse",
-    updatedInput: (.tool_input | .command = "cd \($root) && " + .command)
+    updatedInput: (.tool_input | .command = "cd \"\($root)\" && " + .command)
   }
 }' <<<"$input"

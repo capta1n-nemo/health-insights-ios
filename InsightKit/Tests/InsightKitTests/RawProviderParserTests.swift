@@ -16,7 +16,7 @@ final class RawProviderParserTests: XCTestCase {
           "total_sleep_duration":25200
         }]}
         """.data(using: .utf8)!
-        let samples = try OuraResponseParser.parseSleep(json)
+        let samples = try OuraResponseParser.parseSleepUTC(json)
         let byType = Dictionary(grouping: samples, by: \.type).mapValues { $0.first!.value }
 
         XCTAssertEqual(byType[.restingHeartRate], 48)

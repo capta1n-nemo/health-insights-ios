@@ -138,11 +138,15 @@ final class ScoreChangeTests: XCTestCase {
         let full = history(scores)
 
         let broad = try XCTUnwrap(ScoreChangeReader.trend(for: .heartHealth, history: full,
-                                                         now: trendNow))
+                                                         now: trendNow, calendar: trendCalendar))
         XCTAssertEqual(broad.referenceDays, ScoreChangeReader.trendReferenceDays)
 
+        // `calendar:` is passed for the same reason every other call here pins
+        // UTC: the fixture's days are UTC days. Without it this test read
+        // `Calendar.current` and passed only on a machine in UTC — which every
+        // CI run is, and the user's Mac is not.
         let day = try XCTUnwrap(ScoreChangeReader.trend(for: .readiness, history: full,
-                                                       now: trendNow))
+                                                       now: trendNow, calendar: trendCalendar))
         XCTAssertEqual(day.referenceDays, ScoreChangeReader.dailyReferenceDays)
     }
 

@@ -38,7 +38,7 @@ final class SplitNightTests: XCTestCase {
     }
 
     func testANightInTwoPeriodsIsOneSummedNight() throws {
-        let all = try OuraResponseParser.parseSleep(payload("\(firstHalf),\(secondHalf)"))
+        let all = try OuraResponseParser.parseSleepUTC(payload("\(firstHalf),\(secondHalf)"))
         let durations = samples(of: .sleepDurationHours, in: all)
         XCTAssertEqual(durations.count, 1,
                        "two periods of one night must be one sample, or the day bucket averages them")
@@ -51,7 +51,7 @@ final class SplitNightTests: XCTestCase {
 
     /// The night's sleeping low is the lowest of any period's low.
     func testTheNightsRestingHeartRateIsTheLowestPeriodsLow() throws {
-        let all = try OuraResponseParser.parseSleep(payload("\(firstHalf),\(secondHalf)"))
+        let all = try OuraResponseParser.parseSleepUTC(payload("\(firstHalf),\(secondHalf)"))
         let rhr = samples(of: .restingHeartRate, in: all)
         XCTAssertEqual(rhr.count, 1)
         XCTAssertEqual(rhr[0].value, 48)
@@ -61,7 +61,7 @@ final class SplitNightTests: XCTestCase {
     /// continuation's near-instant re-onset must not become the night's figure
     /// (the same hazard the nap filter closes, one record type over).
     func testLatencyIsTheFirstPeriodsNotTheContinuations() throws {
-        let all = try OuraResponseParser.parseSleep(payload("\(secondHalf),\(firstHalf)"))
+        let all = try OuraResponseParser.parseSleepUTC(payload("\(secondHalf),\(firstHalf)"))
         let latency = samples(of: .sleepLatencyMinutes, in: all)
         XCTAssertEqual(latency.count, 1)
         XCTAssertEqual(latency[0].value, 660 / 60.0, accuracy: 0.01,
@@ -71,7 +71,7 @@ final class SplitNightTests: XCTestCase {
     /// Rates combine weighted by sleep time; efficiency by time in bed. With
     /// near-equal halves the combined figures sit between the halves'.
     func testRatesCombineWeightedRatherThanSummed() throws {
-        let all = try OuraResponseParser.parseSleep(payload("\(firstHalf),\(secondHalf)"))
+        let all = try OuraResponseParser.parseSleepUTC(payload("\(firstHalf),\(secondHalf)"))
         let hrv = try XCTUnwrap(samples(of: .heartRateVariabilityRMSSD, in: all).first)
         let sleepWeights: (Double, Double) = (15480, 15840)
         let expectedHRV: Double = (70.0 * sleepWeights.0 + 60.0 * sleepWeights.1)
@@ -87,7 +87,7 @@ final class SplitNightTests: XCTestCase {
     /// A single-period night is exactly what it was before this fix — Oura's
     /// own published figures, untouched.
     func testASinglePeriodNightIsUnchanged() throws {
-        let all = try OuraResponseParser.parseSleep(payload(firstHalf))
+        let all = try OuraResponseParser.parseSleepUTC(payload(firstHalf))
         XCTAssertEqual(samples(of: .sleepDurationHours, in: all).first?.value ?? 0,
                        15480 / 3600.0, accuracy: 0.001)
         XCTAssertEqual(samples(of: .sleepEfficiency, in: all).first?.value ?? 0, 91,

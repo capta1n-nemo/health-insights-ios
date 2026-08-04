@@ -123,10 +123,23 @@ public enum ScoreChangeReader {
     /// Cadence already encodes the difference this hinges on — `.daily` cards
     /// are about right now and `.trend` cards about the last months — so the
     /// call site never has to pick a window, and the two can't drift apart.
+    ///
+    /// **`calendar` is forwarded, and that is not decoration.** This entry point
+    /// used to take no calendar and call `daily` without one, so the parameter
+    /// `daily` deliberately exposes was unreachable through the API every caller
+    /// is told to use — it silently got `.current`. The suite pins UTC on
+    /// purpose (see `TestClock`), the pin could not reach this path, and the
+    /// result was a test that passed on CI's UTC container and failed on the
+    /// user's UTC+8 Mac the first time it ran there: the fixture's latest point
+    /// sat on the previous *local* day, so `isDate(inSameDayAs:)` refused it.
+    ///
+    /// `broad` takes none because it is pure interval arithmetic, with no
+    /// day boundary anywhere in it.
     public static func trend(for id: InsightID, history: [ScorePoint],
-                             now: Date = Date()) -> ScoreChange? {
+                             now: Date = Date(),
+                             calendar: Calendar = .current) -> ScoreChange? {
         switch id.cadence {
-        case .daily: return daily(history: history, now: now)
+        case .daily: return daily(history: history, now: now, calendar: calendar)
         case .trend: return broad(history: history, now: now)
         }
     }
