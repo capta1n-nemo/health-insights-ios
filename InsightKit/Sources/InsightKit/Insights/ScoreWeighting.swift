@@ -61,6 +61,13 @@ public enum ScoreWeighting: Sendable, Equatable {
     /// Shares are each one's part of the deduction.
     case worstOffender
 
+    /// Votes accumulate: each signal leaning in the concerning direction adds
+    /// its weight, scaled by how far it leans, and nothing is averaged away.
+    /// Several small agreeing moves outrank one large one. The symptom radar —
+    /// deliberately the opposite of `worstOffender`, because agreement is the
+    /// finding there and a single outlier is an ordinary Tuesday.
+    case accumulative
+
     /// The model has not said. The default, so a new insight is silent rather
     /// than claiming a basis nobody chose for it.
     case unstated
@@ -104,6 +111,12 @@ public enum ScoreWeighting: Sendable, Equatable {
                 + "add to it, so one strong effect is not averaged away by "
                 + "several that didn't move. Each share below is that signal's "
                 + "part of what came off the score."
+        case .accumulative:
+            return "Votes accumulate here rather than average out: each signal "
+                + "leaning in the concerning direction adds its own weight, "
+                + "scaled by how far it leans, so several small agreeing moves "
+                + "outrank one dramatic number. Each share below is the weight "
+                + "that signal's vote carries."
         case .unstated:
             return "This card hasn't published how much each of its inputs "
                 + "counts toward its number, so there is nothing to divide up "
@@ -115,7 +128,8 @@ public enum ScoreWeighting: Sendable, Equatable {
     /// `.unstated` are the two where a bar chart would be an invention.
     public var carriesShares: Bool {
         switch self {
-        case .weightedAverage, .singleMeasure, .equation, .fit, .worstOffender:
+        case .weightedAverage, .singleMeasure, .equation, .fit, .worstOffender,
+             .accumulative:
             return true
         case .measurement, .unstated:
             return false

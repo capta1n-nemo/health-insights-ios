@@ -37,6 +37,11 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// How fast the reader's metabolism is running, from their own energy
     /// balance rather than a wearable's estimate.
     case metabolism
+    /// Whether several vitals are leaning the illness way at once, graded
+    /// against the reader's own symptom tags. Renders `HealthWatchModel`
+    /// directly — the early warning got its own card back (roadmap #31)
+    /// because *which signals moved* is more actionable than a score.
+    case symptomRadar
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
@@ -53,7 +58,8 @@ public extension InsightID {
         // because a fortnight's spread is not a statement about today, but the
         // merged card opens with how you actually slept, and that is the first
         // thing anyone checks in the morning.
-        case .readiness, .sleep, .energy, .substanceImpact:
+        // The radar is a claim about today for the same reason Readiness is.
+        case .readiness, .sleep, .energy, .substanceImpact, .symptomRadar:
             return .daily
         // VO₂max, body composition, risk and blood pressure all move over
         // months. `default:` is deliberate rather than exhaustive here — a new

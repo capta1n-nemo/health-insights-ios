@@ -107,6 +107,7 @@ struct CardDataView: View {
         case .bodyMeasurements: bodyMeasurementsSection
         case .bodyType: bodyTypeSection
         case .screenTime: screenTimeSection
+        case .symptomLog: symptomSection
         case .groundingFacts(let kinds): factsSection(kinds)
         }
     }
@@ -258,6 +259,27 @@ struct CardDataView: View {
                         Text("Days recorded")
                         Spacer()
                         Text("\(days)").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The reader's symptom tags, opening the same page the Data tab presents —
+    /// one data page per domain, never a parallel one. Counts only what was
+    /// actually *had*: a recorded absence is a real answer, not an occurrence.
+    @ViewBuilder private var symptomSection: some View {
+        let present = model.symptoms.filter { $0.severity.isPresent }
+        if !present.isEmpty {
+            Section("Symptoms") {
+                NavigationLink {
+                    SymptomDataView()
+                } label: {
+                    HStack {
+                        Text("Tagged")
+                        Spacer()
+                        Text("\(present.count) \(SectionCaveat.plural(present.count, "entry", plural: "entries"))")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }

@@ -93,6 +93,9 @@ final class AppModel {
         didSet {
             otherGroupCache = nil
             vitalEventCache = nil
+            // Every ingest path funnels through here, so the stored `symptoms`
+            // can never lag the raw catalogue it is promoted from.
+            symptoms = SymptomPromotion.events(from: otherSamples)
         }
     }
     /// Everything the app has learned about provider schemas — every field ever
@@ -139,9 +142,16 @@ final class AppModel {
     /// `progress.md` calls "already being scraped into the raw pile and read by
     /// nothing". `SymptomPromotion` lifts them out; the raw rows stay exactly
     /// where they are, so a bug here cannot cost data the reader already had.
-    var symptoms: [SymptomEvent] {
-        SymptomPromotion.events(from: otherDataGroups.flatMap(\.samples))
-    }
+    ///
+    /// **Stored and observed, not computed off the raw catalogue.** The
+    /// computed version read through `otherDataGroups`, whose
+    /// `@ObservationIgnored` cache means a view whose first read lands on a
+    /// cache hit registers no dependency on `otherSamples` and never redraws —
+    /// the order-dependent form of the trap that made `activeMedication` and
+    /// `sideEffects` stored properties. Repopulated in `otherSamples.didSet`,
+    /// which every ingest path funnels through. (Promotion still *reads*
+    /// rather than moves — see `SymptomPromotion`.)
+    private(set) var symptoms: [SymptomEvent] = []
 
     /// Reload the logged data that lives in SwiftData rather than in `samples`,
     /// so every observed reader of it redraws. Called from `hydrate()` and at
@@ -1007,6 +1017,10 @@ final class AppModel {
         let store = dataStore
         let engineNow = engine.withSubstanceLog(substanceEvents)
         let profileNow = profile
+        // The schedule is read here — a `Sendable` value, never the `@Model`
+        // record — because the symptoms it is bound beside only exist once the
+        // detached task has loaded the raw catalogue.
+        let schedule = dataStore.loadActiveMedication()?.schedule
 
         // Off the main actor: the JSON decode, the sanitiser, the temperature
         // reconstruction and the whole insight pass. Every input is `Sendable`
@@ -1020,14 +1034,20 @@ final class AppModel {
             let merged = (manual + cached).sanitizedVitals()
             let samples = TemperatureReconstructor.withReconstructedTemperature(merged)
             let events = VitalEventReader.events(from: other)
-            let results = engineNow.evaluateAll(samples: samples, events: events,
-                                                profile: profileNow)
-            return HydratedState(samples: samples, other: other, results: results)
+            // The radar is bound to the tags promoted from the catalogue this
+            // task just loaded — binding `engineNow` on the main actor would
+            // have raced the load it depends on.
+            let engineBound = engineNow.withSymptoms(
+                SymptomPromotion.events(from: other), medication: schedule)
+            let results = engineBound.evaluateAll(samples: samples, events: events,
+                                                  profile: profileNow)
+            return HydratedState(samples: samples, other: other, results: results,
+                                 engine: engineBound)
         }.value
 
         otherSamples = loaded.other
         samples = loaded.samples
-        engine = engineNow
+        engine = loaded.engine
         results = loaded.results
 
         // A stored summary written from *these* results is the real thing and is
@@ -1055,6 +1075,9 @@ final class AppModel {
         let samples: [HealthMetricSample]
         let other: [RawMetricSample]
         let results: [InsightResult]
+        /// The registry the results were evaluated by — carried back so score
+        /// replay iterates the same bound models that produced them.
+        let engine: InsightEngine
     }
 
     /// Unmodelled imported data, grouped by identifier for the "Other data" browser.
@@ -1608,7 +1631,11 @@ final class AppModel {
         // appends — and it is what puts Substance Impact in front of score
         // recording, score replay and the cross-insight comparison chart, all of
         // which iterate `engine.models` and so had been skipping it silently.
+        // The symptom radar's tags and regimen are the same shape of input —
+        // `reloadLoggedData()` above has just refreshed `activeMedication`, so
+        // the schedule the radar sees is the one the reader sees.
         engine = engine.withSubstanceLog(substanceEvents)
+            .withSymptoms(symptoms, medication: activeMedication?.schedule)
         results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
         recordScores(results)
         // Grounding and substance edits reach here without touching `samples`,

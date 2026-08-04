@@ -182,6 +182,42 @@ final class ContributionSummaryTests: XCTestCase {
             .contains("no amounts"))
     }
 
+    // MARK: - Symptom tags
+
+    /// The radar's route: grounded once anything is tagged, and a recorded
+    /// absence is surfaced as its own count — a real answer, never an
+    /// occurrence, which is `SymptomSeverity.isPresent`'s distinction held at
+    /// the summary level.
+    func testSymptomTagsAreGroundedOnceAnythingIsTagged() {
+        let none = ContributionSummary.symptoms(tagged: 0, recordedAbsences: 0)
+        XCTAssertFalse(none.isGrounded)
+        XCTAssertEqual(none.figure, "None yet")
+        XCTAssertNil(none.progress)
+        XCTAssertNil(none.detailLabel)
+
+        let some = ContributionSummary.symptoms(tagged: 3, recordedAbsences: 0)
+        XCTAssertTrue(some.isGrounded)
+        XCTAssertEqual(some.figure, "3 tagged")
+        XCTAssertEqual(some.detailLabel, "All 3 symptom entries")
+
+        // Absences alone are history worth seeing but not grounding: the radar
+        // grades against having something, and "I did not have this" is a
+        // different gift.
+        let absences = ContributionSummary.symptoms(tagged: 0, recordedAbsences: 2)
+        XCTAssertFalse(absences.isGrounded)
+        XCTAssertEqual(absences.figure, "0 tagged · 2 marked absent")
+        XCTAssertEqual(absences.detailLabel, "All 2 symptom entries")
+    }
+
+    func testSymptomGuidanceSendsTheReaderToAppleHealth() {
+        for summary in [ContributionSummary.symptoms(tagged: 0, recordedAbsences: 0),
+                        .symptoms(tagged: 4, recordedAbsences: 1)] {
+            XCTAssertTrue(summary.guidance.contains("Apple Health"), summary.guidance)
+            XCTAssertTrue(summary.guidance.contains("recorded absence"), summary.guidance)
+            XCTAssertEqual(summary.addLabel, "Open Apple Health")
+        }
+    }
+
     // MARK: - Shape, across every route
 
     private var all: [ContributionSummary] {
@@ -193,7 +229,9 @@ final class ContributionSummaryTests: XCTestCase {
          .medication(hasRegimen: true, doses: 24, sideEffects: 2),
          .bodyType(estimated: nil, override: nil),
          .bodyType(estimated: "Mesomorph", override: nil),
-         .fileImport(lastReceived: nil), .fileImport(lastReceived: "yesterday")]
+         .fileImport(lastReceived: nil), .fileImport(lastReceived: "yesterday"),
+         .symptoms(tagged: 0, recordedAbsences: 0),
+         .symptoms(tagged: 5, recordedAbsences: 2)]
     }
 
     /// Every route has a header figure, a sentence and exactly one prominent way

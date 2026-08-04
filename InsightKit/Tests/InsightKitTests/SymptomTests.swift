@@ -24,6 +24,12 @@ final class SymptomTests: XCTestCase {
                        "HKCategoryTypeIdentifierChestTightnessOrPain")
         XCTAssertEqual(SymptomType.hotFlashes.healthKitIdentifier,
                        "HKCategoryTypeIdentifierHotFlashes")
+        // Apple spells the identifier the US way; the title is British
+        // ("Diarrhoea") — the raw value must follow Apple, not the copy.
+        XCTAssertEqual(SymptomType.vomiting.healthKitIdentifier,
+                       "HKCategoryTypeIdentifierVomiting")
+        XCTAssertEqual(SymptomType.diarrhea.healthKitIdentifier,
+                       "HKCategoryTypeIdentifierDiarrhea")
         XCTAssertEqual(SymptomType.byHealthKitIdentifier.count, SymptomType.allCases.count,
                        "two symptoms deriving the same identifier would silently drop one")
     }
@@ -83,6 +89,13 @@ final class SymptomTests: XCTestCase {
                            "\(symptom) is in both clusters, so the radar cannot tell the two explanations apart")
         }
         XCTAssertTrue(SymptomType.nausea.isCommonGLP1Effect)
+        // The two most characteristic dose reactions were unrepresentable
+        // until 2026-08-04, so the radar's downgrade could never fire for the
+        // classic reaction to a step-up. They sit in the GLP-1 cluster despite
+        // also being gastroenteritis hallmarks — the disjointness rule above
+        // forces the choice, and the card's copy carries the ambiguity.
+        XCTAssertTrue(SymptomType.vomiting.isCommonGLP1Effect)
+        XCTAssertTrue(SymptomType.diarrhea.isCommonGLP1Effect)
         XCTAssertTrue(SymptomType.fever.isInfectionLike)
         // Fatigue is the commonest illness symptom there is and is deliberately
         // not infection-like: a signal that fires on every bad night is not one.

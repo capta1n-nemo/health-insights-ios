@@ -91,6 +91,7 @@ struct TelemetryOutboxView: View {
             case .cardiovascularRisk: return "Heart attack & stroke risk"
             case .bloodPressure: return "Blood pressure"
             case .bodyComposition: return "Body composition"
+            case .symptomRadar: return "Symptom radar"
             }
         } ?? raw
     }

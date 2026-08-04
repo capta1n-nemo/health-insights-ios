@@ -39,6 +39,7 @@ struct ViewAndAddHubView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var addingBloodPressure = false
     @State private var showingSubstanceLog = false
     @State private var showingGroundingDetail: GroundingKindList?
@@ -110,6 +111,7 @@ struct ViewAndAddHubView: View {
         case .bodyMeasurements: bodyMeasurementsSection(status)
         case .bodyType: bodyTypeSection(status)
         case .screenTime: screenTimeSection(status)
+        case .symptomLog: symptomSection(status)
         }
     }
 
@@ -198,6 +200,28 @@ struct ViewAndAddHubView: View {
     /// read the figure, so there is nothing to link to but the entry.
     private func screenTimeSection(_ status: ContributionRouteStatus) -> some View {
         sectionBody(status, addAction: { activeInput = .screenTime })
+    }
+
+    // MARK: - Symptom tags
+
+    /// The one route with no in-app entry: tags are made in the Apple Health
+    /// app, so the button opens it rather than a sheet, and the history link
+    /// goes to the same page the Data tab presents — `data-conventions` forbids
+    /// a parallel data page.
+    private func symptomSection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(
+            status,
+            addAction: {
+                if let url = URL(string: "x-apple-health://") { openURL(url) }
+            },
+            extra: {
+                NavigationLink {
+                    SymptomDataView()
+                } label: {
+                    Text("See your symptom history")
+                        .font(.caption.weight(.medium))
+                }
+            })
     }
 
     // MARK: - Grounding facts

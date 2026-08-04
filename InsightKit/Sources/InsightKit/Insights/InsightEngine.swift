@@ -13,6 +13,11 @@ public struct InsightEngine: Sendable {
         // first, in the order Today shows them.
         self.models = models ?? [
             ReadinessInsight(),
+            // Bound to no tags; the app rebinds on every recompute via
+            // `withSymptoms(_:medication:)` — same contract as the substance
+            // model below. Beside Readiness because registry order is Today's
+            // order, and the radar sits next to the card that used to absorb it.
+            SymptomRadarInsight(),
             SleepInsight(),
             EnergyInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
@@ -39,6 +44,18 @@ public struct InsightEngine: Sendable {
     public func withSubstanceLog(_ events: [SubstanceEvent]) -> InsightEngine {
         InsightEngine(models: models.map { model in
             model is SubstanceImpactInsight ? SubstanceImpactInsight(events: events) : model
+        })
+    }
+
+    /// The same registry with the symptom radar bound to the reader's tags and
+    /// regimen. Idempotent — replaces rather than appends — so the app applies
+    /// it on every recompute. Same pattern, same reason as `withSubstanceLog`.
+    public func withSymptoms(_ symptoms: [SymptomEvent],
+                             medication: MedicationSchedule?) -> InsightEngine {
+        InsightEngine(models: models.map { model in
+            model is SymptomRadarInsight
+                ? SymptomRadarInsight(symptoms: symptoms, medication: medication)
+                : model
         })
     }
 

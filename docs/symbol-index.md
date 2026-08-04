@@ -14,6 +14,16 @@ the place to look.
 - `Baseline/VitalReader.swift`
   - `VitalReader` :46
   - `VitalReading` :24
+- `Body/BodyMesh.swift`
+  - `BodyLimb` :88
+  - `BodyMesh` :120
+  - `BodyMeshBuilder` :404
+  - `BodyMeshConfiguration` :24
+  - `BodyMeshKnots` :335
+  - `MeshKnot` :383
+  - `MeshRingSpec` :392
+  - `MonotoneCubicCurve` :225
+  - `RingProvenance` :82
 - `Documents/LabReportParser.swift`
   - `LabReportParser` :12
 - `Documents/ScreenTimeChartGeometry.swift`
@@ -87,6 +97,9 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
+  - `SymptomRadarInsight` :553
+  - `SymptomRadarModel` :255
+  - `SymptomRadarStatus` :227
 - `Insights/HeartAgeAnalyser.swift`
   - `HeartAgeAnalyser` :20
 - `Insights/HeartAgeHistory.swift`
@@ -100,14 +113,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :76
-  - `InsightCadence` :45
-  - `InsightConfidence` :68
-  - `InsightDriver` :104
+  - `GroundingRequirement` :82
+  - `InsightCadence` :50
+  - `InsightConfidence` :74
+  - `InsightDriver` :110
   - `InsightID` :15
-  - `InsightModel` :315
-  - `InsightResult` :121
-  - `RequirementStatus` :92
+  - `InsightModel` :321
+  - `InsightResult` :127
+  - `RequirementStatus` :98
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -149,7 +162,7 @@ the place to look.
   - `ScorePoint` :4
   - `ScoreTrend` :214
 - `Insights/ScoreWeighting.swift`
-  - `ScoreFactor` :138
+  - `ScoreFactor` :152
   - `ScoreWeighting` :31
 - `Insights/SleepDebt.swift`
   - `SleepDebtModel` :25
@@ -212,9 +225,9 @@ the place to look.
 - `Models/SourceOrigin.swift`
   - `SourceOrigin` :11
 - `Models/Symptom.swift`
-  - `SymptomEvent` :150
-  - `SymptomPromotion` :167
-  - `SymptomSeverity` :117
+  - `SymptomEvent` :169
+  - `SymptomPromotion` :186
+  - `SymptomSeverity` :136
   - `SymptomType` :27
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
@@ -236,7 +249,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :51
+  - `InsightPalette` :57
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -317,13 +330,14 @@ the place to look.
 - `Signals/NutritionLogging.swift`
   - `NutritionLogging` :14
 - `Signals/Pharmacokinetics.swift`
-  - `ActiveCompoundPoint` :105
+  - `ActiveCompoundPoint` :121
   - `AdministeredDose` :79
   - `GLPCompound` :10
-  - `MedicationScanPayload` :301
-  - `MedicationScanner` :338
-  - `PharmacokineticsModel` :115
-  - `TitrationEngine` :244
+  - `MedicationScanPayload` :317
+  - `MedicationScanner` :354
+  - `MedicationSchedule` :107
+  - `PharmacokineticsModel` :131
+  - `TitrationEngine` :260
 - `Signals/PostureAssessment.swift`
   - `JointPosition` :11
   - `PostureAssessment` :52
@@ -434,7 +448,7 @@ the place to look.
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
-  - `DoseLogRecord` :301
+  - `DoseLogRecord` :308
   - `FeedbackRecord` :246
   - `GroundingRecord` :9
   - `InsightScoreRecord` :125
@@ -442,7 +456,7 @@ the place to look.
   - `ManualSampleRecord` :27
   - `MedicationRecord` :276
   - `PredictionOutcomeRecord` :213
-  - `SideEffectRecord` :333
+  - `SideEffectRecord` :340
   - `SubstanceEventRecord` :166
   - `SuggestionDismissalRecord` :195
 - `Core/State/AppModel.swift`
@@ -556,11 +570,11 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :244
+  - `GroundingKindList` :268
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :159
+  - `GroundedSummary` :166
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
@@ -590,6 +604,10 @@ the place to look.
   - `ScoreComparisonDetailView` :20
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
+- `Features/Insights/SymptomRadarWebCard.swift`
+  - `RadarRingShape` :245
+  - `RadarSpokeShape` :270
+  - `SymptomRadarWebCard` :35
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9
 - `Features/Launch/LaunchParticleView.swift`

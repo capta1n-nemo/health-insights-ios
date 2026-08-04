@@ -149,6 +149,13 @@ struct ContributionRouteStatus {
                 lastEntered: model.lastScreenTimeEntry.map {
                     $0.formatted(.relative(presentation: .named))
                 })
+        case .symptomLog:
+            // Safe to read from a view only because `AppModel.symptoms` is a
+            // stored, observed property — see its doc comment.
+            title = "Symptom tags"
+            summary = .symptoms(
+                tagged: model.symptoms.filter(\.severity.isPresent).count,
+                recordedAbsences: model.symptoms.filter { !$0.severity.isPresent }.count)
         }
     }
 }

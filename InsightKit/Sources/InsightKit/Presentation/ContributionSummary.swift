@@ -255,6 +255,33 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// The reader's symptom tags, promoted from Apple Health.
+    ///
+    /// The one route with no in-app entry: tags are made in the Health app, so
+    /// the button opens it rather than a sheet. A recorded absence is counted
+    /// separately in the figure because it is a real answer, not silence —
+    /// the same distinction `SymptomSeverity.isPresent` holds.
+    public static func symptoms(tagged: Int, recordedAbsences: Int) -> ContributionSummary {
+        let total = tagged + recordedAbsences
+        return ContributionSummary(
+            isGrounded: tagged > 0,
+            figure: {
+                guard total > 0 else { return "None yet" }
+                let base = "\(tagged) tagged"
+                return recordedAbsences > 0
+                    ? base + " · \(recordedAbsences) marked absent" : base
+            }(),
+            guidance: "Tag symptoms in the Apple Health app (Browse ▸ Symptoms) "
+                + "when you feel unwell. The radar grades itself against them — "
+                + "and a day you record as not having something counts too, as "
+                + "a recorded absence rather than silence.",
+            progress: nil,
+            addLabel: "Open Apple Health",
+            detailLabel: total > 0
+                ? "All \(total) symptom \(SectionCaveat.plural(total, "entry", plural: "entries"))"
+                : nil)
+    }
+
     /// Standing profile facts: one target, one count.
     public static func facts(set: Int, of total: Int) -> ContributionSummary {
         let complete = total > 0 && set >= total

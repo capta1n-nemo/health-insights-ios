@@ -58,6 +58,15 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// something it cannot see — into a contrast it can actually draw.
     case screenTime
 
+    /// The reader's symptom tags, arriving from the Apple Health app.
+    ///
+    /// A route with no in-app add affordance, on purpose: symptoms are tagged
+    /// in Health (Browse ▸ Symptoms) and promoted from the raw catalogue, so
+    /// this route views and guides rather than opening a sheet. It exists
+    /// because the radar grades itself against these tags — an input reachable
+    /// only by knowing about it is one the reader will never supply.
+    case symptomLog
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
@@ -84,6 +93,10 @@ public extension ContributionRoute {
         case .bodyType: return [.bodyType]
         case .bodyMeasurements: return [.bodyMeasurements]
         case .screenTime: return [.screenTime]
+        // Captured in Apple Health, not by an in-app sheet — no `InputKind`
+        // exists or is added. The every-input-surface rule governs inputs the
+        // *app* takes; this one it only receives.
+        case .symptomLog: return []
         }
     }
 }

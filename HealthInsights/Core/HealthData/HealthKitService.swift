@@ -173,7 +173,8 @@ final class HealthKitService {
         "HKCategoryTypeIdentifierShortnessOfBreath", "HKCategoryTypeIdentifierChestTightnessOrPain",
         "HKCategoryTypeIdentifierAbdominalCramps", "HKCategoryTypeIdentifierBloating",
         "HKCategoryTypeIdentifierHeartburn", "HKCategoryTypeIdentifierSleepChanges",
-        "HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierHotFlashes"
+        "HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierHotFlashes",
+        "HKCategoryTypeIdentifierVomiting", "HKCategoryTypeIdentifierDiarrhea"
     ]
 
     private var otherQuantityTypes: [HKQuantityType] {

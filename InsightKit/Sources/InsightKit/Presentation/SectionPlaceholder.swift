@@ -315,7 +315,10 @@ public struct SectionPlaceholder: Sendable, Equatable {
                     + "that responded badly, and none of them did over this "
                     + "window. Nothing to divide up because there is nothing to "
                     + "divide, which is the good answer here.")
-        case .weightedAverage, .singleMeasure, .equation, .fit:
+        // `.accumulative` joins the shares-carrying bases: reached only when
+        // every vote came back weightless, which the radar's arithmetic never
+        // produces while it has a score — but the arm must exist and be honest.
+        case .weightedAverage, .singleMeasure, .equation, .fit, .accumulative:
             return SectionPlaceholder(
                 headline: "No shares to draw yet",
                 detail: "This card weights its inputs, and none of them has a "

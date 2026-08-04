@@ -101,6 +101,22 @@ public struct AdministeredDose: Sendable, Equatable {
     }
 }
 
+/// The active regimen as the symptom radar needs it: which compound, and the
+/// doses actually taken. A value type for the same reason `AdministeredDose`
+/// is — the maths must never depend on persistence.
+public struct MedicationSchedule: Sendable, Equatable {
+    public let compound: GLPCompound
+    /// Oldest first. Pass every logged dose; consumers that must not act on a
+    /// guess filter `isInferred` themselves (a confirmed dose arrives with
+    /// `isInferred == false` — see `DoseLogRecord.administered`).
+    public let doses: [AdministeredDose]
+
+    public init(compound: GLPCompound, doses: [AdministeredDose]) {
+        self.compound = compound
+        self.doses = doses.sorted { $0.takenAt < $1.takenAt }
+    }
+}
+
 /// A point on the active-compound curve.
 public struct ActiveCompoundPoint: Sendable, Equatable, Identifiable {
     public let date: Date

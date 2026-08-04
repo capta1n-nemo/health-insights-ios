@@ -370,6 +370,7 @@ struct InsightCard: View {
         case .cardiovascularRisk: return "waveform.path.ecg"
         case .bloodPressure: return "gauge.medium"
         case .bodyComposition: return "figure.arms.open"
+        case .symptomRadar: return "dot.radiowaves.left.and.right"
         }
     }
 }

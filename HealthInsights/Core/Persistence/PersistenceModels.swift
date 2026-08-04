@@ -292,6 +292,13 @@ final class MedicationRecord {
     }
 
     var compound: GLPCompound? { GLPCompound(rawValue: compoundRaw) }
+
+    /// The value the symptom radar is bound with. `nil` when the compound
+    /// string is unrecognised — an unknown drug must not be named as an
+    /// explanation.
+    var schedule: MedicationSchedule? {
+        compound.map { MedicationSchedule(compound: $0, doses: doses.map(\.administered)) }
+    }
 }
 
 /// One dose. `isInferred` is the safety flag the whole medication module turns

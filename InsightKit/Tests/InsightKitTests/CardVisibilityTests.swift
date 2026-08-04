@@ -36,7 +36,9 @@ final class CardVisibilityTests: XCTestCase {
     /// to ask for and nothing to show still stays off the tab.
     func testTheFlagIsNotSetOnCardsWithNothingToAskFor() {
         let noisy = emptyResults().filter { $0.invitesInput }.map(\.id)
-        XCTAssertEqual(Set(noisy), [.nutrition, .metabolism],
+        // The radar joined the list on 2026-08-04: with no data at all its ask
+        // is real — wear the watch — and a card that cannot ask ships invisible.
+        XCTAssertEqual(Set(noisy), [.nutrition, .metabolism, .symptomRadar],
                        "only the cards waiting on a reader-supplied log should invite input")
     }
 

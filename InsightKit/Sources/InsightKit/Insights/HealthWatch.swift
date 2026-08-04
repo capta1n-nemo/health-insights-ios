@@ -64,7 +64,19 @@ public enum HealthWatchModel {
         public let signals: [Signal]
         /// 0–100, higher is better — nothing stirring.
         public let score: Double
+        /// The collapse losers: signals that were evaluated and then folded into
+        /// a same-basis twin's vote (`collapsingDuplicates`). Carried so the
+        /// radar web can draw an open dot on the HRV or thermal twin that leaned
+        /// but did not vote — "counted once" must not render as "not looked at".
+        /// Readiness reads only `signals` / `leaning` / `score` and is untouched.
+        public let discounted: [Signal]
         public var leaning: [Signal] { signals.filter(\.isLeaning) }
+
+        init(signals: [Signal], score: Double, discounted: [Signal] = []) {
+            self.signals = signals
+            self.score = score
+            self.discounted = discounted
+        }
     }
 
     /// The direction illness pushes each signal, and how much weight its vote
@@ -83,6 +95,22 @@ public enum HealthWatchModel {
         (.oxygenSaturation, false, 0.5)
     ]
 
+    /// The watched metrics alone, for `candidateMetrics` declarations.
+    /// `{ $0.metric }` rather than `\.metric`: `watched` is an array of tuples,
+    /// and a key path into a tuple element is a compile error (the trap is
+    /// already documented at `ReadinessInsight.candidateMetrics`).
+    public static var watchedMetrics: [MetricType] { watched.map { $0.metric } }
+
+    /// The vote weight a metric carries, 0 for anything unwatched.
+    static func weight(for metric: MetricType) -> Double {
+        watched.first { $0.metric == metric }?.weight ?? 0
+    }
+
+    /// The direction illness pushes a watched metric, `nil` for anything else.
+    static func risingIsConcerning(for metric: MetricType) -> Bool? {
+        watched.first { $0.metric == metric }?.risingIsConcerning
+    }
+
     public static func evaluate(samples: [HealthMetricSample], now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
         var signals: [Signal] = []
@@ -91,25 +119,52 @@ public enum HealthWatchModel {
                 signals.append(signal)
             }
         }
-        // The two HRV metrics and the two thermal ones are each one signal
-        // reported two ways; letting both vote would double-weight them.
-        signals = collapsingDuplicates(signals)
-        guard signals.count >= 2 else { return nil }
-        return Output(signals: signals, score: score(signals))
+        return output(fromEvaluated: signals)
+    }
+
+    /// Collapse, gate and score one day's evaluated signals — shared by the live
+    /// `evaluate` and the radar's `SymptomRadarModel.timeline`, so a replayed
+    /// day can never be composed by different rules than a live one.
+    static func output(fromEvaluated signals: [Signal]) -> Output? {
+        // Signals sharing a measurement basis — the two HRV metrics, the thermal
+        // pair, and anything else derived from one stream — are each one signal
+        // reported several ways; letting each vote would double-weight them.
+        let collapsed = collapsingDuplicates(signals)
+        guard collapsed.count >= 2 else { return nil }
+        let surviving = Set(collapsed.map(\.metric))
+        return Output(signals: collapsed, score: score(collapsed),
+                      discounted: signals.filter { !surviving.contains($0.metric) })
     }
 
     static func signal(for entry: (metric: MetricType, risingIsConcerning: Bool, weight: Double),
                        samples: [HealthMetricSample], now: Date,
                        calendar: Calendar) -> Signal? {
-        let daily = VitalReader.dailySeries(entry.metric, from: samples, now: now,
-                                            calendar: calendar)
+        signal(for: entry,
+               daily: VitalReader.dailySeries(entry.metric, from: samples, now: now,
+                                              calendar: calendar),
+               now: now)
+    }
+
+    /// The pure window half of `signal(for:samples:now:calendar:)`, split out so
+    /// the radar's timeline can fetch each metric's daily series once and slide
+    /// the windows over it — never 90 × a full fetch, which multiplies score
+    /// replay's cost by the span.
+    static func signal(for entry: (metric: MetricType, risingIsConcerning: Bool, weight: Double),
+                       daily: [VitalReader.DailyValue], now: Date) -> Signal? {
         guard !daily.isEmpty else { return nil }
 
         let recentStart = now.addingTimeInterval(-Double(recentDays) * 86_400)
         let referenceEnd = now.addingTimeInterval(-Double(referenceGapDays) * 86_400)
         let referenceStart = referenceEnd.addingTimeInterval(-Double(referenceDays) * 86_400)
 
-        let recentValues = daily.filter { $0.date >= recentStart }.map(\.value)
+        // `date < now` as well as the lower bound: when a *past* day is being
+        // scored (the radar's timeline, score replay) the series still holds
+        // every later day, and a recent window that read the future would let
+        // tomorrow's fever flag yesterday. A no-op for a live evaluation, whose
+        // samples all precede `now` by construction.
+        let recentValues = daily
+            .filter { $0.date >= recentStart && $0.date < now }
+            .map(\.value)
         let referenceValues = daily
             .filter { $0.date >= referenceStart && $0.date < referenceEnd }
             .map(\.value)
@@ -164,5 +219,798 @@ public enum HealthWatchModel {
     }
 }
 
-/// The Today card.
+// MARK: - The Today card
+
+/// The three states, on Oura's precedent (nothing stirring / some signs /
+/// strong signs), derived from the existing weighted vote rather than a new
+/// one (docs/planned-modules.md ▸ module 7).
+public enum SymptomRadarStatus: String, Sendable, Equatable {
+    case quiet, someSigns, strongSigns
+}
+
+public extension HealthWatchModel.Output {
+    /// Labels over the already-continuous score — bands, like Readiness's, not
+    /// a scoring curve, so there is nothing to enrol in `ScoreContinuityTests`.
+    ///
+    /// The thresholds are statements about the *vote*, read back through
+    /// `score = 100 − concern/2 × 100`:
+    /// - 85 is concern 0.3 — nothing, or one signal barely past leaning.
+    /// - 50 is concern 1.0, which is **exactly** the largest single vote (skin
+    ///   temperature, weight 1.0, fully leaning) — so `strongSigns` is
+    ///   structurally guaranteed to mean at least two signals leaning at once.
+    ///   Agreement is the finding; one dramatic number never reaches it.
+    var status: SymptomRadarStatus {
+        if score >= 85 { return .quiet }
+        if score >= 50 { return .someSigns }
+        return .strongSigns
+    }
+}
+
+/// The pure machinery behind the symptom-radar card: the day-by-day timeline,
+/// the episodes cut from it, and the self-grading ledger.
+///
+/// All static and value-in/value-out, like `HealthWatchModel` itself — nothing
+/// here holds state, so replayed history and the live card cannot disagree
+/// with a stored copy. There deliberately is no stored copy.
+public enum SymptomRadarModel {
+
+    /// One calendar day's watch verdict. `output` is nil on a day the watch
+    /// could not evaluate (fewer than two votable signals).
+    public struct DaySnapshot: Sendable, Equatable {
+        public let day: Date            // startOfDay, in the given calendar
+        public let output: HealthWatchModel.Output?
+
+        public init(day: Date, output: HealthWatchModel.Output?) {
+            self.day = day
+            self.output = output
+        }
+    }
+
+    /// The ledger's span. 90 days of timeline is what the card grades itself
+    /// over — long enough for a hit rate to mean something, short enough that
+    /// last winter's model is not marking this spring's homework.
+    public static let ledgerDays = 90
+    /// A dose taken on day D covers days D through D+2 — the GI-effect window
+    /// used everywhere in this feature.
+    public static let doseWindowDays = 3
+    /// A tag the day before an episode's first flag still confirms it…
+    public static let tagLeadDays = 1
+    /// …and up to three days after its last: symptoms routinely trail vitals.
+    public static let tagTrailDays = 3
+
+    /// One `Output` per calendar day, oldest first, `days` back from `now`.
+    ///
+    /// Fetches each watched metric's daily series **once** and slides the
+    /// windows — never `days × evaluate`, which would multiply score replay's
+    /// cost by the span. Per day D the anchor is `min(now, endOfDay(D))`, so a
+    /// past day is judged exactly as `evaluate(samples:now:calendar:)` at the
+    /// end of that day would have judged it — the shared window function
+    /// range-filters both ends, so nothing after the anchor can leak in.
+    public static func timeline(samples: [HealthMetricSample], days: Int,
+                                endingAt now: Date, calendar: Calendar) -> [DaySnapshot] {
+        guard days > 0 else { return [] }
+        let series: [((metric: MetricType, risingIsConcerning: Bool, weight: Double),
+                      [VitalReader.DailyValue])] = HealthWatchModel.watched.map { entry in
+            (entry, VitalReader.dailySeries(entry.metric, from: samples, now: now,
+                                            calendar: calendar))
+        }
+        let today = calendar.startOfDay(for: now)
+        var out: [DaySnapshot] = []
+        out.reserveCapacity(days)
+        for back in stride(from: days - 1, through: 0, by: -1) {
+            guard let day = calendar.date(byAdding: .day, value: -back, to: today),
+                  let dayEnd = calendar.date(byAdding: .day, value: 1, to: day)
+            else { continue }
+            let nowForDay = min(now, dayEnd)
+            var signals: [HealthWatchModel.Signal] = []
+            for (entry, daily) in series {
+                if let signal = HealthWatchModel.signal(for: entry, daily: daily,
+                                                        now: nowForDay) {
+                    signals.append(signal)
+                }
+            }
+            out.append(DaySnapshot(day: day,
+                                   output: HealthWatchModel.output(fromEvaluated: signals)))
+        }
+        return out
+    }
+
+    /// A stretch of flagged days: start, peak, and each signal's return to
+    /// baseline. This exists because the standing criticism of Whoop's Health
+    /// Monitor is that it flags onset and then goes quiet — an episode has a
+    /// start, a peak and a recovery per signal, and the card says all three.
+    public struct SymptomRadarEpisode: Sendable, Equatable {
+        public let start: Date
+        public let end: Date
+        /// The flag day with the lowest score; the earliest wins a tie.
+        public let peakDay: Date
+        public let peakScore: Double
+        public let peakLeaningCount: Int
+        /// Every metric that leaned on any flag day, in watched order — the
+        /// canonical order, because which twin won the collapse can differ from
+        /// day to day and a first-seen order would make equality flap.
+        public let leaningMetrics: [MetricType]
+        /// Per leaning metric, the first day strictly after the peak on which
+        /// its signal was back inside the reader's range (|z| under the leaning
+        /// threshold, or moving the healthy way).
+        public let recoveries: [MetricType: Date]
+    }
+
+    /// Cut episodes from a timeline. A *flag day* is one whose output exists
+    /// and is not quiet; two flag days join one episode when at most two
+    /// non-flag days lie between them (a gap of three or more splits — one
+    /// quiet morning mid-illness must not end the story).
+    public static func episodes(in timeline: [DaySnapshot],
+                                calendar: Calendar) -> [SymptomRadarEpisode] {
+        let flagged = timeline.filter { snapshot in
+            guard let output = snapshot.output else { return false }
+            return output.status != .quiet
+        }
+        guard let first = flagged.first else { return [] }
+
+        var groups: [[DaySnapshot]] = []
+        var current: [DaySnapshot] = [first]
+        for snapshot in flagged.dropFirst() {
+            if let previous = current.last,
+               daysBetween(previous.day, snapshot.day, calendar: calendar) <= 3 {
+                current.append(snapshot)
+            } else {
+                groups.append(current)
+                current = [snapshot]
+            }
+        }
+        groups.append(current)
+
+        return groups.compactMap { group in
+            guard let start = group.first, let end = group.last,
+                  let peak = group.min(by: { a, b in
+                      let (sa, sb) = (a.output?.score ?? 100, b.output?.score ?? 100)
+                      return sa == sb ? a.day < b.day : sa < sb
+                  })
+            else { return nil }
+
+            var leaningSet = Set<MetricType>()
+            for snapshot in group {
+                for signal in snapshot.output?.leaning ?? [] { leaningSet.insert(signal.metric) }
+            }
+            let leaningMetrics = HealthWatchModel.watchedMetrics.filter { leaningSet.contains($0) }
+
+            // Recovery is about the metric's own z, not its vote — so a signal
+            // that lost the collapse on a given day (`discounted`) still counts
+            // as observed that day.
+            var recoveries: [MetricType: Date] = [:]
+            let afterPeak = timeline.filter { $0.day > peak.day }
+            for metric in leaningMetrics {
+                for snapshot in afterPeak {
+                    guard let output = snapshot.output,
+                          let signal = (output.signals + output.discounted)
+                              .first(where: { $0.metric == metric })
+                    else { continue }
+                    if abs(signal.zScore) < HealthWatchModel.leaningZ || !signal.isConcerning {
+                        recoveries[metric] = snapshot.day
+                        break
+                    }
+                }
+            }
+
+            return SymptomRadarEpisode(
+                start: start.day, end: end.day, peakDay: peak.day,
+                peakScore: peak.output?.score ?? 0,
+                peakLeaningCount: peak.output?.leaning.count ?? 0,
+                leaningMetrics: leaningMetrics, recoveries: recoveries)
+        }
+    }
+
+    /// The card's own report card, recomputed pure on every evaluation — it
+    /// lives nowhere persistent, so replayed history and the live card can
+    /// never disagree with a stored copy.
+    ///
+    /// `flags` counts every flagged stretch; the card's sentence reports only
+    /// `hits + unconfirmed`, because a `pending` episode's confirmation window
+    /// is still open and an ongoing stretch must not be accused of silence.
+    public struct SymptomRadarLedger: Sendable, Equatable {
+        /// Days in the window the watch could actually evaluate.
+        public let gradedDays: Int
+        /// Episodes with a present, non-dose-explained tag in their window —
+        /// excluding tag types this reader logs on most days, which confirm
+        /// nothing (see `chronicTypes` in `ledger`).
+        public let hits: Int
+        /// Episodes whose window elapsed with no such tag — stated openly.
+        public let unconfirmed: Int
+        /// Episodes whose window is still open.
+        public let pending: Int
+        /// Infection-like tag clusters the radar had data for and never flagged.
+        public let misses: Int
+        public var flags: Int { hits + unconfirmed + pending }
+    }
+
+    public static func ledger(timeline: [DaySnapshot], symptoms: [SymptomEvent],
+                              medication: MedicationSchedule?, now: Date,
+                              calendar: Calendar) -> SymptomRadarLedger {
+        let today = calendar.startOfDay(for: now)
+        let windowStart = calendar.date(byAdding: .day, value: -(ledgerDays - 1), to: today)
+            ?? today
+        let graded = timeline.filter { $0.day >= windowStart && $0.day <= today }
+        let gradedDays = graded.filter { $0.output != nil }.count
+
+        // Everything the grade reads is clipped to `now` — the model itself is
+        // what keeps score replay honest, not its caller.
+        var presentByDay: [Date: [SymptomEvent]] = [:]
+        for event in symptoms where event.date <= now && event.severity.isPresent {
+            presentByDay[calendar.startOfDay(for: event.date), default: []].append(event)
+        }
+        let qualifyingDoseDays: [Date] = (medication?.doses ?? [])
+            .filter { !$0.isInferred && $0.takenAt <= now }
+            .map { calendar.startOfDay(for: $0.takenAt) }
+
+        func doseCovers(_ day: Date) -> Bool {
+            qualifyingDoseDays.contains { doseDay in
+                let gap = daysBetween(doseDay, day, calendar: calendar)
+                return gap >= 0 && gap < doseWindowDays
+            }
+        }
+        // A day is dose-explained only when *every* present tag on it is a
+        // recognised GLP-1 effect and a qualifying dose's window covers it. An
+        // infection-like tag can never be dose-explained — the two clusters are
+        // disjoint by construction (`SymptomTests.testTheTwoClustersDoNotOverlap`).
+        func isDoseExplained(day: Date, tags: [SymptomEvent]) -> Bool {
+            guard !tags.isEmpty else { return false }
+            return tags.allSatisfy { $0.type.isCommonGLP1Effect } && doseCovers(day)
+        }
+
+        // A tag type this reader logs most days cannot confirm an episode —
+        // the same reasoning that keeps fatigue out of `isInfectionLike`, one
+        // level up: a menopausal reader tagging hot flushes every evening
+        // would otherwise "confirm" every stretch the radar ever flags, and a
+        // 100% hit rate built that way carries zero information (2026-08-04).
+        // The denominator is the whole 90-day window, not graded days, so a
+        // fortnight of dense tagging in a young account is not called chronic.
+        let windowDayCount = daysBetween(windowStart, today, calendar: calendar) + 1
+        var presentDaysByType: [SymptomType: Set<Date>] = [:]
+        for (day, tags) in presentByDay where day >= windowStart && day <= today {
+            for event in tags { presentDaysByType[event.type, default: []].insert(day) }
+        }
+        let chronicTypes = Set(presentDaysByType
+            .filter { Double($0.value.count) > 0.4 * Double(windowDayCount) }
+            .keys)
+
+        var hits = 0, unconfirmed = 0, pending = 0
+        for episode in episodes(in: graded, calendar: calendar) {
+            guard let confirmStart = calendar.date(byAdding: .day, value: -tagLeadDays,
+                                                   to: episode.start),
+                  let confirmEnd = calendar.date(byAdding: .day, value: tagTrailDays,
+                                                 to: episode.end)
+            else { continue }
+            let confirmed = presentByDay.contains { day, tags in
+                guard day >= confirmStart && day <= confirmEnd else { return false }
+                let signal = tags.filter { !chronicTypes.contains($0.type) }
+                return !signal.isEmpty && !isDoseExplained(day: day, tags: signal)
+            }
+            if confirmed {
+                hits += 1
+            } else if confirmEnd > today {
+                pending += 1
+            } else {
+                unconfirmed += 1
+            }
+        }
+
+        // Misses: cluster the infection-like tag days (≤ 3 days apart joins),
+        // grade a cluster only where the radar had output to flag with, and
+        // call it a miss when no flag day falls in [clusterStart − 3, clusterEnd].
+        let infectionDays = presentByDay
+            .filter { _, tags in tags.contains { $0.type.isInfectionLike } }
+            .keys.sorted()
+        var clusters: [[Date]] = []
+        for day in infectionDays {
+            if let last = clusters.last?.last,
+               daysBetween(last, day, calendar: calendar) <= 3 {
+                clusters[clusters.count - 1].append(day)
+            } else {
+                clusters.append([day])
+            }
+        }
+        let outputDays = graded.compactMap { $0.output != nil ? $0.day : nil }
+        let flagDays = graded.compactMap { snapshot -> Date? in
+            guard let output = snapshot.output, output.status != .quiet else { return nil }
+            return snapshot.day
+        }
+        var misses = 0
+        for cluster in clusters {
+            guard let clusterStart = cluster.first, let clusterEnd = cluster.last,
+                  let rangeStart = calendar.date(byAdding: .day, value: -tagTrailDays,
+                                                 to: clusterStart)
+            else { continue }
+            let gradeable = outputDays.contains { $0 >= rangeStart && $0 <= clusterEnd }
+            let flaggedInRange = flagDays.contains { $0 >= rangeStart && $0 <= clusterEnd }
+            if gradeable && !flaggedInRange { misses += 1 }
+        }
+
+        return SymptomRadarLedger(gradedDays: gradedDays, hits: hits,
+                                  unconfirmed: unconfirmed, pending: pending,
+                                  misses: misses)
+    }
+
+    /// Whole calendar days from `a` to `b` — signed, so callers can ask both
+    /// "how long ago" and "how far ahead".
+    static func daysBetween(_ a: Date, _ b: Date, calendar: Calendar) -> Int {
+        calendar.dateComponents([.day], from: calendar.startOfDay(for: a),
+                                to: calendar.startOfDay(for: b)).day ?? 0
+    }
+}
+
+/// The card: `HealthWatchModel` rendered directly, graded against the reader's
+/// own symptom tags (roadmap #31) — *which signals moved* is more actionable
+/// than a score, and the early warning got its own card back for exactly that.
+///
+/// The shaping constraint is the best published prospective validation of this
+/// approach — sleep resting HR, respiratory rate and HRV over 470 health-care
+/// workers (JMIR Formative Research, 2024): **43% sensitivity at 95%
+/// specificity**. A model of this kind misses more than half of real
+/// illnesses, so the quiet state says so where every competitor puts a green
+/// tick, and the card keeps a hit/miss ledger against the reader's own tags
+/// rather than asking to be believed.
+public struct SymptomRadarInsight: InsightModel {
+    public let id: InsightID = .symptomRadar
+    public let title = "Symptom radar"
+    /// Construction state, rebound by `InsightEngine.withSymptoms(_:medication:)`
+    /// on every recompute — the SubstanceImpact pattern, chosen over a third
+    /// `evaluate` overload on the add-insight skill's explicit guidance.
+    /// Everything read from either is clipped to `date <= now` inside
+    /// `evaluate`, which is what keeps score replay honest.
+    public let symptoms: [SymptomEvent]
+    public let medication: MedicationSchedule?
+    /// `.current` in production (the engine rebinds with the default); injected
+    /// as `TestClock.utc` by tests, because day-precise assertions made against
+    /// a machine-local calendar fail abroad — the exact class the Oura parser's
+    /// calendar injection closed on 2026-08-04.
+    let calendar: Calendar
+
+    public init(symptoms: [SymptomEvent] = [], medication: MedicationSchedule? = nil,
+                calendar: Calendar = .current) {
+        self.symptoms = symptoms
+        self.medication = medication
+        self.calendar = calendar
+    }
+
+    /// Built entirely from sensed signals against the reader's own history —
+    /// nothing to ask the profile for.
+    public var requirements: [GroundingRequirement] { [] }
+    public var candidateMetrics: [MetricType] { HealthWatchModel.watchedMetrics }
+    /// The tags arrive from Apple Health rather than an in-app sheet, so the
+    /// route views and guides instead of opening one — see `.symptomLog`.
+    public var contributions: [ContributionRoute] { [.symptomLog] }
+
+    public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
+                         now: Date) -> InsightResult {
+        guard let watch = HealthWatchModel.evaluate(samples: samples, now: now,
+                                                    calendar: calendar) else {
+            return unscoredResult(samples: samples, now: now)
+        }
+
+        let timeline = SymptomRadarModel.timeline(samples: samples,
+                                                  days: SymptomRadarModel.ledgerDays,
+                                                  endingAt: now, calendar: calendar)
+        let episodes = SymptomRadarModel.episodes(in: timeline, calendar: calendar)
+        let tags = symptoms.filter { $0.date <= now }
+        let schedule = medication.map { bound in
+            MedicationSchedule(compound: bound.compound,
+                               doses: bound.doses.filter { $0.takenAt <= now })
+        }
+        let ledger = SymptomRadarModel.ledger(timeline: timeline, symptoms: tags,
+                                              medication: schedule, now: now,
+                                              calendar: calendar)
+        let today = calendar.startOfDay(for: now)
+        let status = watch.status
+
+        // The episode the reader is in, or just out of. Ongoing while the last
+        // flag day is at most two days old; a closed episode is still worth a
+        // recap for a day after that.
+        let last = episodes.last
+        let sinceEnd = last.map {
+            SymptomRadarModel.daysBetween($0.end, today, calendar: calendar)
+        }
+        let ongoing = (sinceEnd ?? .max) <= 2 ? last : nil
+        let recentlyClosed = ongoing == nil && (sinceEnd ?? .max) <= 3 ? last : nil
+        let dayN = ongoing.map {
+            SymptomRadarModel.daysBetween($0.start, today, calendar: calendar) + 1
+        } ?? 1
+
+        let headline: String
+        switch status {
+        case .quiet: headline = "Nothing stirring"
+        case .someSigns: headline = "Some signs — day \(dayN)"
+        case .strongSigns: headline = "Strong signs — day \(dayN)"
+        }
+
+        // #32: the 43% sentence lives in the quiet state, where every
+        // competitor puts a green tick. It is the most important sentence on
+        // the card and `SymptomRadarTests` pins it to `drivers.first`.
+        let explanation: String
+        if status == .quiet {
+            // The first clause must agree with the radar web drawn beneath it.
+            // Quiet is score >= 85 — concern <= 0.3 — which admits a genuinely
+            // leaning signal (a lone SpO2 at z ≈ −1.5 scores 87.5), and the web
+            // draws that dot past the inner ring under a caption saying "dots
+            // past the inner ring are leaning". "None is leaning" printed above
+            // it would be a falsehood visible on the same page (2026-08-04) —
+            // and quiet copy overstating quietness is exactly the direction
+            // this card promises not to err in.
+            let quietLead: String
+            if watch.leaning.isEmpty {
+                quietLead = "None of your watched signals is leaning the way "
+                    + "illness pushes them, judged against your own three-week "
+                    + "baseline."
+            } else if watch.leaning.count == 1, let only = watch.leaning.first {
+                quietLead = "Only one signal — \(only.metric.displayName) — is a "
+                    + "touch outside your usual range, on its own inside the "
+                    + "noise; nothing else is leaning with it, judged against "
+                    + "your own three-week baseline."
+            } else {
+                quietLead = "\(watch.leaning.count) signals are a touch outside "
+                    + "your usual range — each barely past leaning, together "
+                    + "still inside the noise, judged against your own "
+                    + "three-week baseline."
+            }
+            explanation = quietLead + " Read "
+                + "the quiet carefully: in the best published test of this approach "
+                + "— sleep heart rate, breathing rate and HRV across 470 "
+                + "health-care workers — it caught 43% of confirmed illnesses at "
+                + "95% specificity. Quiet here misses more than half of them. If "
+                + "you feel unwell, that is the better information."
+        } else {
+            let suffix = status == .someSigns
+                ? " Signs, not certainty — this pattern also follows a poor night, alcohol, or hard training."
+                : " Several signals agree, and agreement is the finding."
+            explanation = "\(watch.leaning.count) of \(watch.signals.count) watched "
+                + "signals are leaning the way illness pushes them, judged against "
+                + "your own three-week baseline — which ends four days ago, so a "
+                + "run cannot hide in its own average. Votes accumulate here: "
+                + "several small agreeing moves outrank one dramatic number."
+                + suffix
+        }
+
+        var lines: [InsightDriver] = []
+        if status == .quiet {
+            lines.append(.notable(
+                "Quiet is not an all-clear: this kind of watch catches fewer than "
+                + "half of real illnesses (43% in its best published test). How "
+                + "you feel outranks it."))
+            if let episode = recentlyClosed {
+                let length = SymptomRadarModel.daysBetween(episode.start, episode.end,
+                                                           calendar: calendar) + 1
+                let recovered = episode.leaningMetrics
+                    .filter { episode.recoveries[$0] != nil }.count
+                let tail = !episode.leaningMetrics.isEmpty
+                    && recovered == episode.leaningMetrics.count
+                    ? "every signal is back inside your usual range"
+                    : "\(recovered) of \(episode.leaningMetrics.count) signals back inside your usual range"
+                lines.append(.routine(
+                    "Settled: a \(length)-day stretch ended "
+                    + "\(weekdayName(episode.end)); \(tail)."))
+            }
+            lines.append(ledgerDriver(ledger))
+        } else {
+            // #33 and #34 as behaviour: name the confounder from data the app
+            // already holds, and never let a dose explain an infection-like
+            // tag. The clusters are disjoint by construction
+            // (SymptomTests.testTheTwoClustersDoNotOverlap), so the two
+            // explanations can always be told apart.
+            let windowTags = tags.filter { event in
+                guard event.severity.isPresent else { return false }
+                let gap = SymptomRadarModel.daysBetween(event.date, today,
+                                                        calendar: calendar)
+                return gap >= 0 && gap <= 2
+            }
+            let giTags = windowTags.filter { $0.type.isCommonGLP1Effect }
+            let infTags = windowTags.filter { $0.type.isInfectionLike }
+            // Only doses the reader entered or confirmed count (`isInferred`
+            // false — a confirmed extrapolation arrives cleared, see
+            // `DoseLogRecord.administered`): the app may guess out loud, and
+            // may not act on its own guess as though the reader had said it.
+            let qualifying = (schedule?.doses ?? []).filter { !$0.isInferred }
+            let nearDose = qualifying.last { dose in
+                let gap = SymptomRadarModel.daysBetween(dose.takenAt, today,
+                                                        calendar: calendar)
+                return gap >= 0 && gap < SymptomRadarModel.doseWindowDays
+            }
+            let stepUpFrom: Double? = nearDose.flatMap { dose in
+                qualifying.last { $0.takenAt < dose.takenAt }
+                    .flatMap { $0.milligrams < dose.milligrams ? $0.milligrams : nil }
+            }
+
+            var leadIsNeutral = false
+            var confounders: [InsightDriver] = []
+            if let dose = nearDose, let schedule {
+                // Only GI tags dated on or after the dose day can be the
+                // dose's effects — the same `gap >= 0` rule `doseCovers`
+                // applies in the ledger. Without this, nausea tagged two days
+                // *before* this morning's dose (early gastroenteritis) would
+                // suppress the illness lead and the copy would say "tagged …
+                // since", a temporally impossible attribution — the mirror
+                // image of the defect this table exists to prevent
+                // (2026-08-04). Pre-dose GI tags fall through to the
+                // dose-present-no-GI row: illness lead retained, overlap note
+                // still naming the dose.
+                let sinceDose = giTags.filter { event in
+                    SymptomRadarModel.daysBetween(dose.takenAt, event.date,
+                                                  calendar: calendar) >= 0
+                }
+                let compound = schedule.compound.displayName.lowercased()
+                let doseDay = weekdayName(dose.takenAt)
+                let step = stepUpFrom.map {
+                    ", stepping up from \(Self.milligrams($0)) mg"
+                } ?? ""
+                let overlap = InsightDriver.routine(
+                    "This overlaps the days after your \(doseDay) \(compound) "
+                    + "dose\(step). Dose days can move these same signals, so "
+                    + "keep that in the picture.")
+                if !sinceDose.isEmpty && infTags.isEmpty {
+                    // The one case that downgrades the illness phrasing: the
+                    // dose is named as the likelier explanation *alongside* the
+                    // finding — the signals, the score and the radar all still
+                    // render. Never instead of.
+                    leadIsNeutral = true
+                    confounders.append(.notable(
+                        "You took \(compound) \(Self.milligrams(dose.milligrams)) mg "
+                        + "on \(doseDay)\(step) and tagged \(namedList(sinceDose)) "
+                        + "since. Those are the drug's most common effects, and "
+                        + "the likelier explanation for what these signals show — "
+                        + "though a stomach bug can look identical, so if this "
+                        + "worsens or lingers, believe your body over this card."))
+                } else if !sinceDose.isEmpty {
+                    confounders.append(.notable(
+                        "You tagged \(namedList(infTags)) — not a known "
+                        + "\(compound) effect — alongside \(namedList(sinceDose)), "
+                        + "which is. The dose may explain the stomach's part of "
+                        + "this; it does not explain \(firstName(infTags))."))
+                } else if !infTags.isEmpty {
+                    // Not a row in the design table, which covers (dose, GI,
+                    // infection-like) as (yes, yes, *) and (yes, no, no). A dose
+                    // with *only* infection-like tags gets the acknowledgement a
+                    // doseless one would — an infection-like tag is never
+                    // dose-explained — plus the overlap note, because hiding
+                    // either half would be the dishonest option.
+                    confounders.append(.notable(
+                        "You tagged \(namedList(infTags)) yourself — taken with "
+                        + "these signals, your body is telling the same story "
+                        + "from two directions."))
+                    confounders.append(overlap)
+                } else {
+                    confounders.append(overlap)
+                }
+            } else if !infTags.isEmpty {
+                confounders.append(.notable(
+                    "You tagged \(namedList(infTags)) yourself — taken with these "
+                    + "signals, your body is telling the same story from two "
+                    + "directions."))
+            } else if !giTags.isEmpty {
+                confounders.append(.routine(
+                    "You tagged \(namedList(giTags)), with no dose in the last "
+                    + "three days to explain them, so nothing here writes them "
+                    + "off."))
+            }
+
+            let leaning = watch.leaning
+            lines.append(.notable(lead(count: leaning.count,
+                                       single: leaning.first?.metric,
+                                       neutral: leadIsNeutral)))
+            for signal in leaning {
+                let hard = abs(signal.zScore) >= HealthWatchModel.strongZ
+                lines.append(.notable(
+                    "\(signal.metric.displayName): "
+                    + "\(MetricValueFormatter.string(signal.recent, signal.metric)) "
+                    + "against "
+                    + "\(MetricValueFormatter.string(signal.reference, signal.metric)) "
+                    + "usual — leaning\(hard ? " hard" : "")."))
+            }
+            lines.append(contentsOf: confounders)
+            // #35: the episode, not just the onset — day count, the hardest day
+            // so far, and each signal's return to baseline.
+            if let episode = ongoing, dayN >= 2 {
+                lines.append(.routine(
+                    "Day \(dayN) of this stretch — hardest so far "
+                    + "\(weekdayName(episode.peakDay)), \(episode.peakLeaningCount) "
+                    + "signals leaning."))
+                for metric in episode.leaningMetrics {
+                    guard let day = episode.recoveries[metric] else { continue }
+                    lines.append(.routine(
+                        "\(metric.displayName) back inside your usual range since "
+                        + "\(weekdayName(day))."))
+                }
+            }
+            // The unseen confounder, named on-card until cycle tracking exists:
+            // a luteal phase moves resting HR, breathing and HRV in exactly the
+            // pattern this card reads as illness (docs/planned-modules.md ▸
+            // "the cycle warning"). The card must not silently compete with it.
+            if profile.sex == .female {
+                lines.append(.routine(
+                    "One thing this cannot see yet: cycle phase. Late-cycle days "
+                    + "push resting heart rate, breathing and HRV in exactly this "
+                    + "direction, and this card cannot tell that pattern from an "
+                    + "early illness."))
+            }
+            lines.append(ledgerDriver(ledger))
+        }
+
+        return InsightResult(
+            id: id, title: title, primaryValue: watch.score, headline: headline,
+            score: watch.score,
+            // Never `.high`: a validated approach applied bluntly — the same
+            // restraint as Energy's `testItNeverClaimsToBeAMeasurement`.
+            confidence: .moderate,
+            explanation: explanation,
+            // Notable-first, the same partition Readiness applies: the Today
+            // preview shows `drivers.first`, so a routine line arriving after a
+            // notable one must not be able to reach the front.
+            driverLines: lines.filter { $0.isNotable == true }
+                + lines.filter { $0.isNotable != true },
+            unmetRequirements: [],
+            contributors: contributors(for: watch),
+            weighting: .accumulative)
+    }
+
+    // MARK: - The two empty states
+
+    /// Mirrors Readiness's split (ReadinessScore.swift): an established
+    /// baseline waiting on today's sync is the opposite morning from a fresh
+    /// install, and they need opposite sentences.
+    private func unscoredResult(samples: [HealthMetricSample], now: Date) -> InsightResult {
+        let recorded = HealthWatchModel.watchedMetrics
+            .flatMap { samples.samples(of: $0) }
+            .map(\.start)
+        let recordedDays = Set(recorded.map { calendar.startOfDay(for: $0) })
+        if let latest = recorded.max(),
+           recordedDays.count >= HealthWatchModel.minimumReferenceDays {
+            let days = max(1, Int(now.timeIntervalSince(latest) / 86_400))
+            if days <= 3 {
+                let age = days == 1 ? "yesterday" : "\(days) days ago"
+                return InsightResult(
+                    id: id, title: title, primaryValue: nil,
+                    headline: "Waiting for today's sync",
+                    score: nil, confidence: .low,
+                    explanation: "The radar scores your last three days against "
+                        + "your own three-week baseline, and today's data hasn't "
+                        + "arrived — your latest readings are from \(age). This "
+                        + "fills in on its own once your wearable syncs; pull to "
+                        + "refresh to ask again.",
+                    drivers: [], unmetRequirements: [],
+                    isAwaitingTodaysData: true)
+            }
+        }
+        // The imperative headline is the CardVisibilityTests contract: a card
+        // that invites input must lead with the ask, not with "No data yet".
+        return invitingInput(
+            id, title,
+            action: "Wear your watch to sleep",
+            message: "The radar watches seven overnight signals — skin "
+                + "temperature (absolute and deviation), resting heart rate, HRV "
+                + "(two measures), breathing rate and blood oxygen — for several "
+                + "leaning the illness way at once. It needs about three weeks "
+                + "of nights to learn your normal before it can say anything. "
+                + "One honesty note up front: even at its best, this approach "
+                + "catches fewer than half of real illnesses (43% at 95% "
+                + "specificity in its best published test), so it will never "
+                + "replace how you feel.")
+    }
+
+    // MARK: - Pieces
+
+    /// One `MetricContribution` per evaluated signal. Voting signals carry
+    /// their vote's share (watched weight over the sum of surviving weights —
+    /// always positive, sums to 1); collapse losers ride at weight 0 with the
+    /// reason on their own row, because "counted once with its twin" and "not
+    /// looked at" are opposite statements and a missing row says the second.
+    /// The zero rows are also what keeps every declared candidate reachable
+    /// (`CandidateReachabilityTests`) — the collapse spans whole measurement
+    /// bases, wider than `interchangeableGroups`.
+    private func contributors(for watch: HealthWatchModel.Output) -> [MetricContribution] {
+        let votingTotal = watch.signals.reduce(0.0) {
+            $0 + HealthWatchModel.weight(for: $1.metric)
+        }
+        func direction(_ metric: MetricType) -> Bool? {
+            HealthWatchModel.risingIsConcerning(for: metric).map { !$0 }
+        }
+        func reading(_ signal: HealthWatchModel.Signal) -> String {
+            "\(MetricValueFormatter.string(signal.recent, signal.metric)) vs "
+                + "\(MetricValueFormatter.string(signal.reference, signal.metric)) usual"
+        }
+        var out: [MetricContribution] = watch.signals.map { signal in
+            MetricContribution(
+                metric: signal.metric,
+                higherIsBetter: direction(signal.metric),
+                weight: votingTotal > 0
+                    ? HealthWatchModel.weight(for: signal.metric) / votingTotal
+                    : 0,
+                detail: reading(signal))
+        }
+        for signal in watch.discounted {
+            let winner = watch.signals.first {
+                $0.metric.sharesMeasurementBasis(with: signal.metric)
+            }?.metric
+            out.append(MetricContribution(
+                metric: signal.metric,
+                higherIsBetter: direction(signal.metric),
+                weight: 0,
+                detail: reading(signal) + " — counted once with "
+                    + (winner?.displayName ?? "its twin")))
+        }
+        return out
+    }
+
+    /// The lead line. The plural illness form is the shipped Readiness driver,
+    /// copied verbatim (ReadinessScore.swift:273) so the two surfaces say the
+    /// same sentence — modifying `ReadinessInsight` is out of bounds, so a
+    /// test pins the shared phrase instead of a shared symbol. The neutral
+    /// form replaces only the middle clause; the disclaimer always travels
+    /// with the finding, not just the card.
+    private func lead(count: Int, single: MetricType?, neutral: Bool) -> String {
+        let disclaimer = "An observation about your own numbers, not a diagnosis "
+            + "— if you feel unwell, treat that as the better information."
+        guard count >= 2 else {
+            // The plural sentences don't survive count == 1 ("1 signals are…"),
+            // and one signal alone has not earned the illness framing — the
+            // score already agrees, since a single vote cannot pass someSigns.
+            let name = single?.displayName ?? "one of your vitals"
+            return "One signal is leaning the way illness pushes it — \(name), "
+                + "still inside the noise on its own. \(disclaimer)"
+        }
+        let middle = neutral
+            ? "together a pattern worth watching"
+            : "together the pattern a body tends to show before an illness announces itself"
+        return "\(count) signals are leaning the same way at once — individually "
+            + "inside the noise, \(middle). \(disclaimer)"
+    }
+
+    /// #36: the card grades itself out loud — hits, silences and misses — on
+    /// the pattern the blood-pressure estimator already ships. Pending episodes
+    /// are excluded from the sentence: a window still open is not a silence.
+    private func ledgerDriver(_ ledger: SymptomRadarModel.SymptomRadarLedger) -> InsightDriver {
+        let reportable = ledger.hits + ledger.unconfirmed
+        guard reportable > 0 || ledger.misses > 0 else {
+            return .routine(
+                "No track record with you yet: when you feel unwell, tag "
+                + "symptoms in Apple Health (Browse ▸ Symptoms) and this card "
+                + "will keep score against them — misses included.")
+        }
+        let weeks = max(1, Int((Double(ledger.gradedDays) / 7).rounded()))
+        let missClause = ledger.misses == 0 && ledger.gradedDays > 0 && reportable > 0
+            ? "and has missed none you tagged"
+            : "and it missed \(ledger.misses) you tagged without a flag"
+        return .routine(
+            "Its record with you: over the last \(weeks) weeks it flagged "
+            + "\(reportable) stretch\(reportable == 1 ? "" : "es") — "
+            + "\(ledger.hits) matched symptoms you tagged, \(ledger.unconfirmed) "
+            + "heard nothing back — \(missClause).")
+    }
+
+    /// Distinct symptom names in first-tagged order, lowercased for
+    /// mid-sentence use: "nausea, fatigue".
+    private func namedList(_ events: [SymptomEvent]) -> String {
+        var seen = Set<SymptomType>()
+        var names: [String] = []
+        for event in events where !seen.contains(event.type) {
+            seen.insert(event.type)
+            names.append(event.type.title.lowercased())
+        }
+        return names.joined(separator: ", ")
+    }
+
+    private func firstName(_ events: [SymptomEvent]) -> String {
+        events.first.map { $0.type.title.lowercased() } ?? "it"
+    }
+
+    private func weekdayName(_ date: Date) -> String {
+        let index = calendar.component(.weekday, from: date) - 1
+        let symbols = calendar.standaloneWeekdaySymbols
+        guard symbols.indices.contains(index) else { return "that day" }
+        return symbols[index]
+    }
+
+    /// "7.5" and "5", never "5.0" — a dose is quoted back in the reader's own
+    /// terms.
+    private static func milligrams(_ value: Double) -> String {
+        String(format: "%g", value)
+    }
+}
 

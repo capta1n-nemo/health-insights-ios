@@ -204,6 +204,7 @@ public enum CardStateExport {
         case .fit(let what): return "fit (\(what))"
         case .measurement: return "measurement at face value"
         case .worstOffender: return "worst-offender pool"
+        case .accumulative: return "accumulative vote"
         case .unstated: return "unstated"
         }
     }

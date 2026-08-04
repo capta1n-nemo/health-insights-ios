@@ -247,6 +247,7 @@ public extension InsightID {
         case .bodyComposition: return "Body"
         case .nutrition: return "Food"
         case .metabolism: return "Burn"
+        case .symptomRadar: return "Radar"
         }
     }
 }

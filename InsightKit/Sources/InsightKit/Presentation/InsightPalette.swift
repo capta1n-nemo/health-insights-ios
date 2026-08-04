@@ -36,6 +36,12 @@ public extension InsightID {
         case .bodyComposition: return 8
         case .nutrition: return 9
         case .metabolism: return 10
+        // The next unused preference integer, NOT a renumbering into the daily
+        // block — moving existing slots would silently recolour every trend
+        // card app-wide. 11 % 8 lands on Substance Impact's hue and
+        // `slots(for:)` steps the later claimant per chart, which the distinct
+        // integers here keep safe.
+        case .symptomRadar: return 11
         }
     }
 }

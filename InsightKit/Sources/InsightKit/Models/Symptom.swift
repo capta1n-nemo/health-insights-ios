@@ -39,6 +39,12 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     case sleepChanges
     case moodChanges
     case hotFlashes
+    // Added 2026-08-04: the two most characteristic GLP-1 GI reactions were
+    // unrepresentable, so the radar's dose downgrade could never fire for the
+    // classic dose reaction — a reader who vomited for two days after a step-up
+    // got the full illness lead instead of the neutral one naming the dose.
+    case vomiting
+    case diarrhea
 
     public var id: String { rawValue }
 
@@ -69,6 +75,11 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
         case .sleepChanges: return "Sleep changes"
         case .moodChanges: return "Mood changes"
         case .hotFlashes: return "Hot flushes"
+        case .vomiting: return "Vomiting"
+        // The raw value keeps Apple's US spelling — it derives the HealthKit
+        // identifier — while the title follows this app's British copy, the
+        // same split `hotFlashes` / "Hot flushes" already makes.
+        case .diarrhea: return "Diarrhoea"
         }
     }
 
@@ -84,9 +95,17 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     /// it — the reader can have a stomach bug while on tirzepatide. What it
     /// buys is the ability to name the likelier explanation alongside the
     /// finding rather than instead of it.
+    ///
+    /// Vomiting and diarrhoea sit here rather than in `isInfectionLike` even
+    /// though they are also gastroenteritis hallmarks: the clusters must stay
+    /// disjoint (`SymptomTests.testTheTwoClustersDoNotOverlap`), and the
+    /// dose-window copy already carries the ambiguity out loud — "a stomach
+    /// bug can look identical, so if this worsens or lingers, believe your
+    /// body over this card."
     public var isCommonGLP1Effect: Bool {
         switch self {
-        case .nausea, .abdominalCramps, .bloating, .heartburn, .fatigue: return true
+        case .nausea, .abdominalCramps, .bloating, .heartburn, .fatigue,
+             .vomiting, .diarrhea: return true
         case .headache, .dizziness, .fever, .coughing, .shortnessOfBreath,
              .chestTightnessOrPain, .sleepChanges, .moodChanges, .hotFlashes: return false
         }
@@ -102,7 +121,7 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
         case .fever, .coughing, .shortnessOfBreath: return true
         case .nausea, .headache, .fatigue, .dizziness, .chestTightnessOrPain,
              .abdominalCramps, .bloating, .heartburn, .sleepChanges,
-             .moodChanges, .hotFlashes: return false
+             .moodChanges, .hotFlashes, .vomiting, .diarrhea: return false
         }
     }
 }

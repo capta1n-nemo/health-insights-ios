@@ -105,7 +105,8 @@ final class ScoreAttributionTests: XCTestCase {
         let bases: [ScoreWeighting] = [
             .weightedAverage, .singleMeasure("a published range"),
             .equation("SCORE2"), .fit("your own readings"),
-            .measurement("A cuff reading."), .worstOffender, .unstated
+            .measurement("A cuff reading."), .worstOffender, .accumulative,
+            .unstated
         ]
         let explanations = bases.map(\.explanation)
         XCTAssertEqual(Set(explanations).count, bases.count,

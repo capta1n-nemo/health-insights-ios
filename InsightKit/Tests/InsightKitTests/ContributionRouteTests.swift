@@ -59,7 +59,8 @@ final class ContributionRouteTests: XCTestCase {
                     XCTAssertFalse(kinds.isEmpty,
                                    "\(model.id) offers an empty grounding route")
                 case .bloodPressureReadings, .substanceLog, .fileImport,
-                     .medication, .bodyType, .bodyMeasurements, .screenTime:
+                     .medication, .bodyType, .bodyMeasurements, .screenTime,
+                     .symptomLog:
                     continue
                 }
             }
@@ -73,7 +74,9 @@ final class ContributionRouteTests: XCTestCase {
     /// can read for itself, and which is the only way the onset deep-dive can
     /// answer "is it tech time?".
     func testModelsWithoutRequirementsOfferNothingUnlessTheyOverride() {
-        let overriders: Set<InsightID> = [.substanceImpact, .sleep]
+        // `.symptomRadar` joined 2026-08-04: no grounding facts, but it offers
+        // the symptom-tag route it grades itself against.
+        let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,
@@ -98,6 +101,17 @@ final class ContributionRouteTests: XCTestCase {
         let substance = model(.substanceImpact)
         XCTAssertTrue(substance.requirements.isEmpty)
         XCTAssertEqual(substance.contributions, [.substanceLog])
+    }
+
+    /// The radar's route is deliberate too — and deliberately the first with
+    /// no `InputKind` behind it: the tags are made in Apple Health, so the
+    /// section views and guides rather than opening a sheet. Do not "fix" the
+    /// empty mapping by inventing an in-app symptom sheet.
+    func testTheSymptomRadarOffersTheTagRouteItGradesItselfAgainst() {
+        let radarModel = model(.symptomRadar)
+        XCTAssertTrue(radarModel.requirements.isEmpty)
+        XCTAssertEqual(radarModel.contributions, [.symptomLog])
+        XCTAssertEqual(ContributionRoute.symptomLog.inputKinds, [])
     }
 
     // MARK: - Dispatch

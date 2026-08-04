@@ -80,6 +80,11 @@ struct InsightDetailView: View {
             heartResponseCard
         case .bodyComposition:
             bodyCompositionSplitCard
+        case .symptomRadar:
+            // The radar itself: the seven watched signals, each z-score, its
+            // direction and whether it is leaning — roadmap #31's "which
+            // signals moved is more actionable than a score".
+            symptomRadarWebCard
         // Kept, though all nine cases are now named: making this exhaustive
         // would add a *sixth* build-breaking switch over `InsightID` to the
         // `add-insight` path, which `docs/activeContext.md` singles out as the
@@ -735,6 +740,38 @@ struct InsightDetailView: View {
         case .temperature: return "thermometer.medium"
         case .eveningExertion: return "figure.run"
         case .screenTime: return "iphone"
+        }
+    }
+
+    /// The radar web: this morning's watch verdict, drawn as the shape it is.
+    ///
+    /// `HealthWatchModel.evaluate` is pure and `model.samples` is a stored,
+    /// observed property, so computing it in the body both tracks the
+    /// dependency and cannot disagree with the result the card renders — they
+    /// are the same evaluation. The view never reads `model.symptoms`:
+    /// everything tag-derived reaches this screen through `InsightResult`.
+    @ViewBuilder private var symptomRadarWebCard: some View {
+        InsightSection(
+            title: "The radar",
+            trailing: nil,
+            caveat: .computed(.partial,
+                              "Each spoke is one watched signal's last three days "
+                              + "against your own three-week baseline. Distance from "
+                              + "the centre is how far it is leaning the illness way "
+                              + "— movement in the healthy direction sits at the "
+                              + "centre, because \"not leaning\" is the claim.")
+        ) {
+            if let watch = HealthWatchModel.evaluate(samples: model.samples,
+                                                     now: Date(),
+                                                     calendar: .current) {
+                SymptomRadarWebCard(output: watch, tint: Theme.insightTint(.symptomRadar))
+            } else {
+                emptySection(SectionPlaceholder.needsMore(
+                    subject: "The radar",
+                    have: 0, need: HealthWatchModel.minimumReferenceDays,
+                    noun: "day of overnight vitals",
+                    plural: "days of overnight vitals"))
+            }
         }
     }
 
