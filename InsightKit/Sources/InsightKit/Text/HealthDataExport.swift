@@ -185,6 +185,12 @@ public struct HealthDataExport: Encodable, Sendable {
     /// `[]` and can never disappear the way a nil optional does.
     public let previousMedication: [Medication]
     public let sideEffects: [SideEffect]
+    /// Symptoms the reader tagged, promoted out of the raw catalogue.
+    ///
+    /// They are also still in `unmodelled`, where they have always been. The
+    /// duplication is deliberate: promotion reads rather than moves, so a bug
+    /// in it cannot cost the reader data that was already in the file.
+    public let symptoms: [SymptomEvent]
     /// Every body scan, whole — measurements, conditions and capture method.
     public let bodyScans: [BodyScan]
     /// The standing facts the reader entered: age, sex, cholesterol, weight goal.
@@ -196,7 +202,8 @@ public struct HealthDataExport: Encodable, Sendable {
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
                 substances: [SubstanceEvent], medication: Medication?,
                 previousMedication: [Medication] = [],
-                sideEffects: [SideEffect], bodyScans: [BodyScan] = [],
+                sideEffects: [SideEffect], symptoms: [SymptomEvent] = [],
+                bodyScans: [BodyScan] = [],
                 profile: UserHealthProfile,
                 derivedScores: [DerivedScore]) {
         self.schemaVersion = Self.schemaVersion
@@ -208,6 +215,7 @@ public struct HealthDataExport: Encodable, Sendable {
         self.medication = medication
         self.previousMedication = previousMedication
         self.sideEffects = sideEffects
+        self.symptoms = symptoms
         self.bodyScans = bodyScans
         self.profile = profile
         self.derivedScores = derivedScores
@@ -229,6 +237,7 @@ public struct HealthDataExport: Encodable, Sendable {
         case .substances: return "substances"
         case .medication: return "medication"
         case .sideEffects: return "sideEffects"
+        case .symptoms: return "symptoms"
         case .bodyScans: return "bodyScans"
         case .derivedScores: return "derivedScores"
         case .unmodelled: return "unmodelled"
@@ -251,7 +260,8 @@ public struct HealthDataExport: Encodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
-        case medication, previousMedication, sideEffects, bodyScans, profile, derivedScores
+        case medication, previousMedication, sideEffects, symptoms
+        case bodyScans, profile, derivedScores
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -271,6 +281,7 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(medication, forKey: .medication)
         try c.encode(previousMedication, forKey: .previousMedication)
         try c.encode(sideEffects, forKey: .sideEffects)
+        try c.encode(symptoms, forKey: .symptoms)
         try c.encode(bodyScans, forKey: .bodyScans)
         try c.encode(profile, forKey: .profile)
         try c.encode(derivedScores, forKey: .derivedScores)

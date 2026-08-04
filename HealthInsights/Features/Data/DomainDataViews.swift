@@ -219,3 +219,40 @@ struct SideEffectDataView: View {
             })
     }
 }
+
+/// Symptoms the reader has tagged, newest first.
+///
+/// Read-only, unlike its neighbours, and deliberately: every one of these came
+/// out of Apple Health, so the place to correct one is the Health app. A delete
+/// here would remove the app's promoted copy and the next sync would bring it
+/// straight back — a control that appears to work and does not.
+struct SymptomDataView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        DomainDataScaffold(
+            title: DataDomain.symptoms.title,
+            entriesHeader: "Tagged",
+            entryCount: model.symptoms.count,
+            emptyHeadline: "Nothing tagged yet",
+            emptyMessage: "Symptoms you tag in the Health app appear here. Days you recorded *not* having something are kept too — an absence you confirmed is worth more than silence.",
+            emptySymbol: "list.clipboard",
+            rows: {
+                ForEach(model.symptoms) { event in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(event.type.title)
+                            Text(event.date.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(event.severity.title)
+                            .font(.subheadline)
+                            // A recorded absence is dimmer than an occurrence:
+                            // it is real data and it is not an event.
+                            .foregroundStyle(event.severity.isPresent ? .secondary : .tertiary)
+                    }
+                }
+            })
+    }
+}

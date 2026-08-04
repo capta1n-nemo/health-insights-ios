@@ -211,6 +211,11 @@ the place to look.
   - `SCORE2RiskRegion` :37
 - `Models/SourceOrigin.swift`
   - `SourceOrigin` :11
+- `Models/Symptom.swift`
+  - `SymptomEvent` :150
+  - `SymptomPromotion` :167
+  - `SymptomSeverity` :117
+  - `SymptomType` :27
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
@@ -527,7 +532,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :487
+  - `OtherDataDetailView` :528
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
@@ -535,6 +540,7 @@ the place to look.
   - `MedicationDataView` :59
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
+  - `SymptomDataView` :229
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
@@ -611,8 +617,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :305
-  - `OtherDataListView` :318
+  - `FullExport` :306
+  - `OtherDataListView` :319
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :337
   - `IntegrationRow` :238

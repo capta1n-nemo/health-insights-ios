@@ -129,6 +129,13 @@ struct DataTabView: View {
                            medication.compound?.displayName ?? "")
         case .sideEffects:
             return !filteredSideEffects.isEmpty
+        case .symptoms:
+            // Searchable by the symptom's own name as well as the heading, so
+            // "headache" finds it without the reader knowing the app calls this
+            // section Symptoms.
+            guard !model.symptoms.isEmpty else { return false }
+            return matches(domain.title, "symptom", "unwell", "sick")
+                || model.symptoms.contains { matches($0.type.title) }
         case .bodyScans:
             guard !model.bodyScans.isEmpty else { return false }
             return matches(domain.title, "body", "measurement", "scan", "waist",
@@ -231,6 +238,7 @@ struct DataTabView: View {
         case .substances: substanceSection
         case .medication: medicationSection
         case .sideEffects: sideEffectSection
+        case .symptoms: symptomSection
         case .bodyScans: bodyScanSection
         case .derivedScores: derivedScoreSection
         case .unmodelled: otherDataSection
@@ -357,6 +365,39 @@ struct DataTabView: View {
                 Text(DataDomain.bodyScans.title)
             } footer: {
                 Text(DataDomain.bodyScans.summary)
+            }
+        }
+    }
+
+    /// Symptoms the reader has tagged, promoted out of the raw catalogue.
+    ///
+    /// Counts only what they actually *had*: `notPresent` is a recorded absence
+    /// — the reader saying "I checked and I did not have this" — and showing it
+    /// as an occurrence would invert the one thing it means.
+    @ViewBuilder private var symptomSection: some View {
+        let present = model.symptoms.filter { $0.severity.isPresent }
+        if !present.isEmpty {
+            Section {
+                NavigationLink {
+                    SymptomDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let latest = present.first {
+                            HStack {
+                                Text(latest.type.title)
+                                Spacer()
+                                Text(latest.severity.title)
+                                    .foregroundStyle(.secondary)
+                                Text("· \(latest.date.formatted(.relative(presentation: .named)))")
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                        Text(present.count == 1 ? "1 recorded" : "\(present.count) recorded")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.symptoms.title)
             }
         }
     }

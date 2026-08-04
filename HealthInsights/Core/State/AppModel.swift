@@ -131,6 +131,18 @@ final class AppModel {
     /// courses the reader has finished.
     private(set) var allMedications: [MedicationRecord] = []
 
+    /// Symptoms the reader has tagged, newest first.
+    ///
+    /// **Promoted, not ingested.** These have been arriving in the raw
+    /// catalogue since `HealthKitService.otherCategoryIdentifiers` gained the
+    /// fourteen symptom categories, and nothing read them — the state
+    /// `progress.md` calls "already being scraped into the raw pile and read by
+    /// nothing". `SymptomPromotion` lifts them out; the raw rows stay exactly
+    /// where they are, so a bug here cannot cost data the reader already had.
+    var symptoms: [SymptomEvent] {
+        SymptomPromotion.events(from: otherDataGroups.flatMap(\.samples))
+    }
+
     /// Reload the logged data that lives in SwiftData rather than in `samples`,
     /// so every observed reader of it redraws. Called from `hydrate()` and at
     /// the top of `recompute()`, which every mutation funnels through — the one

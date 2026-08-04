@@ -36,6 +36,16 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     case medication
     /// Dated side-effect records — severity against a name.
     case sideEffects
+    /// Symptoms the reader has tagged, graded by strength.
+    ///
+    /// Its own domain and not folded into `sideEffects`, which it visibly
+    /// resembles. A side effect is a symptom **attributed to a medication**;
+    /// this is the general case, and most of it arrives from Apple Health
+    /// rather than from the reader typing it. Merging them would assert an
+    /// attribution nobody made — and it is precisely the distinction the
+    /// symptom radar rests on, since a dose reaction must never be reported as
+    /// an infection.
+    case symptoms
     /// Body measurements and the scans that produced them.
     ///
     /// Its own domain rather than folded into `metrics`, even though seven of
@@ -68,6 +78,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .substances: return "Substances"
         case .medication: return "Medication"
         case .sideEffects: return "Side effects"
+        case .symptoms: return "Symptoms"
         case .bodyScans: return "Body measurements"
         case .derivedScores: return "Scores & estimates"
         case .unmodelled: return "Other data"
@@ -87,6 +98,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Your regimen, the doses logged, and how much is still active."
         case .sideEffects:
             return "What you recorded feeling, and how strongly."
+        case .symptoms:
+            return "What you've tagged in Health, and how strongly — including the days you recorded not having something."
         case .bodyScans:
             return "Every measurement you've taken, how it was taken, and whether two of them can be compared."
         case .derivedScores:
