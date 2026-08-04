@@ -76,6 +76,97 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 25 (2026-08-04) — the first Mac session. A simulator can show a chart
+now, and looking at the app changed four answers.**
+
+**The biggest thing: `SyntheticSeed` + a debug-only Settings section fill the
+simulator, so charts, reference bands and scored cards are verifiable on a Mac.**
+That was the top item on the efficiency roadmap and the largest category of
+unverifiable work in the project. Verified on screen: the balance web with all
+nine spokes, Blood Pressure's dial, "Experimental" badge, six driver notes,
+score-over-time chart with its vertical gradient and band-coloured points, the
+D/W/M/6M/Y/All control, and "Your readings" with its reference bands.
+- The write goes through `DataStore.replaceManualSamples`, the same per-day
+  upsert `ingestShortcut` uses — only the *trigger* is debug-only.
+- Every generated value is checked against the metric's own `plausibleRange`
+  before it is emitted, so it could have arrived through the real ingest.
+- **Tried first and rejected: `xcrun simctl openurl` against `ShortcutIngest`.**
+  It works, but iOS 26 confirms every externally-opened URL, so four months of
+  seeding meant 120 taps. Do not spend the afternoon on it again.
+- **Still phone-only:** the substance shading (no substance events are
+  generated), anything depending on real HealthKit bucketing, the camera, LiDAR,
+  the ring and the scale.
+
+**⚠️ The suite had only ever run in UTC, and two things were wrong when it
+didn't.** CI's container is UTC; the user's Mac is UTC+8. `ScoreChangeReader
+.trend(for:)` — the entry point every card is told to use — could not forward a
+calendar and silently took `Calendar.current`, so the suite's deliberate UTC pin
+could not reach it. `OuraResponseParser.parseSleep` took no calendar at all, on
+the stated grounds that a defaulted argument cannot be dropped from a function
+reference: true, but a forwarding overload satisfies both. Three Oura tests
+failed on UTC+8 in *both* directions, because `SleepOnset.hoursFromMidnight`
+keeps bedtimes within ±6 h of **local** midnight. Shipped behaviour unchanged;
+the tests can now be right anywhere, via `parseSleepUTC`.
+**The general shape: a test suite that can only be correct in one timezone says
+nothing about the phone, and every night-bucketing bug this repo records was
+found on a device.**
+
+**The `+` question in the previous session's list is answered and needed no
+code.** `addInputToolbar` has always used `ToolbarItem(placement:
+.topBarTrailing)`; iOS 26 draws every toolbar item as a glass circle, which is
+what looked like a floating button. The Body scans back chevron and the Screen
+Time sheet's Cancel/Save render identically.
+
+**Four defects found by looking, all fixed:**
+1. **Nutrition and Metabolism were visible and still asked for nothing.** The
+   2026-08-03 fix put them on the tab; both then read "No data yet", because
+   `notReady` hard-coded that headline for every card and *the row renders the
+   headline, not the explanation*. `invitingInput(action:message:)` now has no
+   default for `action`, so a card declaring it invites input cannot compile
+   without saying what to do. **Being on the tab was half the job.**
+2. **Onboarding claimed Apple Health provenance for a value it invented** —
+   the condition was `dob != nil || sex != nil`, and tapping *Set* fills the
+   date with today minus thirty years. This app's cardinal rule broken one layer
+   above the models, and worse there: a reader told the date came from Health
+   has a reason not to check it, and age drives every risk score.
+3. A required toggle refused taps while looking operable (`.disabled` now).
+4. The blood-test import's prose pointed at the secondary button.
+
+**The export audit found two real holes, fixed before the first real export.**
+Only the *active* medication regimen was exported, so switching compounds
+dropped the earlier course and every dose on it. And every *nested* optional was
+still on the synthesised encoder — the hand-written top-level `encode` gave
+`medication` an explicit null, but `Dose.confirmedAt`, `injectionSite`,
+`brandName` and the derived scores' `score`/`primaryValue` all vanished when nil.
+The guard could not see it: its one fixture left `confirmedAt` nil and asserted
+only on keys the fixture populated.
+
+**Symptoms are a domain now** (roadmap #24) — promotion, not ingestion; the
+fourteen categories were already arriving and read by nothing. See
+`docs/progress.md`.
+
+**Three tooling fixes, all found by using the tools on a Mac:**
+- `bash-workdir-hook.sh` emitted an **unquoted** `cd`, fatal because the repo
+  lives in iCloud Drive under a path with a space. Every unanchored shell call
+  died until it was fixed.
+- **Building from iCloud Drive breaks codesigning** —
+  `resource fork, Finder information, or similar detritus not allowed`. The
+  Actions runner never hits it because it checks out into its own work
+  directory. Build products now go to `~/Library/Caches/health-insights/`,
+  which also stops **766 MB** of build output syncing to the user's iCloud
+  account (`.gitignore` means nothing to iCloud).
+- The identifier lint walked the filesystem while claiming things were
+  *committed*; it reads `git ls-files` now.
+
+**⚠️ The simulator would not boot for the first two hours, and the cause was
+`/private/var/tmp` at 1775 instead of 1777.** `launchd_sim` crashed on startup
+with "could not create temporary state directory". Ruled out first, each with a
+check: device corruption, the sandbox, the GUI session, uptime, load, Xcode
+version, the runtime, disk, and — wrongly, twice — SentinelOne. `sudo chmod 1777
+/private/var/tmp` fixed it instantly. **If a simulator will not boot on this
+Mac, check that first.**
+
+
 **Session 24 (2026-08-03) — two cards built, a design rule made universal, five
 roadmap briefs researched, and one defect the user caught.**
 
