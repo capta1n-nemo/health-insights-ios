@@ -168,11 +168,32 @@ public extension IngestionPipeline {
 }
 
 public extension EnvelopeSpec {
-    /// Oura v2: `{"data": [...], "next_token": ...}`, records dated by `day`
-    /// (daily summaries) or `bedtime_start`/`timestamp` (sessions).
+    /// Oura v2: `{"data": [...], "next_token": ...}`, records dated by
+    /// `bedtime_start`/`timestamp` (sessions) or `day` (daily summaries).
+    ///
+    /// **The order of `startDateKeys` is the fix for a shipped defect, not a
+    /// detail.** `day` used to come first, and it is the *wake* date — so every
+    /// Oura sleep session, its five-minute stage string included, was stamped at
+    /// midnight UTC. All 15,604 Oura raw rows in the reader's export sit at
+    /// exactly `T00:00:00Z`. On their UTC+8 phone that renders at 08:00, which
+    /// is why the sleep chart showed a night beginning at half past seven in the
+    /// morning. A precise instant must always beat a date-only field.
+    ///
+    /// Four further faults collapse out of the same cause, which is why this is
+    /// one line rather than four fixes: 58 of 178 records shared a single
+    /// instant (so hypnograms overdrew and the type join kept an arbitrary
+    /// first record); `localStartHour` was *always* 8, so **naps passed the
+    /// night filter**; 125 of 178 raw spans ended before they started.
+    ///
+    /// No migration. A returning source's cache is replaced wholesale on sync,
+    /// and Oura's OAuth window is a rolling 730 days, so one re-sync re-dates
+    /// everything within reach of any chart. A parallel analysis of the same
+    /// export found the misregistration from the other end — sleep correlating
+    /// with the cardiac signals at +0.79 one day out of step, against ≤0.44 at
+    /// every other lag — so multi-signal statistics were mixing two nights.
     static let oura = EnvelopeSpec(
         recordsKeyPath: ["data"],
-        startDateKeys: ["day", "bedtime_start", "timestamp", "start_datetime"],
+        startDateKeys: ["bedtime_start", "timestamp", "start_datetime", "day"],
         endDateKeys: ["bedtime_end", "end_datetime"],
         ignoredKeys: ["id"])
 
