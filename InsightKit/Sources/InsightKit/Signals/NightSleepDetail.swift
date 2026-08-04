@@ -101,15 +101,28 @@ public struct NightSleepDetail: Sendable, Equatable {
                               samples: [HealthMetricSample],
                               calendar: Calendar = .current) -> NightSleepDetail? {
         let ouraNights = ouraSegments(raw: raw, calendar: calendar)
+        let appleNights = appleSegments(raw: raw, calendar: calendar)
         let windowNights = windowLanes(samples: samples, calendar: calendar)
 
-        guard let night = Set(ouraNights.keys).union(windowNights.keys).max() else { return nil }
+        guard let night = Set(ouraNights.keys)
+            .union(appleNights.keys)
+            .union(windowNights.keys).max() else { return nil }
 
         var lanes: [Lane] = []
         if let bands = ouraNights[night], !bands.isEmpty {
             lanes.append(Lane(source: "Oura", bands: bands.sorted { $0.start < $1.start }))
         }
-        for (source, band) in (windowNights[night] ?? [:]).sorted(by: { $0.key < $1.key }) {
+        // Apple's stage lanes, one per writing device, before the window
+        // fallback — and the fallback is then suppressed for any source that
+        // has real stages, or the same night would draw twice: once in colour
+        // and once as a flat grey bar over it.
+        for (source, bands) in (appleNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
+        where !bands.isEmpty {
+            lanes.append(Lane(source: source, bands: bands.sorted { $0.start < $1.start }))
+        }
+        let staged = Set((appleNights[night] ?? [:]).keys)
+        for (source, band) in (windowNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
+        where !staged.contains(source) {
             lanes.append(Lane(source: source, bands: [band]))
         }
         guard !lanes.isEmpty else { return nil }
@@ -165,6 +178,61 @@ public struct NightSleepDetail: Sendable, Equatable {
                                                        localStartHour: hour) else { continue }
             nights[wakeDay(of: record.start, calendar: calendar), default: []]
                 .append(contentsOf: bands(from: phases, start: record.start))
+        }
+        return nights
+    }
+
+    /// The identifier Apple's per-stage segments are catalogued under. Kept here
+    /// beside its only reader; `HealthKitService` writes it.
+    static let appleSegmentIdentifier = "apple_health.sleep_segment"
+
+    /// night day → writing device → its stage bands.
+    ///
+    /// **Apple has recorded core/deep/REM since iOS 16 and the app was drawing a
+    /// flat grey bar for it.** The segments were fetched and mapped, handed to
+    /// `SleepNights` for the nightly totals, and then dropped — so this type had
+    /// nothing to build a lane from and every Apple night fell through to
+    /// `windowLanes`, which draws one `stage: nil` band. The reader's own export
+    /// carries stage minutes on 132 nights, so the data was always there.
+    ///
+    /// Keyed by the **writing device** rather than by "Apple Health", because
+    /// several devices write sleep into Health and drawing them as one lane
+    /// would splice a watch's night onto a ring's.
+    /// Apple's stage vocabulary mapped onto the chart's.
+    ///
+    /// **`core` becomes `light`**, which is the physiologically correct name for
+    /// it and the one Oura's lane already uses — so the two lanes are directly
+    /// comparable rather than the same sleep wearing two labels. Apple's own app
+    /// says "Core"; matching Oura matters more here, because the whole point of
+    /// showing both lanes is comparing them.
+    ///
+    /// `inBed` returns nil: it is time in bed, not a stage, and drawing it would
+    /// lay a band under the entire night that every stage colour then sits on
+    /// top of. `unspecified` is real sleep of unknown stage — an older watch, or
+    /// a third-party app writing only "asleep" — and is drawn as light rather
+    /// than dropped, since dropping it would leave a hole in a night that was
+    /// genuinely slept.
+    private static func stage(for kind: SleepSegment.Kind) -> Stage? {
+        switch kind {
+        case .deep: return .deep
+        case .rem: return .rem
+        case .core, .unspecified: return .light
+        case .awake: return .awake
+        case .inBed: return nil
+        }
+    }
+
+    private static func appleSegments(raw: [RawMetricSample],
+                                      calendar: Calendar) -> [Date: [String: [Band]]] {
+        var nights: [Date: [String: [Band]]] = [:]
+        for record in raw where record.identifier == appleSegmentIdentifier {
+            guard case .text(let name) = record.value,
+                  let kind = SleepSegment.Kind(rawValue: name) else { continue }
+            guard let stage = Self.stage(for: kind) else { continue }
+            guard record.end > record.start else { continue }
+            nights[wakeDay(of: record.start, calendar: calendar), default: [:]][
+                record.source.displayName, default: []
+            ].append(Band(start: record.start, end: record.end, stage: stage))
         }
         return nights
     }

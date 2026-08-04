@@ -289,7 +289,11 @@ final class HealthKitService {
             result.samples += await fetchQuantity(qType, metric: metric, unit: unit,
                                                   start: lookbackStart(for: metric))
         }
-        result.samples += await fetchSleep(start: lookbackStart(for: .sleepDurationHours))
+        let sleep = await fetchSleep(start: lookbackStart(for: .sleepDurationHours))
+        result.samples += sleep.nightly
+        // The per-stage segments travel too, so the hypnogram has an Apple lane.
+        // They used to be mapped and then dropped on the floor — see `fetchSleep`.
+        result.other += sleep.segments
         result.other += await fetchOtherQuantities(start: otherLookbackStart)
         result.other += await fetchOtherCategories(start: otherLookbackStart)
         DiagnosticsLog.shared.ok("Apple Health",
@@ -440,8 +444,33 @@ final class HealthKitService {
         }
     }
 
-    private func fetchSleep(start: Date) async -> [HealthMetricSample] {
-        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return [] }
+    /// The identifier every Apple sleep-stage segment is catalogued under.
+    ///
+    /// One identifier with the stage in the value, rather than an identifier per
+    /// stage: the Data tab's "Other data" would otherwise gain five rows saying
+    /// the same thing, and `NightSleepDetail` wants them as one stream anyway.
+    static let appleSleepSegmentIdentifier = "apple_health.sleep_segment"
+
+    /// Nightly figures **and** the per-stage segments behind them.
+    ///
+    /// **The segments used to be mapped and then thrown away.** This function
+    /// translated HealthKit's category values into `SleepSegment`, handed them
+    /// to `SleepNights` for the nightly totals, and dropped the segments on the
+    /// floor — so `NightSleepDetail` had nothing to build an Apple lane from and
+    /// fell through to `windowLanes`, which draws one flat `stage: nil` band.
+    /// That is why an Apple night rendered as a featureless grey bar while an
+    /// Oura night showed its hypnogram, even though Apple has recorded
+    /// core/deep/REM since iOS 16 and the reader's own export carries stage
+    /// minutes on 132 nights.
+    ///
+    /// `SleepNights` remains the **sole** authority on nightly figures; the
+    /// segments travel beside them as raw catalogue rows purely so the chart can
+    /// draw what was already fetched.
+    private func fetchSleep(start: Date) async -> (nightly: [HealthMetricSample],
+                                                   segments: [RawMetricSample]) {
+        guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return ([], [])
+        }
         return await withCheckedContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
             let query = HKSampleQuery(sampleType: type, predicate: predicate,
@@ -461,13 +490,28 @@ final class HealthKitService {
                 // data export's 0.01 h minimum sleep duration came from, and
                 // — efficiency having split its numerator and denominator
                 // independently — its 2% minimum efficiency as well.
-                let mapped = (samples as? [HKCategorySample])?.compactMap { s -> SleepSegment? in
+                let categorySamples = (samples as? [HKCategorySample]) ?? []
+                let mapped = categorySamples.compactMap { s -> SleepSegment? in
                     guard let kind = Self.sleepKind(of: s.value) else { return nil }
                     return SleepSegment(kind: kind, start: s.startDate, end: s.endDate)
-                } ?? []
-                continuation.resume(returning: SleepNights.samples(from: mapped,
-                                                                   source: .appleHealth,
-                                                                   calendar: Calendar.current))
+                }
+                // The same segments, kept. `.text` carries the stage because the
+                // hypnogram needs to know *which* stage, and a numeric code
+                // would be unreadable in the Data tab's raw listing.
+                let segments = categorySamples.compactMap { s -> RawMetricSample? in
+                    guard let kind = Self.sleepKind(of: s.value) else { return nil }
+                    return RawMetricSample(
+                        identifier: Self.appleSleepSegmentIdentifier,
+                        displayName: "Sleep stage",
+                        value: .text(kind.rawValue),
+                        unit: "",
+                        start: s.startDate, end: s.endDate,
+                        source: .appleHealthDevice(s.sourceRevision.source.name))
+                }
+                continuation.resume(returning: (
+                    SleepNights.samples(from: mapped, source: .appleHealth,
+                                        calendar: Calendar.current),
+                    segments))
             }
             store.execute(query)
         }
