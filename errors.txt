@@ -1,0 +1,5 @@
+--- install ---
+::warning::The pinned device (iPhone 16 Pro) reports state 'unavailable'. Attempting the install anyway — if it fails, unlock the phone, disable any VPN, and confirm it shares the Mac's network.
+Installing build/Build/Products/Debug-iphoneos/HealthInsights.app onto the pinned device (iPhone 16 Pro)
+ERROR: CoreDeviceService was unable to locate a device matching the requested device identifier. (DeviceIdentifier: ecid_6229747003195420) (com.apple.dt.CoreDeviceError error 1011 (0x3F3))
+       DeviceIdentifier = ecid_6229747003195420
