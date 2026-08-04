@@ -11,13 +11,28 @@ one pass is the difference between opening with work and opening with a survey.
 ## 1. Start the toolchain download immediately, in the background
 
 ```bash
-/home/user/health-insights-ios/scripts/bootstrap-swift.sh
+./scripts/bootstrap-swift.sh
 ```
 
 Roughly two minutes, almost no tokens, and it exits at once if Swift is already
 present — so it is safe to run unconditionally and wasteful to think about first.
 Launch it in the background and read the docs while it runs. Every session needs
 it and no session should wait on it.
+
+**On the user's Mac it exits immediately** (Xcode's toolchain is already the
+right one), and that session has something a hosted one does not: **the
+simulator**. Check it once, early:
+
+```bash
+./scripts/simulator.sh doctor
+```
+
+If that succeeds, you can see the app rather than reason about it — load the
+`use-the-simulator` skill before the first UI change, and use it before
+reporting any UI change as working. Two cards shipped *invisible* on 2026-08-03
+with green tests, green CI and a successful install; a single simulator launch
+would have caught it. If it fails because this is a hosted Linux session, that
+is expected and CI remains the gate for the app target.
 
 ## 2. Read the two audited documents — and do not re-derive them
 

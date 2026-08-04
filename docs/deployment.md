@@ -161,6 +161,14 @@ work and have shipped wrong before — but a simulator screenshot proves nothing
 about a chart with data in it, a reference band, a scrub read-out, or the
 substance shading. Those still need the phone.
 
+**The tooling: `./scripts/simulator.sh`** (added 2026-08-03) — `doctor`,
+`build`, `run`, `shot`, `logs`, `reset --yes`. It refuses to run anywhere but
+macOS and says why. `scripts/bootstrap-swift.sh` now exits immediately on
+Darwin as well: without that, a Mac session following `CLAUDE.md`'s
+first-thing-every-session instruction would download a 780 MB Ubuntu toolchain
+over the Xcode one it already has. The `use-the-simulator` skill carries the
+loop and the limits.
+
 **Worth checking in a simulator before the next deploy** (all app-target work
 landed 2026-08-03, none of it device-verified): the `+` menu on Insights and
 Data and whether a toolbar item or a floating button is right; Settings ▸ Body

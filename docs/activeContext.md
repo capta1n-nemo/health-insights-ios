@@ -251,7 +251,12 @@ should not re-derive:
   that these drugs move intake, and a rising ratio on treatment is more likely
   a log that got worse as appetite fell.
 
-**A Mac session can now settle some of this without the phone.** The user
+**A Mac session can now settle some of this without the phone, and there is a
+script for it: `./scripts/simulator.sh`** (`doctor` / `run` / `shot` / `logs` /
+`reset`), plus the `use-the-simulator` skill. `bootstrap-swift.sh` exits early
+on Darwin so a Mac session does not download a Linux toolchain over Xcode's.
+**Use it before reporting any UI change as working** — the invisible-cards
+defect above is exactly what it catches. The user
 installed the Claude Code app on their Mac on 2026-08-03. A session *there* has
 Xcode and a simulator; a hosted session (this one) is Linux and cannot — see
 `docs/deployment.md` ▸ "The simulator, and which session can actually use it".

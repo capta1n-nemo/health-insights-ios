@@ -63,7 +63,15 @@ symbol twice.
   on 2026-08-02 one was spent to read a single-line compile error that
   `--errors` prints for nothing.
 - Underneath: `cd InsightKit && swift test` and `xcodebuild build -project HealthInsights.xcodeproj -scheme HealthInsights -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`
-  (the app target needs the iOS SDK, so CI is still the only gate for it).
+  (the app target needs the iOS SDK, so CI is still the only gate for it **in a
+  hosted session**).
+- **On the user's Mac, look at it: `./scripts/simulator.sh run` then
+  `./scripts/simulator.sh shot`, and Read the PNG.** Two cards shipped
+  *invisible* on 2026-08-03 — green tests, green CI, installed, and filtered off
+  the tab — and one simulator launch would have caught it. A Mac session can
+  also run the `xcodebuild` line above, which catches the SwiftUI errors a
+  hosted session can only learn from CI. Load the `use-the-simulator` skill; it
+  says what the simulator cannot answer, which is anything needing real data.
 
 ## Automation Rules
 - Fully manage all files, including Xcode project structures, Swift files, and configurations.
@@ -204,6 +212,9 @@ So:
   This is the most frequent way the build breaks; the skill lists all of them.
 - `add-insight` -> the five `InsightID` switches (the docs said three) and the
   two registrations that fail silently.
+- `use-the-simulator` -> **Mac sessions only: see the app before saying a UI
+  change works.** Written from the invisible-cards defect. Says plainly what a
+  simulator cannot answer, and that it never replaces `verify.sh --tests`.
 - `add-chart` -> **load this before adding *or reviewing* a chart, and before
   acting on any "that chart looks wrong" report.** The `Chart3DContent` overload
   hazard, dash-means-inferred, per-chart hue resolution, gap handling, the three

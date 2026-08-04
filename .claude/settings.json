@@ -21,7 +21,11 @@
       "Write",
       "Bash(./scripts/handover-check.sh*)",
       "Bash(./scripts/pre-push-gate.sh*)",
-      "Bash(cd /home/user/health-insights-ios)"
+      "Bash(cd /home/user/health-insights-ios)",
+      "Bash(./scripts/simulator.sh*)",
+      "Bash(xcrun *)",
+      "Bash(xcodebuild *)",
+      "Bash(open -a Simulator*)"
     ],
     "deny": [
       "Read(*.env*)"

@@ -33,6 +33,23 @@ PREFIX="${SWIFT_PREFIX:-/opt/swift}"
 UBUNTU="${SWIFT_UBUNTU:-ubuntu24.04}"
 UBUNTU_PATH="${UBUNTU/./}"   # "ubuntu24.04" -> "ubuntu2404"
 
+# **macOS already has a toolchain, and it is the right one.**
+#
+# `CLAUDE.md` tells every session to run this first thing, and that instruction
+# now reaches sessions in the Claude Code app on the user's Mac as well. Without
+# this branch, such a session would download a 780 MB *Ubuntu* toolchain over the
+# Xcode one it already has — slow, pointless, and it would shadow the SDK the
+# app target needs.
+if [ "$(uname -s)" = "Darwin" ]; then
+    if command -v swift >/dev/null 2>&1; then
+        echo "macOS with Xcode's toolchain: $(swift --version | head -1)"
+        echo "Nothing to install. This script is for Linux sandboxes."
+        exit 0
+    fi
+    echo "macOS without a Swift toolchain — install Xcode, then 'xcode-select --install'."
+    exit 1
+fi
+
 if [ -x "$PREFIX/usr/bin/swift" ]; then
     echo "Swift already present: $("$PREFIX/usr/bin/swift" --version | head -1)"
     exit 0
