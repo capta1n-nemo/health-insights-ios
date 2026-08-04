@@ -134,6 +134,39 @@ locked phone, a VPN routing it off the Mac's local subnet, or the phone being
 on a different network. But confirm the failure came from `devicectl` itself
 before acting on any of those.
 
+## The simulator, and which session can actually use it (2026-08-03)
+
+The user installed the Claude Code app on their Mac. **That changes what can be
+verified without the phone — but only for a session running there.**
+
+**A hosted session cannot use it.** The web/remote container is Linux
+(`uname -sm` → `Linux x86_64`), with no Xcode, no `xcrun`, no `simctl` and no
+iOS SDK. That is also why CI is the only compiler for the app target here. A
+session in the Mac app has the whole toolchain and can build, boot a simulator,
+drive the app and take screenshots.
+
+**So the split is now three ways, not two:**
+
+| Where | What it can settle |
+| --- | --- |
+| This container (Linux) | InsightKit's maths and text, every lint, the full test suite. Nothing visual |
+| CI (`macos-15`) | that the app target compiles. Nothing visual |
+| **A session on the user's Mac** | **layout, navigation, empty states, every input sheet, onboarding, the launch screen, tab placement** — anything that does not need real health data |
+| The phone (`deploy.yml`) | anything reading real data, the camera, LiDAR, the ring and the scale |
+
+**What the simulator cannot answer, and it is the important half.** The Health
+app does not ship on the simulator, so HealthKit returns nothing: every card
+renders its *empty* state. That is genuinely useful — the empty states are real
+work and have shipped wrong before — but a simulator screenshot proves nothing
+about a chart with data in it, a reference band, a scrub read-out, or the
+substance shading. Those still need the phone.
+
+**Worth checking in a simulator before the next deploy** (all app-target work
+landed 2026-08-03, none of it device-verified): the `+` menu on Insights and
+Data and whether a toolbar item or a floating button is right; Settings ▸ Body
+scans; the two new cards' layout in their empty states; and the blood-test
+import screen now that the scanner button leads.
+
 ## CI vs. deploy
 
 - `ci.yml`: runs on every push — `cd InsightKit && swift test`, then

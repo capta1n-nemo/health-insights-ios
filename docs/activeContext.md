@@ -233,6 +233,14 @@ should not re-derive:
   that these drugs move intake, and a rising ratio on treatment is more likely
   a log that got worse as appetite fell.
 
+**A Mac session can now settle some of this without the phone.** The user
+installed the Claude Code app on their Mac on 2026-08-03. A session *there* has
+Xcode and a simulator; a hosted session (this one) is Linux and cannot — see
+`docs/deployment.md` ▸ "The simulator, and which session can actually use it".
+The simulator answers layout, navigation, empty states and input sheets; it
+cannot answer anything needing real data, because the Health app does not ship
+on it and HealthKit returns nothing there.
+
 **What needs the phone when it reconnects** (nothing below is verified): the
 `+` on both new tabs and whether its placement is right; the body-scan
 reminder's wording once a scan is 24+ days old; the document scanner end to end
