@@ -76,13 +76,22 @@ Two smaller things landed with it:
 
 ## Current focus
 
-**Session 24 (2026-08-03) — the roadmap has a table, and four items came off
-it. Nothing here has been on the phone: the user's device was disconnected by
-choice and will validate later.**
+**Session 24 (2026-08-03) — two cards built, a design rule made universal, five
+roadmap briefs researched, and one defect the user caught.**
+
+**Everything below is installed** — the phone was disconnected for most of the
+session and reconnected near the end; `deploy-status.sh` reports `22868be`
+installed. What is *installed* and what is *verified* are still different
+things: nothing here has been looked at by a person except the two cards the
+user went looking for, and those were missing (see the ⚠️ below).
+
+Roadmap went **33 → 60 open items** across the session: eleven were closed and
+far more were added, because the user briefed five new features.
 
 - **`docs/progress.md` opens with a generated table of every open item** —
   `scripts/roadmap-table.sh`, `--check` wired into `handover-check.sh`. Read it
-  instead of grepping for `- [ ]`. 33 open items became 29.
+  instead of grepping for `- [ ]`. It is the first thing to read at session
+  start.
 - **The `+` is on Insights and Data**, through
   `View.addInputToolbar(_:)` — one modifier carrying the toolbar item, the menu
   and the sheets, which Today now uses too. **Still unsettled and device-only:
@@ -118,8 +127,8 @@ choice and will validate later.**
   camera does not prompt, it terminates the app**, and this is the app's first
   camera use, so nothing had ever needed the key before.
 
-**Both new cards are built and on `main` (2026-08-03), neither seen on a
-phone.** `NutritionInsight` scores eight terms against WHO/EFSA/SACN figures
+**Both new cards are built, installed — and shipped invisible until the user
+found them; see the ⚠️ block above for the fix.** `NutritionInsight` scores eight terms against WHO/EFSA/SACN figures
 with the source on each row — protein per kilogram as a **floor**, at the
 user's request — and charts calories, carbohydrates and sugar unscored, each
 saying why. `MetabolismInsight` back-calculates expenditure from intake and the
@@ -264,11 +273,19 @@ The simulator answers layout, navigation, empty states and input sheets; it
 cannot answer anything needing real data, because the Health app does not ship
 on it and HealthKit returns nothing there.
 
-**What needs the phone when it reconnects** (nothing below is verified): the
-`+` on both new tabs and whether its placement is right; the body-scan
-reminder's wording once a scan is 24+ days old; the document scanner end to end
-(the permission prompt is the first thing to watch, then a multi-page report);
-and Body Composition's chart with a calorie line on it.
+**Installed but unverified — the list for the next session with eyes on the
+app** (a Mac session can settle the first two with the simulator, the rest need
+the phone):
+
+1. The `+` on Insights and Data, and whether a toolbar item or a floating button
+   is right — one edit in one file either way.
+2. Settings ▸ Body scans, and the two cards' empty states now that they appear.
+3. The document scanner end to end — **the camera permission prompt first**,
+   since this is the app's first camera use, then a multi-page report.
+4. Body Composition's chart with a calorie line on it, and the substance shading
+   now that it is on every chart. Neither is answerable in a simulator: the
+   Health app does not ship there, so every card renders empty.
+5. The body-scan reminder's wording once a scan is 24+ days old.
 
 **Session 23 (2026-08-03) — the OCR import is closed; the deploy path is fixed.**
 
@@ -290,9 +307,11 @@ the phone; the parser and precedence halves are covered locally.
    geometry half is testable on Linux: girths → ring vertices → lofted surface
    in InsightKit, only the SceneKit rendering and the leader lines in the app
    target. **Do not let the geometry live in the view.**
-2. **Settings ▸ Body scans** — `BodyScanPolicy` is still read by nothing.
-3. **The 30-day reminder** — `BodyScanCadence` is built; `SuggestionEngine`
-   still does not call it.
+2. ~~**Settings ▸ Body scans** — `BodyScanPolicy` is still read by nothing.~~
+   **Built 2026-08-03** (`BodyScanSettingsView`, under Settings ▸ Privacy).
+3. ~~**The 30-day reminder** — `BodyScanCadence` is built; `SuggestionEngine`
+   still does not call it.~~ **Wired 2026-08-03**
+   (`SuggestionEngine.bodyScanDue`).
 
 **The deploy path, now understood.** Four deploys died at *checkout* because two
 `Runner.Listener` processes shared one installation directory. It was never the
@@ -409,11 +428,11 @@ Built and installed:
 
 ⚠️ **Not built, in plan order:**
 
-1. **Settings ▸ Body scans — the two-matrix screen.** `BodyScanPolicy` exists and
-   is tested; **nothing reads it yet**, so capture/retention is not yet a choice
-   the reader can make. This must land with, or before, the capture.
-2. **The 30-day reminder is not wired.** `BodyScanCadence` is built and tested;
-   `SuggestionEngine` does not call it.
+1. ~~**Settings ▸ Body scans — the two-matrix screen.**~~ **Built 2026-08-03.**
+   `BodyScanSettingsView` reads and writes `BodyScanPolicy`, so retention is the
+   reader's choice now. It states that capture does not exist yet.
+2. ~~**The 30-day reminder is not wired.**~~ **Wired 2026-08-03** —
+   `SuggestionEngine.bodyScanDue`, seven tests.
 3. **The scanner itself — ARKit capture and the guided flow.** The largest
    remaining piece and entirely device-only. Design in the plan: runtime
    capability detection via `supportsFrameSemantics(_:)` (the phone is an
