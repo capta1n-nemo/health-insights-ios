@@ -56,6 +56,22 @@ in their own words, or a defect diagnosed to a file and line.
 
 ### Decisions the reader has already made — do not re-ask
 
+**Ruled 2026-08-05, in answer to a direct list:**
+
+- **The substance card ships the honest version — "always".** At three episodes
+  the reader's record supports zero confirmations, so the card shows per-episode
+  deltas, the named alternative explanation beside each row, no score, and says
+  plainly that nothing has happened the same way often enough to tell it from an
+  ordinary run. **This is a standing preference, not a one-off ruling**: the
+  reader's word was "Honest version, always!"
+- **Micronutrients get scored.** Bands are sex- and age-specific, so the profile
+  is required: take it from Apple Health, **make it mandatory during setup**, and
+  if it is missing require it — plus a reminder on the front page.
+- **Location for the event-confirmation feed is approved**, with an onboarding
+  step that explains why before prompting, and a dismissible front-page
+  suggestion when the permission is absent.
+
+
 - Fitness projection: **show both** (fitness-age years with VO₂max secondary)
 - BP estimator input: **fix it, but show old and new side by side for a while**
 - Oura mirror: **collapse — one instrument, one vote** ✅ done
