@@ -350,8 +350,17 @@ public enum VitalSignsCheck {
 
     static func reading(spec: Spec, value: Double, at date: Date,
                         history: [Double], source: String) -> Reading {
+        // `robust: true` — this is the flagging path, and the reader caught it
+        // getting the answer wrong twice in two days: "Yesterday my HRV was in
+        // danger zone, and today, its still the same value.. but no longer in
+        // danger?" It was possible because `history` is a rolling window that
+        // had just absorbed yesterday's reading, and a standard deviation has a
+        // breakdown point of zero — one excursion inflates it, the z-score
+        // divides by it, and the same value falls back under the bar without
+        // moving. **The longer something persists, the more normal it looks**,
+        // which is the worst failure available to a health warning.
         let deviation = history.count >= minimumBaselineDays
-            ? Baseline.deviation(latest: value, history: history)
+            ? Baseline.deviation(latest: value, history: history, robust: true)
             : nil
         let z = deviation?.zScore
 

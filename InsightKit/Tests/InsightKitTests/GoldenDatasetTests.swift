@@ -90,7 +90,21 @@ final class GoldenDatasetTests: XCTestCase {
     /// in the thermal row" reads as a bug until you know why, and the fix — a
     /// baseline that excludes the run it is judging — is a real change with its
     /// own risks, not a threshold tweak.
-    func testASustainedFeverContaminatesItsOwnThermalBaseline() throws {
+    /// ✅ **Fixed 2026-08-05 — and the comment above is kept because it
+    /// predicted exactly this.** It said the remedy was "a baseline that
+    /// excludes the run it is judging… a real change with its own risks, not a
+    /// threshold tweak", and that is what landed: the flagging path measures
+    /// its spread with median/MAD, whose 50% breakdown point means three
+    /// febrile nights in a four-week window cannot widen it.
+    ///
+    /// The same fever that used to sit *below* the unusual bar at ~1.9 now
+    /// scores **z ≈ 5.0**. Nothing about the data changed; the denominator
+    /// stopped absorbing the event it was measuring.
+    ///
+    /// The reader found the same defect from the other end on the same day:
+    /// *"Yesterday my HRV was in danger zone, and today, its still the same
+    /// value.. but no longer in danger?"*
+    func testASustainedFeverIsCaughtDespiteBeingInsideItsOwnWindow() throws {
         let output = check()
         let hrv = try XCTUnwrap(output.readings.first {
             $0.metric == .heartRateVariabilityRMSSD
@@ -99,9 +113,10 @@ final class GoldenDatasetTests: XCTestCase {
 
         let thermal = try XCTUnwrap(output.readings.first { $0.metric.family == .thermal })
         let z = try XCTUnwrap(thermal.zScore)
-        XCTAssertGreaterThan(z, 1.5, "the thermal signal is still clearly elevated")
-        XCTAssertLessThan(z, VitalSignsCheck.unusualZ,
-                          "…but three of the four febrile nights are inside its own baseline")
+        XCTAssertGreaterThan(z, VitalSignsCheck.unusualZ,
+                             "the fever is back under its own baseline — the spread is absorbing it again")
+        XCTAssertEqual(thermal.status, .unusual,
+                       "the thermal row must say so, not merely score high")
     }
 
     /// The other half of the same point: when the baseline *is* clean — a fever

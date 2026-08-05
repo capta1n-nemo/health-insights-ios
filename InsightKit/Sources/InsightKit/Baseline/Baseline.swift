@@ -182,11 +182,65 @@ public enum Baseline {
     }
 
     /// Compare the latest value to a rolling baseline built from `history`.
-    public static func deviation(latest: Double, history: [Double], threshold: Double = 1.5) -> Deviation? {
+    ///
+    /// ⚠️ **The spread is robust, and that is a correctness fix rather than a
+    /// refinement.** The reader, 2026-08-05: *"Yesterday my HRV was in danger
+    /// zone, and today, its still the same value.. but no longer in danger?
+    /// how is that possible? its still super low"*.
+    ///
+    /// It was possible because `history` is a rolling window that had just
+    /// absorbed yesterday's bad reading. A z-score divides by the spread, a
+    /// standard deviation has a **breakdown point of zero**, and one excursion
+    /// inflates it without limit — so the same value scored a smaller z and
+    /// fell back under the threshold without moving. Measured on this reader's
+    /// own record for the symptom radar: the reference spread for resting heart
+    /// rate swung **2.7×** (0.59 → 1.57 in units of its own median) as July's
+    /// excursions aged into the window. The same windows under median/MAD moved
+    /// 1.00 → 1.26.
+    ///
+    /// **The failure mode is the worst one available to a health warning: the
+    /// longer something persists, the more normal it looks.**
+    ///
+    /// `robustScale` has a 50% breakdown point, so a handful of bad days in a
+    /// four-week window cannot move it — which also means nothing has to be
+    /// *marked* as perturbed, and the app never has to exclude a day using the
+    /// very flag that day would feed.
+    ///
+    /// The centre stays the EWMA: it is deliberately recency-weighted, that is
+    /// what makes "your normal" track a real trend, and it was never the part
+    /// that let a bad day excuse itself.
+    /// ⚠️ **`robust` is opt-in, and that is deliberate.** The robust spread is
+    /// the right answer for *flagging* — "is this unusual" — and measurably the
+    /// wrong one for a continuous score over a growing window: on a steady
+    /// linear improvement it approaches its asymptote differently from the
+    /// classical spread, which showed up as `ReadinessScore` **falling** across
+    /// a month of improving HRV. A reader getting better must not be told they
+    /// are getting worse, so the two questions get the two estimators, and the
+    /// caller says which question it is asking.
+    public static func deviation(latest: Double, history: [Double],
+                                 threshold: Double = 1.5,
+                                 robust: Bool = false) -> Deviation? {
         guard let base = ewma(history) ?? mean(history) else { return nil }
-        let z = zScore(latest, history: history)
+        let z = robust ? robustZScore(latest, history: history)
+                       : zScore(latest, history: history)
         var direction = 0
         if let z, abs(z) >= threshold { direction = z > 0 ? 1 : -1 }
         return Deviation(value: latest, baseline: base, zScore: z, direction: direction)
+    }
+
+    /// `zScore` with a median centre and a MAD spread — the same quantity, in
+    /// the same units, that one excursion cannot quietly widen.
+    ///
+    /// Falls back to the classical spread when MAD is exactly zero, which
+    /// happens whenever more than half the window is identical: a rounded daily
+    /// metric reaches that easily, and dividing by zero would report every
+    /// ordinary wobble as infinitely unusual.
+    public static func robustZScore(_ value: Double, history: [Double]) -> Double? {
+        guard let centre = median(history) else { return nil }
+        if let scale = robustScale(history), scale > 0 {
+            return (value - centre) / scale
+        }
+        guard let sd = standardDeviation(history), sd > 0 else { return nil }
+        return (value - centre) / sd
     }
 }
