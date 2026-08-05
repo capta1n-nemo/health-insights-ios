@@ -263,6 +263,9 @@ the place to look.
   - `SplitMix64` :129
 - `Presentation/LegendCaption.swift`
   - `LegendCaption` :29
+- `Presentation/MetricExplainer.swift`
+  - `MetricExplainer` :24
+  - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
   - `MetricPalette` :679

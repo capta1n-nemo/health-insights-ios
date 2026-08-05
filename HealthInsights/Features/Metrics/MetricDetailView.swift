@@ -110,8 +110,57 @@ struct MetricDetailView: View {
                         }
                         if breakdown.hasMultipleSources { statsCard }
                     }
+                    explainerCard
                 }
         }
+    }
+
+    /// **"What even is HRV… am I about to die?"** — the reader, 2026-08-05.
+    ///
+    /// Three parts, in the order someone actually asks them: what the term is,
+    /// what *theirs* is, and why it is worth knowing. The middle one is built
+    /// from their own history rather than a population table, because for
+    /// several of these the spread between healthy people is wider than the
+    /// spread within one — see `MetricExplainer.yours`.
+    ///
+    /// Absent entirely for metrics that need no explaining. A step is a step,
+    /// and explaining the self-explanatory buries the terms that genuinely
+    /// puzzle someone.
+    @ViewBuilder private var explainerCard: some View {
+        if let explanation = MetricExplainer.explanation(for: metric) {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("What \(metric.displayName.lowercased()) is")
+                        .font(.headline)
+                    Text(explanation.whatItIs)
+                        .font(.subheadline)
+                    if let yours = personalReading {
+                        Text(yours)
+                            .font(.subheadline.weight(.medium))
+                    }
+                    Text(explanation.soWhat)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    /// The reader's own latest value against their own spread. `nil` — and so
+    /// the row is absent rather than hedged — until there is enough history for
+    /// "your usual" to mean anything.
+    /// **One instrument, not a pool.** Taking "your usual range" across every
+    /// source would put the watch and the ring in one distribution, and on this
+    /// reader's own record those differ by about 13 bpm on resting heart rate —
+    /// far more than illness moves it. A pooled p10–p90 would be the gap
+    /// between two devices dressed as the reader's own variability, and today's
+    /// value would sit "in the middle" of a range it is nowhere near. The
+    /// densest source is the one the reader actually wears.
+    private var personalReading: String? {
+        guard let series = allData.sources.max(by: { $0.samples.count < $1.samples.count }),
+              let latest = series.samples.last else { return nil }
+        return MetricExplainer.yours(metric, value: latest.value,
+                                     history: series.samples.map(\.value))
     }
 
     /// Names the span on screen: the timeframe's own label until the user pans
