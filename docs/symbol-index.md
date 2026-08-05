@@ -244,6 +244,9 @@ the place to look.
   - `ContributionRoute` :14
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
+- `Presentation/DailyHighlights.swift`
+  - `DailyHighlights` :48
+  - `ScoreBand` :9
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
 - `Presentation/InputKind.swift`
@@ -536,8 +539,8 @@ the place to look.
 - `DesignSystem/SubstanceShading.swift`
   - `SubstanceShading` :27
 - `DesignSystem/Theme.swift`
-  - `Card` :338
-  - `ConfidenceBadge` :354
+  - `Card` :343
+  - `ConfidenceBadge` :359
   - `Theme` :7
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32

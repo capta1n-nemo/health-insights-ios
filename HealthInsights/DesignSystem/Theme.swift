@@ -31,14 +31,19 @@ enum Theme {
     /// "80" on the chart means "Primed" on the card. Two different band systems,
     /// both deliberate; the fill follows this one because it must agree with the
     /// dots sitting on it.
-    static let scoreWarnFloor: Double = 45
-    static let scoreGoodFloor: Double = 70
+    /// **Forwarded to `ScoreBand`, which is now the one definition.** The Today
+    /// summary's wording reads these bands too ("worth a look today" vs "looking
+    /// best today"), and a card drawn amber while the prose calls it good is a
+    /// disagreement nobody notices until a reader does. Two constants in two
+    /// targets was how that would have happened.
+    static let scoreWarnFloor: Double = ScoreBand.fairFloor
+    static let scoreGoodFloor: Double = ScoreBand.goodFloor
 
     static func color(forScore score: Double) -> Color {
-        switch score {
-        case scoreGoodFloor...: return good
-        case scoreWarnFloor..<scoreGoodFloor: return warn
-        default: return bad
+        switch ScoreBand(score: score) {
+        case .good: return good
+        case .fair: return warn
+        case .poor: return bad
         }
     }
 

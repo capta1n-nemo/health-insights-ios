@@ -39,7 +39,9 @@ final class FoundationModelSummarizer {
             do {
                 let session = LanguageModelSession(instructions: Self.instructions)
                 let prompt = """
-                Summarise these health insights in two short, encouraging sentences for the user's dashboard. \
+                Summarise these health insights in two short sentences for the user's dashboard. \
+                These are already the few that matter most today — say what is going well and \
+                what is not, and do not rank them differently or add cards that are not listed. \
                 Do not invent any numbers; only use the facts provided. Avoid medical advice or alarm.
 
                 Facts:
@@ -69,20 +71,23 @@ final class FoundationModelSummarizer {
     no asterisks, no bullet points or headings.
     """
 
+    /// **The model is given the selection, not the whole panel.**
+    ///
+    /// It used to receive every scored card, which meant the LLM did the
+    /// ranking — a judgement about what matters most to someone's health, made
+    /// by a text model, differently on each run and untestable because the app
+    /// target has no test target. `DailyHighlights` makes that choice in
+    /// InsightKit where it is covered, and the model's job is narrowed to
+    /// phrasing what it is handed.
     static func factSheet(from results: [InsightResult]) -> String {
-        results.compactMap { r in
-            guard r.primaryValue != nil || r.score != nil else { return nil }
+        let picked = Set(DailyHighlights.highlights(from: results).map(\.id))
+        return results.compactMap { r in
+            guard picked.contains(r.id) else { return nil }
             return "- \(r.title): \(r.headline) [confidence: \(r.confidence.rawValue)]"
         }.joined(separator: "\n")
     }
 
     static func templateSummary(from results: [InsightResult]) -> String {
-        let available = results.filter { $0.primaryValue != nil || $0.score != nil }
-        guard !available.isEmpty else {
-            return "Connect your data and add a few details to start seeing your heart-health insights."
-        }
-        let parts = available.map { "\($0.title.lowercased()) is \($0.headline)" }
-        let joined = ListFormatter.localizedString(byJoining: parts)
-        return "Here's your snapshot — \(joined). Tap any card for what's driving it."
+        DailyHighlights.summary(from: results)
     }
 }
