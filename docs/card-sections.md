@@ -206,10 +206,12 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Nutrition | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Metabolism | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Nutrition | Insights | ● | ● | ● | ● | ◐ "Vitamins and minerals" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Mental health | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Four cards
 draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
@@ -1050,8 +1052,20 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    readiness. **Update, same day: sixteen cards now, and six without one** —
    biological age shipped *with* its section (`biologicalAgeMarkersCard`, the
    one that makes the card not a black box), and mental health shipped without.
-   The count moves every time a card ships, which is the argument for making the
-   switch exhaustive rather than counting again next session. The claim was true of nine cards and stopped being true the moment
+   **CLOSED, properly this time, 2026-08-06: `bespokeSection` is now exhaustive
+   over `InsightID`.** `default: EmptyView()` is gone, so a new card cannot ship
+   without a stated decision about its own picture. Five sections were written
+   in one pass — gait's `speed = step length × cadence` split, mental health's
+   and Stress load's signed departure strips (one shared implementation, because
+   two renderings of one encoding is how the chart gap-bridge defect happened),
+   Nutrition's vitamins-and-minerals table, and Metabolism's observed-against-
+   predicted bars. **Readiness is the one `EmptyView()` and it is a decision
+   rather than a gap**: its subject *is* the seventeen-vital scan, and
+   `vitalDepartureSection` — which was Readiness's bespoke slot before it was
+   promoted to universal — still draws all seventeen rows for this card. A
+   second one would render the same strip twice. The earlier audit listed
+   Readiness as sectionless, which was true of the switch and false of the
+   screen: the cost of reading a `default:` instead of the card. The claim was true of nine cards and stopped being true the moment
    the tenth shipped, which is the failure mode a "closed" tick invites. For
    **gait** it is not cosmetic: that card's whole reason to exist is the
    `speed = step length × cadence` decomposition, and with no section it reaches

@@ -91,12 +91,34 @@ struct InsightDetailView: View {
             // a black box, so it is the card's bespoke slot rather than an
             // extra.
             biologicalAgeMarkersCard
-        // Kept, though all nine cases are now named: making this exhaustive
-        // would add a *sixth* build-breaking switch over `InsightID` to the
-        // `add-insight` path, which `docs/activeContext.md` singles out as the
-        // most expensive way to add a feature here. A new insight having no
-        // bespoke section until someone writes one is the right default anyway.
-        default:
+        case .gait:
+            // The decomposition. Backlog S1 called this the worst of the five
+            // missing sections and it is right: `speed = step length × cadence`
+            // is the *whole* reason this card exists, and with no section it
+            // reached the reader as one driver line inside a generic card.
+            gaitDecompositionCard
+        case .mentalHealth:
+            // Four behaviours on one signed axis, so "several things moved the
+            // same way" is a picture rather than an assertion.
+            mentalHealthChannelsCard
+        case .sustainedLoad:
+            sustainedLoadChannelsCard
+        case .nutrition:
+            micronutrientCard
+        case .metabolism:
+            energyBalanceCard
+        // ⚠️ **The one card whose bespoke picture is drawn universally.**
+        // Readiness's subject *is* the seventeen-vital scan, and
+        // `vitalDepartureSection` — which was Readiness's bespoke slot before it
+        // was promoted — still keeps all seventeen rows for this card and
+        // narrows to the card's own signals for every other. Drawing a second
+        // one here would render the same strip twice.
+        //
+        // This case exists so that fact is a decision rather than an omission.
+        // An audit on 2026-08-06 listed Readiness among the cards "with no
+        // bespoke section", which was true of the switch and false of the
+        // screen — the cost of reading a `default:` instead of the card.
+        case .readiness:
             EmptyView()
         }
     }
@@ -1155,6 +1177,427 @@ struct InsightDetailView: View {
             Text(MetricValueFormatter.string(signal.value, signal.metric))
                 .font(.subheadline.weight(.medium)).monospacedDigit()
         }
+    }
+
+    // MARK: - Gait: which half of the speed change moved
+
+    /// **The card's reason to exist, drawn.**
+    ///
+    /// `speed = step length × cadence` is an identity, so taking logs makes the
+    /// change additive and the two shares sum to the whole *without any
+    /// fitting*. That is the one thing this app can say about walking that no
+    /// competitor can, and until now it reached the reader as a single sentence
+    /// among nine driver lines.
+    ///
+    /// Drawn by hand rather than with Swift Charts: this is a one-dimensional
+    /// split of a single quantity, not a series, so the substance shading every
+    /// chart carries would have no time axis to sit on.
+    @ViewBuilder private var gaitDecompositionCard: some View {
+        let out = model.memoized("gait") { GaitModel.evaluate(samples: model.samples) }
+        if let out, let split = out.split, let share = split.stepLengthShare {
+            InsightSection(
+                title: "Which half moved",
+                trailing: String(format: "%@%.0f%% speed",
+                                 split.speedChange >= 0 ? "+" : "−",
+                                 abs(split.speedChange) * 100),
+                caveat: .computed(.approximate,
+                                  "Speed is step length times cadence exactly, so these two shares "
+                                    + "are an identity rather than a fit — nothing here is fitted or "
+                                    + "assumed. What they describe is the walking your phone was in "
+                                    + "your pocket for."),
+                expansion: expansion(preview: gaitSplitPreview(split, share: share))
+            ) {
+                gaitShareBar(stepLengthShare: share)
+                gaitSplitRow("Step length", change: split.stepLengthChange,
+                             metric: .walkingStepLength, out: out)
+                gaitSplitRow("Cadence — steps per second", change: split.cadenceChange,
+                             metric: nil, out: out)
+                Divider()
+                Text(gaitSplitSentence(split, share: share))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else if out != nil {
+            InsightSection(
+                title: "Which half moved",
+                trailing: nil,
+                caveat: .none,
+                expansion: expansion(preview: "Too small a change to apportion")
+            ) {
+                Text("Your walking speed is within half a percent of your previous year. That is too small a difference to divide into step length and rhythm — splitting a rounding error into halves produces two confident-looking numbers about nothing.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func gaitSplitPreview(_ split: GaitModel.SpeedSplit, share: Double) -> String {
+        share >= 0.6 ? "Mostly your step length"
+            : (share <= 0.4 ? "Mostly your rhythm" : "Both, about equally")
+    }
+
+    /// The one sentence that says what the split *means*, which is the part a
+    /// percentage cannot carry.
+    private func gaitSplitSentence(_ split: GaitModel.SpeedSplit, share: Double) -> String {
+        let slower = split.speedChange < 0
+        if share >= 0.6 {
+            return slower
+                ? "Shorter steps at much the same rhythm. That pattern tracks caution, stiffness and pain more than it tracks fitness — it is what someone does when each step costs something."
+                : "Longer steps at much the same rhythm, which is usually confidence or range of movement rather than effort."
+        }
+        if share <= 0.4 {
+            return slower
+                ? "The same length of step, taken less often. That tracks drive and fatigue rather than the mechanics of the step itself."
+                : "The same length of step, taken more often — a change of pace rather than of stride."
+        }
+        return "Step length and rhythm moved together, in about equal measure, which is what a general change in pace looks like rather than a change in how you step."
+    }
+
+    /// Two proportions of one change. A single bar rather than two, because the
+    /// shares sum to the whole and drawing them apart would invite reading them
+    /// as independent quantities.
+    private func gaitShareBar(stepLengthShare: Double) -> some View {
+        let length = min(max(stepLengthShare, 0), 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            GeometryReader { geometry in
+                HStack(spacing: 2) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Theme.accent.opacity(0.75))
+                        .frame(width: max(0, (geometry.size.width - 2) * length))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Theme.accent.opacity(0.28))
+                }
+                .frame(height: 12)
+            }
+            .frame(height: 12)
+            HStack {
+                Text(String(format: "Step length %.0f%%", length * 100))
+                    .font(.caption2).foregroundStyle(.secondary)
+                Spacer()
+                Text(String(format: "Rhythm %.0f%%", (1 - length) * 100))
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// One half of the split, with its own figures where the app holds them.
+    ///
+    /// Cadence has no `MetricType` and deliberately does not get one: nothing
+    /// publishes it, and it is *derived* from two numbers the phone already
+    /// writes. A metric case would put a fourth walking line on every chart to
+    /// say what the other two already say.
+    @ViewBuilder private func gaitSplitRow(_ label: String, change: Double,
+                                           metric: MetricType?,
+                                           out: GaitModel.Output) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.subheadline)
+            Spacer()
+            if let metric, let channel = out.channels.first(where: { $0.metric == metric }) {
+                Text(MetricValueFormatter.string(channel.recent, metric))
+                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Text(String(format: "%@%.1f%%", change >= 0 ? "+" : "−", abs(change) * 100))
+                .font(.subheadline.weight(.medium)).monospacedDigit()
+                .foregroundStyle(change < 0 ? Theme.warn : Theme.good)
+        }
+    }
+
+    // MARK: - Mental health: four behaviours on one signed axis
+
+    /// **Several unrelated things moving the same way is the only claim this
+    /// card makes**, so it has to be visible as a shape rather than asserted in
+    /// a sentence. One axis, zero in the middle, right is the direction low mood
+    /// usually shows.
+    @ViewBuilder private var mentalHealthChannelsCard: some View {
+        let out = model.memoized("mentalHealth") {
+            MentalHealthModel.evaluate(samples: model.samples)
+        }
+        if let out {
+            InsightSection(
+                title: "What moved, and which way",
+                trailing: out.moved.isEmpty ? nil : "\(out.moved.count) of \(out.readings.count)",
+                caveat: .computed(.approximate,
+                                  "Each bar is that behaviour against your own previous "
+                                    + "\(MentalHealthModel.referenceDays) days, not against anybody "
+                                    + "else. Right is the direction low mood usually shows — which "
+                                    + "is a direction, not a diagnosis, and every one of these has "
+                                    + "an ordinary explanation."),
+                expansion: expansion(preview: out.moved.isEmpty
+                                     ? "None of the \(out.readings.count) has moved much"
+                                     : out.moved.map(\.channel.label).joined(separator: ", "))
+            ) {
+                ForEach(out.readings) { reading in
+                    mentalHealthChannelRow(reading)
+                }
+                Divider()
+                if out.readings.count < MentalHealthModel.channels.count {
+                    Text("\(MentalHealthModel.channels.count - out.readings.count) of the \(MentalHealthModel.channels.count) behaviours this watches had too few days in the last fortnight to compare, so they are not here at all.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("A bar near the middle means that behaviour is sitting where it usually sits. It does not mean anything about how the fortnight felt.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// The shared strip, plus the one thing this card adds to it: the innocent
+    /// explanation, on the row, always.
+    ///
+    /// `hasMoved`'s own threshold is passed through rather than re-stated here.
+    /// Two copies of "what counts as moved" is how a card ends up disagreeing
+    /// with its own driver lines about which signals shifted.
+    private func mentalHealthChannelRow(_ reading: MentalHealthModel.Reading) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            signedDepartureRow(label: reading.channel.label,
+                               towardBad: reading.towardLowMood,
+                               figure: nil,
+                               threshold: 0.8)
+            Text(reading.channel.alternative)
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Stress load: the four channels, and how long they have been there
+
+    /// The same signed strip as mental health, over four nocturnal channels
+    /// against a season.
+    ///
+    /// **Why this card needed a picture more than most:** its whole claim is
+    /// *duration* — Readiness answers this morning and the radar answers "is
+    /// something converging", so the only thing this card adds is that a drift
+    /// has persisted. A single number cannot show persistence, and the four
+    /// driver lines it shipped with could not either.
+    @ViewBuilder private var sustainedLoadChannelsCard: some View {
+        let out = model.memoized("sustainedLoad") {
+            SustainedLoadModel.evaluate(samples: model.samples)
+        }
+        if let out {
+            let leaning = out.channels.filter { $0.loadZ >= 0.5 }
+            InsightSection(
+                title: "Where the load is sitting",
+                trailing: leaning.isEmpty ? nil : "\(leaning.count) of \(out.channels.count)",
+                caveat: .computed(.approximate,
+                                  "Each bar is that signal's last \(SustainedLoadModel.recentDays) "
+                                    + "days against your previous \(SustainedLoadModel.referenceDays), "
+                                    + "not against a published normal. Right is toward load."),
+                // ⚠️ The count is derived. This said "All four" and the card was
+                // running on three, because one channel had too few days — the
+                // same fault as the copy inside `MentalHealthModel`, found on
+                // the same screenshot.
+                expansion: expansion(preview: leaning.isEmpty
+                                     ? "All \(out.channels.count) sitting where they usually sit"
+                                     : leaning.map { $0.metric.displayName }.joined(separator: ", "))
+            ) {
+                ForEach(out.channels, id: \.metric) { channel in
+                    signedDepartureRow(
+                        label: channel.metric.displayName,
+                        towardBad: channel.loadZ,
+                        figure: String(format: "%@ → %@",
+                                       MetricValueFormatter.string(channel.reference, channel.metric),
+                                       MetricValueFormatter.string(channel.recent, channel.metric)))
+                }
+                Divider()
+                Text("These are the same signals Readiness and the symptom radar read. The difference is the window: this one asks whether a drift has *lasted*, which neither of the others can see.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: - Nutrition: the eight vitamins and minerals
+
+    /// **The section that makes this card's mandatory ask honest.**
+    ///
+    /// Nutrition demands sex and date of birth *because* the eleven
+    /// micronutrients cannot be scored without them — a rationale that was
+    /// untrue from the day it shipped until `MicronutrientEstimate` was wired
+    /// on 2026-08-06. This is where the reader finally sees what those two facts
+    /// bought them.
+    ///
+    /// A logged nutrient and a modelled one are drawn differently and are never
+    /// summed into one verdict: the modelled figure answers "what would an
+    /// ordinary diet this size carry", which is a fact about diets and not about
+    /// this reader.
+    @ViewBuilder private var micronutrientCard: some View {
+        let out = model.memoized("nutritionMicros") {
+            NutritionModel.evaluate(samples: model.samples, profile: model.profile)
+        }
+        if let micros = out?.micronutrients {
+            let short = micros.rows.filter { $0.standing == .below }
+            InsightSection(
+                title: "Vitamins and minerals",
+                trailing: "\(micros.loggedCount) of \(micros.rows.count) from your log",
+                caveat: .computed(micros.estimatedCount > 0 ? .estimated : .partial,
+                                  MicronutrientEstimate.caveat(estimatedCount: micros.estimatedCount,
+                                                               of: micros.rows.count)),
+                expansion: expansion(preview: short.isEmpty
+                                     ? "All \(micros.rows.count) reach their published floor"
+                                     : "Under: " + short.map(\.metric.displayName)
+                                        .joined(separator: ", "))
+            ) {
+                ForEach(micros.rows) { row in
+                    micronutrientRow(row)
+                }
+            }
+        }
+    }
+
+    private func micronutrientRow(_ row: MicronutrientEstimate.Row) -> some View {
+        // Fraction of the recommended floor, capped for drawing at twice it —
+        // beyond that the bar says nothing more, and none of these eight has
+        // evidence that more is better above the RDA.
+        let fraction = min(row.intake / max(row.target.recommended, 0.0001), 2) / 2
+        let overCeiling = row.standing == .aboveUpperLimit
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                // A hollow marker for a modelled figure and a filled one for a
+                // logged figure — the same visual grammar the app uses for
+                // modifiable versus locked inputs, so it does not have to be
+                // learnt twice.
+                Image(systemName: row.isEstimated ? "circle" : "circle.fill")
+                    .font(.system(size: 7)).foregroundStyle(.tertiary).frame(width: 9)
+                Text(row.metric.displayName).font(.subheadline)
+                Spacer()
+                Text(MetricValueFormatter.string(row.intake, row.metric))
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(row.standing == .met ? .secondary
+                                     : (overCeiling ? Theme.warn : Theme.warn))
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12)).frame(height: 5)
+                    Capsule()
+                        .fill(row.standing == .met ? Theme.good : Theme.warn)
+                        .opacity(row.isEstimated ? 0.35 : 0.8)
+                        .frame(width: max(2, geometry.size.width * fraction), height: 5)
+                    // The published floor, at half width by construction.
+                    Rectangle().fill(Color.primary.opacity(0.3))
+                        .frame(width: 1, height: 11)
+                        .offset(x: geometry.size.width * 0.5)
+                }
+                .frame(height: 11)
+            }
+            .frame(height: 11)
+        }
+        .padding(.vertical, 1)
+    }
+
+    // MARK: - Metabolism: observed against predicted
+
+    /// Two bars and the gap between them, which is the whole card.
+    ///
+    /// The ratio on the dial is a speed; **what a reader actually wants to see
+    /// is the two numbers it came from**, because a ratio of 0.9 built from a
+    /// 1,400 kcal log means something very different from one built from 2,800.
+    @ViewBuilder private var energyBalanceCard: some View {
+        let out = model.memoized("metabolism") {
+            EnergyBalanceModel.evaluate(samples: model.samples, profile: model.profile)
+        }
+        if let out, let predicted = out.predictedTDEE {
+            let ceiling = max(out.observedTDEE, predicted) * 1.1
+            InsightSection(
+                title: "What you burn against what you should",
+                trailing: out.speed.map { String(format: "%.0f%%", $0 * 100) },
+                caveat: .computed(.fitted,
+                                  "The observed figure is back-calculated from what you logged and "
+                                    + "how your weight moved, so **every logging error is charged to "
+                                    + "your metabolism** — an incomplete food log reads as a fast "
+                                    + "one. \(out.loggedDays) of the last \(out.windowDays) days "
+                                    + "carry a log."),
+                expansion: expansion(preview: String(format: "%.0f against %.0f kcal a day",
+                                                     out.observedTDEE, predicted))
+            ) {
+                energyBalanceBar("Observed", value: out.observedTDEE, ceiling: ceiling,
+                                 tint: Theme.accent)
+                energyBalanceBar("Predicted for your size", value: predicted, ceiling: ceiling,
+                                 tint: Color.secondary)
+                if let basal = out.basal, let method = out.basalMethod {
+                    Divider()
+                    HStack {
+                        Text("Resting, before you move (\(method))")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text(String(format: "%.0f kcal", basal))
+                            .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                Text(String(format: "Intake %.0f kcal a day, movement %.0f — a deficit of %.0f, which is about %.2f kg a week.",
+                            out.intakeMean, out.activeMean, out.deficitPerDay,
+                            abs(out.kilogramsPerWeek)))
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func energyBalanceBar(_ label: String, value: Double,
+                                  ceiling: Double, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).font(.subheadline)
+                Spacer()
+                Text(String(format: "%.0f kcal", value))
+                    .font(.subheadline.weight(.medium)).monospacedDigit()
+            }
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12)).frame(height: 8)
+                    Capsule().fill(tint.opacity(0.7))
+                        .frame(width: max(2, geometry.size.width * min(value / max(ceiling, 1), 1)),
+                               height: 8)
+                }
+                .frame(height: 8)
+            }
+            .frame(height: 8)
+        }
+        .padding(.vertical, 2)
+    }
+
+    // MARK: - The shared signed-departure strip
+
+    /// One signal against the reader's own usual, zero in the middle, **right is
+    /// always the unwelcome direction**.
+    ///
+    /// Shared by Stress load and Mental health rather than written twice: both
+    /// draw a signed departure in SDs, and two implementations of one encoding
+    /// is exactly how the same silence ends up with two renderings — a defect
+    /// this repo has already shipped once, in the chart gap bridges.
+    private func signedDepartureRow(label: String, towardBad: Double,
+                                    figure: String?, threshold: Double = 0.5) -> some View {
+        let scale = 3.0
+        let fraction = min(max(towardBad / scale, -1), 1)
+        let leaning = abs(towardBad) >= threshold
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(label).font(.subheadline)
+                Spacer()
+                if let figure {
+                    Text(figure).font(.caption).monospacedDigit().foregroundStyle(.tertiary)
+                }
+                Text(leaning ? String(format: "%.1f SD", abs(towardBad)) : "about usual")
+                    .font(.caption).monospacedDigit()
+                    .foregroundStyle(leaning && towardBad > 0 ? Theme.warn : .secondary)
+            }
+            GeometryReader { geometry in
+                let half = geometry.size.width / 2
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12)).frame(height: 6)
+                    Rectangle().fill(Color.primary.opacity(0.35))
+                        .frame(width: 1, height: 14).offset(x: half)
+                    Capsule()
+                        .fill((towardBad > 0 ? Theme.warn : Theme.good)
+                            .opacity(leaning ? 0.75 : 0.3))
+                        .frame(width: max(2, abs(fraction) * half), height: 6)
+                        .offset(x: fraction >= 0 ? half : half - abs(fraction) * half)
+                }
+                .frame(height: 14)
+            }
+            .frame(height: 14)
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: - Biological age: every marker's own answer

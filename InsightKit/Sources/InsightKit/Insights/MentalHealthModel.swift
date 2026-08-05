@@ -206,6 +206,16 @@ public enum MentalHealthModel {
             + reading.channel.alternative
     }
 
+    /// An Oxford-comma-free English list, so copy can name what it actually
+    /// read instead of a count somebody typed.
+    static func list(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return "nothing"
+        case 1: return items[0]
+        default: return items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
+        }
+    }
+
     /// The headline.
     ///
     /// ⚠️ **Read every one of these against the rule that this card never
@@ -258,7 +268,14 @@ public struct MentalHealthInsight: InsightModel {
         // stated about the measurements, out loud, in the same sentence.
         if out.moved.isEmpty {
             drivers.append(InsightDriver(
-                text: "None of the four has moved much this fortnight. That is a statement about your step count, your bedtimes, your exercise minutes and your heart-rate variability — not about how you have been feeling. If this fortnight has been hard, this card has simply not seen it, and you are right and it is wrong.",
+                // ⚠️ **Counts and names are derived, never written out.** This
+                // line said "none of the four" and named all four behaviours,
+                // on a card that runs on as few as two — so on the reader's own
+                // record it would have claimed to have looked at things it had
+                // no data for. The repo's ledger has "a hard-coded count going
+                // stale" at 4+ sessions; this is the same fault inside a
+                // sentence rather than inside a doc.
+                text: "\(out.readings.count == 1 ? "The one behaviour this could read has" : "None of the \(out.readings.count) behaviours this could read has") not moved much this fortnight. That is a statement about \(MentalHealthModel.list(out.readings.map { $0.channel.label.lowercased() })) — not about how you have been feeling. If this fortnight has been hard, this card has simply not seen it, and you are right and it is wrong.",
                 isNotable: false))
         } else {
             let names = out.moved.map(\.channel.label).joined(separator: ", ")
@@ -287,7 +304,7 @@ public struct MentalHealthInsight: InsightModel {
                                                     detail: text))
         }
 
-        drivers.append(.routine("This card has no idea how you feel, and it is not trying to guess. It watches four behaviours against your own previous \(MentalHealthModel.referenceDays) days and tells you when they move together — which is sometimes worth a second thought, and is sometimes a busy fortnight."))
+        drivers.append(.routine("This card has no idea how you feel, and it is not trying to guess. It watches \(out.readings.count) of \(MentalHealthModel.channels.count) everyday behaviours against your own previous \(MentalHealthModel.referenceDays) days and tells you when they move together — which is sometimes worth a second thought, and is sometimes a busy fortnight."))
         drivers.append(.routine("It does not diagnose anything and it cannot. If you want to talk to someone, do that — nothing here is a reason to wait, and nothing here is a reason not to."))
 
         return InsightResult(
@@ -296,7 +313,7 @@ public struct MentalHealthInsight: InsightModel {
             headline: MentalHealthModel.headline(out),
             score: out.score,
             confidence: out.readings.count >= 3 ? .moderate : .low,
-            explanation: "Four everyday behaviours — how much you move, when you go to bed, whether you exercise on purpose, and your heart-rate variability — each measured against your own previous \(MentalHealthModel.referenceDays) days. It reports when several drift the same way at once. It is not a screen, it does not diagnose, and it never says you are fine: the top of its range means these four numbers have not moved, which is a much smaller thing.",
+            explanation: "\(out.readings.count) everyday behaviours — \(MentalHealthModel.list(out.readings.map { $0.channel.label.lowercased() })) — each measured against your own previous \(MentalHealthModel.referenceDays) days. It reports when several drift the same way at once. It is not a screen, it does not diagnose, and it never says you are fine: the top of its range means those numbers have not moved, which is a much smaller thing.",
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],

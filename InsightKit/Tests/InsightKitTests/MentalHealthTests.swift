@@ -112,6 +112,30 @@ final class MentalHealthTests: XCTestCase {
         }
     }
 
+    /// ⚠️ **The copy never names a behaviour it did not read.**
+    ///
+    /// Found on a screenshot: the card said "None of the four has moved" while
+    /// running on three channels, and its empty-state line named all four
+    /// behaviours by hand — including the one it had no data for. The repo's own
+    /// ledger has "a hard-coded count going stale" at four-plus sessions; this
+    /// is that fault inside a sentence rather than inside a document, and it is
+    /// worse there, because the sentence is a claim about what was looked at.
+    func testTheCopyNeverNamesABehaviourItDidNotRead() {
+        let samples = record().filter {
+            $0.type != .exerciseMinutes && $0.type != .heartRateVariabilityRMSSD
+        }
+        let result = MentalHealthInsight().evaluate(
+            samples: samples, profile: UserHealthProfile(), now: now)
+        let lead = result.drivers.first ?? ""
+
+        XCTAssertFalse(lead.contains("four"),
+                       "a count was written out rather than derived: \(lead)")
+        XCTAssertFalse(lead.lowercased().contains("deliberate exercise"),
+                       "the lead sentence named a behaviour with no data behind it: \(lead)")
+        XCTAssertTrue(lead.lowercased().contains("moving around"),
+                      "and it must name the ones it did read: \(lead)")
+    }
+
     // MARK: - The arithmetic
 
     /// Four unrelated behaviours moving the same way is the only thing this card

@@ -141,7 +141,7 @@ the place to look.
   - `LagFinder` :27
   - `LaggedRelationship` :14
 - `Insights/MentalHealthModel.swift`
-  - `MentalHealthInsight` :227
+  - `MentalHealthInsight` :237
   - `MentalHealthModel` :55
 - `Insights/MetabolismInsight.swift`
   - `EnergyBalance` :43
