@@ -117,14 +117,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :92
-  - `InsightCadence` :50
-  - `InsightConfidence` :84
-  - `InsightDriver` :120
+  - `GroundingRequirement` :107
+  - `InsightCadence` :65
+  - `InsightConfidence` :99
+  - `InsightDriver` :135
   - `InsightID` :15
-  - `InsightModel` :347
-  - `InsightResult` :137
-  - `RequirementStatus` :108
+  - `InsightModel` :362
+  - `InsightResult` :152
+  - `RequirementStatus` :123
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -183,6 +183,9 @@ the place to look.
 - `Insights/SummaryFingerprint.swift`
   - `RefreshGate` :59
   - `SummaryFingerprint` :20
+- `Insights/SustainedLoadInsight.swift`
+  - `SustainedLoadInsight` :155
+  - `SustainedLoadModel` :33
 - `Insights/VitalEvent.swift`
   - `VitalEvent` :76
   - `VitalEventKind` :12
@@ -262,7 +265,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :57
+  - `InsightPalette` :58
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14

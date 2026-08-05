@@ -153,6 +153,7 @@ public extension InsightID {
         case .nutrition: return "nutrition-v1"
         case .metabolism: return "metabolism-v1"
         case .symptomRadar: return "symptom-radar-v1"
+        case .sustainedLoad: return "sustained-load-v1"
         }
     }
 }

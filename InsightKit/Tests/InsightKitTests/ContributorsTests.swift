@@ -15,7 +15,12 @@ private func contributorDay(_ i: Int) -> Date {
 /// thing can't happen again silently.
 final class ContributorsTests: XCTestCase {
 
-    private func fullCoverage(days: Int = 20) -> [HealthMetricSample] {
+    // **A season, not a fortnight.** "Full coverage" has to mean enough
+        // *history* for every registered card, not just enough metrics: a card
+        // whose whole point is a month against the months before it cannot
+        // contribute to a 20-day fixture, and shortening its window to suit a
+        // test would be the test dictating the model.
+        private func fullCoverage(days: Int = 130) -> [HealthMetricSample] {
         ContributorsFixture.fullCoverage(days: days, now: contributorNow)
     }
 

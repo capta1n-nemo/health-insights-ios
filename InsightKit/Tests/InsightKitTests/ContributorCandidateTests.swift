@@ -19,7 +19,12 @@ final class ContributorCandidateTests: XCTestCase {
 
     func testEveryReportedContributorMetricIsACandidate() {
         let now = TestClock.now
-        var samples = ContributorsFixture.fullCoverage(days: 20, now: now)
+        // **A season, not a fortnight.** "Full coverage" has to mean enough
+        // *history* for every registered card, not just enough metrics: a card
+        // whose whole point is a month against the months before it cannot
+        // contribute to a 20-day fixture, and shortening its window to suit a
+        // test would be the test dictating the model.
+        var samples = ContributorsFixture.fullCoverage(days: 130, now: now)
 
         // Metrics the shared fixture omits, added so each model emits its full
         // contributor set — including the modelled medication level, which is

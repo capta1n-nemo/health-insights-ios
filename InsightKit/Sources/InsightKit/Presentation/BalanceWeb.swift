@@ -294,6 +294,11 @@ public extension InsightID {
              .fitness, .cardiovascularRisk, .bloodPressure, .bodyComposition,
              .nutrition, .metabolism:
             return true
+        // **On the web.** Unlike the radar — which is a detector and was taken
+        // off on 2026-08-04 — this is a 0–100 score of the same kind as its
+        // neighbours, comparable with them and moving on the same scale.
+        case .sustainedLoad:
+            return true
         case .symptomRadar:
             return false
         }
@@ -311,6 +316,7 @@ public extension InsightID {
         case .sleep: return "Sleep"
         case .energy: return "Energy"
         case .substanceImpact: return "Substances"
+        case .sustainedLoad: return "Load"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

@@ -42,6 +42,21 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// directly — the early warning got its own card back (roadmap #31)
     /// because *which signals moved* is more actionable than a score.
     case symptomRadar
+    /// **How long the reader has been running hot** — sustained autonomic load
+    /// over weeks, which is the one question about stress that Readiness and
+    /// the symptom radar both leave unanswered.
+    ///
+    /// The reader asked for a stress card on 2026-08-03, and the roadmap note
+    /// written then names the trap precisely: *"the risk is overlap — Readiness
+    /// absorbed the vitals scan and the early warning for exactly this reason —
+    /// so the honest version needs to answer a question Readiness does not,
+    /// most likely sustained load rather than today."*
+    ///
+    /// So the three do not compete: Readiness answers *this morning*, the radar
+    /// answers *is something acute converging right now*, and this answers *has
+    /// this been going on for weeks*. Same signals, three different windows, and
+    /// only the third can see a slow drift that never trips an acute threshold.
+    case sustainedLoad
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

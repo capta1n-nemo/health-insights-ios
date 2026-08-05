@@ -27,6 +27,12 @@ public struct InsightEngine: Sendable {
             BodyCompositionInsight(),
             NutritionInsight(),
             MetabolismInsight(),
+            // The reader's stress card, answering the one question Readiness and
+            // the radar leave: has this lasted weeks. Registered rather than
+            // merely built — `SubstanceImpactInsight` spent months as a card the
+            // registry could not see, so score recording, replay and the
+            // comparison chart all skipped it silently.
+            SustainedLoadInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
             // `withSubstanceLog(_:)`. Registering it at all is what finally put
             // it in front of everything that iterates `models` — score

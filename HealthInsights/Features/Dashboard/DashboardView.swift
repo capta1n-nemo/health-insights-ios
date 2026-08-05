@@ -374,6 +374,9 @@ struct InsightCard: View {
         case .sleep: return "moon.stars.fill"
         case .energy: return "bolt.batteryblock"
         case .substanceImpact: return "wineglass"
+        // A gauge rather than a heart or a bolt: this is a level that has
+        // been held for weeks, not a beat or a burst.
+        case .sustainedLoad: return "gauge.with.needle"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

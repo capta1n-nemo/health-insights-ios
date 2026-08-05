@@ -42,6 +42,7 @@ public extension InsightID {
         // `slots(for:)` steps the later claimant per chart, which the distinct
         // integers here keep safe.
         case .symptomRadar: return 11
+        case .sustainedLoad: return 12
         }
     }
 }

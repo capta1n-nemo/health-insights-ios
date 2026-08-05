@@ -40,7 +40,12 @@ final class CandidateReachabilityTests: XCTestCase {
     ]
 
     private func samples(now: Date, without withheld: Set<MetricType>) -> [HealthMetricSample] {
-        var out = ContributorsFixture.fullCoverage(days: 20, now: now)
+        // **A season, not a fortnight.** "Full coverage" has to mean enough
+        // *history* for every registered card, not just enough metrics: a card
+        // whose whole point is a month against the months before it cannot
+        // contribute to a 20-day fixture, and shortening its window to suit a
+        // test would be the test dictating the model.
+        var out = ContributorsFixture.fullCoverage(days: 130, now: now)
         let extra: [MetricType: Double] = [
             .exerciseMinutes: 30, .sleepOnset: -1.0, .sleepEfficiency: 90,
             .sleepDeepMinutes: 80, .sleepRemMinutes: 95, .sleepLatencyMinutes: 12,
