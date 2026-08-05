@@ -160,7 +160,7 @@ public enum VitalReader {
         }
     }
 
-    /// Daily values with their dates, oldest first, merged across devices.
+    /// Daily values with their dates, oldest first, **from one instrument**.
     ///
     /// `dailyValues` is this with the dates thrown away. Anything fitting a line
     /// needs them: a series with a twenty-week silence in the middle is not
@@ -168,6 +168,53 @@ public enum VitalReader {
     /// slightly wrong slope — it produces a different quantity. Measured on a
     /// real VO₂max series with such a gap: 160 mL/kg·min per year against a true
     /// 10.1. Nothing at the type level catches that, which is why this exists.
+    ///
+    /// ## It used to say "merged across devices", and that was the defect
+    ///
+    /// `reading()` above has said for months that *"the winner is always one
+    /// series, never a blend: pooling them is what let the gap between two
+    /// miscalibrated instruments become the variance."* The rule was applied to
+    /// one of the two entry points. This one meant each day's per-source buckets
+    /// together, so a day reported by one device and a day reported by two were
+    /// different quantities returned as one series — and the series' **level**
+    /// tracked which instruments happened to report rather than the body.
+    ///
+    /// **Measured on the reader's own export**, replaying the exact pipeline:
+    ///
+    /// - Resting heart rate: **36.5% of 211 days carry more than one source**,
+    ///   and the pooled value sits a median of 6.0 bpm (p90 14) from the
+    ///   best-covered single series. Watch reads ~14 bpm above ring.
+    /// - Respiratory rate: the 21-day reference window's standard deviation —
+    ///   **the denominator of every symptom-radar and sustained-load z** — is
+    ///   **1.77× wider pooled** than single-series. Day-to-day steps across a
+    ///   change in which devices reported are 1.98× the steps on days where the
+    ///   composition held. The sawtooth was the devices, not the person.
+    /// - Replaying `HealthWatchModel` day by day over 200 days, `isLeaning`
+    ///   **disagrees on 50 of 687 (day, metric) pairs — 7.3%**, and on a third
+    ///   of comparable resting-heart-rate days. That is the illness radar
+    ///   flipping on device composition.
+    ///
+    /// ## Why it does not simply reuse `reading()`'s winner
+    ///
+    /// ⚠️ **Because that is measurably worse.** `reading()` ranks fresh sources
+    /// by *total* history, and this reader's Apple Watch holds the most
+    /// resting-heart-rate days overall (116) but only 8 in the last 60 — a dead
+    /// device with a long memory. Selecting it globally cuts the radar's usable
+    /// signal-days from 138 to 30 for resting heart rate: the card goes blind on
+    /// exactly the channel that flips most.
+    ///
+    /// So the winner is the source best covering **the window actually being
+    /// read**, which keeps 894 of 902 signal-days (99.1%) and still never
+    /// blends. Ties break on the more recent last reading, so a stalled device
+    /// cannot hold the series by having reported the same number of days.
+    ///
+    /// ## And why not calibrate one device onto the other
+    ///
+    /// The tempting third option, and it is not supportable on this data: the
+    /// watch-versus-ring resting-heart-rate difference has a median of 14.0 bpm
+    /// but an IQR of 16.25, and it drifts by 10.5 between the first and second
+    /// half of the co-reported days. The instruments are not one quantity with a
+    /// constant offset, so there is no offset to remove.
     public static func dailySeries(_ metric: MetricType,
                                    from samples: [HealthMetricSample],
                                    days: Int? = nil,
@@ -175,12 +222,34 @@ public enum VitalReader {
                                    calendar: Calendar = .current) -> [DailyValue] {
         let breakdown = MultiSource.breakdown(metric, from: samples)
         let cutoff = days.map { now.addingTimeInterval(-Double($0) * 86_400) } ?? .distantPast
+        let windows = dailyBuckets(metric, breakdown: breakdown, from: samples,
+                                   calendar: calendar)
+            .map { $0.filter { $0.date >= cutoff } }
+            .filter { !$0.isEmpty }
+
+        // Coverage of the window being read, then recency, then the source's own
+        // name. Never a blend.
+        //
+        // The last of the three is not decoration: with two instruments tied on
+        // both coverage and recency — one day each, the same day — `max(by:)`
+        // would otherwise return whichever the sort happened to reach last, so
+        // the same input could produce different numbers on different runs. A
+        // chart that is unstable across launches is worse than one that picks
+        // the "wrong" instrument consistently.
+        let ranked = zip(windows, breakdown.sources.map(\.displayName))
+        guard let winner = ranked.max(by: { left, right in
+            if left.0.count != right.0.count { return left.0.count < right.0.count }
+            let leftLast = left.0.map(\.date).max() ?? .distantPast
+            let rightLast = right.0.map(\.date).max() ?? .distantPast
+            if leftLast != rightLast { return leftLast < rightLast }
+            return left.1 > right.1
+        })?.0 else { return [] }
+
+        // One source can still report a day twice — `bucketed(by:)` already
+        // reduces within a source, so this is a defensive collapse rather than
+        // the cross-device mean that was here before.
         var byDay: [Date: [Double]] = [:]
-        for daily in dailyBuckets(metric, breakdown: breakdown, from: samples, calendar: calendar) {
-            for point in daily where point.date >= cutoff {
-                byDay[point.date, default: []].append(point.value)
-            }
-        }
+        for point in winner { byDay[point.date, default: []].append(point.value) }
         return byDay.keys.sorted().compactMap { day in
             byDay[day].flatMap { Baseline.mean($0) }.map { DailyValue(date: day, value: $0) }
         }

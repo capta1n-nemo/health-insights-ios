@@ -68,7 +68,9 @@ public struct RawMetricGroup: Identifiable, Sendable {
 
     /// Whether this group can be drawn as a line. Text groups are listed, not
     /// charted; a categorical one is shown as its sequence of states.
-    public var isPlottable: Bool { samples.contains { $0.numericValue != nil } }
+    /// `realSamples`, not `samples`: a group that is entirely placeholder zeros
+    /// would otherwise report itself plottable and then draw nothing.
+    public var isPlottable: Bool { realSamples.contains { $0.numericValue != nil } }
 
     /// Distinct text values, newest first — the state history of a categorical
     /// field such as Oura's resilience level.
@@ -111,7 +113,23 @@ public struct RawMetricGroup: Identifiable, Sendable {
     /// basal body temperature carries 35 exact zeros in 136 records, 26%, in a
     /// series whose non-zero values never approach zero.
     public static let placeholderZeroIdentifiers: Set<String> = [
+        // 35 exact zeros in 136 records (26%), in a series whose real values
+        // never go below 35.19 °C.
         "HKQuantityTypeIdentifierBasalBodyTemperature",
+        // **40 exact zeros in 178 sleep periods (22.5%)**, real values from
+        // 53.875 bpm — and this one was rendering a bare "0" on the reader's
+        // Data tab, because the newest row in their export is one of the zeros.
+        //
+        // ⚠️ **Falsified against a sibling field rather than against a gap**,
+        // which is what makes it safe to censor. On exactly those 40 periods
+        // Oura sends no heart-rate time series at all — `sleep.heart_rate.items`
+        // has 138 rows to this field's 178 and the complement is exact — and on
+        // the same 40 it *omits* `lowest_heart_rate` and `average_hrv` rather
+        // than writing 0. Absence is the provider's own convention for "no
+        // data"; this single field writes a zero instead. All 40 carry a
+        // `total_sleep_duration > 0`, so they are real nights with a missing
+        // summary, not empty rows.
+        "oura.sleep.average_heart_rate",
     ]
 
     /// Whether this group's exact zeros are placeholders.
@@ -185,7 +203,13 @@ public struct RawMetricGroup: Identifiable, Sendable {
         // tuple element, which do not compile. It is a repo lint precisely
         // because it has cost a CI round trip more than once.
         struct Reading { let id: UUID; let value: Double }
-        let numeric = samples.compactMap { sample in
+        // ⚠️ `realSamples`. A placeholder zero is not a reading, so it must not
+        // set the median that the unit-slip test judges against — and on a
+        // series that is mostly placeholders it drags the median to 0, the
+        // `median > 0` guard below returns empty, and the whole check silently
+        // switches itself off. Seven of the reader's identifiers are more than
+        // half zeros.
+        let numeric = realSamples.compactMap { sample in
             sample.numericValue.map { Reading(id: sample.id, value: $0) }
         }
         guard numeric.count >= Self.minimumHistoryForSuspicion,
@@ -206,9 +230,9 @@ public struct RawMetricGroup: Identifiable, Sendable {
     public var suspicionNote: String? {
         let suspects = suspectValues
         guard !suspects.isEmpty,
-              let median = Baseline.quantile(0.5, of: samples.compactMap(\.numericValue)),
+              let median = Baseline.quantile(0.5, of: realSamples.compactMap(\.numericValue)),
               median > 0,
-              let worst = samples.filter({ suspects.contains($0.id) })
+              let worst = realSamples.filter({ suspects.contains($0.id) })
                 .compactMap(\.numericValue)
                 .max(by: { abs(log($0 / median)) < abs(log($1 / median)) })
         else { return nil }

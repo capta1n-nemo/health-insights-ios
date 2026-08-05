@@ -111,7 +111,11 @@ public enum DataInventory {
                 identifier: group.id,
                 displayName: group.displayName,
                 unit: group.unit,
-                count: group.samples.count,
+                // `realSamples`, like the min/median/max beside it. Counting
+                // placeholders here said "136 readings" next to statistics
+                // computed over 101 — the same internal contradiction that
+                // `latest` beside `min` was.
+                count: group.realSamples.count,
                 first: byDate.first?.start,
                 last: byDate.last?.start,
                 sources: group.sources.sorted(),
