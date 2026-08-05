@@ -99,8 +99,14 @@ public enum DataInventory {
     /// and the reason the report exists.
     static func rawRows(_ groups: [RawMetricGroup]) -> [Row] {
         groups.map { group in
-            let numeric = group.samples.compactMap(\.numericValue).sorted()
-            let byDate = group.samples.sorted { $0.start < $1.start }
+            // **`realSamples`, so the statistics describe readings.** Basal body
+            // temperature carries 35 exact zeros in 136 records in the reader's
+            // own export — a provider placeholder for "nothing", not a
+            // measurement. Left in, the min is 0 against a median near 36, and
+            // this report is what an LLM and the reader are handed as the truth
+            // about their data.
+            let numeric = group.realSamples.compactMap(\.numericValue).sorted()
+            let byDate = group.realSamples.sorted { $0.start < $1.start }
             return Row(
                 identifier: group.id,
                 displayName: group.displayName,

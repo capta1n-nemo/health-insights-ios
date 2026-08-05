@@ -87,6 +87,64 @@ public struct RawMetricGroup: Identifiable, Sendable {
         self.id = id; self.displayName = displayName; self.unit = unit; self.samples = samples
     }
 
+    // MARK: - Providers that write zero where they mean "nothing"
+
+    /// Identifiers whose exact zeros are a provider's placeholder rather than a
+    /// reading, and which the reader's own record proves it for.
+    ///
+    /// **Keyed on the identifier, and an earlier draft keyed on the unit —
+    /// which independent review refuted before it shipped.** "A °C series
+    /// cannot read zero" sounds like a law and is false three ways:
+    ///
+    /// - `HKQuantityTypeIdentifierWaterTemperature` arrives through this same
+    ///   raw lane, and a 0 °C reading there is a cold plunge. Censoring it
+    ///   would be exactly the dishonesty this fix exists to correct, pointed at
+    ///   a different series.
+    /// - HealthKit converts on read using the **reader's preferred unit**, so a
+    ///   placeholder written as 0 °C reads as 32 under a Fahrenheit preference
+    ///   and the rule silently stops working, with no failing test.
+    /// - Oura's temperature *deviation* is also in °C, and there zero means
+    ///   "exactly at your baseline" — a real and common night.
+    ///
+    /// So the rule names series, not units. Adding one requires evidence from
+    /// the data that the zeros are placeholders: in the reader's export,
+    /// basal body temperature carries 35 exact zeros in 136 records, 26%, in a
+    /// series whose non-zero values never approach zero.
+    public static let placeholderZeroIdentifiers: Set<String> = [
+        "HKQuantityTypeIdentifierBasalBodyTemperature",
+    ]
+
+    /// Whether this group's exact zeros are placeholders.
+    public var zerosArePlaceholders: Bool {
+        Self.placeholderZeroIdentifiers.contains(id)
+    }
+
+    /// Readings that are really "no reading", newest first.
+    public var placeholderZeros: [RawMetricSample] {
+        guard zerosArePlaceholders else { return [] }
+        return samples.filter { $0.numericValue == 0 }
+    }
+
+    /// The samples worth reading — placeholders removed.
+    ///
+    /// Everything that describes this series to the reader goes through here:
+    /// the chart, the min, and `latestReal` below. A detector fed 26% zeros
+    /// would report a body temperature collapse that never happened.
+    public var realSamples: [RawMetricSample] {
+        guard zerosArePlaceholders else { return samples }
+        return samples.filter { $0.numericValue != 0 }
+    }
+
+    /// The newest actual reading.
+    ///
+    /// **Separate from `latest` on purpose, and both are needed.** `latest` is
+    /// the newest row this identifier produced, which is the right answer for
+    /// "when did this last report"; `latestReal` is the newest row that means
+    /// anything, which is the right answer for "what is my temperature". The
+    /// Data tab and the export both showed `latest` and so both could print a
+    /// flat 0 beside a min of 35.19 — internally contradictory on one row.
+    public var latestReal: RawMetricSample? { realSamples.first }
+
     // MARK: - Readings this series' own history says cannot be right
 
     /// How far from its own median a reading has to sit before it is called a

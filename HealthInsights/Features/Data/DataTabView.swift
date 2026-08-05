@@ -471,7 +471,10 @@ struct DataTabView: View {
                         HStack {
                             Text(group.displayName).lineLimit(1)
                             Spacer()
-                            if let latest = group.latest {
+                            // `latestReal`, not `latest`: a provider
+                            // placeholder of exactly 0 is not a reading, and
+                            // this row printed one beside a min of 35.19.
+                            if let latest = group.latestReal {
                                 Text(latest.formattedValue)
                                     .foregroundStyle(.secondary).monospacedDigit()
                                     .lineLimit(1).truncationMode(.tail)
@@ -529,7 +532,10 @@ struct OtherDataDetailView: View {
     let group: RawMetricGroup
     @State private var timeframe: Timeframe = .month
 
-    private var samples: [RawMetricSample] { group.samples.within(timeframe) }
+    // `realSamples`: a provider placeholder of exactly zero is not a reading,
+    // and this page charted 35 of them in the reader's basal body temperature
+    // as a series plunging to 0 °C. See `RawMetricGroup.placeholderZeros`.
+    private var samples: [RawMetricSample] { group.realSamples.within(timeframe) }
 
     /// One plottable reading. A named type rather than a tuple so Swift Charts'
     /// generics have something concrete and `Identifiable` to work with.
@@ -591,7 +597,16 @@ struct OtherDataDetailView: View {
             } header: {
                 Text(group.displayName)
             } footer: {
-                Text("Identifier: \(group.id)\nSources: \(group.sources.sorted().joined(separator: ", "))")
+                // **The placeholder count sits here, outside the chart's own
+                // `count > 1` gate.** On a series that is mostly placeholders
+                // filtering can drop the chart entirely, and a chart that
+                // vanishes with no explanation is worse than the wrong chart
+                // it replaced.
+                let dropped = group.placeholderZeros.count
+                Text("Identifier: \(group.id)\nSources: \(group.sources.sorted().joined(separator: ", "))"
+                     + (dropped > 0
+                        ? "\n\(dropped) reading\(dropped == 1 ? "" : "s") arrived as exactly 0 and are not shown — this source writes a zero where it means 'nothing recorded'."
+                        : ""))
             }
 
             // A reading this series' own history says cannot be right. Judged

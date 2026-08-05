@@ -334,7 +334,8 @@ private struct OtherDataListView: View {
                             .lineLimit(1).truncationMode(.middle)
                         HStack(spacing: 6) {
                             Text("\(group.samples.count) readings")
-                            if let latest = group.latest {
+                            // See `RawMetricGroup.latestReal`.
+                            if let latest = group.latestReal {
                                 Text("· latest \(latest.formattedValue)")
                                     .lineLimit(1)
                             }
