@@ -80,7 +80,7 @@ public enum MetricExplainer {
         case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN:
             return MetricExplanation(
                 whatItIs: "The tiny differences in timing between one heartbeat and the next. A healthy heart is not a metronome — the gaps flex slightly with your breathing, and this measures how much.",
-                soWhat: "It tracks how much spare capacity your nervous system has. It falls when you are stressed, unwell, short of sleep or drinking, and it climbs back as you recover. **The number itself means very little between people — mine and yours are not comparable — so what matters is your own direction of travel.**")
+                soWhat: "It tracks how much spare capacity your nervous system has. It falls when you are stressed, unwell, short of sleep or drinking, and it climbs back as you recover. The number itself means very little between people — mine and yours are not comparable — so what matters is your own direction of travel.")
         case .restingHeartRate:
             return MetricExplanation(
                 whatItIs: "How fast your heart beats when you are doing nothing at all — usually measured while you sleep.",

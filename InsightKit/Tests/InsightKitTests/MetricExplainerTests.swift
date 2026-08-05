@@ -26,6 +26,25 @@ final class MetricExplainerTests: XCTestCase {
         }
     }
 
+    /// **No Markdown in the prose, because nothing renders it.**
+    ///
+    /// Found by looking at the simulator, not by a test: the HRV explanation
+    /// carried `**…**` around its most important sentence and SwiftUI's `Text`
+    /// printed the asterisks verbatim on the card. Every assertion here passed
+    /// while the screen was wrong — a `String` is not a `LocalizedStringKey`,
+    /// and this app's prose is written in doc comments where `**` is normal, so
+    /// the habit leaks.
+    func testNoExplanationCarriesMarkdown() {
+        for metric in MetricType.allCases {
+            guard let e = MetricExplainer.explanation(for: metric) else { continue }
+            for text in [e.whatItIs, e.soWhat] {
+                XCTAssertFalse(text.contains("**"), "\(metric) renders literal asterisks: \(text)")
+                XCTAssertFalse(text.contains("_"), "\(metric) renders a literal underscore: \(text)")
+                XCTAssertFalse(text.contains("`"), "\(metric) renders a literal backtick: \(text)")
+            }
+        }
+    }
+
     /// **The definition must not contain the term it defines.** "Heart rate
     /// variability is the variability of your heart rate" is the failure mode
     /// of every glossary ever written, and it is exactly what the reader was

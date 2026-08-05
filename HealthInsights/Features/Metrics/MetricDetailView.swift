@@ -130,7 +130,12 @@ struct MetricDetailView: View {
         if let explanation = MetricExplainer.explanation(for: metric) {
             Card {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("What \(metric.displayName.lowercased()) is")
+                    // **Not `.lowercased()`.** Several of these display names
+                    // are acronyms or carry internal capitals — it rendered as
+                    // "What hrv (rmssd) is" and "What vo₂max is", which reads
+                    // as a typo in a card whose whole job is to sound like a
+                    // person explaining something.
+                    Text("What \(metric.displayName) is")
                         .font(.headline)
                     Text(explanation.whatItIs)
                         .font(.subheadline)
