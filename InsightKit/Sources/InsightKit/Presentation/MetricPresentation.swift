@@ -82,7 +82,8 @@ public extension MetricType {
         case .bloodPressureSystolic, .bloodPressureDiastolic, .vascularAge,
              .peripheralPerfusionIndex: return .circulatory
         case .bloodGlucose: return .metabolic
-        case .walkingSteadiness, .walkingAsymmetry: return .mobility
+        case .walkingSteadiness, .walkingAsymmetry,
+             .walkingSpeed, .walkingStepLength, .walkingDoubleSupport: return .mobility
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height,
              .waistCircumference, .hipCircumference, .chestCircumference,
@@ -231,6 +232,15 @@ public extension MetricType {
         case .dietaryVitaminA: return 65
         case .dietaryVitaminD: return 66
         case .dietaryVitaminB12: return 67
+        // Appended rather than inserted beside the other two mobility measures:
+        // the index is the order hues are claimed in and
+        // `testStyleIndicesAreContiguousFromZero` means inserting renumbers
+        // everything after. These three do share a chart with each other, and
+        // `MetricPalette.slots(for:)` resolves that per chart — which is the
+        // mechanism that made the front-loading matter less than it used to.
+        case .walkingSpeed: return 68
+        case .walkingStepLength: return 69
+        case .walkingDoubleSupport: return 70
         }
     }
 
@@ -308,6 +318,10 @@ public extension MetricType {
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry,
+             // A day's walking is many bouts, so the day has a spread and not
+             // just a value — and a total would be meaningless for all three
+             // (adding up speeds, or step lengths, or percentages).
+             .walkingSpeed, .walkingStepLength, .walkingDoubleSupport,
              // A level that rises after each dose and decays between them. Not
              // a total: adding up "mg still active" across a month would be a
              // number with no meaning at all.
@@ -393,6 +407,13 @@ public extension MetricType {
              // publishes them irregularly, so a fortnight is not a gap.
              .walkingSteadiness, .walkingAsymmetry:
             return 14 * day
+        // Shorter than their two rolling siblings, because these are not
+        // rolling: the phone emits them per walking bout, and the reader's own
+        // record has 366 of the last 365 days. A week with none is a week the
+        // phone was not carried, which is a real gap and not a publishing
+        // cadence.
+        case .walkingSpeed, .walkingStepLength, .walkingDoubleSupport:
+            return 7 * day
         // Synthesised one point per day, so anything past two days is a stretch
         // where the app itself produced nothing — which happens either side of
         // the regimen and must not be joined across.
@@ -544,6 +565,24 @@ public extension MetricType {
         // The 10% ceiling is this app's attention line; Apple publishes no
         // classification for asymmetry the way it does for steadiness.
         case .walkingAsymmetry: return nil
+        // ⚠️ **There is a famous threshold here and it does not apply.** Gait
+        // speed below 0.8 m/s is the EWGSOP2 slow-gait cut, and 1.0 m/s is the
+        // line most of the mortality literature uses — both measured on a
+        // marked course, under supervision, in older adults asked to walk
+        // normally. This value is what an iPhone in a pocket averaged over
+        // whatever walking it happened to witness. Drawing those bands here
+        // would render a decline in how the phone was carried as a clinical
+        // finding, so the card judges this against the reader's own three-year
+        // record instead and says which it is doing.
+        case .walkingSpeed: return nil
+        // Step length scales with leg length, so a population band would be a
+        // band around somebody else's height. The reader's own is the only
+        // meaningful reference.
+        case .walkingStepLength: return nil
+        // Apple's own guidance describes 20–40% as typical and says plainly
+        // that it varies with speed and terrain — a band that moves with
+        // another metric on the same chart is not a band.
+        case .walkingDoubleSupport: return nil
         // The ACC/AHA bands live in exactly one place —
         // `BloodPressureEstimator.Category` — and `BloodPressureSections` draws
         // them from there. Two copies of a clinical threshold is one too many.

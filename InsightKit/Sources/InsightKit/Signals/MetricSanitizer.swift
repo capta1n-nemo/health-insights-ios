@@ -29,6 +29,11 @@ public extension MetricType {
              // provider placeholder.
              .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
              .walkingSteadiness,
+             // Nobody walks at nought metres a second, takes a step of no
+             // length, or spends none of a stride on two feet. All three zeros
+             // are the provider saying "no walking bouts", which is a missing
+             // day and not a very slow one.
+             .walkingSpeed, .walkingStepLength, .walkingDoubleSupport,
              // Nobody eats nothing. A zero on any of these is a day the reader
              // did not log — every one is a sum of logged items, so an absent
              // log and a genuine zero are indistinguishable, and charting the
@@ -137,8 +142,16 @@ public extension MetricType {
         case .bloodGlucose: return 1...40
         // Percentages that are percentages.
         case .walkingSteadiness, .walkingAsymmetry, .sleepEfficiency,
-             .atrialFibrillationBurden, .peripheralPerfusionIndex:
+             .atrialFibrillationBurden, .peripheralPerfusionIndex,
+             .walkingDoubleSupport:
             return 0...100
+        // A shuffle is around 0.4 m/s and a racewalker manages about 4. Wide
+        // enough to hold any real gait, tight enough to catch a value that
+        // arrived in km/h.
+        case .walkingSpeed: return 0.1...4
+        // A toddler's step is roughly 25 cm and the longest adult stride is
+        // under a metre. Anything outside this arrived in the wrong unit.
+        case .walkingStepLength: return 10...150
         // Fitness and provider estimates.
         case .vo2Max: return 5...100
         case .vascularAge: return 10...120

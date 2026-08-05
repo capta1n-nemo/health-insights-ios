@@ -43,6 +43,7 @@ public extension InsightID {
         // integers here keep safe.
         case .symptomRadar: return 11
         case .sustainedLoad: return 12
+        case .gait: return 13
         }
     }
 }

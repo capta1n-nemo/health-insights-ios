@@ -51,6 +51,15 @@ public enum MetricValueFormatter {
         // decay curve into a staircase of integers.
         case .activeMedicationLevel:
             return String(format: "%.2f", value)
+        // The whole usable range of a walking speed is about 0.9 to 1.6 m/s, so
+        // `Int(rounded())` would render every reading this app will ever hold
+        // as "1". Two decimals because the change worth seeing is hundredths.
+        case .walkingSpeed:
+            return String(format: "%.2f", value)
+        // One decimal: double support moves over a few points, and a step
+        // length by a centimetre or two.
+        case .walkingDoubleSupport, .walkingStepLength:
+            return String(format: "%.1f", value)
         default:
             return "\(Int(value.rounded()))"
         }

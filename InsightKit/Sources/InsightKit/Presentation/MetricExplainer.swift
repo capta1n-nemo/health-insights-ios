@@ -158,6 +158,18 @@ public enum MetricExplainer {
             return MetricExplanation(
                 whatItIs: "How even and stable your walking is, measured from the way your phone moves in your pocket.",
                 soWhat: "It changes slowly and for real reasons — injury, fatigue, alcohol, illness. A sudden change is worth noticing precisely because this is normally a boring number.")
+        case .walkingSpeed:
+            return MetricExplanation(
+                whatItIs: "How fast you walk, averaged over the walking your phone was in your pocket for.",
+                soWhat: "It is one of the best-studied numbers in the whole of health, and it moves early — before strength, before endurance, before anything you would notice. The catch is that this one is measured by a phone in a pocket, so a quiet week can mean you walked less rather than slower.")
+        case .walkingStepLength:
+            return MetricExplanation(
+                whatItIs: "The distance between one heel landing and the next.",
+                soWhat: "Speed can fall two ways — shorter steps or fewer of them — and this is the half that says which. Shorter steps usually mean caution, stiffness or fatigue rather than tiredness of the legs.")
+        case .walkingDoubleSupport:
+            return MetricExplanation(
+                whatItIs: "The share of each stride where both feet are on the ground at once.",
+                soWhat: "It is what your body does when it is not certain of the next step, so it rises with caution, pain and unfamiliar ground. It also rises simply because you walked slower, which is why it is worth reading next to your speed rather than alone.")
         case .peripheralPerfusionIndex:
             return MetricExplanation(
                 whatItIs: "How strong the blood flow is where the sensor sits, relative to the tissue it shines through.",

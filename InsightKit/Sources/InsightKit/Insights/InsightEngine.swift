@@ -33,6 +33,11 @@ public struct InsightEngine: Sendable {
             // registry could not see, so score recording, replay and the
             // comparison chart all skipped it silently.
             SustainedLoadInsight(),
+            // The only card built on nothing the reader has to wear, which is
+            // why it sits here rather than among the log-driven three below:
+            // when a fortnight of ring data is missing this is the card still
+            // reporting, and the Insights tab should not put it last.
+            GaitInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
             // `withSubstanceLog(_:)`. Registering it at all is what finally put
             // it in front of everything that iterates `models` — score

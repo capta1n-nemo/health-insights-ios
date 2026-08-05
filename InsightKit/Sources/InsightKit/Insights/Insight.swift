@@ -57,6 +57,19 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// this been going on for weeks*. Same signals, three different windows, and
     /// only the third can see a slow drift that never trips an acute threshold.
     case sustainedLoad
+    /// **How you walk, against how you used to walk.**
+    ///
+    /// The one card here built on nothing the reader has to wear. Speed, step
+    /// length and double support come off the phone in a pocket, and on the
+    /// reader's own record that means 1,093 days and 91 of the last 90 — so it
+    /// is also the only card with something to say on a week the ring spent on
+    /// charge and the watch spent in a drawer.
+    ///
+    /// What it says that a number alone cannot: speed is step length times
+    /// cadence, so when speed changes this card can name *which half moved*.
+    /// Shorter steps at the same rhythm is a different story from the same
+    /// steps taken less often, and no product in the field draws that line.
+    case gait
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

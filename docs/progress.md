@@ -131,13 +131,13 @@ section it sits in rather than by judgement:
 | 22 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
 | 23 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
 | 24 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 25 | Hearing | Every domain of health — the direction, and what is already arriving | next |
-| 26 | Daylight and UV | Every domain of health — the direction, and what is already arriving | next |
-| 27 | Respiratory function | Every domain of health — the direction, and what is already arriving | next |
-| 28 | Mind | Every domain of health — the direction, and what is already arriving | next |
-| 29 | Cycle and reproductive health | Every domain of health — the direction, and what is already arriving | next |
-| 30 | Falls and balance | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Oral health | Every domain of health — the direction, and what is already arriving | next |
+| 25 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
+| 26 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
+| 27 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
+| 28 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
+| 29 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
+| 30 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
 | 32 | The card itself — `InsightID.symptomRadar`, daily, rendering `HealthWatchMode… | Symptom radar — the sickness early warning | next |
 | 33 | "No signs" must not read as reassurance | Symptom radar — the sickness early warning | next |
 | 34 | Name the confounder from data the app already holds | Symptom radar — the sickness early warning | next |
@@ -1764,42 +1764,70 @@ plumbing. Ordered by how much is already arriving.
             logged by hand versus what Health already knew, in the same shape
             `BodyMeasurementReconciliation` uses. `isCommonGLP1Effect` and
             `isInfectionLike` are built and disjoint, ready for it.
-- [ ] **Hearing.** Environmental and headphone audio exposure, plus the three
-      exposure *events*, all already scraped. It has a published dose in the
-      same form as the exercise one — WHO/NIOSH's 85 dB over 40 hours a week,
-      halving the allowance per 3 dB — so it can be scored honestly rather than
-      described.
-- [ ] **Daylight and UV.** `TimeInDaylight` and `UVExposure`, both arriving.
-      This one earns its place by connecting to something the app already
-      models: light exposure is the main input to circadian timing, and
-      `SleepOnsetModel` and `CircadianConsistencyModel` are already here asking
-      what moves bedtime.
-- [ ] **Respiratory function.** Forced vital capacity, FEV1, peak expiratory
-      flow and inhaler usage are all scraped and unread — real spirometry, with
-      published age/sex/height reference equations (GLI-2012), so a "how are
-      your lungs" card is a reader away for anyone whose device or clinic
-      writes them.
-- [ ] **Mind.** Mindful minutes and the mood-changes category are arriving, and
-      HRV is already central to Readiness. **The posture needs deciding before
-      the build, not during it**: this app describes and never diagnoses, and
-      mental health is where that line matters most.
-- [ ] **Cycle and reproductive health.** Menstrual flow, basal body temperature
-      and sexual activity are scraped. A large domain with real published
-      structure (cycle phase against temperature and resting heart rate, both
-      of which this app already trends) — and sex-specific, so it also forces
-      the profile question of what a card does when it does not apply.
-- [ ] **Falls and balance.** `NumberOfTimesFallen` and the walking-steadiness
-      event, beside `walkingSteadiness` and `walkingAsymmetry`, which are
-      already canonical metrics. The smallest of these, and the one most likely
-      to matter later rather than now.
-- [ ] **Oral health.** Toothbrushing events, arriving and unread. Thin data, a
-      real domain, and honest to report as a streak rather than a score.
+> ⚠️ **CORRECTED 2026-08-05, and the correction is the important part.** This
+> list used to say all eight were "arriving", "scraped" and "a promotion plus a
+> reader, not new plumbing". Measured against the reader's own export — 158 raw
+> identifiers, 320,913 rows — **six of the eight have zero rows. Not thin.
+> Absent.** `HealthKitService.swift` requests them and nothing has ever been
+> written, which is a permission or a device fact and not a build task.
+>
+> The failure mode is worth naming because CLAUDE.md tells the next session to
+> trust this file without re-deriving it: *"arriving" was inferred from the read
+> request, never checked against a row count.* Anything on this list now carries
+> its measured coverage, and a domain with no measurement is marked as
+> unmeasured rather than assumed present.
 
-**What the whole list has in common:** each is a promotion out of the raw pile
-plus one reader, and each needs a `DataDomain` or a data category so it appears
-in the Data tab — the invariant that already exists. None needs a new
-integration. Load `add-data-or-input` and `add-metric-type` before starting any
-of them.
+- [ ] **Hearing — the one with real data.** `HeadphoneAudioExposure` is
+      **13,768 rows over 467 days, 56 of the last 90, 194 of the last 365**.
+      It has a published dose in the same form as the exercise one — WHO/NIOSH's
+      85 dB over 40 hours a week, halving the allowance per 3 dB — so it can be
+      scored honestly rather than described.
+      ⚠️ **It cannot be a *total* sound-exposure card.** `EnvironmentalAudio`
+      exists on 14 of the last 90 days, so summing the two would invent the
+      quiet hours; and the exposure *events* are effectively absent (40 days
+      ever, 0 in the last 90, the headphone event fired once in 2023). Frame it
+      as the headphone dose, and state the hours it could not see.
+- [ ] ~~**Daylight and UV.**~~ **Zero rows.** `TimeInDaylight` and `UVExposure`
+      are not among the 158 identifiers at all. The circadian argument still
+      holds and is still good, but this is a data-collection problem — find out
+      why the phone writes neither — and not a card to build.
+- [ ] ~~**Respiratory function.**~~ **Zero rows.** No FVC, no FEV1, no peak
+      flow, no inhaler usage. The GLI-2012 reference equations are real and the
+      card would be good; nothing has ever written a spirometry value here, and
+      nothing will until a device or a clinic does.
+- [ ] ~~**Mind.**~~ **Zero rows** for both mindful minutes and mood changes.
+      The posture question stands and still needs deciding before any build.
+- [ ] **Cycle and reproductive health — one real asset, and it is not the
+      cycle.** `MenstrualFlow` and `SexualActivity` are **zero rows**.
+      `BasalBodyTemperature` is **136 rows over 124 days, 80 of the last 90** —
+      written deliberately via a Shortcut and read by nothing.
+      **Use it as an independent temperature channel for the symptom radar**,
+      which is worth far more than a cycle card: it survives a night the ring
+      was off, which is exactly the night the radar currently goes blind.
+      ⚠️ It must go through the placeholder filter first — 35 of the 136 records
+      are exact zeros meaning missing (`RawMetricSample.swift:113`).
+      Anything contraceptive needs FDA clearance and is out of scope entirely.
+- [ ] ~~**Falls and balance.**~~ `NumberOfTimesFallen` is **zero rows** and the
+      walking-steadiness *event* likewise. `walkingSteadiness` itself is real
+      (105 days) and is now read by the gait card below.
+- [ ] ~~**Oral health.**~~ **Zero rows.** Toothbrushing has never been written.
+- [x] **Movement and gait — built 2026-08-05, and it was hiding in plain
+      sight.** `walkingSpeed`, `walkingStepLength` and
+      `walkingDoubleSupportPercentage` were scraped into the raw pile from the
+      beginning and read by nothing, while being **the densest signal in the
+      entire export: 1,093 days each, 91 of the last 90, 366 of the last 365** —
+      from the iPhone alone, no wearable, no charging, no compliance gap.
+      Promoted to `MetricType` and read by `GaitInsight`, which decomposes a
+      speed change into step length versus cadence.
+
+**What the list actually has in common — revised.** Two of the eight are
+buildable from data that exists (Hearing, and the basal-temperature half of
+Cycle). Five are **data-collection problems wearing a build's clothing**. One
+was never on the list at all and turned out to be the best of them.
+
+The rule that falls out, and it is the general one: **before writing "already
+arriving" about a data source, count its rows in the last 90 days.** A read
+request in `HealthKitService` proves the app asked, and nothing more.
 
 ### Symptom radar — the sickness early warning (user request, 2026-08-03)
 

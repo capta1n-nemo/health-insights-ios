@@ -73,7 +73,9 @@ public extension MetricType {
              .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return .nutrition
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
-             .walkingSteadiness, .walkingAsymmetry, .screenTimeMinutes:
+             .walkingSteadiness, .walkingAsymmetry,
+             .walkingSpeed, .walkingStepLength, .walkingDoubleSupport,
+             .screenTimeMinutes:
             return .activity
         case .bloodPressureSystolic, .bloodPressureDiastolic, .activeMedicationLevel:
             return .ownDomain

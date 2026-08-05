@@ -120,14 +120,25 @@ final class HealthKitService {
             (.heartRateRecoveryOneMinute, .heartRateRecovery,
              HKUnit.count().unitDivided(by: .minute())),
             (.appleWalkingSteadiness, .walkingSteadiness, .percent()),
-            (.walkingAsymmetryPercentage, .walkingAsymmetry, .percent())
+            (.walkingAsymmetryPercentage, .walkingAsymmetry, .percent()),
+            // The gait triad, promoted out of the raw pile on 2026-08-05. It had
+            // been scraped since the beginning and read by nothing, while being
+            // — measured against the reader's own export — the densest signal
+            // in the app: 1,093 days each, 91 of the last 90, from the phone
+            // alone. Store metres per second and centimetres, so the readMap
+            // does the conversion once here rather than every reader doing it.
+            (.walkingSpeed, .walkingSpeed,
+             HKUnit.meter().unitDivided(by: .second())),
+            (.walkingStepLength, .walkingStepLength, .meterUnit(with: .centi)),
+            (.walkingDoubleSupportPercentage, .walkingDoubleSupport, .percent())
         ]
     }
 
     /// Metrics HealthKit hands over as a 0–1 fraction and we store as 0–100.
     private static let percentageMetrics: Set<MetricType> = [
         .bodyFatPercentage, .oxygenSaturation, .peripheralPerfusionIndex,
-        .atrialFibrillationBurden, .walkingSteadiness, .walkingAsymmetry
+        .atrialFibrillationBurden, .walkingSteadiness, .walkingAsymmetry,
+        .walkingDoubleSupport
     ]
 
     /// Additional quantity types we import as raw "other" data (not yet modelled
@@ -142,8 +153,9 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierFlightsClimbed",
         "HKQuantityTypeIdentifierAppleStandTime", "HKQuantityTypeIdentifierAppleMoveTime",
         "HKQuantityTypeIdentifierPushCount", "HKQuantityTypeIdentifierSwimmingStrokeCount",
-        "HKQuantityTypeIdentifierWalkingSpeed", "HKQuantityTypeIdentifierWalkingStepLength",
-        "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage",
+        // The gait triad moved to `readMap` above on 2026-08-05 — leaving it
+        // here as well would ingest every sample twice, once canonical and once
+        // raw, and the Data tab would list each identifier in two places.
         "HKQuantityTypeIdentifierSixMinuteWalkTestDistance", "HKQuantityTypeIdentifierStairAscentSpeed",
         "HKQuantityTypeIdentifierStairDescentSpeed", "HKQuantityTypeIdentifierRunningSpeed",
         "HKQuantityTypeIdentifierRunningPower", "HKQuantityTypeIdentifierRunningStrideLength",

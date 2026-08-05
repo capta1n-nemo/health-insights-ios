@@ -299,6 +299,12 @@ public extension InsightID {
         // neighbours, comparable with them and moving on the same scale.
         case .sustainedLoad:
             return true
+        // **On the web.** A 0-100 score of the same kind as its neighbours, and
+        // the only one on the chart that survives a fortnight of wearing
+        // nothing - which is precisely when a reader looks at the web and finds
+        // half of it missing.
+        case .gait:
+            return true
         case .symptomRadar:
             return false
         }
@@ -317,6 +323,7 @@ public extension InsightID {
         case .energy: return "Energy"
         case .substanceImpact: return "Substances"
         case .sustainedLoad: return "Load"
+        case .gait: return "Walking"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

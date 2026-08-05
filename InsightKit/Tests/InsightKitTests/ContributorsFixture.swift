@@ -31,6 +31,10 @@ enum ContributorsFixture {
             .bloodGlucose: 5.2, .peripheralPerfusionIndex: 2.0,
             .atrialFibrillationBurden: 0.5, .heartRateRecovery: 25,
             .walkingSteadiness: 85, .walkingAsymmetry: 2,
+            // The gait triad, promoted on 2026-08-05. Values near the middle of
+            // an unremarkable adult's range, and deliberately not round: a
+            // fixture sitting on a threshold lets a wrong curve pass.
+            .walkingSpeed: 1.32, .walkingStepLength: 74, .walkingDoubleSupport: 27,
             // Charted by Body Composition at weight 0. Here for the same
             // reason the promoted vitals are: a card that declares it has to
             // be given something to report, or "full coverage" is not.

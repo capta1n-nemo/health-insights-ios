@@ -377,6 +377,7 @@ struct InsightCard: View {
         // A gauge rather than a heart or a bolt: this is a level that has
         // been held for weeks, not a beat or a burst.
         case .sustainedLoad: return "gauge.with.needle"
+        case .gait: return "figure.walk.motion"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

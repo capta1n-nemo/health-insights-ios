@@ -93,6 +93,7 @@ struct TelemetryOutboxView: View {
             case .bodyComposition: return "Body composition"
             case .symptomRadar: return "Symptom radar"
             case .sustainedLoad: return "Sustained load"
+            case .gait: return "How you walked"
             }
         } ?? raw
     }

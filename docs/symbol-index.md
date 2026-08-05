@@ -97,6 +97,9 @@ the place to look.
   - `FitnessAgeModel` :18
 - `Insights/FitnessInsight.swift`
   - `FitnessInsight` :14
+- `Insights/GaitInsight.swift`
+  - `GaitInsight` :230
+  - `GaitModel` :40
 - `Insights/GroundingRenewal.swift`
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
@@ -117,14 +120,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :107
-  - `InsightCadence` :65
-  - `InsightConfidence` :99
-  - `InsightDriver` :135
+  - `GroundingRequirement` :120
+  - `InsightCadence` :78
+  - `InsightConfidence` :112
+  - `InsightDriver` :148
   - `InsightID` :15
-  - `InsightModel` :362
-  - `InsightResult` :152
-  - `RequirementStatus` :123
+  - `InsightModel` :375
+  - `InsightResult` :165
+  - `RequirementStatus` :136
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -265,7 +268,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :58
+  - `InsightPalette` :59
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -279,7 +282,7 @@ the place to look.
   - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :679
+  - `MetricPalette` :718
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88

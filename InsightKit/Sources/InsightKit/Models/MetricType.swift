@@ -153,6 +153,22 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case heartRateRecovery         // bpm drop one minute after exertion
     case walkingSteadiness         // % — Apple's fall-risk measure
     case walkingAsymmetry          // % of walking time with uneven gait
+    /// The three gait measures the iPhone computes from ordinary walking.
+    ///
+    /// **Measured on 2026-08-05: 1,093 days each, 91 of the last 90 and 366 of
+    /// the last 365** — the densest unused signal in the reader's whole export
+    /// by a wide margin, and nothing else is close. They come from the phone in
+    /// a pocket, so they are the only vitals here that survive a night the ring
+    /// spent on charge and a week the watch spent in a drawer.
+    ///
+    /// ⚠️ **They describe walking the phone saw, not all walking.** A day
+    /// carrying it in a bag, a session on a treadmill holding the rails, an hour
+    /// of gym work — each looks like less walking rather than different walking.
+    /// Anything reading these has to say so, because "your walking speed is
+    /// declining" is heard as a statement about ageing.
+    case walkingSpeed              // m/s — average over the phone's walking bouts
+    case walkingStepLength         // cm — distance between successive heel strikes
+    case walkingDoubleSupport      // % of the gait cycle with both feet down
     /// mg of GLP-1 still active, from the reader's logged doses and the
     /// compound's published half-life.
     ///
@@ -251,6 +267,12 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .heartRateRecovery: return "Heart Rate Recovery"
         case .walkingSteadiness: return "Walking Steadiness"
         case .walkingAsymmetry: return "Walking Asymmetry"
+        case .walkingSpeed: return "Walking Speed"
+        case .walkingStepLength: return "Step Length"
+        // Not "Double Support Percentage". The share of each stride with both
+        // feet on the ground — it rises when someone is being careful, which is
+        // the whole reason to watch it.
+        case .walkingDoubleSupport: return "Double Support"
         // "On board" was the pharmacology jargon and nobody outside it reads
         // that as "still in you". The user, 2026-08-02: *"renamed to something
         // more understandable, like 'medication in your blood' or something
@@ -305,7 +327,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,
-             .walkingSteadiness, .walkingAsymmetry: return "%"
+             .walkingSteadiness, .walkingAsymmetry, .walkingDoubleSupport: return "%"
+        case .walkingSpeed: return "m/s"
+        // Centimetres, like the circumferences and unlike height. 72 cm is a
+        // step; 0.72 m is a sentence about a step.
+        case .walkingStepLength: return "cm"
         case .activeMedicationLevel: return "mg"
         case .heartRateRecovery: return "bpm"
         }
