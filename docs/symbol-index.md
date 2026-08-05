@@ -217,6 +217,8 @@ the place to look.
   - `MultiSourceBreakdown` :101
   - `SourceActivity` :73
   - `SourceSeries` :5
+- `Models/RawCacheCodec.swift`
+  - `RawCacheCodec` :43
 - `Models/RawMetricSample.swift`
   - `RawMetricGroup` :61
   - `RawMetricSample` :15

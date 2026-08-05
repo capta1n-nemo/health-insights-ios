@@ -290,14 +290,44 @@ final class DataStore {
         } catch {}
     }
 
+    /// The compact raw cache — the same treatment `compactCacheURL` gives the
+    /// canonical samples, applied to the file that actually dominates launch.
+    /// On the reader's record `synced_other.json` is **109 MB** against the
+    /// canonical cache's 6.6 MB, and it was still on plain `Codable`.
+    nonisolated private var compactOtherCacheURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("synced_other.hirc")
+    }
+
     nonisolated func loadCachedOther() -> [RawMetricSample] {
+        if let data = try? Data(contentsOf: compactOtherCacheURL),
+           let samples = RawCacheCodec.decode(data) {
+            return samples
+        }
+        // Legacy JSON cache, from builds before the compact format — read once
+        // and retired by the next save.
         guard let data = try? Data(contentsOf: otherCacheURL) else { return [] }
         return (try? JSONDecoder().decode([RawMetricSample].self, from: data)) ?? []
     }
 
     nonisolated func saveCachedOther(_ samples: [RawMetricSample]) {
-        guard let data = try? JSONEncoder().encode(samples) else { return }
-        try? data.write(to: otherCacheURL, options: .atomic)
+        // `encode` fails only on a set it cannot represent (>65k distinct
+        // sources); keep the legacy path for that never-case rather than
+        // silently dropping the cache.
+        guard let data = RawCacheCodec.encode(samples) else {
+            guard let json = try? JSONEncoder().encode(samples) else { return }
+            try? json.write(to: otherCacheURL, options: .atomic)
+            return
+        }
+        do {
+            try data.write(to: compactOtherCacheURL, options: .atomic)
+            // Superseded: leaving it would double disk use — and on this record
+            // that is a hundred megabytes — and serve stale rows if the compact
+            // file were ever lost.
+            try? FileManager.default.removeItem(at: otherCacheURL)
+        } catch {}
     }
 
     /// Throw away every cached provider sample, so the next sync rebuilds from
