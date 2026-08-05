@@ -77,6 +77,48 @@ public enum Baseline {
         return sorted[lower] + (sorted[upper] - sorted[lower]) * fraction
     }
 
+    /// The middle value — `quantile(0.5)`, named, because a median reads as an
+    /// intention and `quantile(0.5, of:)` reads as an implementation detail.
+    public static func median(_ xs: [Double]) -> Double? { quantile(0.5, of: xs) }
+
+    /// Median absolute deviation: the median of `|x − median(x)|`.
+    ///
+    /// The robust twin of `standardDeviation`, and the reason it exists is
+    /// measured rather than theoretical. **A standard deviation has a breakdown
+    /// point of zero** — one extreme value moves it without limit — and the
+    /// symptom radar judges today against the *spread* of a trailing 21-day
+    /// reference window. When the reader was genuinely unwell in July, those
+    /// nights aged into that window and the reference spread for resting heart
+    /// rate swung **2.7×** (0.59 → 1.57 in units of its own median). Every
+    /// z-score divides by that, so a still-elevated reading scored as normal:
+    /// the bar had moved, through the denominator.
+    ///
+    /// The same window measured with median/MAD moved 1.00 → 1.26. **A 50%
+    /// breakdown point is what makes this non-circular by construction** — a
+    /// handful of excursion days in a 21-day window cannot move the estimate,
+    /// so nothing has to be *marked* as perturbed, and the radar never has to
+    /// exclude days using the very flag those days would feed.
+    public static func medianAbsoluteDeviation(_ xs: [Double]) -> Double? {
+        guard let m = median(xs) else { return nil }
+        return median(xs.map { Swift.abs($0 - m) })
+    }
+
+    /// A robust replacement for `standardDeviation`, on the same scale.
+    ///
+    /// `1.4826 × MAD` is the consistency constant that makes this equal σ for
+    /// normally-distributed data, so it is a drop-in wherever an SD is divided
+    /// by — the numbers mean the same thing when nothing is wrong, and diverge
+    /// only when something is.
+    ///
+    /// **`floor` is not optional in practice.** MAD is exactly zero whenever
+    /// more than half the values are identical, which a rounded daily metric
+    /// reaches easily, and dividing by it produces an infinite z-score. Pass the
+    /// metric's own measured night-to-night noise floor.
+    public static func robustScale(_ xs: [Double], floor: Double = 0) -> Double? {
+        guard let mad = medianAbsoluteDeviation(xs) else { return nil }
+        return Swift.max(1.4826 * mad, floor)
+    }
+
     /// Ordinary least-squares fit of y on x.
     ///
     /// Used for trend velocity: a slope over the whole window is far less jumpy
