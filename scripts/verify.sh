@@ -80,6 +80,17 @@ ban '\\\.[0-9]+\b' \
     'Key paths do not work on tuple elements — use { $0.0 } instead of \.0.' \
     "$KIT" "$KIT_TESTS" "$APP"
 
+# A bare `yyyy-MM-dd` names a calendar day, and a calendar day is local. Two
+# ingestion formatters were pinned to UTC while SleepOnset, ShortcutIngest and
+# every manual write used calendar.startOfDay — so the reader's 1,720 Oura
+# samples sat eight hours off the day boundary their Apple nights sat exactly on,
+# and the two only reconciled because their UTC offset is positive. `DayStamp` is
+# the rule. The suite is the reason this is a lint: a UTC-pinned test of
+# UTC-pinned code agrees with itself.
+ban 'TimeZone\(identifier: "UTC"\)' \
+    'Parse a date-only field with DayStamp.local — pinning ingestion to UTC puts a day eight hours off the reader'"'"'s own.' \
+    "$KIT"
+
 # A default-configured ISO8601DateFormatter rejects fractional seconds, and a
 # rejection is nil — indistinguishable from "the connector sent no date". Three
 # parsers hand-rolled the fractional-then-plain fallback; the one that got it

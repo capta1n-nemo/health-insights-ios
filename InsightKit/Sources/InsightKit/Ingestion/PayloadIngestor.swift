@@ -37,7 +37,12 @@ public struct IngestedDocument: Sendable {
 /// common case by describing its envelope rather than writing any code.
 public protocol PayloadIngestor: Sendable {
     var sourceID: String { get }
-    func documents(from payload: IngestPayload) -> [IngestedDocument]
+    /// The calendar is a parameter, not a `.current` read, because a bare
+    /// `yyyy-MM-dd` field names a calendar day and a calendar day is only
+    /// meaningful in a zone — see `DayStamp`. Reading `.current` here is what
+    /// left the ingestion side pinned to UTC while every other day in the app
+    /// was local, and made the disagreement untestable.
+    func documents(from payload: IngestPayload, calendar: Calendar) -> [IngestedDocument]
 }
 
 /// Describes where a provider's records live inside its response and how each
@@ -79,12 +84,14 @@ public struct GenericJSONIngestor: PayloadIngestor {
         self.spec = spec
     }
 
-    public func documents(from payload: IngestPayload) -> [IngestedDocument] {
+    public func documents(from payload: IngestPayload, calendar: Calendar) -> [IngestedDocument] {
         guard let root = try? JSONSerialization.jsonObject(with: payload.data) else { return [] }
         var out: [IngestedDocument] = []
         for record in Self.records(in: root, at: spec.recordsKeyPath) {
-            guard let start = PayloadDate.firstDate(in: record, keys: spec.startDateKeys) else { continue }
-            let end = PayloadDate.firstDate(in: record, keys: spec.endDateKeys) ?? start
+            guard let start = PayloadDate.firstDate(in: record, keys: spec.startDateKeys,
+                                                    calendar: calendar) else { continue }
+            let end = PayloadDate.firstDate(in: record, keys: spec.endDateKeys,
+                                            calendar: calendar) ?? start
             // The date keys are consumed as the timestamp, so exclude them from
             // the field sweep rather than storing them twice.
             let ignored = spec.ignoredKeys
@@ -146,14 +153,17 @@ public struct WithingsMeasureIngestor: PayloadIngestor {
         "apppfmid",
     ]
 
-    public func documents(from payload: IngestPayload) -> [IngestedDocument] {
+    public func documents(from payload: IngestPayload, calendar: Calendar) -> [IngestedDocument] {
         guard let root = try? JSONSerialization.jsonObject(with: payload.data) as? [String: Any],
               let body = root["body"] as? [String: Any],
               let groups = body["measuregrps"] as? [[String: Any]] else { return [] }
 
         var out: [IngestedDocument] = []
         for group in groups {
-            guard let start = PayloadDate.firstDate(in: group, keys: ["date"]) else { continue }
+            // Withings dates are epoch seconds, so the calendar is inert here —
+            // passed for the protocol, not because this path can drift.
+            guard let start = PayloadDate.firstDate(in: group, keys: ["date"],
+                                                    calendar: calendar) else { continue }
             var fields: [FlatField] = []
             var skipped: [SkippedField] = []
 
@@ -200,14 +210,22 @@ public struct WithingsMeasureIngestor: PayloadIngestor {
 /// Date parsing across the formats connectors actually use: a plain day, an
 /// ISO-8601 instant with or without fractional seconds, or epoch seconds.
 public enum PayloadDate {
-    public static func firstDate(in record: [String: Any], keys: [String]) -> Date? {
+    public static func firstDate(in record: [String: Any], keys: [String],
+                                 calendar: Calendar = .current) -> Date? {
         for key in keys {
-            if let raw = record[key], let date = parse(raw) { return date }
+            if let raw = record[key], let date = parse(raw, calendar: calendar) { return date }
         }
         return nil
     }
 
-    public static func parse(_ any: Any) -> Date? {
+    /// The bare form, for the callers that hold no calendar and parse only
+    /// instants — `WhoopResponseParser`, `ShotsyImport`, `OuraResponseParser`'s
+    /// bedtimes. A day string reaching *this* overload resolves in the device's
+    /// own zone, which is the same answer the calendar-taking one gives for
+    /// `.current`.
+    public static func parse(_ any: Any) -> Date? { parse(any, calendar: .current) }
+
+    public static func parse(_ any: Any, calendar: Calendar) -> Date? {
         if let n = any as? NSNumber, !isJSONBoolean(n) {
             let seconds = n.doubleValue
             // Reject obvious non-timestamps so a numeric field named like a date
@@ -216,19 +234,16 @@ public enum PayloadDate {
             return Date(timeIntervalSince1970: seconds)
         }
         guard let s = any as? String, !s.isEmpty else { return nil }
-        if s.count == 10, let day = dayFormatter.date(from: s) { return day }
+        // A ten-character field is a *day*, and this is the only branch that can
+        // see one — which is what makes `DayStamp` safe to apply here and
+        // nowhere else. A rule phrased over the resulting `Date` ("if it is
+        // midnight UTC, shift it") would corrupt the 109 HealthKit samples in
+        // the reader's export that genuinely land at T00:00:00Z. See `DayStamp`.
+        if s.count == 10, let day = DayStamp.local(s, calendar: calendar) { return day }
         if let d = isoWithFraction.date(from: s) { return d }
         if let d = isoPlain.date(from: s) { return d }
         return nil
     }
-
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = TimeZone(identifier: "UTC")
-        return f
-    }()
 
     private static let isoWithFraction: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

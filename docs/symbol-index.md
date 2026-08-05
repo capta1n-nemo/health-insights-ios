@@ -42,6 +42,8 @@ the place to look.
   - `PredictionOutcome` :29
   - `Telemetry` :75
   - `TelemetryEvent` :61
+- `Ingestion/DayStamp.swift`
+  - `DayStamp` :45
 - `Ingestion/FieldCatalogue.swift`
   - `FieldCatalogue` :58
   - `FieldDescriptor` :9
@@ -54,13 +56,13 @@ the place to look.
   - `JSONFlattener` :74
   - `SkippedField` :18
 - `Ingestion/PayloadIngestor.swift`
-  - `EnvelopeSpec` :45
-  - `GenericJSONIngestor` :73
+  - `EnvelopeSpec` :50
+  - `GenericJSONIngestor` :78
   - `IngestPayload` :9
   - `IngestedDocument` :22
-  - `PayloadDate` :202
+  - `PayloadDate` :212
   - `PayloadIngestor` :38
-  - `WithingsMeasureIngestor` :119
+  - `WithingsMeasureIngestor` :126
 - `Ingestion/PromotionRules.swift`
   - `PromotionRule` :9
   - `PromotionRuleSet` :116

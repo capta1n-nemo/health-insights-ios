@@ -39,16 +39,50 @@ final class IngestionPipelineTests: XCTestCase {
         XCTAssertNil(byID["oura.daily_resilience.day"])
     }
 
-    func testRecordIsDatedFromDayField() throws {
-        let json = #"{"data":[{"day":"2026-01-10","score":1}]}"#
-        var catalogue = FieldCatalogue()
-        let result = IngestionPipeline.shipped.ingest([payload(json, endpoint: "daily_sleep")], into: &catalogue)
-        let sample = try XCTUnwrap(result.raw.first)
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = TimeZone(identifier: "UTC")!
-        XCTAssertEqual(utc.component(.year, from: sample.start), 2026)
-        XCTAssertEqual(utc.component(.month, from: sample.start), 1)
-        XCTAssertEqual(utc.component(.day, from: sample.start), 10)
+    /// A bare `day` field dates the record to **that day in the reader's own
+    /// zone** — not to midnight UTC.
+    ///
+    /// This test used to build a UTC calendar and assert the day component in
+    /// it, which passed for exactly one reason: the ingestion formatter was
+    /// pinned to UTC too, so the test and the code shared a mistake. A reader
+    /// at UTC+8 got Oura samples eight hours off their own day boundary while
+    /// every Apple-derived night sat exactly on it, and nothing could see the
+    /// disagreement because the only two `TimeZone(identifier: "UTC")` in the
+    /// codebase were both on the ingestion side.
+    ///
+    /// Asserted at two zones on opposite sides of the meridian, because the old
+    /// behaviour is correct at UTC and only at UTC — a single-zone assertion is
+    /// how this survived. See `DayStamp`.
+    func testABareDayFieldIsThatDayInTheReadersOwnZone() throws {
+        func day(inZone identifier: String) throws -> (Date, Calendar) {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: identifier)!
+            let pipeline = IngestionPipeline(
+                ingestors: [GenericJSONIngestor(sourceID: MetricSource.oura.id, spec: .oura)],
+                rules: PromotionRuleSet(rules: [], aliases: [:]),
+                calendar: calendar)
+            var catalogue = FieldCatalogue()
+            let json = #"{"data":[{"day":"2026-01-10","score":1}]}"#
+            let result = pipeline.ingest([payload(json, endpoint: "daily_sleep")], into: &catalogue)
+            return (try XCTUnwrap(result.raw.first).start, calendar)
+        }
+
+        let (tokyo, tokyoCalendar) = try day(inZone: "Asia/Tokyo")          // UTC+9
+        let (newYork, newYorkCalendar) = try day(inZone: "America/New_York") // UTC−5
+
+        for (instant, calendar) in [(tokyo, tokyoCalendar), (newYork, newYorkCalendar)] {
+            XCTAssertEqual(calendar.component(.year, from: instant), 2026)
+            XCTAssertEqual(calendar.component(.month, from: instant), 1)
+            XCTAssertEqual(calendar.component(.day, from: instant), 10,
+                           "a bare day field landed on a different day than the one it names")
+            XCTAssertEqual(calendar.startOfDay(for: instant), instant,
+                           "a day must land on its own zone's midnight, not eight hours off it")
+        }
+
+        // The two are genuinely different instants — 10 January began earlier in
+        // Tokyo. If these were equal the rule would be zone-blind, which is the
+        // defect this replaces.
+        XCTAssertLessThan(tokyo, newYork)
     }
 
     func testNumericArraysAreSummarisedNotExploded() {

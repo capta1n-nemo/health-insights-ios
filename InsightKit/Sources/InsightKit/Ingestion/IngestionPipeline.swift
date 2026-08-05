@@ -68,7 +68,7 @@ public struct IngestionPipeline: Sendable {
                 result.unreadablePayloads.append("\(payload.source.id).\(payload.endpoint) — no ingestor registered")
                 continue
             }
-            let documents = ingestor.documents(from: payload)
+            let documents = ingestor.documents(from: payload, calendar: calendar)
             if documents.isEmpty {
                 result.unreadablePayloads.append("\(payload.source.id).\(payload.endpoint) — no dated records found")
                 continue

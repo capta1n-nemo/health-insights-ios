@@ -137,7 +137,7 @@ public enum OuraResponseParser {
                let instant = Self.bedtimeInstant(record) {
                 bedtimes.append(instant)
             }
-            guard let date = date(from: record) else { continue }
+            guard let date = date(from: record, calendar: calendar) else { continue }
             nights[date, default: []].append(record)
         }
 
@@ -205,14 +205,6 @@ public enum OuraResponseParser {
         return samples
     }
 
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = TimeZone(identifier: "UTC")
-        return f
-    }()
-
     /// Whether a sleep segment is a night.
     ///
     /// **An unrecognised or absent `type` counts as a night**, deliberately. The
@@ -277,22 +269,42 @@ public enum OuraResponseParser {
         isNight(type) || (localStartHour.map { $0 < 12 } ?? false)
     }
 
-    private static func date(from record: SleepRecord) -> Date? {
-        if let day = record.day, let d = dayFormatter.date(from: day) { return d }
+    private static func date(from record: SleepRecord, calendar: Calendar) -> Date? {
+        if let day = record.day, let d = DayStamp.local(day, calendar: calendar) { return d }
         return bedtimeInstant(record)
     }
 
-    static func day(_ s: String?) -> Date? { s.flatMap { dayFormatter.date(from: $0) } }
+    /// Oura's `day` is a bare `yyyy-MM-dd`, so it names a calendar day and lands
+    /// at **local** midnight — see `DayStamp` for why that is a decision rather
+    /// than an obvious reading, and for why it must not be reported as a
+    /// sensitivity fix.
+    ///
+    /// `day` deliberately stays *ahead* of `bedtime_start` here, unlike
+    /// `EnvelopeSpec.oura.startDateKeys` on the raw side, and the asymmetry is
+    /// the point: on the raw side the date is the *instant a row happened*, so
+    /// the real bedtime is right. Here it is the **grouping key for a night**,
+    /// and every period of one broken night carries the same `day` while each
+    /// carries a different `bedtime_start`. Dating by the bedtime here would
+    /// give each period its own bucket and undo the split-night summing
+    /// directly above.
+    static func day(_ s: String?, calendar: Calendar) -> Date? {
+        s.flatMap { DayStamp.local($0, calendar: calendar) }
+    }
 
     // MARK: - Additional daily endpoints (scrape everything Oura offers)
 
     /// `usercollection/daily_readiness` → skin-temperature deviation (°C).
     public static func parseDailyReadiness(_ data: Data) throws -> [HealthMetricSample] {
+        try parseDailyReadiness(data, calendar: .current)
+    }
+
+    static func parseDailyReadiness(_ data: Data, calendar: Calendar) throws -> [HealthMetricSample] {
         struct List: Decodable { let data: [Rec] }
         struct Rec: Decodable { let day: String?; let temperature_deviation: Double? }
         let list = try JSONDecoder().decode(List.self, from: data)
         return list.data.compactMap { r -> HealthMetricSample? in
-            guard let d = day(r.day), let dev = r.temperature_deviation else { return nil }
+            guard let d = day(r.day, calendar: calendar),
+                  let dev = r.temperature_deviation else { return nil }
             return HealthMetricSample(type: .skinTemperatureDeviation, value: dev,
                                       start: d, end: d, source: .oura)
         }
@@ -300,12 +312,17 @@ public enum OuraResponseParser {
 
     /// `usercollection/daily_spo2` → blood oxygen (%).
     public static func parseDailySpo2(_ data: Data) throws -> [HealthMetricSample] {
+        try parseDailySpo2(data, calendar: .current)
+    }
+
+    static func parseDailySpo2(_ data: Data, calendar: Calendar) throws -> [HealthMetricSample] {
         struct List: Decodable { let data: [Rec] }
         struct Rec: Decodable { let day: String?; let spo2_percentage: Pct? }
         struct Pct: Decodable { let average: Double? }
         let list = try JSONDecoder().decode(List.self, from: data)
         return list.data.compactMap { r -> HealthMetricSample? in
-            guard let d = day(r.day), let avg = r.spo2_percentage?.average else { return nil }
+            guard let d = day(r.day, calendar: calendar),
+                  let avg = r.spo2_percentage?.average else { return nil }
             return HealthMetricSample(type: .oxygenSaturation, value: avg,
                                       start: d, end: d, source: .oura)
         }
@@ -313,12 +330,16 @@ public enum OuraResponseParser {
 
     /// `usercollection/daily_activity` → steps + active energy (kcal).
     public static func parseDailyActivity(_ data: Data) throws -> [HealthMetricSample] {
+        try parseDailyActivity(data, calendar: .current)
+    }
+
+    static func parseDailyActivity(_ data: Data, calendar: Calendar) throws -> [HealthMetricSample] {
         struct List: Decodable { let data: [Rec] }
         struct Rec: Decodable { let day: String?; let steps: Double?; let active_calories: Double? }
         let list = try JSONDecoder().decode(List.self, from: data)
         var out: [HealthMetricSample] = []
         for r in list.data {
-            guard let d = day(r.day) else { continue }
+            guard let d = day(r.day, calendar: calendar) else { continue }
             if let s = r.steps {
                 out.append(HealthMetricSample(type: .stepCount, value: s, start: d, end: d, source: .oura))
             }
