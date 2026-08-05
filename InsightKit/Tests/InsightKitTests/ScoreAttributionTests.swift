@@ -604,7 +604,13 @@ final class ScoreAttributionTests: XCTestCase {
             return XCTFail("expected a fit, got \(result.weighting)")
         }
         XCTAssertEqual(result.confidence, .experimental)
-        XCTAssertTrue(result.explanation.contains("over a day old"), result.explanation)
+        // ⚠️ **Says how old, not "over a day old"** (backlog Q2). The vague form
+        // was one half of the card stating two different cuff ages on one
+        // screen — "over a day old" beside the drift line's "2 days ago", about
+        // the same reading. Both now come from `Drift.lastReadingPhrase`.
+        XCTAssertTrue(result.explanation.contains("was 3 days ago"), result.explanation)
+        XCTAssertFalse(result.explanation.contains("over a day old"),
+                       "the imprecise phrase is what let two ages disagree")
 
         // The dial is the estimate, not the average of the readings behind it.
         let trend = BloodPressureEstimator.recentTrend(from: bpSamples(lastReadingDaysAgo: 3),

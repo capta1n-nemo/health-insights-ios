@@ -225,8 +225,49 @@ final class BloodPressureDriftTests: XCTestCase {
             latestSystolicError: 9, latestDiastolicError: 4,
             meanAbsoluteSystolicError: 7, checkedReadings: 4,
             daysSinceLastReading: 1, systolicUncertainty: 5)
-        XCTAssertTrue(drift.summary.contains("yesterday"), drift.summary)
-        XCTAssertTrue(drift.summary.contains("high"), drift.summary)
+        let summary = drift.summary(statedUncertainty: 7)
+        XCTAssertTrue(summary.contains("yesterday"), summary)
+        XCTAssertTrue(summary.contains("high"), summary)
+    }
+
+    /// ⚠️ **Backlog Q2: the card printed two ± and two cuff ages on one screen.**
+    /// "±14, fitted to 23 readings" sat a few inches from "the ±13 it is judged
+    /// on", and "over a day old" beside "2 days ago" — each defensible alone,
+    /// together a card contradicting itself with no way for the reader to know
+    /// which to believe.
+    ///
+    /// The drift sentence no longer chooses an uncertainty; it is given the one
+    /// the card is showing, so the two cannot diverge.
+    func testTheDriftSentenceQuotesTheUncertaintyItIsGivenAndNoOther() {
+        let drift = BloodPressureEstimator.Drift(
+            latestSystolicError: 9, latestDiastolicError: 4,
+            meanAbsoluteSystolicError: 7, checkedReadings: 4,
+            daysSinceLastReading: 2, systolicUncertainty: 13)
+        let summary = drift.summary(statedUncertainty: 16)
+        XCTAssertTrue(summary.contains("±16"), summary)
+        XCTAssertFalse(summary.contains("±13"),
+                       "the fit's own spread must not appear beside the one the card states")
+        XCTAssertTrue(summary.contains("2 days ago"), summary)
+    }
+
+    /// And the stated ± is the widest of the three, because an error bar is a
+    /// promise: a fit claiming ±5 while missing by 9 on this reader's own
+    /// held-out readings is not an error bar, it is a wish.
+    func testTheStatedUncertaintyIsWidenedByWhatTheModelHasActuallyMissedBy() {
+        let confidentFit = BloodPressureEstimator.Estimate(
+            systolic: 124, diastolic: 80, systolicUncertainty: 4,
+            diastolicUncertainty: 3, calibrationCount: 12)
+        let missesBy9 = BloodPressureEstimator.Drift(
+            latestSystolicError: 9, latestDiastolicError: 4,
+            meanAbsoluteSystolicError: 9, checkedReadings: 6,
+            daysSinceLastReading: 2, systolicUncertainty: 4)
+
+        XCTAssertEqual(BloodPressureEstimator.statedUncertainty(fit: confidentFit, drift: nil),
+                       BloodPressureEstimator.Drift.uncertaintyFloor,
+                       "nothing here can beat the cuff that produced the training data")
+        XCTAssertEqual(BloodPressureEstimator.statedUncertainty(fit: confidentFit,
+                                                               drift: missesBy9), 9,
+                       "measured misses outrank a confident fit")
     }
 
     func testDaysSinceLastReadingCountsFromTheNewestPoint() throws {

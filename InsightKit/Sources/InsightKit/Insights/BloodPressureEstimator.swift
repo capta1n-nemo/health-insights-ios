@@ -813,20 +813,41 @@ public struct BloodPressureInsight: InsightModel {
                 now.timeIntervalSince($0.start) <= BloodPressureEstimator.calibrationFitWindow
             }
             let calibration = BloodPressureEstimator.buildCalibration(from: fittableSamples)
-            if status.isGrounded,
-               let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
-                drivers.append(.routine(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f/±%.0f), from %d recent calibration readings",
+            // ⚠️ **No longer gated on `status.isGrounded`** (backlog #28,
+            // 2026-08-06). The reader: *"stop hiding it behind the cuff"* — and
+            // they were right that a fitted, personally-calibrated estimate
+            // vanishing the moment a month goes by without a cuff reading is the
+            // app refusing to say what it knows.
+            //
+            // What made the gate defensible was that a stale fit speaks for a
+            // person it no longer describes. That is answered better by
+            // `statedUncertainty`, which widens the error bar to whatever the
+            // model has *measurably* been out by on this reader's own held-out
+            // readings. A lapsed estimate now says "±12, and your last
+            // calibration was 40 days ago" instead of disappearing — which is
+            // more information, not less, and the widening comes from the
+            // record rather than from a decay constant somebody chose.
+            if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
+                let drift = BloodPressureEstimator.drift(calibration: calibration, now: now)
+                // **One ±, used by every line on this card.** See
+                // `BloodPressureEstimator.statedUncertainty`.
+                let plusMinus = BloodPressureEstimator.statedUncertainty(fit: est, drift: drift)
+                drivers.append(.routine(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f), from %d calibration readings",
                                                est.systolic, est.diastolic,
-                                               est.systolicUncertainty, est.diastolicUncertainty,
-                                               est.calibrationCount)))
+                                               plusMinus, est.calibrationCount)))
+                if !status.isGrounded {
+                    drivers.append(InsightDriver(
+                        text: "This estimate is running on an older calibration — \(status.recentReadings) cuff readings in the last 30 days, against the \(status.required) that keep it current. It is still shown, with the error bar widened to what it has actually been out by. A fresh cuff reading narrows it.",
+                        isNotable: true))
+                }
                 // The drift counter. The cadence rule ("two a month") shipped
                 // without the number it exists to protect, so "log 2 more
                 // readings" read the same whether the model was still tracking
                 // this person or had wandered off them entirely.
-                if let drift = BloodPressureEstimator.drift(calibration: calibration, now: now) {
+                if let drift {
                     drivers.append(InsightDriver(
-                        text: "Estimate accuracy — \(drift.band.lowercased()). \(drift.summary)",
-                        isNotable: !drift.isWithinStatedUncertainty))
+                        text: "Estimate accuracy — \(drift.band.lowercased()). \(drift.summary(statedUncertainty: plusMinus))",
+                        isNotable: abs(drift.latestSystolicError) > plusMinus))
                 }
                 estimatePair = (est.systolic, est.diastolic)
                 if primary == nil {
@@ -842,10 +863,17 @@ public struct BloodPressureInsight: InsightModel {
                     score = BloodPressureEstimator.score(systolic: est.systolic,
                                                          diastolic: est.diastolic)
                     confidence = .experimental
-                    explanation += String(format: " Your last cuff reading is over a day old, so the dial reads the experimental estimate from today's resting heart rate%@ — ~%.0f/%.0f mmHg, ±%.0f, fitted to %d of your own readings. It is a model, not a measurement: cuff again to replace it.",
+                    // **One cuff age too** (backlog Q2). This said "over a day
+                    // old" while the drift line below said "2 days ago", about
+                    // the same reading. `Drift.lastReadingPhrase` is the single
+                    // source; without a drift there is no held-out history, and
+                    // "over a day old" is then the only true thing to say.
+                    let age = drift.map { "was \($0.lastReadingPhrase)" } ?? "is over a day old"
+                    explanation += String(format: " Your last cuff reading %@, so the dial reads the experimental estimate from today's resting heart rate%@ — ~%.0f/%.0f mmHg, ±%.0f, fitted to %d of your own readings. It is a model, not a measurement: cuff again to replace it.",
+                                          age,
                                           est.hrvShare == nil ? "" : " and HRV",
                                           est.systolic, est.diastolic,
-                                          est.systolicUncertainty, est.calibrationCount)
+                                          plusMinus, est.calibrationCount)
                     weighting = .fit("a regression through \(est.calibrationCount) of your own cuff readings and the "
                                      + (est.hrvShare == nil
                                         ? "resting heart rate recorded beside each"
@@ -1063,20 +1091,64 @@ public extension BloodPressureEstimator {
             }
         }
 
+        /// How this card refers to the age of the last cuff reading, everywhere.
+        ///
+        /// Backlog Q2's second half: the card said "over a day old" in one place
+        /// and "2 days ago" in another, about the same reading. One phrase, one
+        /// source, so they cannot disagree.
+        public var lastReadingPhrase: String {
+            switch daysSinceLastReading {
+            case 0: return "today"
+            case 1: return "yesterday"
+            default: return "\(daysSinceLastReading) days ago"
+            }
+        }
+
         /// One sentence, in the terms the user logged their readings in.
-        public var summary: String {
+        ///
+        /// ⚠️ **Takes the ± rather than choosing one.** It used to print
+        /// `effectiveUncertainty` — this held-out fit's own spread — while the
+        /// estimate line above printed the current fit's. See
+        /// `BloodPressureEstimator.statedUncertainty`.
+        public func summary(statedUncertainty: Double) -> String {
             let direction = latestSystolicError > 0 ? "high" : "low"
-            let days = daysSinceLastReading
-            let since = days == 0 ? "today"
-                : days == 1 ? "yesterday" : "\(days) days ago"
             guard abs(latestSystolicError) >= 1 else {
-                return "The estimate matched your last cuff reading, taken \(since)."
+                return "The estimate matched your last cuff reading, taken \(lastReadingPhrase)."
             }
             return String(
-                format: "At your last cuff reading (%@) the estimate read %.0f mmHg %@ on systolic, against the ±%.0f it is judged on. Across %d checked readings it is out by %.0f mmHg on average.",
-                since, abs(latestSystolicError), direction, effectiveUncertainty,
+                format: "At your last cuff reading (%@) the estimate read %.0f mmHg %@ on systolic, against the ±%.0f it states. Across %d checked readings it is out by %.0f mmHg on average.",
+                lastReadingPhrase, abs(latestSystolicError), direction, statedUncertainty,
                 checkedReadings, meanAbsoluteSystolicError)
         }
+    }
+
+    /// **The one ± this card is allowed to print.**
+    ///
+    /// Backlog Q2. The card used to state two on one screen — the current fit's
+    /// residual SD on the estimate line ("±14, fitted to 23 readings") and a
+    /// *different* fit's residual SD in the drift sentence ("against the ±13 it
+    /// is judged on"). Each was defensible alone: the first is what today's
+    /// regression claims, the second is what the regression that made the last
+    /// held-out prediction claimed. Together they read as the card contradicting
+    /// itself, and the reader had no way to know which number to believe.
+    ///
+    /// So there is one, and it is the **widest** of three, because an error bar
+    /// is a promise and the honest promise is the weakest one that is still true:
+    ///
+    /// - the fit's own residual spread;
+    /// - **what the model has actually been out by**, measured by holding each
+    ///   reading out and predicting it from the ones before — a claim of ±5 from
+    ///   a model that misses by 9 is not an error bar, it is a wish;
+    /// - the ISO 81060-2 floor of ±5, because nothing here can be more precise
+    ///   than the cuff that produced the training data.
+    ///
+    /// The measured term is what makes ungating safe (see the card): an estimate
+    /// whose calibration has gone stale does not vanish, it widens — and it
+    /// widens by an amount taken from this reader's own record rather than from
+    /// a decay constant somebody chose.
+    public static func statedUncertainty(fit: Estimate, drift: Drift?) -> Double {
+        Swift.max(Swift.max(fit.systolicUncertainty, Drift.uncertaintyFloor),
+                  drift?.meanAbsoluteSystolicError ?? 0)
     }
 
     /// Held-out drift over the calibration set, or nil when there is not enough
