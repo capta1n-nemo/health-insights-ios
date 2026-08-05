@@ -299,11 +299,35 @@ public enum HealthWatchModel {
         let total = weights.reduce(0, +)
         let sumOfSquares = weights.reduce(0) { $0 + $1 * $1 }
         guard total > 0, sumOfSquares > 0 else { return 0 }
+        return Swift.max(0, standardised(signals))
+    }
+
+    /// The same quantity **unclamped**, so a quieter-than-usual day reads
+    /// negative.
+    ///
+    /// `excess` clamps because a score cannot be better than 100 and a body
+    /// cannot be less than well. Sequential accumulation needs the sign: a CUSUM
+    /// only returns to zero because ordinary days push it *down*, and clamping
+    /// them at zero would leave it ratcheting up forever.
+    static func standardised(_ signals: [Signal]) -> Double {
+        let weights = signals.compactMap { signal in
+            watched.first { $0.metric == signal.metric }?.weight
+        }
+        let total = weights.reduce(0, +)
+        let sumOfSquares = weights.reduce(0) { $0 + $1 * $1 }
+        guard total > 0, sumOfSquares > 0 else { return 0 }
         let variance = nullVariance
             * (sumOfSquares * (1 - assumedDependence) + assumedDependence * total * total)
             / (total * total)
-        return Swift.max(0, (concern(signals) - nullMean) / variance.squareRoot())
+        return (concern(signals) - nullMean) / variance.squareRoot()
     }
+
+    /// Where the card stops giving an all-clear, in null SDs. The 95th
+    /// percentile of the null.
+    public static let someSignsExcess = 1.9
+    /// Where it says something is clearly going on. The 99.45th percentile —
+    /// about two alarming mornings a year on a well body.
+    public static let strongSignsExcess = 3.3
 
     /// 0–100, higher is better.
     ///
@@ -329,10 +353,16 @@ public enum HealthWatchModel {
     ///
     /// The band *values* — 85 and 50 — did not move when this was rebuilt. Only
     /// the statistic under them, and what they now mean.
-    static func score(_ signals: [Signal]) -> Double {
-        ScoreCurve.through([(0, 100), (1.0, 94), (1.9, 85), (2.5, 72),
-                            (3.3, 50), (4.0, 35), (5.0, 18), (6.0, 8), (8.0, 2)],
-                           at: excess(signals))
+    static func score(_ signals: [Signal]) -> Double { score(excess: excess(signals)) }
+
+    /// The curve alone, so the accumulated statistic can be rendered on exactly
+    /// the same scale as today's rather than on a parallel one that could drift
+    /// away from it.
+    public static func score(excess: Double) -> Double {
+        ScoreCurve.through([(0, 100), (1.0, 94), (someSignsExcess, 85), (2.5, 72),
+                            (strongSignsExcess, 50), (4.0, 35), (5.0, 18),
+                            (6.0, 8), (8.0, 2)],
+                           at: excess)
     }
 }
 
@@ -414,6 +444,178 @@ public enum SymptomRadarModel {
     /// over — long enough for a hit rate to mean something, short enough that
     /// last winter's model is not marking this spring's homework.
     public static let ledgerDays = 90
+
+    // MARK: - Memory
+
+    /// What the reader asked for, in their own words:
+    ///
+    /// > *"Today my heart rate is still elevated, my HRV is still down, and
+    /// > yesterday it flagged I had symptoms which was absolutely correct. Why
+    /// > am I now back at 99% just 1 day later? Shouldn't it take into
+    /// > consideration the day before? Like I am not fully recovered obviously."*
+    ///
+    /// A single-day detector cannot answer that, however well calibrated, and
+    /// the calibration work made it worse rather than better: the fix that
+    /// stopped four mild signals scoring 100 also means the second day of a real
+    /// illness — by which time the trailing baseline has begun absorbing the
+    /// first — is judged as though it were the first time anything had happened.
+    ///
+    /// **A CUSUM is the standard answer and it is the right one here.** It
+    /// accumulates each day's departure, subtracts an allowance so ordinary days
+    /// pull it back down, and floors at zero:
+    ///
+    ///     Sₜ = max(0, Sₜ₋₁ + xₜ − k)
+    ///
+    /// The property the reader is asking for falls straight out: while the body
+    /// stays away from its own normal, `S` **holds**, whatever the rolling
+    /// baseline underneath is doing. It only returns to zero once the signals do.
+    ///
+    /// ⚠️ **It does not replace the daily statistic — it runs beside it.** A
+    /// CUSUM trades speed for false alarms and takes about six days to catch a
+    /// one-SD shift, which is far too slow to be an early warning on its own.
+    /// The card reports whichever of the two is saying more: today's number
+    /// catches an acute onset in a morning, and the accumulation is what refuses
+    /// to let go of it afterwards.
+    public enum Memory {
+        /// The daily allowance, in null SDs. The textbook choice for detecting a
+        /// shift of size δ is δ/2, and δ = 1 is the shift worth catching here.
+        public static let allowance = 0.5
+        /// Where the accumulation itself becomes a finding.
+        ///
+        /// **Chosen by simulation against a stated in-control run length**, the
+        /// same way the daily bands were chosen against a stated false-alarm
+        /// budget. Over simulated well days at `HealthWatchModel
+        /// .assumedDependence`, with the allowance above:
+        ///
+        /// | h | Days between false alarms | Days to catch a 1 SD shift |
+        /// | --- | --- | --- |
+        /// | 3 | 72 | — |
+        /// | 4 | 167 | — |
+        /// | **5** | **389** | **5.6** |
+        /// | 6 | 922 | — |
+        ///
+        /// A real sustained shift is found inside a week. Raising `k` and
+        /// lowering `h` buys the same run length with slower detection (k = 1,
+        /// h = 3 gives 290 days and 10.1), which is the wrong trade for a card
+        /// whose whole promise is noticing early.
+        ///
+        /// ⚠️ **6, not the 5 that simulation suggested.** The table above assumes
+        /// three fixed channels; the real card runs `collapsingDuplicates` first,
+        /// which keeps *whichever* of a same-basis pair leans harder. Selecting a
+        /// maximum inflates the statistic, and the run length measured in Swift
+        /// through the real path came out at 195 days rather than 389 — an alarm
+        /// every six months rather than every year. The Swift measurement is the
+        /// one that counts, and it is now a test.
+        public static let decisionInterval = 6.0
+
+        /// ⚠️ **The accumulation is bounded at the decision interval**, and it
+        /// has to be.
+        ///
+        /// An unbounded CUSUM keeps climbing for as long as the departure lasts,
+        /// so a bad week leaves a number so large that ordinary days cannot work
+        /// it back down: measured on a seven-day fixture it stood at 13.5 a
+        /// *fortnight* after every signal had returned to normal, and the card
+        /// was still announcing an illness that was over. Under a true null the
+        /// statistic only falls by the allowance each day, so recovery time
+        /// scales with how bad the episode was — which is precisely backwards.
+        ///
+        /// Bounded, the card drops out of `strongSigns` the first well day and
+        /// settles over the following few. The cost, stated plainly: memory
+        /// alone can carry the score down to the strong-signs edge and no
+        /// further. Anything below that has to come from the day itself — which
+        /// is right, because "this has been going on a while" is a different
+        /// claim from "today is bad", and only the second one gets to be loud.
+        public static var accumulationCap: Double { decisionInterval }
+    }
+
+    /// The accumulated state on the last day of a timeline.
+    public struct Accumulation: Sendable, Equatable {
+        /// `S` — how much unexplained departure has piled up.
+        public let statistic: Double
+        /// Consecutive days `S` has been above zero. What the card counts when
+        /// it says "day 3".
+        public let daysRunning: Int
+        /// What this accumulation is worth on the daily statistic's own scale,
+        /// so the two can be compared and rendered by one curve.
+        ///
+        /// Linear in `S`, anchored so that reaching the decision interval is
+        /// worth exactly as much as a day at the strong-signs edge. That is a
+        /// presentational choice and is stated as one: `S` and a daily excess
+        /// are different quantities, and the only claim being made is that
+        /// *arriving at each one's threshold means the same amount of concern*.
+        public var excess: Double {
+            statistic / Memory.decisionInterval * HealthWatchModel.strongSignsExcess
+        }
+
+        public static let none = Accumulation(statistic: 0, daysRunning: 0)
+    }
+
+    /// Run the CUSUM forward over a timeline, oldest day first.
+    ///
+    /// A day the watch could not evaluate contributes nothing and does **not**
+    /// reset the accumulation — a night the ring spent on charge is missing
+    /// evidence, not evidence of recovery. Treating it as a zero would quietly
+    /// pull `S` down by the allowance for every day the reader forgot to wear
+    /// something, which is a way of forgetting an illness because somebody
+    /// stopped measuring it.
+    public static func accumulation(over timeline: [DaySnapshot]) -> Accumulation {
+        var statistic = 0.0
+        var daysRunning = 0
+        for snapshot in timeline {
+            guard let output = snapshot.output else { continue }
+            let daily = HealthWatchModel.standardised(output.signals)
+            statistic = Swift.min(Memory.accumulationCap,
+                                  Swift.max(0, statistic + daily - Memory.allowance))
+            daysRunning = statistic > 0 ? daysRunning + 1 : 0
+        }
+        return Accumulation(statistic: statistic, daysRunning: daysRunning)
+    }
+
+    /// Today's verdict, with memory — what the card actually reports.
+    public struct Verdict: Sendable, Equatable {
+        public let today: HealthWatchModel.Output
+        public let accumulation: Accumulation
+        public let score: Double
+        public let status: SymptomRadarStatus
+        /// True when the accumulation is saying more than today is — the case
+        /// the reader reported, where the signals are still away from normal but
+        /// a single-day comparison has stopped noticing.
+        public let isCarriedForward: Bool
+    }
+
+    public static func verdict(today: HealthWatchModel.Output,
+                               timeline: [DaySnapshot]) -> Verdict {
+        let memory = accumulation(over: timeline)
+        let carried = memory.excess > today.excess
+        let excess = Swift.max(today.excess, memory.excess)
+        let score = HealthWatchModel.score(excess: excess)
+
+        // The gates from `Output.status`, plus one for the accumulated path.
+        let anythingHard = today.signals.contains {
+            $0.isConcerning && abs($0.zScore) >= HealthWatchModel.strongZ
+        }
+        let status: SymptomRadarStatus
+        if score >= 85 && !anythingHard {
+            status = .quiet
+        } else if score >= 50 {
+            status = .someSigns
+        } else if today.leaning.count >= 2
+                    || memory.statistic >= Memory.decisionInterval {
+            // Today's path needs two signals leaning, because agreement across
+            // channels is the finding. **The accumulated path does not need
+            // it**, and that is deliberate rather than an oversight: reaching
+            // the decision interval takes days of sustained departure, which is
+            // agreement across *time*. A lone channel pinned at its cap
+            // contributes about half an SD a day after the allowance, so it
+            // needs some ten consecutive days to get there — and ten days of one
+            // signal stuck away from normal is not "one dramatic number".
+            status = .strongSigns
+        } else {
+            status = .someSigns
+        }
+        return Verdict(today: today, accumulation: memory, score: score,
+                       status: status, isCarriedForward: carried)
+    }
     /// A dose taken on day D covers days D through D+2 — the GI-effect window
     /// used everywhere in this feature.
     public static let doseWindowDays = 3
@@ -745,7 +947,10 @@ public struct SymptomRadarInsight: InsightModel {
                                               medication: schedule, now: now,
                                               calendar: calendar)
         let today = calendar.startOfDay(for: now)
-        let status = watch.status
+        // The verdict, not the day: `watch.status` alone is what put the reader
+        // back at 99% the morning after a correct flag.
+        let verdict = SymptomRadarModel.verdict(today: watch, timeline: timeline)
+        let status = verdict.status
 
         // The episode the reader is in, or just out of. Ongoing while the last
         // flag day is at most two days old; a closed episode is still worth a
@@ -815,6 +1020,20 @@ public struct SymptomRadarInsight: InsightModel {
         }
 
         var lines: [InsightDriver] = []
+        // **The reader's question, answered on the card.** When the accumulation
+        // is carrying the verdict, the single-day numbers below it will look
+        // milder than the headline — and an unexplained mismatch between a
+        // headline and the rows under it is exactly the "the app does not show
+        // its work" complaint that runs through this whole category.
+        if verdict.isCarriedForward && status != .quiet {
+            lines.append(.notable(
+                "Still counting: your signals have been away from your usual for "
+                + "\(verdict.accumulation.daysRunning) days running. Today on its own looks "
+                + "milder than that, partly because your recent baseline has "
+                + "started to absorb the stretch it is being compared with — so "
+                + "this keeps the run in view rather than starting again each "
+                + "morning."))
+        }
         if status == .quiet {
             lines.append(.notable(
                 "Quiet is not an all-clear: this kind of watch catches fewer than "
@@ -978,8 +1197,8 @@ public struct SymptomRadarInsight: InsightModel {
         }
 
         return InsightResult(
-            id: id, title: title, primaryValue: watch.score, headline: headline,
-            score: watch.score,
+            id: id, title: title, primaryValue: verdict.score, headline: headline,
+            score: verdict.score,
             // Never `.high`: a validated approach applied bluntly — the same
             // restraint as Energy's `testItNeverClaimsToBeAMeasurement`.
             confidence: .moderate,

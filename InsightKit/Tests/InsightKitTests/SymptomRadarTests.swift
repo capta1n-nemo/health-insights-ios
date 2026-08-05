@@ -290,6 +290,129 @@ final class SymptomRadarTests: XCTestCase {
         }
     }
 
+    // MARK: - Memory (the reader's actual complaint)
+
+    /// **The bug, stated as a test.** *"Yesterday it flagged I had symptoms
+    /// which was absolutely correct. Why am I now back at 99% just 1 day
+    /// later?"*
+    ///
+    /// A six-day illness where the trailing baseline has begun absorbing the
+    /// early days. The last day must not read as a fresh, ordinary morning.
+    func testAnIllnessInProgressDoesNotResetEachMorning() throws {
+        let samples = history(illWindows: [0...5])
+        let timeline = SymptomRadarModel.timeline(samples: samples, days: 30,
+                                                  endingAt: radarNow,
+                                                  calendar: radarCalendar)
+        let today = try XCTUnwrap(HealthWatchModel.evaluate(
+            samples: samples, now: radarNow, calendar: radarCalendar))
+        let verdict = SymptomRadarModel.verdict(today: today, timeline: timeline)
+
+        XCTAssertGreaterThan(verdict.accumulation.daysRunning, 3,
+                             "six days of illness left no accumulated evidence")
+        XCTAssertEqual(verdict.status, .strongSigns)
+        XCTAssertLessThanOrEqual(verdict.score, today.score,
+                                 "memory made the day look better than it was")
+    }
+
+    /// ⚠️ **And it has to let go.** A card that never comes down is a card the
+    /// reader stops reading — the criticism levelled at every competitor that
+    /// flags an onset and then goes quiet about recovery.
+    func testTheAccumulationDecaysBackToNothingAfterRecovery() throws {
+        // Ill from 20 to 14 days ago, well ever since.
+        let samples = history(days: 60, illWindows: [14...20])
+        let timeline = SymptomRadarModel.timeline(samples: samples, days: 45,
+                                                  endingAt: radarNow,
+                                                  calendar: radarCalendar)
+        let today = try XCTUnwrap(HealthWatchModel.evaluate(
+            samples: samples, now: radarNow, calendar: radarCalendar))
+        let verdict = SymptomRadarModel.verdict(today: today, timeline: timeline)
+
+        XCTAssertEqual(verdict.accumulation.statistic, 0, accuracy: 1e-9,
+                       "a fortnight after recovering, the card was still counting")
+        XCTAssertEqual(verdict.status, .quiet)
+    }
+
+    /// A quiet stretch must never accumulate anything at all, or the card cries
+    /// wolf on nothing whatever the daily numbers say.
+    func testAWellFortnightAccumulatesNothing() {
+        let timeline = SymptomRadarModel.timeline(samples: history(illDays: 0),
+                                                  days: 30, endingAt: radarNow,
+                                                  calendar: radarCalendar)
+        XCTAssertEqual(SymptomRadarModel.accumulation(over: timeline).statistic, 0,
+                       accuracy: 1e-9)
+    }
+
+    /// ⚠️ **A day the ring spent on charge is missing evidence, not evidence of
+    /// recovery.** Treating an unevaluable day as a zero would pull the
+    /// accumulation down by the allowance for every day the reader forgot to
+    /// wear something — which is a way of forgetting an illness because
+    /// somebody stopped measuring it.
+    func testAMissingDayDoesNotCountAsAGoodDay() {
+        let ill = SymptomRadarModel.timeline(samples: history(illWindows: [0...5]),
+                                             days: 30, endingAt: radarNow,
+                                             calendar: radarCalendar)
+        let withGaps = ill.enumerated().map { index, snapshot in
+            SymptomRadarModel.DaySnapshot(day: snapshot.day,
+                                          output: index % 3 == 0 ? nil : snapshot.output)
+        }
+        let full = SymptomRadarModel.accumulation(over: ill).statistic
+        let gapped = SymptomRadarModel.accumulation(over: withGaps).statistic
+        XCTAssertGreaterThan(gapped, 0,
+                             "gaps erased an illness that was still going on")
+        XCTAssertLessThanOrEqual(gapped, full)
+    }
+
+    /// The in-control run length the decision interval claims: roughly one false
+    /// alarm a year on a body that is perfectly well. Chosen by simulation, so
+    /// measured by simulation.
+    func testTheAccumulationsRunLengthIsWhatItClaims() {
+        var seed: UInt64 = 0xD1B54A32D192ED03
+        func uniform() -> Double {
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+            return Double(seed % 1_000_000) / 1_000_000 + 1e-9
+        }
+        func normal() -> Double {
+            (-2 * Foundation.log(uniform())).squareRoot()
+                * Foundation.cos(2 * .pi * uniform())
+        }
+        let metrics: [(MetricType, Bool)] = [
+            (.skinTemperatureDeviation, true), (.restingHeartRate, true),
+            (.respiratoryRate, true), (.oxygenSaturation, false)]
+        let dependence = HealthWatchModel.assumedDependence
+
+        var totalDays = 0
+        let runs = 400
+        for _ in 0..<runs {
+            var statistic = 0.0
+            var days = 0
+            while statistic < SymptomRadarModel.Memory.decisionInterval, days < 6_000 {
+                days += 1
+                let common = normal()
+                let signals = metrics.map { metric, rising -> HealthWatchModel.Signal in
+                    let z = dependence.squareRoot() * common
+                        + (1 - dependence).squareRoot() * normal()
+                    return HealthWatchModel.Signal(
+                        metric: metric, recent: 0, reference: 0,
+                        zScore: rising ? z : -z, isConcerning: z > 0)
+                }
+                guard let output = HealthWatchModel.output(fromEvaluated: signals) else { continue }
+                statistic = Swift.max(0, statistic
+                    + HealthWatchModel.standardised(output.signals)
+                    - SymptomRadarModel.Memory.allowance)
+            }
+            totalDays += days
+        }
+        let runLength = Double(totalDays) / Double(runs)
+        // Measured through the real path — `output(fromEvaluated:)`, so the
+        // same-basis collapse is in it. That collapse keeps whichever of a pair
+        // leans harder, and selecting a maximum inflates the statistic: at the
+        // decision interval simulation suggested (5.0) this measured 195 days,
+        // an alarm every six months rather than the intended year. The interval
+        // moved to 6.0 because of this line.
+        XCTAssertGreaterThan(runLength, 300,
+                             "the accumulation alarms every \(Int(runLength)) days on a well body")
+    }
+
     /// The structural claim behind the bands, now stated as a rule rather than
     /// left emergent: `strongSigns` needs two signals leaning, because one
     /// dramatic number is never the finding. Swept over every timeline day of

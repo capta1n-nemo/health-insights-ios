@@ -125,7 +125,7 @@ section it sits in rather than by judgement:
 | 16 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
 | 17 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
 | 18 | Travel drain | Three insight cards the user asked for | next |
-| 19 | Stress card | Three insight cards the user asked for | next |
+| ~~19~~ | ~~Stress card~~ **Done 2026-08-05 (`e28ca54`)** — `sustainedLoad`, 28 days against 90 | Three insight cards the user asked for | next |
 | 20 | Work impact | Three insight cards the user asked for | next |
 | 21 | The medication panel — still open | Metabolism speed — the card the user asked for | next |
 | 22 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
