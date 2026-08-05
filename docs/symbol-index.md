@@ -73,6 +73,8 @@ the place to look.
 - `Ingestion/ShotsyImport.swift`
   - `ShotsyImport` :26
   - `ShotsyUnit` :238
+- `Ingestion/TypeSightingLedger.swift`
+  - `TypeSightingLedger` :27
 - `Insights/ActivityDoseModel.swift`
   - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`
@@ -293,6 +295,10 @@ the place to look.
   - `SeriesScale` :4
 - `Presentation/OverlaySelection.swift`
   - `OverlaySelection` :10
+- `Presentation/RawFieldGrouping.swift`
+  - `RawFieldGrouping` :16
+- `Presentation/RawFieldPresentation.swift`
+  - `RawFieldPresentation` :21
 - `Presentation/RenderMemo.swift`
   - `RenderMemo` :19
 - `Presentation/SectionCaveat.swift`
