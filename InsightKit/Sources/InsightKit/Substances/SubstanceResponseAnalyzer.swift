@@ -578,11 +578,30 @@ public enum SubstanceResponseAnalyzer {
         let title = "Substance Impact"
 
         guard !events.isEmpty else {
+            // `invitesInput` is what keeps this card on the tab with an empty
+            // log, and without it the card was **filtered off the Insights tab
+            // exactly when it had something to ask for** — the third instance of
+            // the defect that took Nutrition and Metabolism off the tab on
+            // 2026-08-03, found by the reader on 2026-08-05.
+            //
+            // With no events there is no `primaryValue`, no unmet requirement
+            // (this card needs no grounding fact) and nothing awaited, so
+            // `isWorthShowing` was false on every count. That is a card whose
+            // entire input is something the reader types, hidden precisely
+            // while it has none — and `contributions` two files up already said
+            // so in as many words: "the one card whose whole input is something
+            // the user types would be the one card with no way to type it".
+            //
+            // `CardVisibilityTests` did not catch it because it asserted the
+            // inviting set was *exactly* `[nutrition, metabolism, symptomRadar]`
+            // — so the guard against this defect class was pinning this
+            // instance of it. A closed set is the right shape; it was just
+            // missing a member.
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "Log to see effects",
                 score: nil, confidence: .low,
                 explanation: "Log alcohol, nicotine, caffeine or other substances and this will show — privately, without judgement — how your own heart rate, HRV, sleep and temperature actually respond.",
-                drivers: [], unmetRequirements: [])
+                drivers: [], unmetRequirements: [], invitesInput: true)
         }
 
         let analysis = analyze(events: events, samples: samples, now: now)

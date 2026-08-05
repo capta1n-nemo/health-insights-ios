@@ -76,6 +76,77 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 26 (2026-08-05) — two ingestion defects closed, one of them silent
+for the life of the feature. ⚠️ Nothing is pushed; see the blocker below.**
+
+### ⚠️ Read first: this session could not push, so nothing reached the phone
+
+`git push` fails with `could not read Username for 'https://github.com'`. The
+`osxkeychain` helper returns no credential to the Claude Code process and
+`gh auth token` is empty, though `git ls-remote` succeeds (the repo is public,
+so reads need no auth). **Two commits sit on local `main`, unpushed, so CI has
+not run and `deploy.yml` has not fired.** The next session must land them before
+building on them. The user can unblock with `gh auth login` in their own
+terminal, or by storing a PAT in the keychain.
+
+### The finding worth carrying forward
+
+**A date format the parser cannot read is reported as "no date", and that is
+indistinguishable from "the connector sent nothing".** `OuraResponseParser` read
+`bedtime_start` with a bare `ISO8601DateFormatter()`, which rejects the
+fractional-seconds form and returns `nil` — the same `nil` already meaning "no
+bedtime here". Every test passed, because every fixture was hand-written without
+fractional seconds.
+
+**The evidence was in the reader's export the whole time: 119 Oura
+`sleepLatencyMinutes` samples and zero Oura `sleepOnset` samples.** The parser
+provably ran on 119 nights and every bedtime evaporated. Two shipped
+consequences: circadian consistency had **no Oura input at all**, and
+`isMorningReSleep` — the split-night fix added 2026-08-02 for the "7.5 h night
+reported as 4 h" defect — never fired on a real payload, from the day it
+shipped. Roadmap item "the split-night fix, proved from the next export" could
+never have been proved; the mechanism was disabled.
+
+The general shape: **a parse failure that returns the same value as absent data
+is unobservable.** Three parsers hand-rolled the fractional-then-plain fallback
+and `ShotsyImport` even carried a comment stating the rule; the copy that got it
+wrong was the one nobody compared. One door now (`PayloadDate.parse`), and
+`verify.sh` bans the bare construct-and-parse shape.
+
+### The correction that matters more than the fix
+
+**Roadmap #26 overstated its own defect, and a session acting on the row alone
+would have reported a win that did not happen.** The row claimed two day-stamp
+conventions "roughly halve sensitivity" for a sustained-shift detector. Measured
+against the real export instead of argued: bucketed by the *device's own*
+calendar, the value-identical duplicate pairs already align at **lag 0**, median
+absolute difference exactly zero (74/75, 92/92, 107/108). The "+0.79 at one
+day's lag" is a true statement about the export **analysed in a UTC frame** —
+not about what the cards see at UTC+8.
+
+What was genuinely wrong is narrower and still worth fixing: the two conventions
+reconciled **by accident**, and the accident is the sign of the UTC offset.
+`startOfDay(midnightUTC(D))` is `D` at a non-negative offset and `D−1` at a
+negative one. The reader's first flight west would have sheared the lanes one
+day apart, silently, on the next sync. `DayStamp.local` is the rule; it is keyed
+on **the shape of the input string**, never on the value of the resulting date —
+because the export holds 109 HealthKit samples that genuinely land at
+`T00:00:00Z` and a value-based rule would corrupt them.
+
+**So: do not report a detection gain from `4128ab3`.** Say what it is — an
+accidental reconciliation removed.
+
+### Seen, not reasoned about
+
+The simulator carried the real export, so the "device" roadmap items were
+*looked at* for the first time. The balance web, Fitness's units, BP's cuff-plus-
+estimate headline, and the two cards' inviting empty states all render correctly
+— see `docs/progress.md`. **Two defects were found by looking**, both now
+roadmap rows: the BP card states two different ± and two different cuff ages on
+one screen (#35), and the Resting Heart Rate page draws the cross-device
+disagreement in three colours and then averages it into one "Range over this
+period" header two inches above (#27's visible face).
+
 **Session 25 (2026-08-04) — the first Mac session, and the first with the
 reader's real data. 19 commits, zero red CI.**
 

@@ -12,7 +12,8 @@ already in the export and unread.
 
 ## ⚠️ Outstanding from the 2026-08-04 Mac session — READ THIS FIRST
 
-**Thirty-four tracked items, twelve done, twenty-two open.** These are the
+**Thirty-six tracked items, thirteen done, twenty-three open** (2026-08-05:
+#26 closed, #27 halved, #35 and #36 added). These are the
 reader's own requests plus defects found by loading their real export. They are
 **not** in the generated table below — that table indexes the older roadmap.
 Nothing here is speculative: every item is either something the reader asked for
@@ -22,8 +23,10 @@ in their own words, or a defect diagnosed to a file and line.
 
 | # | Item | Where the diagnosis is |
 | --- | --- | --- |
-| 26 | **Two day-stamp conventions** — records at exactly midnight UTC belong to the night the intraday feeds label one day earlier (+0.79 correlation at that lag, ≤0.44 elsewhere). Every multi-signal statistic mixes two nights; roughly halves sensitivity for any sustained-shift detector. **Affects cards already shipping.** Fix at ingestion, not in one feature | `~/HealthSeed/research/illness-detection.md` |
-| 27 | **Three more ingestion defects** — duplicate feeds (partly fixed by `525582c`, the rest remain), sleep fragments (median ~11 min alongside full nights; filtering cuts HR noise 21%, sleep-efficiency noise 59%; `SleepSegment.Kind` has no fragment concept yet), cross-device averaging (watch reads ~13 bpm above ring — never average, reset baseline on source change), exact zeros as "missing" in one temperature series on 26% of records | same |
+| ~~26~~ | ~~**Two day-stamp conventions**~~ **Done 2026-08-05 (`4128ab3`) — and the row above overstated it.** `DayStamp.local` is the rule; the two UTC-pinned ingestion formatters are gone and `verify.sh` bans the pin. ⚠️ **Do not report a sensitivity gain from it.** Measured against the real export: bucketed by the device's own calendar the value-identical pairs already align at **lag 0**, median absolute difference exactly zero (74/75, 92/92, 107/108). The "+0.79 at one day's lag" is a true statement about the export *analysed in a UTC frame*, not about what the cards saw at UTC+8. What was really wrong: the two conventions reconciled **by accident** — `startOfDay(midnightUTC(D))` is `D` at a non-negative offset and `D−1` at a negative one — so the reader's first flight west would have sheared the lanes one day apart, silently | `~/HealthSeed/research/illness-detection.md` |
+| 27 | **Ingestion defects — two of four remain.** ~~Duplicate feeds~~ (`525582c`). ~~Exact zeros as "missing"~~ — **re-scoped, see #36.** Still open: **sleep fragments** (median ~11 min alongside full nights; filtering cuts HR noise 21%, sleep-efficiency noise 59%; `SleepSegment.Kind` at `SleepNights.swift:17` is a *stage* vocabulary — `case core, deep, rem, unspecified, inBed, awake` — with no fragment concept, and `guard asleepSeconds > 0` at `:140` is the only substance floor on the whole path), and **cross-device averaging** (`VitalReader.swift:153-161` pools per-source day buckets through `Baseline.mean`; line 138's own comment says "merged across devices". Confirmed unrefuted by two independent verifiers, and **visible on the device** — see the Resting Heart Rate detail note below) | same |
+| 35 | **The BP card states two different ± and two different cuff ages, in one screen.** Seen on the simulator with the real export, 2026-08-05. The headline reads "±14, fitted to 23 of your own readings" (`BloodPressureEstimator.swift:845`, today's fit) while the drift note directly below reads "against the ±13 it is judged on" (`:1076`, the uncertainty stored *with that check*, floored at `:1049`). Both are defensible in isolation and read as a contradiction together. Same screen: "Your last cuff reading is over a day old" (`:845`) beside "At your last cuff reading (2 days ago)" (`:1076`). **This is a presentation decision, not a bug to silently pick** — either show one ± and say which, or say plainly that the fit has moved since that reading was graded | this session, on screen |
+| 36 | **Exact zeros as "missing" — the fix needs rework before building.** One temperature series uses exact 0 for missing on 26% of records. A verifier refuted the obvious fix: keying on the **unit** (`degC`) is wrong because `HKQuantityTypeIdentifierWaterTemperature` is in the same raw lane (`HealthKitService.swift:146`) and a 0 °C cold plunge is a real reading; because `store.preferredUnits(for:)` returns the *reader's* preferred unit, so the key breaks under a Fahrenheit preference; and because Oura's `temperature_deviation` raw rows carry `"°C"` (`MetricType.swift:257`) where zero means *at baseline* and censoring it would be the same dishonesty pointed at a different series. Key on **identifier**, not unit. Also unscoped in the original plan: `RawMetricGroup.latest` is rendered at `DataTabView.swift:473` and `DataExportView.swift:338` and would still read 0 | this session's workflow |
 | 15 | **BP accuracy section + 30-day projection** — headline done (`f6c85ae`). Missing: `HoldOutCheck` series type (the residual series already exists inside `drift()` and is discarded), capture-at-sync, ledger fields, and the projection. ⚠️ **Fix the estimator's "current resting HR" input first** — it is a ~2-year mean, so the estimate is near-constant by construction, and any ledger recorded before that grades a constant | `~/HealthSeed/research/card-defect-diagnosis.md` |
 | 18 | **All-providers age chart** — labels fixed (`d0836d9`); the chart aggregating Oura vascular age, our fitness age and any others is not built. Open question Q6: does the norm-anchor table hold below VO₂ 36? It is shared with `HeartHealthScore.vo2Score`, so changing it moves two cards | same |
 | 19 | **Micronutrients into Nutrition** — reader decided: promote all 11 to first-class `MetricType`s. Needs the `add-metric-type` skill's eight switches each, plus a mg-vs-mcg unit decision per vitamin | same |
@@ -1143,6 +1146,30 @@ one red CI. What it established, so nothing here is re-derived:
         has a button at all now, which it did not before.
       - **Every card** — one footnote colour, and "What comes first" carrying a
         caveat naming the overlap it was fitted through.
+- [x] **The nine cards, the balance web and the metric-detail pages — looked at
+      on 2026-08-05, in a simulator carrying the reader's real export.** This is
+      the first time these items have been *seen* rather than reasoned about,
+      and the simulator can now answer them because `load-real-export.sh` puts
+      237,828 real samples in the container. What rendered correctly: the
+      Insights hero with all eight spokes banded by score, the grey "usual"
+      underlay, the reference dots and the legend naming its window; Fitness
+      carrying **its units** ("VO₂max 31 mL/kg·min"), which was the label
+      collision; Blood Pressure showing the cuff pair *and* the estimate, each
+      named; Nutrition and Metabolism inviting input rather than reading "No
+      data yet"; the Today summary; the D/W/M/6M/Y/All control; reference
+      bands, gap dashes and the substance-shading note on a metric detail page.
+      **Two defects were found by looking, and both are new roadmap rows** —
+      see #35 (two ± and two cuff ages on one BP screen) and the note below.
+- [ ] **The Resting Heart Rate detail page is the cross-device defect, drawn.**
+      Found 2026-08-05 on the simulator. The chart says "Each device is a
+      separate colour, so you can spot where they disagree" and then does
+      exactly that — one source spikes to ~87 on a night another reads ~55,
+      which is the ~13 bpm watch-vs-ring gap the research measured, except
+      larger. **The chart is honest and the summary above it is not**: "Range
+      over this period — Low 49, Average 60, High 87" pools every device into
+      one mean, which is the averaging `VitalReader.swift:153` does and roadmap
+      #27 forbids. Fixing #27 must fix this header in the same commit, or the
+      page will draw the disagreement and then average it two inches higher up.
 - [ ] **Phase 1 of the card-consistency work** (`42efe4c`, installed). The
       things to look at: the BP card carries its own chart and adds a reading
       without leaving the screen; a grounded card shows what is set as well as

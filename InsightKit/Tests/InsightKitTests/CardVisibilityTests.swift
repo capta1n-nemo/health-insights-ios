@@ -22,7 +22,12 @@ final class CardVisibilityTests: XCTestCase {
 
     func testCardsWaitingForAnInputStayOnScreenToAskForIt() throws {
         let results = emptyResults()
-        for id in [InsightID.nutrition, .metabolism] {
+        // `.substanceImpact` joined on 2026-08-05, found by the reader on the
+        // Insights tab: "why is the substance card not showing… every card
+        // should show, even if it hasn't got data yet." Its whole input is the
+        // reader's own log, so an empty log is exactly when it must be able to
+        // ask — and it was the one state in which it could not.
+        for id in [InsightID.nutrition, .metabolism, .substanceImpact] {
             let result = try XCTUnwrap(results.first { $0.id == id })
             XCTAssertNil(result.score, "\(id) should have no number with no data")
             XCTAssertTrue(result.isWorthShowing,
@@ -34,12 +39,32 @@ final class CardVisibilityTests: XCTestCase {
 
     /// The flag is not a way to make every card permanent: a card with nothing
     /// to ask for and nothing to show still stays off the tab.
+    ///
+    /// ⚠️ **A closed set is the right shape and it is also how this test pinned
+    /// a live defect for two days.** Substance Impact was absent from the list
+    /// below, so the assertion did not merely fail to catch the card being
+    /// invisible — it *required* it. When adding a card here, the question to
+    /// answer is "is there something the reader could hand this card right
+    /// now", not "does the current build put it in this set".
     func testTheFlagIsNotSetOnCardsWithNothingToAskFor() {
         let noisy = emptyResults().filter { $0.invitesInput }.map(\.id)
         // The radar joined the list on 2026-08-04: with no data at all its ask
         // is real — wear the watch — and a card that cannot ask ships invisible.
-        XCTAssertEqual(Set(noisy), [.nutrition, .metabolism, .symptomRadar],
+        // `.substanceImpact` joined on 2026-08-05; its ask is the log itself.
+        XCTAssertEqual(Set(noisy), [.nutrition, .metabolism, .symptomRadar, .substanceImpact],
                        "only the cards waiting on a reader-supplied log should invite input")
+    }
+
+    /// Every card that invites input must also offer a **route** to give it,
+    /// which is the difference between asking and nagging. Substance Impact
+    /// declares `ContributionRoute.substanceLog`; the defect that hid it was
+    /// that the reader could never reach the ask in the first place.
+    func testAnInvitingCardOffersARouteToActuallyGiveIt() {
+        let inviting = Set(emptyResults().filter(\.invitesInput).map(\.id))
+        for model in InsightEngine().models where inviting.contains(model.id) {
+            XCTAssertFalse(model.contributions.isEmpty && model.requirements.isEmpty,
+                           "\(model.id) invites input but declares no contribution route and no requirement, so there is nothing for the card to open")
+        }
     }
 
     /// **Being on the tab is half the job; the other half is asking.**
