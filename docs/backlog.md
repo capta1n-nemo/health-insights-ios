@@ -12,6 +12,66 @@ commit. Deleting a row is how a backlog starts lying.
 
 ---
 
+## 0. Start here next session
+
+**N1 — Stress, done properly. The reader's instruction, 2026-08-06:** *"I want to
+rename it to stress, and research how Oura ring do this, because they track
+stress, but lets do it better because we have more data."*
+
+The rename shipped in `0dbc9b6` — "Sustained load" → **"Stress load"**, and the
+balance web's spoke reads "Stress". That was the trivial half. The research is
+the item.
+
+⚠️ **Oura's own stress data is already in the raw catalogue and read by nothing.**
+Measured in the reader's export:
+
+| Field | Coverage |
+| --- | --- |
+| `oura.daily_stress.day_summary` | 142 days, 90 of the last 90 |
+| `oura.daily_stress.stress_high` | same |
+| `oura.daily_stress.recovery_high` | same |
+| `oura.daily_resilience.level` | present |
+| `oura.daily_resilience.contributors.stress` | present |
+| `oura.daily_resilience.contributors.daytime_recovery` | present |
+| `oura.daily_resilience.contributors.sleep_recovery` | present |
+
+So the comparison is free: **this app's stress score can be graded against
+Oura's own, day by day, on 90 of the last 90 days.** No competitor can do that
+about itself.
+
+What to establish before building:
+
+1. **What Oura actually measures.** Their stress is a *daytime* signal — it reads
+   the day, not the night. This app's Stress load reads four *nocturnal*
+   channels over 28 days against 90. Those are different quantities, and the
+   first question is whether the reader wants the daytime one, the sustained
+   one, or both on one card.
+2. **What we have that they do not.** Continuous daytime heart rate, the
+   medication schedule and its modelled level, the substance log, cuff blood
+   pressure, gait, and — once built — the calendar. Oura has none of that. The
+   "do it better" claim has to name which of these carries the advantage rather
+   than asserting more data is better.
+3. ⚠️ **`daily_stress` is a vendor composite with an undisclosed formula.** It may
+   be *shown* as a labelled second opinion; it must never be blended into this
+   app's own score, on the same rule that governs `vascularAge` — relay, never
+   merge.
+4. **The overlap question, again.** Readiness answers *this morning*; the symptom
+   radar answers *is something acute converging*; Stress load answers *has this
+   lasted weeks*. A daytime stress signal is a fourth window and has to justify
+   itself against all three, or it is a fourth rendering of one measurement.
+5. **The naming lesson is part of the item.** The reader asked for a stress card,
+   it shipped under a name they could not find, and they asked three more times.
+   Whatever this becomes, it is findable by the word they think in.
+
+**N2 — the calendar integration** (§D, I1), because it is the single thing that
+unblocks two requested cards (travel drain, work impact) and feeds N1's point 2.
+
+**N3 — a bespoke section on every card** (§C, S1), the reader's standing rule
+from 2026-08-06, with the design docs updated so it is enforced rather than
+remembered. Five cards have none today.
+
+---
+
 ## A. Every open question
 
 **These are the only things blocking work. Nothing else needs an answer.**
