@@ -47,6 +47,7 @@ import InsightKit
 ///   under a band cannot be misread as a different band, because grey is not one
 ///   of the three. If the backdrop ever gains a hue, this stops being true.
 struct ScoreBalanceWeb: View {
+    @Environment(\.colorScheme) private var colorScheme
     let snapshot: BalanceWebSnapshot
     /// Tapping a spoke opens that card. The web is the tab's index as well as
     /// its summary — the whole point of drawing all nine.
@@ -55,9 +56,66 @@ struct ScoreBalanceWeb: View {
     /// Radius as a fraction of the square's side. The rest of the box is the
     /// label ring: nine words have to sit outside the outer grid without
     /// touching it or the card's edge.
-    private static let plotRadiusRatio: CGFloat = 0.29
+    ///
+    /// **0.29 → 0.335 on 2026-08-05**, at the reader's request ("make the web on
+    /// insights a bit bigger"). The ceiling is the label ring, not the card: at
+    /// 0.335 a label's centre sits 0.40 of the side out from the middle, leaving
+    /// a tenth of the side each way for the word itself — measured against the
+    /// longest one the tab can produce, "Substances", at the tightest diagonal.
+    private static let plotRadiusRatio: CGFloat = 0.335
     /// Where a label's centre sits, as a multiple of the plot radius.
-    private static let labelRadiusRatio: CGFloat = 1.28
+    ///
+    /// Pulled in from 1.28 as the plot grew, so the labels move outward by less
+    /// than the shape does and the ring of words does not walk off the card.
+    private static let labelRadiusRatio: CGFloat = 1.20
+
+    // MARK: - What "usual" is painted in
+
+    /// **Measured, not chosen.** The reader: *"make the 'usual' web more
+    /// visible, let's try some different colours and find the best one that
+    /// looks good, doesn't clash in a weird way, but is visible enough."*
+    ///
+    /// First move was §9 of the add-chart skill — read the pixel before picking
+    /// another colour. Sampled off the simulator against this reader's own data:
+    ///
+    /// | | composited |
+    /// | --- | --- |
+    /// | card behind the web | rgb(239,237,241) |
+    /// | usual fill at `secondary.opacity(0.16)` | **rgb(221,220,224)** |
+    ///
+    /// Eighteen levels. A contrast ratio of 1.16:1 — below every legibility
+    /// threshold there is, and the reason it read as "barely there" rather than
+    /// as a shape.
+    ///
+    /// ⚠️ **It stays colourless, and that is not timidity.** This file's own
+    /// rule: *"grey under a band cannot be misread as a different band, because
+    /// grey is not one of the three. If the backdrop ever gains a hue, this
+    /// stops being true."* The current web is painted red→amber→green by score.
+    /// A blue or indigo usual would read as a fourth band to anyone who has not
+    /// been told otherwise, and — worse — it sits *under* a translucent fill, so
+    /// every overlap would mix into a colour that means nothing (§8,
+    /// hatch-never-blend, which cost five rounds on the water band). The honest
+    /// louder version of "context" is a louder grey, not a different hue.
+    ///
+    /// So: opacity roughly doubled, and the outline given real weight, because a
+    /// visible **edge** does more for reading a shape than a visible interior.
+    /// ⚠️ **A louder grey was tried first and it clashed — measured.** At
+    /// `opacity(0.44)` the usual reached rgb(191,192,194) against the card, a
+    /// perfectly readable 1.42:1 — and where it lay under the banded current
+    /// fill the two mixed into rgb(207,164,153), a dusty pink-brown next to a
+    /// clean band of rgb(231,218,186). That is §8's third colour that means
+    /// nothing, and it is the whole reason the water band is hatched.
+    ///
+    /// So: **hatched, which cannot mix**, at a grey strong enough to see. Every
+    /// pixel is either the stripe or the band under it, both stay themselves,
+    /// and the stripes make the shape unmistakably *context* rather than a
+    /// fourth score band — which no amount of grey ever quite managed.
+    @MainActor static func usualHatch(_ scheme: ColorScheme) -> ImagePaint {
+        Theme.hatch(light: 0xB0B0B6, dark: 0x8E8E93, scheme)
+    }
+    /// The edge does more for reading a shape than the interior does, and it is
+    /// the part that has to survive being drawn over a coloured fill.
+    private static let usualStroke = Color.secondary.opacity(0.85)
 
     /// Drives the draw-on: the shape grows out of the centre rather than
     /// appearing whole.
@@ -78,8 +136,17 @@ struct ScoreBalanceWeb: View {
 
             ZStack {
                 grid
-                referenceLayer
+                // ⚠️ **The usual goes on TOP of today, and §8 is why.** A hatch
+                // only refuses to mix if it is the thing being painted *over*:
+                // underneath a translucent band fill its stripes would be
+                // tinted by it and the mixing this exists to avoid would happen
+                // anyway, one layer down. Painted over, every pixel is either a
+                // stripe or the band beneath it. The band stays fully itself in
+                // the gaps — which is exactly the claim the water-over-muscle
+                // chart rests on — so today is still the louder reading and the
+                // usual reads as texture over it rather than as a fourth value.
                 currentLayer(radius: radius)
+                referenceLayer
                 referenceDots(centre: centre, radius: radius)
                 vertices(centre: centre, radius: radius)
                 labels(centre: centre, radius: radius)
@@ -151,7 +218,7 @@ struct ScoreBalanceWeb: View {
             if spoke.referenceFraction != nil {
                 WebWedgeShape(fractions: referenceFractions, index: index,
                               radiusRatio: Self.plotRadiusRatio, progress: progress)
-                    .fill(Color.secondary.opacity(0.16))
+                    .fill(Self.usualHatch(colorScheme))
             }
         }
 
@@ -160,8 +227,8 @@ struct ScoreBalanceWeb: View {
             // reads better than eight wedge edges.
             WebPolygonShape(fractions: referenceFractions,
                             radiusRatio: Self.plotRadiusRatio, progress: progress)
-                .stroke(Color.secondary.opacity(0.55),
-                        style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+                .stroke(Self.usualStroke,
+                        style: StrokeStyle(lineWidth: 2, lineJoin: .round))
         }
     }
 

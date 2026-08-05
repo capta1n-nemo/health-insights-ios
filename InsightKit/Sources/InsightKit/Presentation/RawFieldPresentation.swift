@@ -82,9 +82,58 @@ public enum RawFieldPresentation {
     ///
     /// Both are fixed by borrowing the parent, and both are fixed *only* where
     /// they occur — see `titles(for:)`, which is what a list should call.
+    /// Withings sends numbered measure types, and the number reaches the screen.
+    ///
+    /// The reader, 2026-08-05: *"go and research all those Withings scores, make
+    /// sense of the more obscure ones and what they are."* `withings.measure.170`
+    /// tells nobody anything.
+    ///
+    /// ⚠️ **Each of these was checked against the reader's own values before
+    /// being named**, because a mapping table copied from documentation is a
+    /// guess until something confirms it:
+    ///
+    /// | Code | Their values | Name it fits |
+    /// | --- | --- | --- |
+    /// | 8 | 33.9–41.8 | fat mass in kg |
+    /// | 170 | 4.5–5.5, unitless | visceral fat index |
+    /// | 226 | 2318–2583 | basal metabolic rate in kcal/day |
+    /// | 227 | 28–31 | metabolic age in years |
+    ///
+    /// Four more are **not measurements at all** — `attrib` (0 or 2: measured by
+    /// the device, or typed in), `category` (always 1: a real measure rather
+    /// than a goal), `model` ("Body Smart") and `modelid` (always 16). They are
+    /// how the reading was taken, not what it says, and two of them are constant
+    /// across every row the reader has. `isRecordingDetail` marks them so the
+    /// Data tab can stop listing a constant as a data point.
+    static let withingsMeasureNames: [String: String] = [
+        "8": "Fat mass",
+        "170": "Visceral fat index",
+        "226": "Basal metabolic rate",
+        "227": "Metabolic age",
+    ]
+
+    static let recordingDetailLeaves: Set<String> = [
+        "attrib", "category", "model", "modelid", "deviceid", "hash_deviceid",
+        "sleep_algorithm_version", "sleep_analysis_reason", "type", "period",
+    ]
+
+    /// Whether a field describes **how** a reading was recorded rather than what
+    /// was read. Not hidden — this tab is the app's answer to "what do you know
+    /// about me", and a field it ingested belongs in that answer — but it should
+    /// not sit among measurements pretending to be one.
+    public static func isRecordingDetail(_ identifier: String) -> Bool {
+        guard let leaf = identifier.split(separator: ".").last else { return false }
+        return recordingDetailLeaves.contains(String(leaf).lowercased())
+    }
+
     public static func title(forPath path: String) -> String {
         let parts = path.split(separator: ".").map(String.init)
         guard let leaf = parts.last else { return path }
+        // Before anything else: a Withings measure number is not a name, and
+        // widening it to "Measure 170" would not help either.
+        if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
+            return named
+        }
         guard genericLeaves.contains(leaf.lowercased()), parts.count >= 2 else {
             return humanised(leaf)
         }
@@ -129,6 +178,11 @@ public enum RawFieldPresentation {
         func render(_ path: String, _ levels: Int) -> String {
             var parts = path.split(separator: ".").map(String.init)
             guard let leaf = parts.last else { return path }
+            // A named Withings measure is already unique and already a name;
+            // widening it would produce "Measure visceral fat index".
+            if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
+                return named
+            }
             // Structural containers are dropped before anything counts levels,
             // so widening reaches the nearest component that names something.
             // The leaf itself is kept whatever it is — a field genuinely called

@@ -113,7 +113,7 @@ file having been brought along.
 | 3 | `scoreHistoryCard` | Score over time |
 | 4 | `periodContrastCard` | What changed |
 | 5 | `bespokeSection` | *(one `switch`, per card — see the matrix)* |
-| 6 | `secondaryBespokeSection` | *(untitled — the card supplies its own heading: "Medication", "How old does each thing think you are")* |
+| 6 | `secondaryBespokeSection` | *(untitled)* |
 | 7 | `contributorsCard` | What goes into this |
 | 8 | `weightedContributionCard` | How this is weighted |
 | 9 | `peerStandingSection` | How you compare |

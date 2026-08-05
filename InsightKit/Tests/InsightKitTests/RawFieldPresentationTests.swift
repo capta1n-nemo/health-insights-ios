@@ -187,4 +187,42 @@ final class RawFieldPresentationTests: XCTestCase {
         // The conversion still happens on the way through.
         XCTAssertEqual(RawFieldPresentation.formatted(4184, unit: "kJ"), "1000 kcal")
     }
+
+    // MARK: - Withings measure numbers (reader: "make sense of those obscure ones")
+
+    /// ⚠️ **Each name was checked against the reader's own values before being
+    /// written**, because a mapping copied out of documentation is a guess until
+    /// something confirms it. 226 reads 2318–2583, which is a basal metabolic
+    /// rate in kcal and nothing else; 227 reads 28–31, which is an age; 170
+    /// reads 4.5–5.5 unitless, which is a visceral-fat index.
+    func testWithingsMeasureNumbersBecomeNames() {
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "withings.measure.226"),
+                       "Basal metabolic rate")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "withings.measure.170"),
+                       "Visceral fat index")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "withings.measure.227"),
+                       "Metabolic age")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "withings.measure.8"),
+                       "Fat mass")
+        // And a named measure survives collision widening intact — "Measure
+        // visceral fat index" would be worse than the number.
+        let titles = RawFieldPresentation.titles(for: ["withings.measure.170",
+                                                       "withings.measure.226"])
+        XCTAssertEqual(titles["withings.measure.170"], "Visceral fat index")
+    }
+
+    /// ⚠️ **Four Withings fields are not measurements at all** — how the reading
+    /// was taken rather than what it says, and two of them are constant across
+    /// every row the reader has. Listing a constant 1 as a data point is noise.
+    func testRecordingDetailsAreNotMistakenForMeasurements() {
+        for identifier in ["withings.measure.attrib", "withings.measure.category",
+                           "withings.measure.model", "withings.measure.modelid",
+                           "oura.sleep.sleep_algorithm_version"] {
+            XCTAssertTrue(RawFieldPresentation.isRecordingDetail(identifier), identifier)
+        }
+        for identifier in ["withings.measure.226", "oura.sleep.average_hrv",
+                           "HKQuantityTypeIdentifierStepCount"] {
+            XCTAssertFalse(RawFieldPresentation.isRecordingDetail(identifier), identifier)
+        }
+    }
 }

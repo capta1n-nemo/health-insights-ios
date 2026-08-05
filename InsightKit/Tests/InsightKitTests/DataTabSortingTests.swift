@@ -155,4 +155,55 @@ final class DataTabSortingTests: XCTestCase {
                        "HKQuantityTypeIdentifier")
         XCTAssertEqual(TypeSightingLedger.prefix(of: "oura.daily_sleep.score"), "oura.")
     }
+
+    // MARK: - One taxonomy (both reported by the reader, 2026-08-05)
+
+    /// ⚠️ **"I see double up sections in the Data page.. like 2 nutrition
+    /// sections."** Two taxonomies drew their own headings — `MetricDataCategory`
+    /// for modelled metrics and `RawFieldGrouping` for raw ones — and both had a
+    /// Nutrition. A section heading is a statement about a subject; two headings
+    /// with one name is a bug whatever sits under them.
+    func testNoRawGroupCollidesWithACanonicalSectionName() {
+        let canonical = Set(MetricDataCategory.listed.map(\.rawValue))
+        for group in RawFieldGrouping.Group.allCases {
+            if canonical.contains(group.title) {
+                XCTAssertNotNil(group.canonicalCategory,
+                                "\(group.title) draws a second section with a name the metric list already uses")
+            }
+        }
+    }
+
+    /// Every group that claims a canonical home must name one that exists, and
+    /// every homeless group must genuinely have no equivalent — otherwise this
+    /// silently re-splits the taxonomy the first time somebody adds a case.
+    func testEveryGroupEitherHasACanonicalHomeOrHasAReasonNotTo() {
+        let homeless: Set<RawFieldGrouping.Group> = [
+            .hearing, .daylight, .mind, .environment, .activityScore, .unsorted,
+        ]
+        for group in RawFieldGrouping.Group.allCases {
+            XCTAssertEqual(group.canonicalCategory == nil, homeless.contains(group),
+                           "\(group) changed its mind about having a canonical home")
+        }
+    }
+
+    /// ⚠️ **"At the very bottom of the page I see a VO₂ Max data point from
+    /// Oura... why isn't that with the other VO₂ max?"** It matched no rule, so
+    /// it landed in "Not yet sorted" — the last section on the tab — while the
+    /// canonical `.vo2Max` it is already promoted into sat under Heart &
+    /// circulation. The bucket named for its own failure did its job.
+    func testOurasVO2MaxLandsWithTheOtherVO2Max() {
+        let group = RawFieldGrouping.group(for: "oura.vO2_max.vo2_max")
+        XCTAssertNotEqual(group, .unsorted)
+        XCTAssertEqual(group.canonicalCategory, MetricType.vo2Max.dataCategory,
+                       "the raw VO₂max is filed away from the modelled one")
+    }
+
+    /// The Withings measures the app has not promoted are filed by what they
+    /// measure rather than left in the bucket.
+    func testUnpromotedWithingsMeasuresAreFiledBySubject() {
+        for identifier in ["withings.measure.170", "withings.measure.226",
+                           "withings.measure.8", "withings.measure.attrib"] {
+            XCTAssertNotEqual(RawFieldGrouping.group(for: identifier), .unsorted, identifier)
+        }
+    }
 }

@@ -534,11 +534,11 @@ the place to look.
   - `RecoveryScale` :22
 - `DesignSystem/ScoreBalanceWeb.swift`
   - `ScoreBalanceWeb` :49
-  - `ScoreBalanceWebSkeleton` :432
-  - `WebPolygonShape` :334
-  - `WebReferenceTicksShape` :385
-  - `WebSpokesShape` :362
-  - `WebWedgeShape` :480
+  - `ScoreBalanceWebSkeleton` :499
+  - `WebPolygonShape` :401
+  - `WebReferenceTicksShape` :452
+  - `WebSpokesShape` :429
+  - `WebWedgeShape` :547
 - `DesignSystem/ScoreChangeChip.swift`
   - `ScoreChangeChip` :40
 - `DesignSystem/ScoreComparisonChart.swift`
@@ -580,7 +580,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :658
+  - `OtherDataDetailView` :725
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`

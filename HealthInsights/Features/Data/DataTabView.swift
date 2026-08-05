@@ -31,6 +31,10 @@ struct DataTabView: View {
         var id: String { title }
         let title: String
         let metrics: [MetricType]
+        /// Carried rather than reconstructed from `title`. A round trip through
+        /// the raw value works today and is a silent bug the day a title gains
+        /// a word — and this group is what raw fields are filed against.
+        let category: MetricDataCategory
     }
 
     /// Fixed category order; only metrics that actually have samples are shown.
@@ -40,15 +44,23 @@ struct DataTabView: View {
     /// metrics with data, absent from this screen because adding a `MetricType`
     /// and listing it here were two steps. Now a new connector's metric appears
     /// automatically once it declares a category, which the compiler forces.
-    private static let categories: [(String, [MetricType])] =
-        MetricDataCategory.listed.map { ($0.rawValue, MetricType.metrics(in: $0)) }
+    private static let categories: [(MetricDataCategory, [MetricType])] =
+        MetricDataCategory.listed.map { ($0, MetricType.metrics(in: $0)) }
 
+    /// ⚠️ **A category with only raw fields still gets a section.** Filing raw
+    /// fields into canonical sections would otherwise make them disappear
+    /// wherever the reader happens to have no modelled metric of that kind —
+    /// which is exactly the state the newest connectors arrive in, and exactly
+    /// the failure this whole change exists to fix.
     private var groups: [MetricGroup] {
         // Keyed off the cached summaries rather than remapping every sample.
         let present = model.vitalsSummaries
-        return Self.categories.compactMap { title, metrics in
+        let extras = rawFieldsByCategory
+        return Self.categories.compactMap { category, metrics in
             let available = metrics.filter { present[$0] != nil }
-            return available.isEmpty ? nil : MetricGroup(title: title, metrics: available)
+            guard !available.isEmpty || !(extras[category] ?? []).isEmpty else { return nil }
+            return MetricGroup(title: category.rawValue, metrics: available,
+                               category: category)
         }
     }
 
@@ -84,7 +96,8 @@ struct DataTabView: View {
         return groups.compactMap { group in
             if matches(group.title, DataDomain.metrics.title) { return group }
             let hits = group.metrics.filter { matches($0.displayName) }
-            return hits.isEmpty ? nil : MetricGroup(title: group.title, metrics: hits)
+            return hits.isEmpty ? nil : MetricGroup(title: group.title, metrics: hits,
+                                                    category: group.category)
         }
     }
 
@@ -283,7 +296,16 @@ struct DataTabView: View {
         }
     }
 
+    /// The modelled metrics, **plus the raw fields that measure the same
+    /// subject** — so there is one "Nutrition" and one home for a VO₂max
+    /// whoever sent it. See `rawFieldsByCategory` for what the reader reported.
+    ///
+    /// The raw ones come last within the section and are visibly quieter: they
+    /// are fields the app holds but does not yet model, and the modelled metric
+    /// is the one a reader should reach for first.
     @ViewBuilder private var metricSections: some View {
+        let extras = rawFieldsByCategory
+        let titles = fieldTitles
         ForEach(filteredGroups) { group in
             Section(group.title) {
                 ForEach(group.metrics, id: \.self) { metric in
@@ -292,6 +314,10 @@ struct DataTabView: View {
                     } label: {
                         row(for: metric)
                     }
+                }
+                ForEach(extras[group.category] ?? []) { field in
+                    rawFieldRow(field, titles: titles)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -497,17 +523,70 @@ struct DataTabView: View {
         return RawFieldPresentation.titles(for: dotted)
     }
 
+    private func fieldName(_ group: RawMetricGroup, titles: [String: String]) -> String {
+        // HealthKit identifiers have no dotted path, and their own display name
+        // is already the readable form.
+        titles[group.id] ?? group.displayName
+    }
+
+    /// Raw fields that belong **inside** a canonical metric section, keyed by it.
+    ///
+    /// ⚠️ **The reader reported two "Nutrition" headings** within an hour of the
+    /// grouped catalogue shipping, and *"a VO₂ Max data point from Oura at the
+    /// very bottom of the page"* away from the canonical one. Two taxonomies —
+    /// `MetricDataCategory` for modelled metrics and `RawFieldGrouping` for raw
+    /// ones — each drawing their own sections. A section heading is a statement
+    /// about a subject, so two headings with one name is a bug whatever sits
+    /// under them. `RawFieldGrouping.Group.canonicalCategory` decides; this just
+    /// files them.
+    private var rawFieldsByCategory: [MetricDataCategory: [RawMetricGroup]] {
+        let titles = fieldTitles
+        var out: [MetricDataCategory: [RawMetricGroup]] = [:]
+        for field in filteredOtherGroups {
+            guard let category = RawFieldGrouping.group(for: field.id).canonicalCategory
+            else { continue }
+            out[category, default: []].append(field)
+        }
+        return out.mapValues { $0.sorted { fieldName($0, titles: titles) < fieldName($1, titles: titles) } }
+    }
+
+    /// The groups with no canonical home, which keep sections of their own.
     private var fieldSections: [FieldSection] {
         let titles = fieldTitles
-        func name(_ group: RawMetricGroup) -> String {
-            // HealthKit identifiers have no dotted path, and their own display
-            // name is already the readable form.
-            titles[group.id] ?? group.displayName
+        let homeless = filteredOtherGroups.filter {
+            RawFieldGrouping.group(for: $0.id).canonicalCategory == nil
         }
-        return Dictionary(grouping: filteredOtherGroups) { RawFieldGrouping.group(for: $0.id) }
+        return Dictionary(grouping: homeless) { RawFieldGrouping.group(for: $0.id) }
             .sorted { $0.key < $1.key }
             .map { FieldSection(group: $0.key,
-                                fields: $0.value.sorted { name($0) < name($1) }) }
+                                fields: $0.value.sorted {
+                                    fieldName($0, titles: titles) < fieldName($1, titles: titles)
+                                }) }
+    }
+
+    /// One raw field's row, shared by both places it can appear.
+    @ViewBuilder private func rawFieldRow(_ field: RawMetricGroup,
+                                          titles: [String: String]) -> some View {
+        NavigationLink {
+            OtherDataDetailView(group: field)
+        } label: {
+            HStack {
+                Text(fieldName(field, titles: titles)).lineLimit(1)
+                // Not hidden — this tab is the app's answer to "what do you know
+                // about me" — but not dressed as a measurement either. Two of
+                // these are constant across every row the reader has.
+                if RawFieldPresentation.isRecordingDetail(field.id) {
+                    Text("how it was recorded")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                Spacer()
+                if let value = fieldValue(field) {
+                    Text(value)
+                        .foregroundStyle(.secondary).monospacedDigit()
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
+        }
     }
 
     /// The newest reading, in a unit a reader can read.
@@ -590,19 +669,7 @@ struct DataTabView: View {
         ForEach(sections) { section in
             Section {
                 ForEach(section.fields) { field in
-                    NavigationLink {
-                        OtherDataDetailView(group: field)
-                    } label: {
-                        HStack {
-                            Text(titles[field.id] ?? field.displayName).lineLimit(1)
-                            Spacer()
-                            if let value = fieldValue(field) {
-                                Text(value)
-                                    .foregroundStyle(.secondary).monospacedDigit()
-                                    .lineLimit(1).truncationMode(.tail)
-                            }
-                        }
-                    }
+                    rawFieldRow(field, titles: titles)
                 }
             } header: {
                 Text(section.group.title)
