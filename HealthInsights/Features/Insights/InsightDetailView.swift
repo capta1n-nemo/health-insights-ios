@@ -2192,33 +2192,51 @@ struct InsightDetailView: View {
 
     // Discreet, only-in-detail feedback loop: rate accuracy and (optionally)
     // enter the real value, which trains/refines the model over time.
+    //
+    // ⚠️ **Not gated on `primaryValue`** (backlog Q5, ungated 2026-08-06). It
+    // used to be, which meant a card in its empty state could not be rated —
+    // and *the cards most likely to be wrong are exactly the ones the reader
+    // could not tell you were wrong.* Nutrition and Metabolism have never
+    // scored, so neither had ever been rateable, from the day each shipped.
+    //
+    // An unscored card is still making a claim: it is saying "I have nothing
+    // from you, and here is what I need". That claim can be false — the reader
+    // may well be logging food somewhere this app is not reading — so the
+    // question changes with the state rather than the control disappearing.
     @ViewBuilder private func feedbackCard(_ result: InsightResult) -> some View {
-        if result.primaryValue != nil {
-            Card {
-                if feedbackGiven {
-                    Label("Thanks — this helps improve the model over time.",
-                          systemImage: "checkmark.circle.fill")
-                        .font(.caption).foregroundStyle(Theme.good)
-                } else {
-                    VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
-                        Text("Was this accurate?").font(.headline)
-                        HStack(spacing: 10) {
-                            Button {
-                                model.recordFeedback(insightID, accurate: true); feedbackGiven = true
-                            } label: { Label("Accurate", systemImage: "hand.thumbsup") }
-                            Button {
-                                model.recordFeedback(insightID, accurate: false); feedbackGiven = true
-                            } label: { Label("Not accurate", systemImage: "hand.thumbsdown") }
+        Card {
+            if feedbackGiven {
+                Label("Thanks — this helps improve the model over time.",
+                      systemImage: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(Theme.good)
+            } else {
+                VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+                    Text(result.primaryValue == nil
+                         ? "Is this right about you?"
+                         : "Was this accurate?")
+                        .font(.headline)
+                    HStack(spacing: 10) {
+                        Button {
+                            model.recordFeedback(insightID, accurate: true); feedbackGiven = true
+                        } label: {
+                            Label(result.primaryValue == nil ? "Yes" : "Accurate",
+                                  systemImage: "hand.thumbsup")
                         }
-                        .font(.caption).buttonStyle(.bordered)
+                        Button {
+                            model.recordFeedback(insightID, accurate: false); feedbackGiven = true
+                        } label: {
+                            Label(result.primaryValue == nil ? "No" : "Not accurate",
+                                  systemImage: "hand.thumbsdown")
+                        }
+                    }
+                    .font(.caption).buttonStyle(.bordered)
 
-                        if let kind = groundingPromptKind(result) {
-                            Button {
-                                groundingKind = kind
-                            } label: {
-                                Text("Have the real number? Enter it →")
-                                    .font(.caption).foregroundStyle(Theme.accent)
-                            }
+                    if let kind = groundingPromptKind(result) {
+                        Button {
+                            groundingKind = kind
+                        } label: {
+                            Text("Have the real number? Enter it →")
+                                .font(.caption).foregroundStyle(Theme.accent)
                         }
                     }
                 }

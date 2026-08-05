@@ -145,10 +145,12 @@ the place to look.
   - `MetricPattern` :16
   - `PatternFinder` :48
   - `PatternKind` :4
+- `Insights/MicronutrientEstimate.swift`
+  - `MicronutrientEstimate` :58
 - `Insights/MicronutrientTargets.swift`
   - `MicronutrientTargets` :22
 - `Insights/NutritionInsight.swift`
-  - `NutritionInsight` :283
+  - `NutritionInsight` :379
   - `NutritionModel` :19
 - `Insights/PeerStanding.swift`
   - `PeerStandingModel` :21

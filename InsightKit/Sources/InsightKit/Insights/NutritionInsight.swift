@@ -51,6 +51,28 @@ public enum NutritionModel {
         public let fatPercent: Double?
         public let contributions: [MetricContribution]
         public let drivers: [InsightDriver]
+        /// The eight vitamins and minerals, each either logged or modelled from
+        /// energy. Nil when neither sex nor age is known — which is what makes
+        /// this card's mandatory ask for both of them true rather than
+        /// aspirational (backlog Q4).
+        public let micronutrients: MicronutrientEstimate.Output?
+
+        public init(score: Double, loggedDays: Int, completeness: Double,
+                    means: [MetricType: Double], proteinPerKg: Double?,
+                    saturatedFatPercent: Double?, fatPercent: Double?,
+                    contributions: [MetricContribution], drivers: [InsightDriver],
+                    micronutrients: MicronutrientEstimate.Output? = nil) {
+            self.score = score
+            self.loggedDays = loggedDays
+            self.completeness = completeness
+            self.means = means
+            self.proteinPerKg = proteinPerKg
+            self.saturatedFatPercent = saturatedFatPercent
+            self.fatPercent = fatPercent
+            self.contributions = contributions
+            self.drivers = drivers
+            self.micronutrients = micronutrients
+        }
     }
 
     // MARK: - The curves
@@ -141,7 +163,7 @@ public enum NutritionModel {
         }
 
         var means: [MetricType: Double] = [:]
-        for metric in NutritionInsight.allNutritionMetrics {
+        for metric in NutritionInsight.allNutritionMetrics + MicronutrientTargets.targetable {
             if let value = mean(metric) { means[metric] = value }
         }
         let energy = energyDays.reduce(0, +) / Double(energyDays.count)
@@ -227,6 +249,41 @@ public enum NutritionModel {
                 driver: String(format: "Caffeine %.0f mg a day — EFSA calls up to 400 mg no safety concern for a healthy adult", caffeine))
         }
 
+        // MARK: The eight vitamins and minerals
+        //
+        // Backlog Q4. `MicronutrientTargets` has held published, sex-and-age
+        // resolved figures since it was written and nothing had ever called it,
+        // while this card made both facts *mandatory* on the stated grounds
+        // that the micronutrients could not be scored without them. Wiring it
+        // up is what makes that sentence true.
+        //
+        // ⚠️ **Only a logged nutrient votes.** An estimated one is modelled from
+        // calories and a population density — it is a fair answer to "what would
+        // an ordinary diet this size carry", and no answer at all to "what did
+        // *you* eat". Scoring it would let the reader's calorie count decide
+        // their vitamin score, which is a number pretending to be a measurement.
+        let micronutrients = MicronutrientEstimate.evaluate(
+            means: means, energy: energy, sex: profile.sex,
+            age: profile.age(asOf: now).map { Int($0) })
+
+        var estimatedRows: [MetricContribution] = []
+        if let micronutrients {
+            for row in micronutrients.rows {
+                let detail = MicronutrientEstimate.rowDetail(row)
+                guard !row.isEstimated else {
+                    estimatedRows.append(MetricContribution(
+                        metric: row.metric, higherIsBetter: nil, weight: 0,
+                        detail: detail + " — not scored, because a modelled intake cannot be evidence about you"))
+                    continue
+                }
+                add(row.metric, score: micronutrientScore(row.intake, target: row.target),
+                    weight: 0.02,
+                    higherIsBetter: row.standing == .aboveUpperLimit ? false : true,
+                    detail: detail,
+                    driver: "\(row.metric.displayName) \(detail). \(row.target.provenance)")
+            }
+        }
+
         guard !terms.isEmpty else { return nil }
         let totalWeight = terms.reduce(0.0) { $0 + $1.weight }
         let score = terms.reduce(0.0) { $0 + $1.score * $1.weight } / totalWeight
@@ -238,11 +295,50 @@ public enum NutritionModel {
                                weight: term.weight / totalWeight, detail: term.row.detail)
         }
         contributions += trackedNotScored(means: means, energy: energy)
+        contributions += estimatedRows
+
+        // The caveat travels with the rows, always, and leads them when every
+        // one of the eight is modelled — which is the state the reader is
+        // actually in today, with no micronutrient rows in their log at all.
+        if let micronutrients {
+            let caveat = MicronutrientEstimate.caveat(
+                estimatedCount: micronutrients.estimatedCount,
+                of: micronutrients.rows.count)
+            let short = micronutrients.flagged.filter { $0.standing == .below }
+            if short.isEmpty {
+                drivers.append(.routine("Vitamins and minerals: all \(micronutrients.rows.count) reach their published floor. \(caveat)"))
+            } else {
+                let names = short.map(\.metric.displayName).joined(separator: ", ")
+                drivers.append(InsightDriver(
+                    text: "Under the published figure: \(names). \(caveat)",
+                    isNotable: micronutrients.loggedCount > 0))
+            }
+            for row in micronutrients.rows where row.standing == .aboveUpperLimit {
+                drivers.append(.notable("\(row.metric.displayName) is over its tolerable upper intake — \(MicronutrientEstimate.rowDetail(row))"))
+            }
+        }
 
         return Output(score: score, loggedDays: energyDays.count, completeness: completeness,
                       means: means, proteinPerKg: proteinPerKg,
                       saturatedFatPercent: satFatPercent, fatPercent: fatPercent,
-                      contributions: contributions, drivers: drivers)
+                      contributions: contributions, drivers: drivers,
+                      micronutrients: micronutrients)
+    }
+
+    /// A logged micronutrient against its published figures.
+    ///
+    /// Two different quantities, and they are not the ends of one band: the
+    /// recommended intake is a floor, the tolerable upper intake comes from a
+    /// separate body of evidence about harm. So over the ceiling scores *down*,
+    /// and there is no reward for being far above the floor — the evidence for
+    /// "more is better" above an RDA does not exist for any of these eight.
+    public static func micronutrientScore(_ intake: Double,
+                                          target: MicronutrientTargets.Target) -> Double {
+        if let ceiling = target.upperLimit, intake > ceiling {
+            return ScoreCurve.through([(1.0, 60), (1.5, 35), (3.0, 20)], at: intake / ceiling)
+        }
+        return ScoreCurve.through([(0, 20), (0.5, 50), (1.0, 95), (1.3, 100)],
+                                  at: intake / target.recommended)
     }
 
     /// The three rows this card draws and refuses to score, each for its own
@@ -294,7 +390,12 @@ public struct NutritionInsight: InsightModel {
         .dietaryWater, .dietaryCaffeine
     ]
 
-    public var candidateMetrics: [MetricType] { [.dietaryEnergy] + Self.allNutritionMetrics }
+    /// Declared inputs, which is also what the detail screen lists back to the
+    /// reader. The eight micronutrients are genuinely inputs now (backlog Q4) —
+    /// they were readable from HealthKit all along and read by nothing.
+    public var candidateMetrics: [MetricType] {
+        [.dietaryEnergy] + Self.allNutritionMetrics + MicronutrientTargets.targetable
+    }
 
     /// Sex changes the water figure by a quarter, and nothing else here. Not
     /// mandatory: without it the card scores everything else and the water row
@@ -312,6 +413,14 @@ public struct NutritionInsight: InsightModel {
     /// `isMandatory` is what carries this to the reader — it is what makes the
     /// setup flow insist rather than offer, and what puts the ask on the front
     /// page when it is still missing.
+    ///
+    /// ⚠️ **This rationale was untrue from the day it shipped until 2026-08-06.**
+    /// It demanded both facts *because* the eleven micronutrients could not be
+    /// scored without them, and then scored none of them —
+    /// `MicronutrientTargets` was dead code. `MicronutrientEstimate` closes it,
+    /// and the ask is now paid for. **An ask whose stated reason does not
+    /// happen is the worst kind of ask**: the reader hands over a fact about
+    /// their body and gets nothing back, and has no way to know.
     public var requirements: [GroundingRequirement] {
         [.init(kind: .biologicalSex, isMandatory: true,
                rationale: "Every published vitamin and mineral figure differs by sex — iron alone is 18 mg a day against 8. Without it none of them can be scored."),

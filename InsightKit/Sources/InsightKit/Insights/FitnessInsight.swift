@@ -153,6 +153,26 @@ public struct FitnessInsight: InsightModel {
                          Self.agePhrase(fitnessAge, chronologicalAge: age)),
             isNotable: (fitnessAge.yearsYounger ?? 0) < 0))
 
+        // The width of that answer, on its own line, immediately after it
+        // (backlog Q3). The reader said the point figure "doesn't seem right",
+        // and it is not wrong so much as far narrower than the evidence
+        // supports: the norm line falls ~0.4 mL/kg·min a year, so the wrist
+        // estimate's own ±3.5 is roughly ±9 years before anything else.
+        // Printing 68 alone claims a precision this input does not have.
+        if let range = fitnessAge.ageRange, (fitnessAge.rangeWidth ?? 0) >= 2 {
+            drivers.append(.routine(String(
+                format: "That figure is worth %.0f–%.0f — a wrist VO₂max carries about ±%.1f, and this norm line only falls %.1f a year, so a small error in the reading is a big one in the age",
+                range.lowerBound.rounded(), range.upperBound.rounded(),
+                AgeComparison.vo2EstimateError,
+                abs(FitnessAgeModel.referenceVO2(age: age + 0.5, sex: sex)
+                    - FitnessAgeModel.referenceVO2(age: age - 0.5, sex: sex)))))
+        }
+        if fitnessAge.isExtrapolated {
+            drivers.append(.routine(String(
+                format: "⚠️ Below VO₂max %.0f the reference line is the table's last slope carried onward, not a measured norm — the age is an extrapolation",
+                FitnessAgeModel.anchors(for: sex).last?.vo2 ?? 0)))
+        }
+
         if let trajectory {
             drivers.append(InsightDriver(
                 text: String(format: "%@ — net of ageing, %@%.1f a year",
