@@ -154,7 +154,19 @@ public enum SustainedLoadModel {
 /// The card.
 public struct SustainedLoadInsight: InsightModel {
     public let id: InsightID = .sustainedLoad
-    public let title = "Sustained load"
+    /// ⚠️ **"Stress" is in the name, and an earlier version's omission of it was
+    /// a real failure.** The reader asked for a stress card on 2026-08-03. It
+    /// shipped as "Sustained load" because the model genuinely cannot tell
+    /// stress from illness, alcohol, heat or hard training — sound reasoning
+    /// about the *measurement*, and a poor decision about the *product*: they
+    /// then asked three separate times where their stress card was, while it sat
+    /// twelfth on the Insights tab under a word they would never scroll for.
+    ///
+    /// The honesty lives where it belongs — in the caveat driver every rendering
+    /// carries, which says in as many words that this cannot tell stress from
+    /// the other four things. A name has one job, which is to be findable by the
+    /// person who asked for it.
+    public let title = "Stress load"
 
     public init() {}
 

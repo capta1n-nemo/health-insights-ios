@@ -322,7 +322,7 @@ public extension InsightID {
         case .sleep: return "Sleep"
         case .energy: return "Energy"
         case .substanceImpact: return "Substances"
-        case .sustainedLoad: return "Load"
+        case .sustainedLoad: return "Stress"
         case .gait: return "Walking"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"

@@ -129,4 +129,16 @@ final class SustainedLoadTests: XCTestCase {
         XCTAssertGreaterThan(SustainedLoadModel.score(load: 0),
                              SustainedLoadModel.score(load: 2))
     }
+
+    /// ⚠️ **The reader asked for a "stress card" and then asked three more times
+    /// where it was**, because it shipped titled "Sustained load" and sat
+    /// twelfth on a tab under a word they would never scroll for. The model's
+    /// honesty about what it cannot distinguish belongs in the caveat driver —
+    /// which `testItNamesWhatItCannotTellApart` pins — not in a name that makes
+    /// the card unfindable to the person who requested it.
+    func testTheCardIsFindableByTheWordTheReaderAskedFor() {
+        XCTAssertTrue(SustainedLoadInsight().title.lowercased().contains("stress"),
+                      "the stress card is not findable by searching for stress")
+        XCTAssertEqual(InsightID.sustainedLoad.shortTitle, "Stress")
+    }
 }
