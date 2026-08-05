@@ -74,10 +74,15 @@ final class VitalSignsTests: XCTestCase {
                                               .oxygenSaturation, .bodyTemperature]))
     }
 
+    /// "Building baseline" until 2026-08-05 — a process that is not happening
+    /// when there are no samples at all. With nothing connected the ask is to
+    /// connect something; "Building baseline" survives for a thin-but-real
+    /// history (`StaleSyncDayTests`).
     func testNoDataProducesAGracefulResult() {
         let result = ReadinessInsight().evaluate(samples: [], profile: UserHealthProfile(), now: vitalsNow)
         XCTAssertNil(result.primaryValue)
-        XCTAssertEqual(result.headline, "Building baseline")
+        XCTAssertEqual(result.headline, "Connect a wearable")
+        XCTAssertTrue(result.isWorthShowing)
     }
 
     // MARK: - Driver lines

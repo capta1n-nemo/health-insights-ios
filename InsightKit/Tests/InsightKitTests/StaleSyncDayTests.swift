@@ -38,12 +38,36 @@ final class StaleSyncDayTests: XCTestCase {
         XCTAssertTrue(result.explanation.contains("2 days ago"), result.explanation)
     }
 
-    func testAFreshInstallStillSaysBuildingBaselineAndStaysUnlisted() {
+    /// **The listing rule changed on 2026-08-05**, at the reader's instruction:
+    /// *"every card should show, even if it hasn't got data yet."* This test
+    /// used to assert the opposite — that a fresh install leaves Readiness
+    /// unlisted — on the reasoning that a card with nothing to do should not
+    /// take up space. That conceded the wrong half: the problem with a dead
+    /// card is that it is dead, not that it is there.
+    ///
+    /// It also said "Building baseline" to someone with **no samples at all**,
+    /// which describes a process that is not happening. A reader who has
+    /// connected nothing is told to connect something.
+    func testAFreshInstallAsksForAWearableAndStaysOnTheTab() {
         let result = ReadinessInsight().evaluate(samples: [], profile: .init(), now: Date())
+        XCTAssertEqual(result.headline, "Connect a wearable")
+        XCTAssertFalse(result.isAwaitingTodaysData,
+                       "nothing has ever synced, so there is no sync to wait for")
+        XCTAssertTrue(result.isWorthShowing,
+                      "a card that cannot appear cannot explain what the app needs")
+    }
+
+    /// The distinction the fresh-install case rests on: with *some* nights but
+    /// too few to score, "Building baseline" is the true sentence and must
+    /// survive. Collapsing the two states is what made the empty copy wrong at
+    /// one end or the other.
+    func testAThinHistoryStillSaysBuildingBaseline() {
+        let now = Date()
+        let result = ReadinessInsight().evaluate(
+            samples: daily(.sleepDurationHours, 7.2, daysAgo: 20...22, now: now),
+            profile: .init(), now: now)
         XCTAssertEqual(result.headline, "Building baseline")
-        XCTAssertFalse(result.isAwaitingTodaysData)
-        XCTAssertFalse(result.isWorthShowing,
-                       "no history and nothing to do — the original listing rule holds")
+        XCTAssertTrue(result.isWorthShowing)
     }
 
     // MARK: Energy
@@ -62,12 +86,16 @@ final class StaleSyncDayTests: XCTestCase {
         XCTAssertTrue(result.explanation.contains("hasn't synced"), result.explanation)
     }
 
-    func testEnergyWithNoNightsEverKeepsTheOriginalEmptyState() {
+    /// Same rule change as the Readiness case above. "No night yet" named the
+    /// gap; "Connect a sleep source" says what to do about it — and the card
+    /// now stays on Today to say it.
+    func testEnergyWithNoNightsEverAsksForASourceAndStaysOnTheTab() {
         let now = Date()
         let samples = daily(.heartRate, 70, daysAgo: 0...5, now: now)
         let result = EnergyInsight().evaluate(samples: samples, profile: .init(), now: now)
-        XCTAssertEqual(result.headline, "No night yet")
-        XCTAssertFalse(result.isAwaitingTodaysData)
-        XCTAssertFalse(result.isWorthShowing)
+        XCTAssertEqual(result.headline, "Connect a sleep source")
+        XCTAssertFalse(result.isAwaitingTodaysData,
+                       "no night has ever arrived, so there is no sync to wait for")
+        XCTAssertTrue(result.isWorthShowing)
     }
 }

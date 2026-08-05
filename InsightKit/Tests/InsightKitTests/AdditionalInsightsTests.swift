@@ -25,10 +25,15 @@ final class AdditionalInsightsTests: XCTestCase {
         XCTAssertGreaterThan(r.score ?? 0, 70)
     }
 
-    func testSleepQualityNoDataIsGraceful() {
+    /// "Graceful" used to mean "No data yet", which is a statement of the gap
+    /// and not an ask — and the row renders the headline, so that was the whole
+    /// of what a new reader was told. The reader's rule, 2026-08-05: every card
+    /// shows even with no data, so every empty card has to say what it wants.
+    func testSleepQualityWithNoDataAsksForASource() {
         let r = SleepInsight().evaluate(samples: [], profile: .init(), now: Date())
         XCTAssertNil(r.primaryValue)
-        XCTAssertEqual(r.headline, "No data yet")
+        XCTAssertEqual(r.headline, "Connect a sleep source")
+        XCTAssertTrue(r.isWorthShowing, "the card must stay on the tab to ask")
     }
 
     func testCardioFitnessLevelAndTrend() {

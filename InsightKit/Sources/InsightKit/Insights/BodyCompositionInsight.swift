@@ -51,7 +51,10 @@ public struct BodyCompositionInsight: InsightModel {
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult {
         let weightSeries = samples.samples(of: .bodyMass)
         guard let weight = weightSeries.last?.value else {
-            return notReady(id, title, "Connect a scale (Withings) or Apple Health to track weight, BMI and body fat.")
+            return invitingInput(
+                id, title,
+                action: "Connect a scale",
+                message: "Connect a scale (Withings) or Apple Health to track weight, BMI and body fat.")
         }
         let height = samples.latestValue(.height)
         // Measurements are context; a direction that isn't the good one, and the

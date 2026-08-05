@@ -13,11 +13,19 @@ import Foundation
 /// there is no route to offer. **If there is a route, use `invitingInput`
 /// instead** — `isWorthShowing` will keep this card off the tab anyway, since a
 /// card with no number and no ask has not earned the space.
-func notReady(_ id: InsightID, _ title: String, _ message: String) -> InsightResult {
-    InsightResult(id: id, title: title, primaryValue: nil, headline: "No data yet",
-                  score: nil, confidence: .low, explanation: message,
-                  drivers: [], unmetRequirements: [], invitesInput: false)
-}
+// `notReady` is deleted, not deprecated. It built the one thing a card must
+// never be: visible with a headline of "No data yet" and `invitesInput: false`,
+// which is both a dead end and — because `isWorthShowing` reads that flag — an
+// invisible one. Its two callers (Sleep, Body Composition) each already carried
+// a perfectly good sentence about what to connect; they just passed it as the
+// *explanation*, and the row renders the headline. They use `invitingInput`
+// below, whose `action` argument has no default.
+//
+// The reader's rule, 2026-08-05: "every card should show, even if it hasn't got
+// data yet." Deleting the only constructor that could produce a card with
+// nothing to say is what makes that rule hold by construction rather than by
+// review. `CardVisibilityTests` asserts both halves — every card visible, and no
+// card leading with a dead end.
 
 /// A card that cannot score yet but *can* tell the reader what would fix that.
 ///

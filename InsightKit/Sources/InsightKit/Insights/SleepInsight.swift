@@ -104,7 +104,10 @@ public struct SleepInsight: InsightModel {
         // zero: the spread it measured was fragmentation, not sleep.
         guard let sleepReading = VitalReader.reading(.sleepDurationHours, from: samples,
                                                      now: now, freshWithin: 36 * 3600) else {
-            return notReady(id, title, "Connect a sleep source (Oura, Whoop or Apple Health) to see your sleep quality.")
+            return invitingInput(
+                id, title,
+                action: "Connect a sleep source",
+                message: "Connect a sleep source (Oura, Whoop or Apple Health) to see your sleep quality.")
         }
         let lastNight = sleepReading.value
         let durationScore = Self.durationScore(lastNight)

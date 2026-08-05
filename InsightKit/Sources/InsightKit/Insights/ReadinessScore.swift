@@ -369,7 +369,14 @@ public struct ReadinessInsight: InsightModel {
                 + (base.driverLines + extra).filter { $0.isNotable != true },
             unmetRequirements: base.unmetRequirements, contributors: contributors,
             weighting: base.weighting,
-            isAwaitingTodaysData: base.isAwaitingTodaysData)
+            isAwaitingTodaysData: base.isAwaitingTodaysData,
+            // Forwarded like every other field from `base`, and it was the one
+            // that got missed — `score(_:)` set `invitesInput` and this rebuild
+            // silently dropped it, so the card asked for a wearable and was
+            // filtered off Today anyway. A wrapper that reconstructs a value
+            // field-by-field will lose the next field added to it too; the
+            // visibility sweep in `CardVisibilityTests` is what catches that.
+            invitesInput: base.invitesInput)
     }
 
     /// The readiness score proper. Split out so the merged `evaluate` above
@@ -410,11 +417,18 @@ public struct ReadinessInsight: InsightModel {
                         isAwaitingTodaysData: true)
                 }
             }
-            return InsightResult(
-                id: id, title: title, primaryValue: nil, headline: "Building baseline",
-                score: nil, confidence: .low,
-                explanation: "Wear your device for a few nights so we can learn your normal HRV, resting heart rate and sleep — then you'll get a daily readiness score. Readings older than a day or so don't count: readiness is about today.",
-                drivers: [], unmetRequirements: [])
+            // Two different states, and they want two different sentences. A
+            // reader with *some* nights is being told to keep going; a reader
+            // with none has nothing connected and is being told to connect it.
+            // Collapsing them reads as "still building" to someone who has
+            // never given the app anything, which is not an ask.
+            let hasAnyReadings = !recorded.isEmpty
+            return invitingInput(
+                id, title,
+                action: hasAnyReadings ? "Building baseline" : "Connect a wearable",
+                message: hasAnyReadings
+                    ? "Wear your device for a few nights so we can learn your normal HRV, resting heart rate and sleep — then you'll get a daily readiness score. Readings older than a day or so don't count: readiness is about today."
+                    : "Connect a wearable (Oura, Whoop or Apple Health) and wear it for a few nights. Readiness compares last night against your own normal HRV, resting heart rate and sleep, so it needs a few of your own nights before it can say anything.")
         }
         let confidence: InsightConfidence = out.components.count >= 3 ? .high
             : out.components.count == 2 ? .moderate : .low

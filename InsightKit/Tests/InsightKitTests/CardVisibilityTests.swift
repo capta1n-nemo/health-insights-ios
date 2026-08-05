@@ -20,6 +20,36 @@ final class CardVisibilityTests: XCTestCase {
         }
     }
 
+    /// **Every card, always — the reader's rule, 2026-08-05:** *"every card
+    /// should show, even if it hasn't got data yet."*
+    ///
+    /// The old rule kept a numberless card off the tab unless it had something
+    /// to ask for, on the reasoning that a fresh install would otherwise carry
+    /// up to seven dead cards. That reasoning conceded the wrong half: the
+    /// problem with a dead card is that it is *dead*, not that it is *there*. A
+    /// card that says "connect a wearable and this will score your readiness"
+    /// is the app explaining itself to someone who has just installed it.
+    ///
+    /// So visibility is now unconditional, and the burden moves to the empty
+    /// state — which is what the paired test below holds.
+    func testEveryCardStaysOnScreenEvenWithNothingAtAll() {
+        let hidden = emptyResults().filter { !$0.isWorthShowing }.map(\.id)
+        XCTAssertEqual(hidden, [],
+                       "these cards vanish on a fresh install, so they can never explain themselves")
+    }
+
+    /// The other half, and the one that does the work: a card visible with no
+    /// data must lead with something the reader can act on. Found on 2026-08-04
+    /// — Nutrition and Metabolism were put back on the tab and both then read
+    /// "No data yet", which is visible and still a dead end.
+    func testNoCardLeadsWithADeadEnd() {
+        let deadEnds = ["No data yet", "Not enough data", "No data", ""]
+        for result in emptyResults() {
+            XCTAssertFalse(deadEnds.contains(result.headline),
+                           "\(result.id) is on the tab with headline \"\(result.headline)\" — the row shows the headline, so this reader has been told nothing they can act on")
+        }
+    }
+
     func testCardsWaitingForAnInputStayOnScreenToAskForIt() throws {
         let results = emptyResults()
         // `.substanceImpact` joined on 2026-08-05, found by the reader on the
@@ -37,33 +67,26 @@ final class CardVisibilityTests: XCTestCase {
         }
     }
 
-    /// The flag is not a way to make every card permanent: a card with nothing
-    /// to ask for and nothing to show still stays off the tab.
+    /// **This test used to assert a closed set, and that is how it pinned a live
+    /// defect for two days.** It read
+    /// `XCTAssertEqual(Set(noisy), [.nutrition, .metabolism, .symptomRadar])` —
+    /// so the guard written to stop cards shipping invisible *required*
+    /// Substance Impact to be one of them. The list had been populated from what
+    /// the build happened to do rather than from the rule it exists to enforce.
     ///
-    /// ⚠️ **A closed set is the right shape and it is also how this test pinned
-    /// a live defect for two days.** Substance Impact was absent from the list
-    /// below, so the assertion did not merely fail to catch the card being
-    /// invisible — it *required* it. When adding a card here, the question to
-    /// answer is "is there something the reader could hand this card right
-    /// now", not "does the current build put it in this set".
-    func testTheFlagIsNotSetOnCardsWithNothingToAskFor() {
-        let noisy = emptyResults().filter { $0.invitesInput }.map(\.id)
-        // The radar joined the list on 2026-08-04: with no data at all its ask
-        // is real — wear the watch — and a card that cannot ask ships invisible.
-        // `.substanceImpact` joined on 2026-08-05; its ask is the log itself.
-        XCTAssertEqual(Set(noisy), [.nutrition, .metabolism, .symptomRadar, .substanceImpact],
-                       "only the cards waiting on a reader-supplied log should invite input")
-    }
-
-    /// Every card that invites input must also offer a **route** to give it,
-    /// which is the difference between asking and nagging. Substance Impact
-    /// declares `ContributionRoute.substanceLog`; the defect that hid it was
-    /// that the reader could never reach the ask in the first place.
-    func testAnInvitingCardOffersARouteToActuallyGiveIt() {
-        let inviting = Set(emptyResults().filter(\.invitesInput).map(\.id))
-        for model in InsightEngine().models where inviting.contains(model.id) {
-            XCTAssertFalse(model.contributions.isEmpty && model.requirements.isEmpty,
-                           "\(model.id) invites input but declares no contribution route and no requirement, so there is nothing for the card to open")
+    /// The replacement asserts the rule directly and in the direction that can
+    /// still fail usefully: a card that **has** a number is not asking for
+    /// anything, so it must not claim to be. Under the reader's 2026-08-05 rule
+    /// the other direction — which empty cards invite input — is now "all of
+    /// them", and `testEveryCardStaysOnScreenEvenWithNothingAtAll` holds it.
+    func testACardWithANumberIsNotAskingForAnything() {
+        let scored = InsightEngine().models.map {
+            $0.evaluate(samples: SyntheticSeed.samples(days: 120, endingOn: TestClock.now),
+                        profile: UserHealthProfile(), now: TestClock.now)
+        }
+        for result in scored where result.primaryValue != nil {
+            XCTAssertFalse(result.invitesInput,
+                           "\(result.id) has a value and still invites input, so it will nag a reader who has already given it what it needs")
         }
     }
 

@@ -425,11 +425,16 @@ public struct EnergyInsight: InsightModel {
                     drivers: [], unmetRequirements: [],
                     isAwaitingTodaysData: true)
             }
-            return InsightResult(
-                id: id, title: title, primaryValue: nil, headline: "No night yet",
-                score: nil, confidence: .low,
-                explanation: "Energy is charged by sleep and spent through the day. Record a night with Apple Health or a wearable and this starts tracking what you have left.",
-                drivers: [], unmetRequirements: [])
+            // "No night yet" was a statement of the gap rather than an ask, and
+            // it was also wrong for the second case below: a reader whose ring
+            // stopped syncing a fortnight ago has plenty of nights, just none
+            // recent enough. Two states, two sentences.
+            return invitingInput(
+                id, title,
+                action: nights.isEmpty ? "Connect a sleep source" : "Record a night",
+                message: nights.isEmpty
+                    ? "Energy is charged by sleep and spent through the day. Connect Apple Health or a wearable and record a night, and this starts tracking what you have left."
+                    : "Energy is charged by the night behind it, and your most recent night is more than a few days old. Record a night and this picks up again.")
         }
 
         var drivers: [InsightDriver] = []

@@ -94,7 +94,11 @@ final class EnergyModelTests: XCTestCase {
                                           now: cardNow, calendar: cardCalendar))
         let result = EnergyInsight().evaluate(samples: [], profile: .init(), now: cardNow)
         XCTAssertNil(result.score)
-        XCTAssertEqual(result.headline, "No night yet")
+        // Was "No night yet" — the gap named rather than the ask made, and
+        // wrong besides for the reader whose ring stopped syncing a fortnight
+        // ago, who has plenty of nights and none recent. Two states now.
+        XCTAssertEqual(result.headline, "Connect a sleep source")
+        XCTAssertTrue(result.isWorthShowing, "the card must stay on Today to ask")
     }
 
     /// It's a model, not a measurement, and must never claim otherwise.
