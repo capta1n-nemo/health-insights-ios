@@ -138,9 +138,16 @@ public extension Array where Element == HealthMetricSample {
     /// Inside an evaluation pass the result is memoised; everywhere else this is
     /// exactly what it always was.
     func samples(of type: MetricType) -> [HealthMetricSample] {
-        let compute = { filter { $0.type == type }.sorted { $0.start < $1.start } }
-        guard let memo = MultiSource.memo, memo.covers(self) else { return compute() }
-        return memo.samples(of: type, compute: compute)
+        guard let memo = MultiSource.memo, memo.covers(self) else {
+            return filter { $0.type == type }.sorted { $0.start < $1.start }
+        }
+        // The sort stays per-metric and memoised; only the *selection* moves to
+        // the memo's one grouping pass. Scanning all 237k readings to find the
+        // six of some rare type cost 28.8 ms whichever type it was, because the
+        // cost was the scan.
+        return memo.samples(of: type) {
+            memo.ofType(type).sorted { $0.start < $1.start }
+        }
     }
 
     /// Most recent sample of a type, if any.

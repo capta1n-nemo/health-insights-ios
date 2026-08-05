@@ -213,7 +213,7 @@ the place to look.
   - `MetricValueFormatter` :10
 - `Models/MultiSource.swift`
   - `EvaluationMemo` :220
-  - `MultiSource` :278
+  - `MultiSource` :314
   - `MultiSourceBreakdown` :101
   - `SourceActivity` :73
   - `SourceSeries` :5
