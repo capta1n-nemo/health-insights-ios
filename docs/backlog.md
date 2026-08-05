@@ -14,6 +14,26 @@ commit. Deleting a row is how a backlog starts lying.
 
 ## 0. Start here next session
 
+⚠️ **2026-08-06, second message: the reader answered all 24 open questions and
+reversed 11 of the 12 refusals in one go.** §A is now a specification rather than
+a blocker, and §B5 is now a build list. **Read §A and §B5 before N1–N3 below** —
+they were written when a dozen things were still "no".
+
+**The build order the answers imply**, most-wanted first, by how hard the reader
+pushed:
+
+| | Item | Where |
+|---|---|---|
+| 1 | **Own-brand biological age** — *"the entire point of the app"* | §B5 #29 |
+| 2 | **Cuffless BP, given properly** — the estimator already exists | §B5 #28 |
+| 3 | **Mental health card** | §B5 #27 |
+| 4 | **The cycle tab** — for the reader's wife, against Oura's paid feature | §B5 #31, §A3 |
+| 5 | **Score decomposition inside the insight-web deep dive** | §B5 #38, S2 |
+| 6 | Fitness sections: intensity (feeding the score), steps/distance/flights | §B5 #34–35 |
+| 7 | Sound exposure · sleep apnoea · radar accuracy | §B5 #30, #33, #36 |
+| 8 | Notifications · delete-everything · export gaps · calendar | Q10–Q13, I1 |
+| 9 | Capture for the six zero-row domains | §B5 #37 |
+
 **N1 — Stress, done properly. The reader's instruction, 2026-08-06:** *"I want to
 rename it to stress, and research how Oura ring do this, because they track
 stress, but lets do it better because we have more data."*
@@ -72,62 +92,78 @@ remembered. Five cards have none today.
 
 ---
 
-## A. Every open question
+## A. Every open question — ✅ ALL 24 ANSWERED 2026-08-06
 
-**These are the only things blocking work. Nothing else needs an answer.**
+**The reader answered every one in a single message. Nothing in §A blocks work any
+more; every row below is now a specification. Where the reader asked a question
+back, my answer is recorded beside theirs — that exchange is the decision and
+must not be re-opened.**
+
+⚠️ **The framing that governs all of it, in the reader's own words:**
+
+> *"I want to derive new insights from the data people already have. I am not
+> just looking to copy — I want to be ground breaking and unique, we are going to
+> do stuff that others will not do. I do not care about compliance at this point,
+> it's my personal project for now."*
+
+**So the compliance/clearance objection is retired as a reason to refuse a
+feature.** It stays as a reason to *word* a feature carefully — the app still
+never dresses modelled as measured (rule 3 in `architecture.md`), and it still
+states its own error. What it no longer does is decline to compute something
+because a regulator would want a trial first. This is one person's private
+project. If that changes — distribution, an App Store listing, a second user —
+**§B5's original reasons all come back**, which is why they are preserved below
+rather than deleted.
 
 ### A1 — Decisions on things already built
 
-| # | Question | What changes |
+| # | Question | ✅ Decision |
 |---|---|---|
-| Q1 | **Substance card at 4 episodes.** Ship the honest version — per-episode deltas, the alternative explanation on each row, no score, "nothing has happened the same way often enough to tell it from an ordinary run" — or wait for more exposures? | Independent review refuted the confirmation design on your own record: heart rate's apparent effect falls from 0.91 to **0.03** once same-day steps are in the model; the permutation null is ~2× anti-conservative; and the finding set flips on the day boundary (3 confirmations at UTC+8, 0 at UTC−5) |
-| Q2 | **Blood Pressure card shows two ± and two cuff ages on one screen** ("±14, fitted to 23 readings" beside "the ±13 it is judged on"; "over a day old" beside "2 days ago"). Show one ± and say which, or say the fit has moved since that reading was graded? | Both are defensible alone; together they read as a contradiction. I'd pick the first |
-| Q3 | **Fitness-age anchor.** Does your VO₂max of 30 reading as a **68-year-old's fitness** seem right? | The norm table's lowest anchor is VO₂ 32 at age 65; below ~36 it is extrapolation. It is shared with `HeartHealthScore.vo2Score`, so a floor moves **two cards** and also moves the fitness age's stated ±9 |
-| Q4 | **Micronutrients.** Score the eleven now, or leave until the supplement work? | ⚠️ **The Nutrition card currently makes sex and date-of-birth MANDATORY**, with the stated reason "without it none of them can be scored" — and then scores none of them. `MicronutrientTargets` is built, tested, and called by nothing. **That rationale is untrue today.** Either wire it or drop the mandatory ask |
-| Q5 | **Feedback control** is gated on `primaryValue != nil`, so Nutrition and Metabolism in their empty states **cannot be rated** — the cards most likely to be wrong are the ones you cannot tell are wrong. Ungate? | One line |
+| Q1 | Substance card at 4 episodes: honest version or wait? | **Ship the honest version.** Per-episode deltas, the named alternative explanation beside each row, no score, and the sentence "nothing has happened the same way often enough to tell it from an ordinary run" |
+| Q2 | BP card shows two ± and two cuff ages on one screen | Reader asked *"what do you mean?"* — fair, the row was written for someone looking at the screen. **What it means:** the card prints "±14, fitted to 23 readings" in one place and "the ±13 it is judged on" a few inches below, and "over a day old" beside "2 days ago", so it contradicts itself twice on one screen. **Decision (mine, stated so it is not re-asked): show one ± — the one the estimate is actually judged on — and one cuff age.** The other becomes a line in the detail sheet |
+| Q3 | Fitness age: VO₂ 30 → a 68-year-old's fitness. Right? | **"Honestly doesn't seem right."** Confirmed. Below VO₂ ~36 the norm table is extrapolation off its lowest anchor (32 at 65). **Floor the extrapolation and widen the stated ±.** Moves `FitnessInsight` *and* `HeartHealthScore.vo2Score` |
+| Q4 | Micronutrients: score now or wait? | **Estimate now, state the limitation, name the data that would sharpen it.** Wires `MicronutrientTargets`, which is currently dead code, and makes the Nutrition card's mandatory sex/DOB ask true instead of false |
+| Q5 | Feedback gated so Nutrition/Metabolism cannot be rated | **Ungate.** One line |
 
 ### A2 — Decisions on things not yet started
 
-| # | Question | What changes |
+| # | Question | ✅ Decision |
 |---|---|---|
-| Q6 | **Location permission / event-confirmation feed (#32).** You approved the permission in principle. Build the feed first then the prompt, or both together? | I declined to build a privacy prompt for a feature that didn't exist. It still doesn't |
-| Q7 | **Bloods.** Manual entry, or PDF/OCR import? | The risk card computes SCORE2/ASCVD **assuming** your cholesterol right now, and you cannot see what it assumed. Neither total nor HDL exists in the 45 canonical metrics or the 158 raw identifiers |
-| Q8 | **Supplements.** Worth a one-time capture form against published upper limits? | NIH's label database has 200,000+ products behind a free API. Every food tracker treats a supplement as a food with a calorie count, which is backwards |
-| Q9 | **Mental health.** Build the computes-nothing Mind section in the Data tab? | Full research says do not build a card — see §E. The section holds what you write, shows it back, computes nothing |
-| Q10 | **Export gaps (#40).** Build them? | Missing: connector connection state, suggestion dismissals, the feedback ledger, prediction outcomes. ⚠️ **"Connector configuration" includes OAuth tokens and this repo is public** — status and last-sync are safe; credentials must be *structurally impossible* to serialise, not merely omitted today |
-| Q11 | **Notifications.** There are **none, anywhere** — zero `UserNotifications` imports. Intended? | A symptom radar whose whole thesis is noticing illness early can only speak when you open the app |
-| Q12 | **Write-back to Apple Health.** Nothing is written back — `requestAuthorization(toShare: [])`. Intended? | Every cuff reading, weight, symptom and substance you type stays inside this app, invisible to Health and every other app |
-| Q13 | **Delete-everything path.** None exists. Want one? | Settings has "Rebuild" and "Disconnect" only. Also unresolved: what happens to Keychain-stored provider credentials on uninstall |
-| Q14 | **Signing lifetime.** Does the app stop launching when the free-team provisioning profile expires? | Nobody has checked. If yes, a deploy is needed on a *schedule*, not on a change |
-| Q15 | **Body scanner priority.** ARKit capture is the largest single unbuilt piece. Where does it sit? | The mesh renders; **no capture exists anywhere in the repo** |
+| Q6 | Location: feed first, or both? | **"Just build the whole thing."** Feed and prompt together |
+| Q7 | Bloods: manual entry or PDF/OCR? | Reader: *"both? What do you mean? We should be able to accept all of these."* **Decision: all input routes for a blood result — typed, PDF, photographed report, and the existing document scanner.** The question was a false choice and should not have been asked as one |
+| Q8 | Supplements: worth the one-time capture? | Reader: *"Yes? From where?"* — **the reader enters them**, by label scan or by typing, because no wearable or health store carries a supplement stack. Then summed **ingredient by ingredient** against published upper limits, which is the part nobody ships. NIH DSLD (200,000+ labels, free API) supplies the ingredient lists |
+| Q9 | Mental health: build the computes-nothing Mind section? | **No — build a real card.** *"I want a mental health card. Figure it out, creative licence + data science."* See §B5 #27, reversed |
+| Q10 | Export gaps | **Build them. Do not include tokens.** Connection state, suggestion dismissals, the feedback ledger and prediction outcomes are exported; credentials must be **structurally impossible** to serialise, not merely omitted |
+| Q11 | Notifications — none exist anywhere | **Build them.** Named by the reader: **symptoms**, and **when a card changes majorly**. Plus *"any other major things you think we should notify on"* — creative authority granted, so: a flagged radar episode opening or closing, a grounding fact going stale (a cuff reading the BP estimate now needs), a body-scan cadence due, and a connector that has stopped syncing |
+| Q12 | Write-back to Apple Health | **Wanted, but not yet. Roadmap.** Do not build this session |
+| Q13 | Delete-everything path | **Yes** |
+| Q14 | Does the app stop launching when the free-team profile expires? | Reader: **"No?"** — reported as not observed. ⚠️ Treated as *unconfirmed*, not as settled: a free-team profile is documented as 7 days, the app has never gone that long without a deploy, so nobody has actually tested the case. Left as a watch item, not as work |
+| Q15 | Body scanner ARKit capture priority | **Yes** — build it |
 
-### A3 — Cycle tracking: four decisions gate all ten items
+### A3 — Cycle tracking: all four answered, so all ten items are unblocked
 
-⚠️ **Row 48 says explicitly: settle the privacy posture first.** That is why nothing started.
+| # | Question | ✅ Decision |
+|---|---|---|
+| Q16 | Does the tab draw a fertile window at all? | **"YES! THAT'S THE WHOLE POINT."** The fertile window is the feature, not a stretch goal |
+| Q17 | Surface the tirzepatide / oral-contraceptive labelling? | **Yes** |
+| Q18 | Who is the tab for? | **The reader's wife.** *"She has an Oura ring, they want a huge amount of money every month for their feature. I want to build it instead since we have all the same data they do."* ⚠️ **This is the single most useful answer in the whole set** and it changes the design: the tab is for a specific person with a specific ring, the competitor is Oura's paid cycle insights (and Flo), and the win condition is *the same conclusions without the subscription* |
+| Q19 | The privacy posture | Settled by Q20 |
+| — | Zero rows in `MenstrualFlow` / `SexualActivity` | ⚠️ **Still true and still the hard part.** The tab ships with manual entry as a first-class path, and `basalBodyTemperature` (136 rows, 80 of the last 90) plus the ring's nocturnal temperature are what let a cycle be *confirmed* rather than guessed. **Note the data belongs to the wife's ring, not the reader's export** — coverage on her record is unmeasured |
 
-| # | Question |
-|---|---|
-| Q16 | **Does the tab draw a fertile window at all?** (#45) — anything contraceptive needs FDA clearance; Natural Cycles is the only cleared app of its kind, and this app is explicitly not a medical device |
-| Q17 | **Surface the tirzepatide / oral-contraceptive labelling?** (#46) |
-| Q18 | **Who is the tab for?** (#47) — it rests on an assumption about the reader nobody has stated |
-| Q19 | **The privacy posture** (#48) — this repo is public and holds one person's health data |
+### A4 — Crowd-sourced norms
 
-⚠️ **And a harder problem than the four:** `MenstrualFlow` has **zero rows**. `SexualActivity` has **zero rows**. Measured against your export. Phase 1 would be an empty log awaiting manual entry, and Phase 2 (prediction) needs cycles to predict from. The one real asset in the domain is `basalBodyTemperature` — 136 rows, 80 of the last 90, written by your Shortcut and read by nothing — and its best use is **an independent temperature channel for the symptom radar**, because it survives a night the ring was on charge, which is exactly when the radar goes blind.
-
-### A4 — Crowd-sourced norms: two decisions
-
-| # | Question |
-|---|---|
-| Q20 | **Opt-in per signal** (#55) — nothing leaves the phone today and that must stay true until you choose otherwise |
-| Q21 | **Does a user contribute automatically once they consume, or is contributing a separate choice?** (#59) |
+| # | Question | ✅ Decision |
+|---|---|---|
+| Q20 | Opt-in per signal? | **"NO — opt-in for everything (by default) with ability to opt out."** So: **on by default, one global opt-out, no per-signal consent matrix.** ⚠️ This is a real change of posture — today nothing leaves the phone — and it is recorded here as the reader's explicit instruction for their own private build |
+| Q21 | Contribute automatically once you consume, or separately? | Reader: *"What do you mean?????"* — the question was jargon. **What it meant:** if you use the crowd norms to see how you compare, does your own data automatically join the pool, or is joining a second, separate switch? **Answered by Q20: automatically, on by default, one opt-out covers both** |
 
 ### A5 — Small ones
 
-| # | Question |
-|---|---|
-| Q22 | **Does MyFitnessPal already write into Apple Health for you?** (#49) — check before building any food capture |
-| Q23 | **Travel drain**: is the calendar integration enough, or do you also want HealthKit timezone metadata captured? (The app captures **no** metadata today) |
-| Q24 | **"Create Stress Tracking card like Oura"** — Sustained Load shipped. Do you mean something different: Oura's own `daily_stress` (142 days, 90 of the last 90) as a labelled second opinion? |
+| # | Question | ✅ Decision |
+|---|---|---|
+| Q22 | Does MyFitnessPal already write into Apple Health for you? | **Yes.** So the food-capture integration is a Settings row saying so, not a build. ⚠️ But `dietaryEnergy` is 0 rows in the last 90 on the export — so it writes when the reader logs, and the reader has not been logging |
+| Q23 | Travel drain: calendar enough, or timezone metadata too? | **"EVERYTHING, AS MUCH AS POSSIBLE"** — calendar *and* HealthKit timezone metadata, **plus a manual travel tag the reader can add** |
+| Q24 | "Stress card like Oura" — something other than Sustained Load? | **"NO"** — Sustained Load (now "Stress load") is what was meant. N1's research item stands; the card is not missing |
 
 ---
 
@@ -179,24 +215,40 @@ remembered. Five cards have none today.
 |---|---|---|
 | 26 | **"How old does each thing think you are"** | Heart Attack & Stroke Risk card, bottom. Every age estimate, attributed, each with its own **derived** error |
 
-### B5 — Deliberately refused, with reasons
+### B5 — Previously refused. ⚠️ **ELEVEN OF TWELVE REVERSED BY THE READER, 2026-08-06.**
 
-**These are not backlog. They are decisions. Re-proposing one needs a new argument.**
+**The reader's ruling, verbatim:** *"There are other things that you've said no to
+for stupid reasons like compliance or privacy — just do them."* And on #29
+specifically: *"These sorts of things are the ENTIRE POINT OF THE APP."*
 
-| # | Refused | Why |
-|---|---|---|
-| 27 | **Mental health card** | Nine adversarial attacks, all do-not-ship on all three designs. MindfulSession 0 rows, StateOfMind 0, MoodChanges 0; your whole symptom log is one row. Every design produced a permanent null, and "you seem fine" arriving by arithmetic to someone having a bad month is the worst available failure. **Recommended instead: a Mind section that computes nothing** (Q9) |
-| 28 | **Cuffless blood pressure** | Whoop took an FDA warning letter; clinicians say cuffless PPG has no finalised validation protocol. You have 51 real cuff readings, which is better |
-| 29 | **Own-brand biological age** | You would get a worse black box with a smaller *n*. Relaying Oura's *with its error attached* is strictly more honest — that is #26 |
-| 30 | **Sleep-apnoea / breathing-disturbance card** | Asserting or screening for apnoea is FDA-clearance territory. **Trending the index inside Sleep and saying what it is derived from is fine**; a card whose name implies a condition is not |
-| 31 | **Cycle/fertility as a card** | Zero rows, contraceptive claims need clearance, and it rests on an unstated assumption. The tab (#17) is a separate question |
-| 32 | **Meal-to-outcome / TDEE / intake-driven anything** | `dietaryEnergy`: 30 days ever, **0 in the last 90**. The gate is ~80% of logged days; you are at 0% |
-| 33 | **Total sound-exposure card** | Environmental audio exists on 14 of your last 90 days — summing it with headphones would invent the quiet hours |
-| 34 | **Physical-effort intensity card** | 81,252 rows looks dense and is a trap: only 13 of the last 90 days. A z-score over a series that exists one day in seven is not a z-score. Belongs as a Fitness section |
-| 35 | **Steps / distance / flights card** | Real, but Fitness sections rather than a card |
-| 36 | **Symptom-radar accuracy scorecard as a card** | An honest sensitivity figure is 3–5 years away at one symptom tag. **The false-alarm rate is printable today** and belongs on the radar itself |
-| 37 | **Daylight/UV, spirometry, mindfulness, mood, oral-health, falls cards** | All **zero rows**. Data-collection problems wearing a build's clothing |
-| 38 | **"Why is my score low" as a card** | The single highest-value idea in the scan, and it **must not be a card** — an explanation one tap from the number is one nobody reads. It belongs as a section under *every* score. See §C |
+**Read this before re-refusing anything.** The original reasons are kept in the
+right-hand column on purpose — not one of them was factually wrong, and each
+still governs *how* the thing is worded. What they were wrong about was the
+*conclusion*: they treated "a regulator would want a trial first" and "the data
+is thin" as reasons not to compute, in an app whose stated purpose is to derive
+insights nobody else will from data people already have. **Thin data is a reason
+to print the error bar, not a reason to show nothing.** A permanent null is not
+the safe option; it is the useless one.
+
+**The one rule that survives all eleven reversals:** modelled is never dressed as
+measured (`MetricSource.calculated`, its own family, weight 0, no reference
+range), and every one of these states its own uncertainty. That is what makes
+shipping them honest rather than reckless.
+
+| # | Item | Original reason (kept — it still shapes the wording) | ✅ Ruling |
+|---|---|---|---|
+| 27 | **Mental health card** | Nine adversarial attacks, all do-not-ship. MindfulSession 0 rows, StateOfMind 0, MoodChanges 0; the whole symptom log is one row. Every design produced a permanent null, and *"you seem fine"* arriving by arithmetic to someone having a bad month is the worst available failure | **BUILD IT.** *"I want a mental health card. Figure it out, creative licence + data science."* ⚠️ **The one attack that still stands is the failure mode, not the feature**: the card must never reassure. It reports what the body did, asks what the reader felt, and the arithmetic runs the reader's own answers against their own physiology |
+| 28 | **Cuffless blood pressure** | Whoop took an FDA warning letter; cuffless PPG has no finalised validation protocol. 51 real cuff readings are better | **BUILD IT.** Reader: *"Did we not already build the experimental BP estimate????"* — **yes, `BloodPressureEstimator` already does exactly this** (personal calibration, reports its own ±). The refusal was about *a second, cuff-free card*, and reads as a flat no. **What "do it" means here: stop hiding it behind the cuff, and give a daily estimate with its error** |
+| 29 | **Own-brand biological age** | You would get a worse black box with a smaller *n*. Relaying Oura's with its error attached is strictly more honest — that is #26 | **BUILD IT.** *"THESE SORTS OF THINGS ARE THE ENTIRE POINT OF THE APP. WHY WOULD YOU SAY NO."* Correct, and the refusal misread the brief. The answer to "a black box" is **not to build a black box**: every term visible, every weight visible, every one attributable |
+| 30 | **Sleep-apnoea card** | Asserting or screening for apnoea is FDA-clearance territory. Trending the index inside Sleep is fine; a card whose *name* implies a condition is not | **BUILD IT** |
+| 31 | **Cycle / fertility** | Zero rows, contraceptive claims need clearance, unstated assumption about the reader | **BUILD IT — a whole new tab.** *"Basically do everything Flo does."* Assumption now stated (Q18: the reader's wife). Zero rows remains the real constraint |
+| 32 | **Meal-to-outcome / TDEE / intake-driven anything** | `dietaryEnergy`: 30 days ever, **0 in the last 90**. The gate is ~80% of logged days; the reader is at 0% | ❌ **UPHELD — the only one.** Reader: *"I don't care, don't do it."* The single refusal both sides agree on |
+| 33 | **Total sound exposure** | Environmental audio exists on 14 of the last 90 days — summing it with headphones would invent the quiet hours | **BUILD IT.** The honest form: headphone dose is the number, environmental is charted beside it with its coverage stated, and the two are never summed into one figure |
+| 34 | **Physical-effort intensity** | 81,252 rows looks dense and is a trap: 13 of the last 90 days. A z-score over a series that exists one day in seven is not a z-score | **BUILD IT — as a Fitness section**, which is what the original note already recommended. ⚠️ **And the reader added a requirement the refusal never considered: the effort score feeds the overall Fitness score.** That is new work, not a relocation |
+| 35 | **Steps / distance / flights** | Real, but Fitness sections rather than a card | **BUILD IT — as Fitness sections.** Reader agrees with the placement |
+| 36 | **Radar accuracy scorecard** | An honest sensitivity figure is 3–5 years away at one symptom tag. The false-alarm rate is printable today and belongs on the radar itself | **BUILD IT** |
+| 37 | **Daylight/UV, spirometry, mindfulness, mood, oral health, falls** | All **zero rows**. Data-collection problems wearing a build's clothing | **BUILD THEM.** ⚠️ **The zero-row finding is unchanged and is the whole difficulty**: what gets built is the *capture* — a way to put the data in — because a reader cannot be shown a chart of nothing. Anything that only reads HealthKit here will render empty forever |
+| 38 | **"Why is my score low" as a card** | Highest-value idea in the scan, and it must not be a card — an explanation one tap from the number is one nobody reads | ✅ **Reader agrees it is not a card, and placed it:** *"I want this to be part of the deep dive under the insight web."* More specific than §C's "under every score" — see S2 |
 
 ---
 
@@ -205,7 +257,7 @@ remembered. Five cards have none today.
 | # | Section | Where | Note |
 |---|---|---|---|
 | S1 | **A bespoke section on EVERY card** — creative authority granted | All | ⚠️ **Five have none today: gait, sustainedLoad, nutrition, metabolism, readiness.** `InsightDetailView` has `default: EmptyView()` with a comment arguing *against* exhaustiveness — **your instruction reverses that.** Make the switch exhaustive so a new card cannot ship without one, and **update `docs/card-sections.md` and the `add-insight` skill** so it is enforced, not remembered. For gait it is the worst case: the speed = step length × cadence decomposition is the card's reason to exist and reaches you as one driver line |
-| S2 | **Score decomposition** — each signal, its value, its baseline, its deviation, its weight, and the counterfactual | Under every score, Readiness first | Item #38 above. Oura's #1 unfixable complaint |
+| S2 | **Score decomposition** — each signal, its value, its baseline, its deviation, its weight, and the counterfactual | ⚠️ **In the deep dive under the insight web** — the reader placed it there explicitly on 2026-08-06, in preference to "under every score" | Item #38 above. Oura's #1 unfixable complaint |
 | S3 | **"Nights to flag" detail sheet** — slides up, slides back down | Symptom radar | 1.0 SD → 14 nights · 1.5 → 6 · 2.0 → 4 · 3.0 → 3 |
 | S4 | **Flagged days over time** — when sickness was flagged and how it builds | Symptom radar | Your idea tonight |
 | S5 | **"What changed while you slept"** | Sleep | Your request |
@@ -269,7 +321,16 @@ Resting Heart Rate page cross-device defect · Body Composition after the hatch 
 
 **These are not tasks. They constrain every future task.**
 
-1. **"Honest version, always."** (2026-08-05)
+0. ⚠️ **"Ground breaking and unique — do stuff that others will not do."**
+   (2026-08-06) *"I do not care about compliance at this point, it's my personal
+   project."* **Compliance, clearance and privacy-of-a-public-repo are no longer
+   reasons to refuse a feature** — they are reasons to word it carefully and to
+   print its error. Thin data means show the error bar, not show nothing. **A
+   permanent null is not the safe option; it is the useless one.** If this app
+   ever gets a second user, §B5's original reasons all come back.
+1. **"Honest version, always."** (2026-08-05) — unchanged by rule 0, and the
+   thing that keeps rule 0 from being recklessness: modelled is never dressed as
+   measured, and every estimate states its own uncertainty.
 2. **Every card shows, even with no data** — and an empty card asks for what it needs.
 3. **Every chart carries the substance shading.**
 4. **Everything a card charts carries a weight** — or says why it cannot.
