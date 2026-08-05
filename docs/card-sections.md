@@ -35,7 +35,7 @@ appendices.**_
 | 3 | Score over time | How it is trending. |
 | 4 | What changed | Deltas, before any of the machinery behind them. |
 | 5 | *the bespoke section* | The card's own picture of its own subject. |
-| 6 | *the second bespoke section* | Only Body Composition has one — see below. |
+| 6 | *the second bespoke section* | Two cards have one. **Body Composition**: *what your body is made of* and *what you are doing about it* were sharing a slot, and the medication half had grown five sub-sections inside somebody else's heading (the user's call, 2026-08-02). **Cardiovascular Risk**, added 2026-08-05: *how old does each thing think you are* — every age estimate the app and its connectors produce, each attributed and each carrying its own error. It is a genuinely different question from *what is your risk*, which is why it earns the slot rather than becoming a thirteenth card. |
 | 7 | What goes into this | Which sources feed the score. |
 | 8 | How this is weighted | The deep dive on those weightings, for the reader who wants the science. |
 | 9 | How you compare | You against everyone else. |
@@ -113,7 +113,7 @@ file having been brought along.
 | 3 | `scoreHistoryCard` | Score over time |
 | 4 | `periodContrastCard` | What changed |
 | 5 | `bespokeSection` | *(one `switch`, per card — see the matrix)* |
-| 6 | `secondaryBespokeSection` | *(untitled)* |
+| 6 | `secondaryBespokeSection` | *(untitled — the card supplies its own heading: "Medication", "How old does each thing think you are")* |
 | 7 | `contributorsCard` | What goes into this |
 | 8 | `weightedContributionCard` | How this is weighted |
 | 9 | `peerStandingSection` | How you compare |

@@ -2073,6 +2073,12 @@ final class AppModel {
     private(set) var riskProjections: [HeartAgeModel.Projection] = []
     @ObservationIgnored private var riskProjectionsRunning = false
 
+    /// Every age estimate the app and its connectors produce, each with its own
+    /// attribution and error. Filled by the same background pass as the
+    /// projections — it comes off the same analysis, so running it twice would
+    /// be two SCORE2/ASCVD solves for one screen.
+    private(set) var ageEstimates: [AgeComparison.Estimate] = []
+
     func heartAgeProjections() -> [HeartAgeModel.Projection] {
         if !riskProjections.isEmpty { return riskProjections }
         guard !riskProjectionsRunning else { return [] }
@@ -2084,9 +2090,14 @@ final class AppModel {
         Task.detached(priority: .userInitiated) {
             let analysis = HeartAgeAnalyser().analyse(samples: samples, profile: profile,
                                                       now: Date())
+            let estimates = AgeComparison.estimates(
+                chronological: analysis.chronologicalAge,
+                fitness: analysis.fitness, heart: analysis.heart,
+                sex: profile.sex, samples: samples, now: Date())
             await MainActor.run { [weak self] in
                 guard let self, self.scoreHistoryGeneration == generation else { return }
                 self.riskProjections = analysis.projections
+                self.ageEstimates = estimates
                 self.riskProjectionsRunning = false
             }
         }

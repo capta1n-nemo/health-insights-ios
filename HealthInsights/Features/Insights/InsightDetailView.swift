@@ -1607,8 +1607,58 @@ struct InsightDetailView: View {
         switch insightID {
         case .bodyComposition:
             MedicationSection(window: window(spanning: nil))
+        // Roadmap #18. A second, genuinely different question about this card's
+        // own subject — *how old does each thing think you are* sits beside
+        // *what is your risk*, and neither is the other. The same slot, and the
+        // same reasoning, as Body Composition's medication half.
+        case .cardiovascularRisk:
+            ageComparisonSection
         default:
             EmptyView()
+        }
+    }
+
+    /// **Relay, never merge — and print the error.**
+    ///
+    /// Whoop sells a "WHOOP Age" and Oura prints a cardiovascular age; neither
+    /// publishes what its number is worth. Every row here names who computed it
+    /// and what its error is, and where a vendor publishes none, that sentence
+    /// *is* the row. See `AgeComparison`, where all of it is decided and tested.
+    @ViewBuilder private var ageComparisonSection: some View {
+        // Shares the background pass with the projections, so asking for those
+        // is what fills this.
+        let _ = model.heartAgeProjections()
+        let estimates = model.ageEstimates
+        if estimates.count >= 2 {
+            Divider()
+            NestedInsightSection(
+                title: "How old does each thing think you are",
+                trailing: AgeComparison.spread(estimates).map { String(format: "%.0f years apart", $0) },
+                caveat: .none
+            ) {
+                VStack(alignment: .leading, spacing: Theme.spacing) {
+                    ForEach(estimates) { estimate in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(estimate.label).font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text(String(format: "%.0f", estimate.years))
+                                    .font(.title3.monospacedDigit().weight(.semibold))
+                                Text("years").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text(estimate.attribution)
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text(estimate.uncertainty.note)
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                    if let disagreement = AgeComparison.disagreement(estimates) {
+                        Text(disagreement)
+                            .font(.footnote)
+                            .padding(.top, 4)
+                    }
+                }
+            }
         }
     }
 

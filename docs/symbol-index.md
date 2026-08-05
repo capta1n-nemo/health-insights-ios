@@ -77,6 +77,8 @@ the place to look.
   - `TypeSightingLedger` :27
 - `Insights/ActivityDoseModel.swift`
   - `ActivityDoseModel` :30
+- `Insights/AgeComparison.swift`
+  - `AgeComparison` :30
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
   - `BloodPressureInsight` :645
