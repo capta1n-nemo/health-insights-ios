@@ -36,7 +36,11 @@ public extension MetricType {
              .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
-             .dietaryCaffeine:
+             .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
              // A day with no exercise is a real day.
@@ -178,6 +182,25 @@ public extension MetricType {
         // Litres. Thirty is past the point where water itself is the emergency.
         case .dietaryWater: return 0.1...30
         case .dietaryCaffeine: return 1...3_000
+        // **The micronutrients, and here the bound earns its keep.** The stated
+        // rule above is that a range only has to sit below a 1,000× unit slip
+        // and above anything a person could eat — and a 1,000× slip is exactly
+        // the live hazard in this group, because three of the eleven are in
+        // micrograms and the other eight in milligrams. A vitamin D reported in
+        // mg rather than mcg is a thousandfold overstatement that would
+        // otherwise chart happily.
+        case .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat: return 1...1_000
+        case .dietaryCholesterol: return 1...10_000
+        case .dietaryCalcium: return 1...20_000
+        case .dietaryIron: return 0.1...1_000
+        case .dietaryMagnesium: return 1...10_000
+        case .dietaryZinc: return 0.1...1_000
+        case .dietaryVitaminC: return 1...50_000
+        // Micrograms. A generous supplement is thousands of mcg; a milligram
+        // slip lands in the millions and is rejected.
+        case .dietaryVitaminA: return 1...100_000
+        case .dietaryVitaminD: return 0.1...10_000
+        case .dietaryVitaminB12: return 0.1...50_000
         // A single sample is an accrual interval, and a day holds 1,440 minutes.
         case .exerciseMinutes: return 0...1440
         }

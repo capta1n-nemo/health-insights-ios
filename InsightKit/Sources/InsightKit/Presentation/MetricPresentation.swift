@@ -99,7 +99,11 @@ public extension MetricType {
         case .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
-             .dietaryCaffeine:
+             .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return .nutrition
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return .sleep
@@ -211,6 +215,22 @@ public extension MetricType {
         case .dietaryPotassium: return 54
         case .dietaryWater: return 55
         case .dietaryCaffeine: return 56
+        // The eleven micronutrients, appended rather than interleaved with the
+        // macros above. Hue order is claim order and the table front-loads what
+        // shares a crowded chart; these share the Nutrition overlay with each
+        // other, where hues resolve per chart anyway, so the tail is the right
+        // place and renumbering fifty-six cases would not buy anything.
+        case .dietaryMonounsaturatedFat: return 57
+        case .dietaryPolyunsaturatedFat: return 58
+        case .dietaryCholesterol: return 59
+        case .dietaryCalcium: return 60
+        case .dietaryIron: return 61
+        case .dietaryMagnesium: return 62
+        case .dietaryZinc: return 63
+        case .dietaryVitaminC: return 64
+        case .dietaryVitaminA: return 65
+        case .dietaryVitaminD: return 66
+        case .dietaryVitaminB12: return 67
         }
     }
 
@@ -304,7 +324,11 @@ public extension MetricType {
              .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
-             .dietaryCaffeine:
+             .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return .cumulativeTotal
 
         case .screenTimeMinutes:
@@ -351,6 +375,10 @@ public extension MetricType {
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
              .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12,
              .atrialFibrillationBurden, .heartRateRecovery:
             return day
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
@@ -580,6 +608,28 @@ public extension MetricType {
         case .dietaryProtein, .dietarySugar, .dietarySaturatedFat, .dietaryWater:
             return nil
         case .dietaryCarbohydrates, .dietaryFat: return nil
+        // **All eleven micronutrients: nil, and for one reason that holds for
+        // every one of them.** Published intakes are sex-specific, and several
+        // are age-specific on top. Iron is the clearest: 8 mg a day for men,
+        // 18 mg for women of reproductive age — a single band would be wrong by
+        // more than twofold for half its readers, and wrong in the direction
+        // that tells someone who is deficient they are fine. This switch has no
+        // sex, exactly as it has none for waist circumference, decided the same
+        // way on 2026-08-03.
+        //
+        // These are also *upper* limits as often as floors — the tolerable
+        // upper intake is the figure that matters for zinc, iron, vitamin A and
+        // vitamin D, and it is a different quantity from the RDA rather than
+        // the top of one band. Drawing either alone would misstate the other.
+        //
+        // So the bands belong in the Nutrition card's own table, where the
+        // profile is in scope: the same place protein per kilogram and the
+        // sex-specific water figure already live, for the same reason.
+        case .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
+            return nil
         }
     }
 
@@ -597,7 +647,11 @@ public extension MetricType {
              .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
-             .dietaryCaffeine:
+             .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return .sum
         default:
             return .mean

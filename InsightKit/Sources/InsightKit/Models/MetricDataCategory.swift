@@ -66,7 +66,11 @@ public extension MetricType {
         case .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,
-             .dietaryCaffeine:
+             .dietaryCaffeine,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
             return .nutrition
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
              .walkingSteadiness, .walkingAsymmetry, .screenTimeMinutes:

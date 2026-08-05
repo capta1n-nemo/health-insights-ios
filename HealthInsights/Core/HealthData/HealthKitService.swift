@@ -71,6 +71,25 @@ final class HealthKitService {
             (.dietaryPotassium, .dietaryPotassium, .gramUnit(with: .milli)),
             (.dietaryWater, .dietaryWater, .liter()),
             (.dietaryCaffeine, .dietaryCaffeine, .gramUnit(with: .milli)),
+            // **The eleven micronutrients, promoted 2026-08-05.** The unit is
+            // the whole risk in this group and it is stated once, here, at the
+            // boundary: HealthKit stores mass canonically and converts on read,
+            // so asking for the wrong prefix silently rescales by a thousand.
+            // `plausibleRange` is set tightly enough on each to reject that
+            // slip rather than chart it.
+            (.dietaryFatMonounsaturated, .dietaryMonounsaturatedFat, .gram()),
+            (.dietaryFatPolyunsaturated, .dietaryPolyunsaturatedFat, .gram()),
+            (.dietaryCholesterol, .dietaryCholesterol, .gramUnit(with: .milli)),
+            (.dietaryCalcium, .dietaryCalcium, .gramUnit(with: .milli)),
+            (.dietaryIron, .dietaryIron, .gramUnit(with: .milli)),
+            (.dietaryMagnesium, .dietaryMagnesium, .gramUnit(with: .milli)),
+            (.dietaryZinc, .dietaryZinc, .gramUnit(with: .milli)),
+            (.dietaryVitaminC, .dietaryVitaminC, .gramUnit(with: .milli)),
+            // Micrograms — vitamin A as RAE, D as mcg rather than IU (the
+            // modern label figure), B12 as mcg.
+            (.dietaryVitaminA, .dietaryVitaminA, .gramUnit(with: .micro)),
+            (.dietaryVitaminD, .dietaryVitaminD, .gramUnit(with: .micro)),
+            (.dietaryVitaminB12, .dietaryVitaminB12, .gramUnit(with: .micro)),
             // Promoted out of the raw pile because it earned a score: Apple's
             // exercise minute accrues at brisk-walk intensity and above, which
             // is the WHO guideline's own moderate-intensity definition, so the
@@ -144,19 +163,19 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierHeadphoneAudioExposure", "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
         "HKQuantityTypeIdentifierTimeInDaylight", "HKQuantityTypeIdentifierUnderwaterDepth",
         "HKQuantityTypeIdentifierWaterTemperature",
-        // Nutrition — **the micros only.** Dietary energy, the macros, fibre,
-        // sodium, potassium, water and caffeine are canonical `MetricType`s as
-        // of 2026-08-03 and arrive through `readMap` above; a metric must not
-        // arrive through both routes, which is the removal `appleExerciseTime`
-        // needed when it was promoted. What is left here is deliberate: no
-        // card reads a vitamin, and a metric with no reader is a chart nobody
-        // asked for — so they stay visible in the Data tab and unscored.
-        "HKQuantityTypeIdentifierDietaryFatMonounsaturated", "HKQuantityTypeIdentifierDietaryFatPolyunsaturated",
-        "HKQuantityTypeIdentifierDietaryCholesterol",
-        "HKQuantityTypeIdentifierDietaryCalcium", "HKQuantityTypeIdentifierDietaryIron",
-        "HKQuantityTypeIdentifierDietaryVitaminC", "HKQuantityTypeIdentifierDietaryVitaminD",
-        "HKQuantityTypeIdentifierDietaryVitaminA", "HKQuantityTypeIdentifierDietaryVitaminB12",
-        "HKQuantityTypeIdentifierDietaryMagnesium", "HKQuantityTypeIdentifierDietaryZinc"
+        // **Nutrition is entirely canonical as of 2026-08-05 — nothing dietary
+        // is left in this list.** The eleven micronutrients that used to sit
+        // here are `MetricType`s now, at the reader's decision, and a metric
+        // must not arrive through both routes (the removal `appleExerciseTime`
+        // needed when it was promoted).
+        //
+        // The rationale they were kept out under — "no card reads a vitamin,
+        // and a metric with no reader is a chart nobody asked for" — was sound
+        // and had a consequence nobody costed: raw groups carry no category, so
+        // the Data tab's Nutrition section is generated from `MetricType`
+        // alone, and 686 rows of the reader's own record filed under "Other
+        // data" at the very bottom of the tab. Being unscored was the intent;
+        // being unfindable was not.
     ]
 
     /// Category (event/state) types imported as raw "other" data.

@@ -82,6 +82,36 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case dietaryPotassium          // mg
     case dietaryWater              // L
     case dietaryCaffeine           // mg
+    // **The eleven micronutrients, promoted 2026-08-05 at the reader's
+    // decision.** The comment above says they stay raw because "a metric no
+    // card consults is a chart nobody asked for", and that was the right call
+    // while nothing read them — but it also meant 686 rows of the reader's own
+    // record filed under "Other data" at the very bottom of the Data tab,
+    // because the Nutrition section is generated from `MetricType` alone.
+    //
+    // ⚠️ **Every one of these has a `referenceRange` of nil, and the reason is
+    // the same for all eleven**: published intakes are sex-specific and several
+    // are age-specific too (iron is 8 mg for men and 18 mg for women — a single
+    // band would be wrong for half its readers by more than twofold). This
+    // switch has no sex, exactly as it has none for waist circumference, which
+    // was decided the same way on 2026-08-03. The bands belong in the Nutrition
+    // card's own table, where the profile is in scope — the same place protein
+    // per kilogram and the sex-specific water figure already live.
+    case dietaryMonounsaturatedFat // g
+    case dietaryPolyunsaturatedFat // g
+    case dietaryCholesterol        // mg
+    case dietaryCalcium            // mg
+    case dietaryIron               // mg
+    case dietaryMagnesium          // mg
+    case dietaryZinc               // mg
+    case dietaryVitaminC           // mg
+    // The three reported in micrograms rather than milligrams. Getting this
+    // wrong by a factor of a thousand is the whole hazard of this group, so the
+    // unit is on the case, in `unit`, and in `plausibleRange` — three places
+    // that would have to agree on a mistake.
+    case dietaryVitaminA           // mcg RAE
+    case dietaryVitaminD           // mcg
+    case dietaryVitaminB12         // mcg
     case sleepDurationHours        // hours
     /// **Hours from local midnight, signed, with the branch cut at midday.**
     /// −1.5 is 22:30, +0.5 is 00:30, 0 is midnight exactly.
@@ -193,6 +223,17 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .dietaryFibre: return "Fibre"
         case .dietarySodium: return "Sodium"
         case .dietaryPotassium: return "Potassium"
+        case .dietaryMonounsaturatedFat: return "Monounsaturated Fat"
+        case .dietaryPolyunsaturatedFat: return "Polyunsaturated Fat"
+        case .dietaryCholesterol: return "Dietary Cholesterol"
+        case .dietaryCalcium: return "Calcium"
+        case .dietaryIron: return "Iron"
+        case .dietaryMagnesium: return "Magnesium"
+        case .dietaryZinc: return "Zinc"
+        case .dietaryVitaminC: return "Vitamin C"
+        case .dietaryVitaminA: return "Vitamin A"
+        case .dietaryVitaminD: return "Vitamin D"
+        case .dietaryVitaminB12: return "Vitamin B12"
         case .dietaryWater: return "Water"
         case .dietaryCaffeine: return "Caffeine"
         case .sleepDurationHours: return "Sleep Duration"
@@ -243,9 +284,16 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .exerciseMinutes: return "min"
         case .dietaryEnergy: return "kcal"
         case .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
-             .dietarySaturatedFat, .dietarySugar, .dietaryFibre:
+             .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
+             .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat:
             return "g"
-        case .dietarySodium, .dietaryPotassium, .dietaryCaffeine: return "mg"
+        case .dietarySodium, .dietaryPotassium, .dietaryCaffeine,
+             .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
+             .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC:
+            return "mg"
+        // Micrograms, and the thousandfold gap to the line above is why the
+        // three are listed separately rather than folded in.
+        case .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12: return "mcg"
         case .dietaryWater: return "L"
         case .sleepDurationHours: return "h"
         // Empty: the formatter renders this as a clock time, and "23:12 h" is
