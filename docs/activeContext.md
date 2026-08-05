@@ -218,6 +218,26 @@ they describe 08-05; on the last two days present, cardiac sits at u = −0.25 a
 +0.23 — essentially neutral. Their phone holds data this export does not. No
 claim above rests on their recollection.
 
+### ⚠️ The Today energy curve cannot be verified on a simulator at all
+
+Worth knowing before the next session tries. `EnergyModel.curve` emits one
+point per hour since midnight, and `energyCurveCard` gates on
+`curve.count >= 2`. Neither source of simulator data can satisfy that:
+
+- **The real export** ends before "today", so Energy sits in its waiting state
+  and the section is absent.
+- **`SyntheticSeed`** generates one sample per day, not per hour, so even after
+  seeding — which does make Energy score, 61 in this session's check — the curve
+  has too few points and the section still does not render.
+
+So `EnergyCurveExplainer` is tested but **has never been seen on screen**. The
+options are hourly generation in `SyntheticSeed`, or the phone. Do not record
+this section as device-verified until one of those happens.
+
+Also: clear the seeded data afterwards. Synthetic and real samples sit in the
+same store, and a later screenshot of a mixed container reads as the reader's
+own record — which is the one thing the debug section's own footer forbids.
+
 ### The signal audit: add nothing
 
 Asked what else could feed the radar and Readiness. The answer, measured against

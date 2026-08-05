@@ -12,7 +12,7 @@ already in the export and unread.
 
 ## ⚠️ Outstanding from the 2026-08-04 Mac session — READ THIS FIRST
 
-**Thirty-nine tracked items, sixteen done, twenty-three open** (2026-08-05:
+**Thirty-nine tracked items, seventeen done, twenty-two open** (2026-08-05:
 #26 closed, #27 halved, #35–#39 added; #19 closed). These are the
 reader's own requests plus defects found by loading their real export. They are
 **not** in the generated table below — that table indexes the older roadmap.
@@ -43,7 +43,7 @@ in their own words, or a defect diagnosed to a file and line.
 | --- | --- |
 | ~~14~~ | ~~**Today summary → highlights**~~ **Done 2026-08-05 (`1de5f70`)** — selects at most three (anything in the poor band leads, then the best, then the weakest still unmentioned) instead of enumerating nine. Phrasing bug fixed structurally: headlines attach with a dash, because `"\(title.lowercased()) is \(headline)"` assumes every headline is a predicate and several are values. Two rules landed with it — **a detector is never the good news** (the radar at 100 means nothing was *detected*, and that card says quiet is not an all-clear, so it can lead but never congratulate), and **the LLM no longer ranks** — selection moved to InsightKit where it is testable and the model only phrases what it is handed. Original note: Reader: "what you're doing very well and very poorly, and any overall insights that are most important. like, hey! looks like you're about to get sick." Currently enumerates all ten cards. Also fix "body composition is Body fat 30.6%" phrasing |
 | 16 | **Substance card, three parts** — score everything currently "charted, not scored"; a recovery-time section (single vs several close together vs a big weekend); and a per-substance good-vs-bad section. ⚠️ Real data is 16 events, 15 stimulant + 1 cannabis, in ~25 days → **4 exposure episodes**. A per-substance stimulant panel will near-duplicate the pooled card; cannabis at n=1 is unattributable and must show an honest empty state |
-| 17 | **Energy card** — reader cannot read the Today chart. Needs "How does this work?" and "So what?" |
+| ~~17~~ | ~~**Energy card**~~ **Done 2026-08-05 (`0ca012d`)** — "How this works" and "So what?" under the Today curve, both written from the reader's own numbers. Two rules held by tests: the unit is a 0–100 model and must say it is not calories, and the copy may never give advice. ⚠️ **Not yet seen on screen with a live curve** — the loaded export ends before "today", so Energy sits in its waiting state and the section does not render. Needs a simulator day with current data, or the phone |
 | 21 | **Readiness bespoke section** — research-driven, creative licence granted |
 | 23 | **Signal audit** — every card × every available signal, with justified weightings, against the 45 modelled types and 320,913 raw rows |
 | 32 | **Event confirmation feed** — the app flags an event ("heart rate spiked 30 mins this evening — sexual activity?") and the reader confirms or corrects. GPS map, time, why it was flagged. ⚠️ **Location is a new permission surface and a serious privacy decision — needs an explicit ruling before any code** |
