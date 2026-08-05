@@ -28,9 +28,9 @@ pushed:
 | ~~2~~ | ✅ **Cuffless BP, ungated** — shipped `0ea9411` | §B5 #28 |
 | ~~3~~ | ✅ **Mental health card** — shipped `867129e` | §B5 #27 |
 | **1** | **The cycle tab** — for the reader's wife, against Oura's paid feature. **Now the largest unstarted thing** | §B5 #31, §A3 |
-| 5 | **Score decomposition inside the insight-web deep dive** | §B5 #38, S2 |
+| ~~5~~ | ✅ **Score decomposition in the deep dive** — shipped `964c03e`, on `ScoreComparisonDetailView` | §B5 #38, S2 |
 | 6 | Fitness sections: intensity (feeding the score), steps/distance/flights | §B5 #34–35 |
-| 7 | Sound exposure · sleep apnoea · radar accuracy | §B5 #30, #33, #36 |
+| 7 | Sound exposure (#33) · sleep apnoea (#30, ⚠️ **identifiers now requested — count the rows before building**) · ~~radar accuracy~~ ✅ `44fb94e` | §B5 #30, #33, #36 |
 | 8 | Notifications · delete-everything · export gaps · calendar | Q10–Q13, I1 |
 | 9 | Capture for the six zero-row domains | §B5 #37 |
 
@@ -133,7 +133,7 @@ rather than deleted.
 | Q7 | Bloods: manual entry or PDF/OCR? | Reader: *"both? What do you mean? We should be able to accept all of these."* **Decision: all input routes for a blood result — typed, PDF, photographed report, and the existing document scanner.** The question was a false choice and should not have been asked as one |
 | Q8 | Supplements: worth the one-time capture? | Reader: *"Yes? From where?"* — **the reader enters them**, by label scan or by typing, because no wearable or health store carries a supplement stack. Then summed **ingredient by ingredient** against published upper limits, which is the part nobody ships. NIH DSLD (200,000+ labels, free API) supplies the ingredient lists |
 | Q9 | Mental health: build the computes-nothing Mind section? | **No — build a real card.** *"I want a mental health card. Figure it out, creative licence + data science."* See §B5 #27, reversed |
-| Q10 | Export gaps | **Build them. Do not include tokens.** Connection state, suggestion dismissals, the feedback ledger and prediction outcomes are exported; credentials must be **structurally impossible** to serialise, not merely omitted |
+| Q10 ◐ | Export gaps | **Tokens done (`964c03e`): `OAuthTokens` is no longer `Codable`, so a token cannot be a stored property of any `Encodable` type — a compile error rather than a convention.** The four missing fields are still to build. **Build them. Do not include tokens.** Connection state, suggestion dismissals, the feedback ledger and prediction outcomes are exported; credentials must be **structurally impossible** to serialise, not merely omitted |
 | Q11 | Notifications — none exist anywhere | **Build them.** Named by the reader: **symptoms**, and **when a card changes majorly**. Plus *"any other major things you think we should notify on"* — creative authority granted, so: a flagged radar episode opening or closing, a grounding fact going stale (a cuff reading the BP estimate now needs), a body-scan cadence due, and a connector that has stopped syncing |
 | Q12 | Write-back to Apple Health | **Wanted, but not yet. Roadmap.** Do not build this session |
 | Q13 | Delete-everything path | **Yes** |
@@ -248,9 +248,9 @@ shipping them honest rather than reckless.
 | 33 | **Total sound exposure** | Environmental audio exists on 14 of the last 90 days — summing it with headphones would invent the quiet hours | **BUILD IT.** The honest form: headphone dose is the number, environmental is charted beside it with its coverage stated, and the two are never summed into one figure |
 | 34 | **Physical-effort intensity** | 81,252 rows looks dense and is a trap: 13 of the last 90 days. A z-score over a series that exists one day in seven is not a z-score | **BUILD IT — as a Fitness section**, which is what the original note already recommended. ⚠️ **And the reader added a requirement the refusal never considered: the effort score feeds the overall Fitness score.** That is new work, not a relocation |
 | 35 | **Steps / distance / flights** | Real, but Fitness sections rather than a card | **BUILD IT — as Fitness sections.** Reader agrees with the placement |
-| 36 | **Radar accuracy scorecard** | An honest sensitivity figure is 3–5 years away at one symptom tag. The false-alarm rate is printable today and belongs on the radar itself | **BUILD IT** |
+| 36 ✅ | **Radar accuracy scorecard** — shipped `44fb94e` | An honest sensitivity figure is 3–5 years away at one symptom tag. The false-alarm rate is printable today and belongs on the radar itself | **BUILD IT** |
 | 37 | **Daylight/UV, spirometry, mindfulness, mood, oral health, falls** | All **zero rows**. Data-collection problems wearing a build's clothing | **BUILD THEM.** ⚠️ **The zero-row finding is unchanged and is the whole difficulty**: what gets built is the *capture* — a way to put the data in — because a reader cannot be shown a chart of nothing. Anything that only reads HealthKit here will render empty forever |
-| 38 | **"Why is my score low" as a card** | Highest-value idea in the scan, and it must not be a card — an explanation one tap from the number is one nobody reads | ✅ **Reader agrees it is not a card, and placed it:** *"I want this to be part of the deep dive under the insight web."* More specific than §C's "under every score" — see S2 |
+| 38 ✅ | **"Why is my score low"** — shipped `964c03e` as a section of the deep dive, not a card | Highest-value idea in the scan, and it must not be a card — an explanation one tap from the number is one nobody reads | ✅ **Reader agrees it is not a card, and placed it:** *"I want this to be part of the deep dive under the insight web."* More specific than §C's "under every score" — see S2 |
 
 ---
 
@@ -258,8 +258,8 @@ shipping them honest rather than reckless.
 
 | # | Section | Where | Note |
 |---|---|---|---|
-| S1 | **A bespoke section on EVERY card** — creative authority granted | All | ⚠️ **Five have none today: gait, sustainedLoad, nutrition, metabolism, readiness.** `InsightDetailView` has `default: EmptyView()` with a comment arguing *against* exhaustiveness — **your instruction reverses that.** Make the switch exhaustive so a new card cannot ship without one, and **update `docs/card-sections.md` and the `add-insight` skill** so it is enforced, not remembered. For gait it is the worst case: the speed = step length × cadence decomposition is the card's reason to exist and reaches you as one driver line |
-| S2 | **Score decomposition** — each signal, its value, its baseline, its deviation, its weight, and the counterfactual | ⚠️ **In the deep dive under the insight web** — the reader placed it there explicitly on 2026-08-06, in preference to "under every score" | Item #38 above. Oura's #1 unfixable complaint |
+| S1 ✅ | **A bespoke section on EVERY card** — shipped `adca807`. `bespokeSection` is exhaustive now, so `default: EmptyView()` is gone and a new card cannot ship without a stated decision. Readiness is the one deliberate `EmptyView`, because its picture (the seventeen-vital strip) is drawn universally | All | ⚠️ **Five have none today: gait, sustainedLoad, nutrition, metabolism, readiness.** `InsightDetailView` has `default: EmptyView()` with a comment arguing *against* exhaustiveness — **your instruction reverses that.** Make the switch exhaustive so a new card cannot ship without one, and **update `docs/card-sections.md` and the `add-insight` skill** so it is enforced, not remembered. For gait it is the worst case: the speed = step length × cadence decomposition is the card's reason to exist and reaches you as one driver line |
+| S2 ✅ | **Score decomposition** — shipped `964c03e`. — each signal, its value, its baseline, its deviation, its weight, and the counterfactual | ⚠️ **In the deep dive under the insight web** — the reader placed it there explicitly on 2026-08-06, in preference to "under every score" | Item #38 above. Oura's #1 unfixable complaint |
 | S3 | **"Nights to flag" detail sheet** — slides up, slides back down | Symptom radar | 1.0 SD → 14 nights · 1.5 → 6 · 2.0 → 4 · 3.0 → 3 |
 | S4 | **Flagged days over time** — when sickness was flagged and how it builds | Symptom radar | Your idea tonight |
 | S5 | **"What changed while you slept"** | Sleep | Your request |
@@ -309,6 +309,7 @@ shipping them honest rather than reckless.
 | D13 | **The document/OCR path is unaudited** | The one input that turns a photograph into a health number |
 | D14 | **Roadmap rows 33–38 are stale** | The symptom-radar rows all shipped |
 | D15 | **`docs/card-sections.md` partially corrected 2026-08-06** | Two false "closed" claims reopened; the per-section tables still need a sweep |
+| D19 | ⚠️ **A hard-coded count inside reader-facing copy** — a section said "All four" on a card running on three signals, and mental health named all four behaviours including one it had no data for. The ledger's "hard-coded count going stale" row, except in a sentence, where it is worse: the sentence is a claim about what was looked at. Fixed in `adca807` with a test; **no lint exists for the next one** |
 | D17 | ⚠️ **`walkingSpeed` reads 0 days in the last 90 in the simulator**, contradicting the 1,093-day figure measured against the raw export catalogue. The Gait card still scores 100, on its other two channels, with the speed channel silently absent | Next session's cheapest real find. Either `load-real-export.sh` does not promote the gait triad, or the promotion path drops it |
 | D18 | **Five cards still have no bespoke section** — gait, sustainedLoad, nutrition, metabolism, readiness. Biological age shipped with one; mental health did not | S1 |
 | D16 | **Score history is empty for five cards** | readiness, sleep, energy, substanceImpact, fitness — the 90-day replay landed after the last export |

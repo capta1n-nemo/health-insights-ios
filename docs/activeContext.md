@@ -237,15 +237,66 @@ catalogue**). The Gait card still scores 100 — on `walkingAsymmetry` and
 the promotion path drops it. **Do not trust "N days of X" in this file without
 re-measuring it in the container you are actually running.**
 
+### A scouting pass mapped the rest, and its findings outrank its plan
+
+Eight parallel read-only agents scouted the seven remaining backlog features
+against the code. **Four findings are worth more than the ordering it produced:**
+
+1. ⚠️ **The cycle tab is blocked on a question, not on code.** The app is
+   structurally single-user — `ProviderCredentialStore` keys on `providerID`
+   alone, `IntegrationRecord.integrationID` is `@Attribute(.unique)`, and
+   `deploy.yml` reaches one iPhone. The tab is for the reader's **wife**. Three
+   answers give three different builds and only one of them is cheap. **Ask
+   before writing a line.** Asked at the end of session 28; unanswered.
+2. **None of the seven needs a new `InsightID`** as scoped — so the six
+   exhaustive switches are uncontended. Keep it that way: the moment the cycle
+   work acquires a card, seven files come with it and one of them (`cadence`)
+   has a `default:` and will not say so.
+3. ⚠️ **`scripts/card-map.sh` fails open.** It reads section titles from a
+   4000-character window after each member declaration, and `sleepNightCard` is
+   already 3124 characters. A nested block there can push past the window, drop
+   titles silently, and `--check` still passes because the generated block and
+   the doc agree on the wrong answer. Eyeball the table; do not trust the exit
+   code.
+4. **Three features want to append to `chartStyleIndex`**, and
+   `testStyleIndicesAreContiguousFromZero` asserts exact contiguity from zero.
+   71 cases, max index 70 at the time of writing. Whoever appends second must
+   re-read the max rather than trust a number in a plan.
+
+The full per-feature plans (files, line numbers, traps, data coverage) are in
+the workflow transcript for run `wf_d6ddc2cd-536`; the four above are the parts
+that would otherwise have to be rediscovered.
+
 ### The next session's build list
 
-`docs/backlog.md` §0 carries the ordered list. Unstarted and largest:
-**the cycle tab** (§A3 — all four decisions answered; it is for the reader's
-wife, against the Oura subscription she pays for), the Fitness sections
-(#34/#35, where the effort score must feed the overall fitness score — that part
-is new work, not a relocation), sound exposure, sleep apnoea, radar accuracy,
-score decomposition inside the insight-web deep dive, and the platform work
-(notifications, delete-everything, export gaps, calendar).
+`docs/backlog.md` §0 carries the ordered list. **Shipped since this section was
+first written**: every card's bespoke section (S1), score decomposition in the
+deep dive (#38), the radar's own scorecard (#36), and the token guarantee half
+of Q10.
+
+**Unstarted, in order:**
+
+1. **The cycle tab** — blocked on the single-user question above.
+2. **The Fitness sections** (#34/#35). Two commits: promote `.physicalEffort`,
+   `.flightsClimbed` and `.distanceWalkingRunning` through the eleven metric
+   switches (**and remove them from `HealthKitService.otherQuantityIdentifiers`
+   as they are added, or every sample ingests twice**), then the intensity model
+   feeding the Fitness score — which is new work, not a relocation, and needs
+   `Feedback.swift`'s `"fitness-v1"` bumped to v2 or every recorded Fitness
+   score becomes silently non-comparable. `.fitness` is taken in
+   `bespokeSection`; `secondaryBespokeSection` is free.
+3. **Breathing disturbance** (#30 / S9). The data already arrives — Oura's
+   index, ~107 nights — and promotion is declarative in `PromotionRules.swift`,
+   so no parser changes. See finding 3 above before touching `sleepNightCard`.
+4. **The rest of Q10** (four export fields), **Q13 delete-everything** (which
+   must come *after* the cycle tab, or the wipe silently misses two new
+   `@Model` types), then sound exposure and the calendar.
+
+⚠️ **Q11 notifications is deferred and needs an answer, not code.** There is no
+`BGTaskScheduler`, no `BackgroundTasks` import and no `UIBackgroundModes`
+anywhere in the repo, so anything built today fires **only while the app is
+foregrounded** — a radar episode opening at 3am cannot notify. Shipping a
+notification system that mostly does not fire is worse than not shipping one.
 
 **Session 26 (2026-08-05) — two ingestion defects closed, one of them silent
 for the life of the feature. ⚠️ Nothing is pushed; see the blocker below.**
