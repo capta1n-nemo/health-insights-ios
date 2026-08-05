@@ -140,15 +140,14 @@ section it sits in rather than by judgement:
 | 49 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
 | 50 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
 | 51 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
-| 52 | Promote the nine micronutrients — vitamin C, D, A, B12, magnesium, zinc, calc… | Food and supplement capture — scanner, AI, and vitamins | next |
-| 53 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
-| 54 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 55 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 56 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 57 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 58 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 59 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 60 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 52 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
+| 53 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 54 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 55 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 56 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 57 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 58 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 59 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1938,10 +1937,16 @@ problem.
       sentence this app can produce and MyFitnessPal cannot. ULs from EFSA and
       IOM — for a supplement the upper limit matters far more than the RDA, and
       published bands are already the agreed shape.
-- [ ] **Promote the nine micronutrients** — vitamin C, D, A, B12, magnesium,
-      zinc, calcium, iron and cholesterol are already scraped into the raw pile
-      and read by nothing. They are the reader for the supplement work and it is
-      the reader for them: promote them together, not before.
+- [x] **Promote the nine micronutrients — done 2026-08-05 (`342f00d`), and it
+      was eleven.** The two unsaturated-fat splits went with them, since they sit
+      in the same raw lane for the same reason. The clause "promote them together
+      with the supplement work, not before" was **overtaken by a different
+      argument**: raw groups carry no category, so the Data tab's Nutrition
+      section is generated from `MetricType` alone and 686 rows of the reader's
+      own record were filing under "Other data" at the bottom of the tab. Being
+      unscored was the intent; being unfindable was not. **Still unscored by any
+      card** — that half genuinely does wait for the supplement work, and it is
+      where the published bands land.
 - [ ] **The AI estimate, last.** Published accuracy decides the design:
       identification runs **68–86% in the real world**, and **portion estimation
       as low as 39%, 15–25% error from a 2D photo and 5–10% with depth**. So
