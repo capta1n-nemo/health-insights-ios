@@ -38,6 +38,14 @@ public struct InsightEngine: Sendable {
             // when a fortnight of ring data is missing this is the card still
             // reporting, and the Insights tab should not put it last.
             GaitInsight(),
+            // The app's own biological age. Registered here rather than left as
+            // a section of the risk card, because it reads five markers of its
+            // own and produces a score — everything that iterates `models`
+            // (score recording, replay, the comparison chart, grounding
+            // collection) needs to see it, and `SubstanceImpactInsight` is the
+            // standing example of what happens when one of these is built and
+            // not registered.
+            BiologicalAgeInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
             // `withSubstanceLog(_:)`. Registering it at all is what finally put
             // it in front of everything that iterates `models` — score

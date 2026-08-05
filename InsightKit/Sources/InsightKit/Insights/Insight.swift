@@ -70,6 +70,23 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// Shorter steps at the same rhythm is a different story from the same
     /// steps taken less often, and no product in the field draws that line.
     case gait
+    /// **The age this body's measurements are typical of** — this app's own,
+    /// not a vendor's relayed.
+    ///
+    /// Refused twice on the grounds that a house biological age would be "a
+    /// worse black box with a smaller *n*", and reversed by the reader on
+    /// 2026-08-06: *"these sorts of things are the ENTIRE POINT OF THE APP."*
+    /// They were right, and the refusal had assumed the only way to build one is
+    /// the way Whoop and Oura build theirs — fit to a cohort nobody can see,
+    /// print one number, publish no error.
+    ///
+    /// `BiologicalAgeModel` is built the other way round: nothing is fitted to
+    /// anything, every marker is inverted through a published age norm, and the
+    /// weights come from how precisely each marker can pin an age rather than
+    /// from a choice. There is no tunable number in it. It costs a wide error
+    /// bar — around a decade — and prints it, which is the trade every
+    /// commercial version declines to make.
+    case biologicalAge
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

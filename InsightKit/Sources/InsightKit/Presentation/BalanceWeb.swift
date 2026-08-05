@@ -305,6 +305,14 @@ public extension InsightID {
         // half of it missing.
         case .gait:
             return true
+        // **Off the web, and not because it is a detector.** Biological age is
+        // built from cardio fitness, blood pressure and body fat — three spokes
+        // already on this chart — so a spoke for it would draw the same
+        // information a second time and make an agreement between them look
+        // like four independent findings. A composite of the other axes is the
+        // one thing a balance chart must not carry.
+        case .biologicalAge:
+            return false
         case .symptomRadar:
             return false
         }
@@ -324,6 +332,7 @@ public extension InsightID {
         case .substanceImpact: return "Substances"
         case .sustainedLoad: return "Stress"
         case .gait: return "Walking"
+        case .biologicalAge: return "Age"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

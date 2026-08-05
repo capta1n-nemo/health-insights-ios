@@ -44,6 +44,7 @@ public extension InsightID {
         case .symptomRadar: return 11
         case .sustainedLoad: return 12
         case .gait: return 13
+        case .biologicalAge: return 14
         }
     }
 }

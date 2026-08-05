@@ -273,10 +273,44 @@ final class BalanceWebTests: XCTestCase {
                        "the radar is on the web, where its quiet 100 reads as perfect health")
     }
 
-    /// And the exclusion is narrow — nothing else was swept up with it.
+    /// And the exclusions are narrow — nothing else was swept up with them.
+    ///
+    /// **Two reasons a card can be off this web, and they are different
+    /// arguments.** Written out here rather than left as a set of names, because
+    /// `CardVisibilityTests` froze a real bug in exactly this shape: a closed
+    /// set populated from what the build happened to do rather than from the
+    /// rule it exists to enforce. A third card wanting off has to match one of
+    /// these sentences or change them.
+    ///
+    /// 1. `symptomRadar` — **not a score of the same kind.** It is a detector,
+    ///    and its quiet 100 read as perfect health beside genuine scores.
+    /// 2. `biologicalAge` — **a composite of spokes already on the chart.** It is
+    ///    built from cardio fitness, blood pressure and body fat, so drawing it
+    ///    beside them would show one agreement as four independent findings.
+    ///    Every other card here reads signals nothing else on the web reads.
     func testEveryOtherScoringCardStillBelongsOnTheWeb() {
-        for id in InsightID.allCases where id != .symptomRadar {
+        let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge]
+        for id in InsightID.allCases where !excluded.contains(id) {
             XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
+        }
+        for id in excluded {
+            XCTAssertFalse(id.belongsOnBalanceWeb,
+                           "\(id) is listed as a deliberate exclusion and is on the web")
+        }
+    }
+
+    /// The composite argument, asserted rather than described: every marker
+    /// biological age is built from is read by a card that *is* on the web.
+    ///
+    /// If that ever stops being true — a marker only this card reads — the
+    /// exclusion above weakens and this test says so.
+    func testBiologicalAgeIsBuiltEntirelyFromSpokesAlreadyOnTheWeb() {
+        let onTheWeb = InsightEngine().models
+            .filter { $0.id.belongsOnBalanceWeb }
+            .flatMap(\.candidateMetrics)
+        for metric in BiologicalAgeModel.candidates {
+            XCTAssertTrue(onTheWeb.contains(metric),
+                          "\(metric) is read only by biological age, so it is not a composite of the web after all")
         }
     }
 }

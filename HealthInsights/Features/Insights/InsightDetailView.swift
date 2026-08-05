@@ -85,6 +85,12 @@ struct InsightDetailView: View {
             // direction and whether it is leaning — roadmap #31's "which
             // signals moved is more actionable than a score".
             symptomRadarWebCard
+        case .biologicalAge:
+            // Every marker's own answer, its own error bar and its own share,
+            // on one axis of years. This is the section that makes the card not
+            // a black box, so it is the card's bespoke slot rather than an
+            // extra.
+            biologicalAgeMarkersCard
         // Kept, though all nine cases are now named: making this exhaustive
         // would add a *sixth* build-breaking switch over `InsightID` to the
         // `add-insight` path, which `docs/activeContext.md` singles out as the
@@ -1149,6 +1155,141 @@ struct InsightDetailView: View {
             Text(MetricValueFormatter.string(signal.value, signal.metric))
                 .font(.subheadline.weight(.medium)).monospacedDigit()
         }
+    }
+
+    // MARK: - Biological age: every marker's own answer
+
+    /// **The section that stops this card being a black box.**
+    ///
+    /// Each marker gets one row on a shared axis of years: a bar for its own
+    /// error, a dot for its own answer, and its share of the final number. The
+    /// reader's real age is a vertical line through all of them.
+    ///
+    /// Drawn by hand rather than with Swift Charts on purpose. The x axis here
+    /// is *age in years*, not time, so the substance shading every chart carries
+    /// would be meaningless on it — the same reason `FitnessProjectionChart` is
+    /// exempt — and a five-row strip is less code without a `Chart` than with
+    /// one.
+    @ViewBuilder private var biologicalAgeMarkersCard: some View {
+        let out = model.memoized("biologicalAge") {
+            BiologicalAgeModel.evaluate(samples: model.samples,
+                                        profile: model.profile)
+        }
+        if let out {
+            InsightSection(
+                title: "What each marker says",
+                trailing: String(format: "±%.0f years", out.uncertaintyYears),
+                caveat: .computed(.approximate,
+                                  "Every bar is one marker's own answer and its own error. "
+                                    + "They are combined by precision, so the narrow bars "
+                                    + "count for more — that weighting is arithmetic from "
+                                    + "the norm tables, not a choice anybody made."),
+                expansion: expansion(preview: biologicalAgePreview(out))
+            ) {
+                let span = biologicalAgeSpan(out)
+                ForEach(out.markers) { marker in
+                    biologicalAgeRow(marker, chronological: out.chronologicalAge, span: span)
+                }
+                Divider()
+                biologicalAgeRow(nil, chronological: out.chronologicalAge, span: span,
+                                 combined: out)
+                if let age = out.chronologicalAge {
+                    Text(String(format: "The dotted line is you, at %.0f.", age))
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    /// The axis both the rows and the combined bar share. Widened to hold every
+    /// error bar **and** the reader's real age, so no row can be drawn clipped
+    /// at an edge and read as pinned there.
+    private func biologicalAgeSpan(_ out: BiologicalAgeModel.Output) -> ClosedRange<Double> {
+        var low = out.range.lowerBound
+        var high = out.range.upperBound
+        for marker in out.markers {
+            low = min(low, marker.ageEquivalent - marker.uncertaintyYears)
+            high = max(high, marker.ageEquivalent + marker.uncertaintyYears)
+        }
+        if let age = out.chronologicalAge {
+            low = min(low, age - 3)
+            high = max(high, age + 3)
+        }
+        // Clamp to the model's own reportable range, then guarantee a width so
+        // the division below can never be by zero.
+        low = max(BiologicalAgeModel.youngest - 2, low)
+        high = min(BiologicalAgeModel.oldest + 2, high)
+        return low...max(low + 1, high)
+    }
+
+    private func biologicalAgePreview(_ out: BiologicalAgeModel.Output) -> String {
+        guard let strongest = out.markers.first else { return "" }
+        return String(format: "%@ carries %.0f%% of it", strongest.label,
+                      strongest.weight * 100)
+    }
+
+    /// One marker's row, or — when `combined` is set — the answer itself.
+    @ViewBuilder private func biologicalAgeRow(
+        _ marker: BiologicalAgeModel.Marker?,
+        chronological: Double?,
+        span: ClosedRange<Double>,
+        combined: BiologicalAgeModel.Output? = nil
+    ) -> some View {
+        let centre = combined?.biologicalAge ?? marker?.ageEquivalent ?? 0
+        let error = combined?.uncertaintyYears ?? marker?.uncertaintyYears ?? 0
+        let title = combined == nil ? (marker?.label ?? "") : "Combined"
+        let width = span.upperBound - span.lowerBound
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(combined == nil ? .subheadline : .subheadline.weight(.semibold))
+                Spacer()
+                Text(String(format: "%.0f ±%.0f", centre, error))
+                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                if let marker {
+                    Text(String(format: "%.0f%%", marker.weight * 100))
+                        .font(.caption.weight(.medium)).monospacedDigit()
+                        .frame(width: 38, alignment: .trailing)
+                } else {
+                    Text("100%")
+                        .font(.caption.weight(.medium)).monospacedDigit()
+                        .frame(width: 38, alignment: .trailing)
+                }
+            }
+            GeometryReader { geometry in
+                let scale = geometry.size.width / width
+                let barStart = (max(span.lowerBound, centre - error) - span.lowerBound) * scale
+                let barEnd = (min(span.upperBound, centre + error) - span.lowerBound) * scale
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.12))
+                        .frame(height: 6)
+                    Capsule()
+                        .fill((combined == nil ? Theme.accent : Theme.good).opacity(0.28))
+                        .frame(width: max(2, barEnd - barStart), height: 6)
+                        .offset(x: barStart)
+                    Circle()
+                        .fill(combined == nil ? Theme.accent : Theme.good)
+                        .frame(width: 9, height: 9)
+                        .offset(x: (centre - span.lowerBound) * scale - 4.5)
+                    if let chronological,
+                       span.contains(chronological) {
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.45))
+                            .frame(width: 1.5, height: 16)
+                            .offset(x: (chronological - span.lowerBound) * scale)
+                    }
+                }
+                .frame(height: 16)
+            }
+            .frame(height: 16)
+            if let marker, !marker.caveat.isEmpty, combined == nil {
+                Text(marker.caveat)
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private func peerStandingSection(_ result: InsightResult) -> some View {

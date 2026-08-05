@@ -94,6 +94,7 @@ struct TelemetryOutboxView: View {
             case .symptomRadar: return "Symptom radar"
             case .sustainedLoad: return "Stress load"
             case .gait: return "How you walked"
+            case .biologicalAge: return "Biological age"
             }
         } ?? raw
     }

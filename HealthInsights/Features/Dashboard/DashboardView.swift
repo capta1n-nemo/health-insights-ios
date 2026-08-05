@@ -378,6 +378,9 @@ struct InsightCard: View {
         // been held for weeks, not a beat or a burst.
         case .sustainedLoad: return "gauge.with.needle"
         case .gait: return "figure.walk.motion"
+        // An hourglass, not a candle or a calendar: this is a rate, and the
+        // card leads with the pace rather than the number.
+        case .biologicalAge: return "hourglass"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

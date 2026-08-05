@@ -79,6 +79,9 @@ the place to look.
   - `ActivityDoseModel` :30
 - `Insights/AgeComparison.swift`
   - `AgeComparison` :30
+- `Insights/BiologicalAgeModel.swift`
+  - `BiologicalAgeInsight` :802
+  - `BiologicalAgeModel` :72
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
   - `BloodPressureInsight` :645
@@ -122,14 +125,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :120
-  - `InsightCadence` :78
-  - `InsightConfidence` :112
-  - `InsightDriver` :148
+  - `GroundingRequirement` :137
+  - `InsightCadence` :95
+  - `InsightConfidence` :129
+  - `InsightDriver` :165
   - `InsightID` :15
-  - `InsightModel` :375
-  - `InsightResult` :165
-  - `RequirementStatus` :136
+  - `InsightModel` :392
+  - `InsightResult` :182
+  - `RequirementStatus` :153
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -272,7 +275,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :59
+  - `InsightPalette` :60
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
