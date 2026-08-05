@@ -136,6 +136,41 @@ because the export holds 109 HealthKit samples that genuinely land at
 **So: do not report a detection gain from `4128ab3`.** Say what it is — an
 accidental reconciliation removed.
 
+### Launch went from 98 s to under 8 s, and the cause was a file nobody looked at twice
+
+**Measured on the reader's own record, before and after, on the same simulator.**
+Cold launch showed the "Still going — that's a lot of history to read" splash for
+**over 90 seconds**; it now reaches a drawn Today tab in **under 8**. Same data,
+same numbers on the card.
+
+The cause: `SampleCacheCodec` was written because decoding the sample cache
+through `JSONDecoder` was "the largest single cost left on a cold launch" — and
+it was applied to `synced_samples` only. The two files on this record were
+
+    synced_samples.hisc     6.6 MB   compact binary
+    synced_other.json     109.0 MB   plain Codable
+
+so the fast format went to the small file and the sixteen-times-larger one kept
+the format it was written to replace. `RawCacheCodec` fixes that:
+**109 MB → 10.2 MB**, and the JSON file is deleted on the next save.
+
+**The file was never the problem — `Codable` was.** Python's C parser reads the
+same 109 MB in 0.58 s. That is the number to reach for before assuming a big
+file is inherently slow to load.
+
+⚠️ **Two lessons worth more than the fix.**
+
+1. **An optimisation applied to one of two symmetrical paths is a bug with a
+   good comment on it.** The doc comment explaining why the compact format
+   existed sat a few lines above `loadCachedOther`, which ignored it. When
+   fixing a cost, check its twin.
+2. **A wrong offset in a binary codec is not a malformed file.** The first
+   version read the value tag at byte +5, inside the two-byte source index, so
+   every field after shifted by one and decoded as plausible-looking garbage —
+   58.5 came back as 1.3e+64. The corruption tests all passed; the round-trip
+   test caught it. Test that what goes in comes out, not only that rubbish is
+   refused.
+
 ### ⚠️ The symptom radar: measured, designed, and deliberately not shipped
 
 **The reader, 2026-08-05:** *"Today my heart rate is still elevated, my HRV is
