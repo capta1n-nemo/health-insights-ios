@@ -136,6 +136,44 @@ because the export holds 109 HealthKit samples that genuinely land at
 **So: do not report a detection gain from `4128ab3`.** Say what it is — an
 accidental reconciliation removed.
 
+### The third invisible card, and the guard that was pinning it
+
+The reader asked why Substance Impact was not showing. Two things were true and
+only one was a bug:
+
+1. **It is a `daily` card** (`Insight.swift:62`), so it lives on **Today**, not
+   Insights. Not a defect.
+2. **With an empty log it was filtered off Today entirely** — no
+   `primaryValue`, no unmet requirement, nothing awaited, so `isWorthShowing`
+   was false on every count. The card whose *whole* input is something the
+   reader types was hidden exactly while it had none. Fixed (`a1b12fb`):
+   `invitesInput: true` on the empty branch. Verified on screen.
+
+**The part worth carrying: `CardVisibilityTests` — written on 2026-08-03 to stop
+this exact class — was requiring this instance of it.**
+`testTheFlagIsNotSetOnCardsWithNothingToAskFor` asserted the inviting set was
+*exactly* `[nutrition, metabolism, symptomRadar]`. A closed set is the right
+shape, and it had been populated from what the build happened to do rather than
+from the question it exists to ask. **When a guard is a closed set, the members
+must be derived from the rule, not from the current behaviour** — otherwise the
+guard freezes the bug.
+
+⚠️ **`load-real-export.sh` does not load substance events**, and this cost time.
+They live in SwiftData like score history, so a file copy cannot carry them: the
+reader's 16 events are in the export and were never in the simulator. **An empty
+substance card on a seeded simulator is expected and says nothing about the
+phone.** Same is true of anything else SwiftData-backed.
+
+**Open decision the reader raised, not yet acted on:** *"every card should show,
+even if it hasn't got data yet."* All twelve registered cards are visible on the
+real export today, so this bites only a fresh install or a reader with no
+wearable, where the three daily cards have no number, no requirement and no ask.
+The counter-rationale is recorded at `Insight.swift:166-171` and is about Today
+specifically. **Making every card visible is only half the job** — the
+2026-08-04 finding was that a visible card leading with "No data yet" is the
+same dead end one layer in, so each newly-visible card needs an empty state that
+says what it wants. Ask before doing it.
+
 ### Seen, not reasoned about
 
 The simulator carried the real export, so the "device" roadmap items were
