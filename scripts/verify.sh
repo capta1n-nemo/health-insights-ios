@@ -80,6 +80,16 @@ ban '\\\.[0-9]+\b' \
     'Key paths do not work on tuple elements — use { $0.0 } instead of \.0.' \
     "$KIT" "$KIT_TESTS" "$APP"
 
+# A default-configured ISO8601DateFormatter rejects fractional seconds, and a
+# rejection is nil — indistinguishable from "the connector sent no date". Three
+# parsers hand-rolled the fractional-then-plain fallback; the one that got it
+# wrong (Oura) lost every bedtime in the reader's two-year history and disabled
+# the split-night fix, with every test still green. `PayloadDate.parse` is the
+# one door: it tries both forms, plus a bare day string and epoch seconds.
+ban 'ISO8601DateFormatter\(\)\.(date|string)' \
+    'Parse connector dates with PayloadDate.parse — a bare ISO8601DateFormatter() drops fractional seconds and reports it as nil.' \
+    "$KIT"
+
 # A RuleMark/AreaMark/RectangleMark chain without an explicit `-> some
 # ChartContent` can resolve to Chart3DContent on this SDK and silently drop
 # .lineStyle / .foregroundStyle / .annotation. Broke CI twice.

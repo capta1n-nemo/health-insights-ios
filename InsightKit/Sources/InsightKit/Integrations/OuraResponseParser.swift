@@ -130,9 +130,11 @@ public enum OuraResponseParser {
             // provides the night's bedtime or latency.
             guard Self.isNight(record.type)
                     || Self.isMorningReSleep(record, calendar: calendar) else { continue }
+            // `PayloadDate.parse`, never a bare `ISO8601DateFormatter()` — see
+            // the note on `bedtimeInstant` below. This line silently produced
+            // no bedtimes at all for the whole of the reader's history.
             if Self.isNight(record.type),
-               let raw = record.bedtime_start,
-               let instant = ISO8601DateFormatter().date(from: raw) {
+               let instant = Self.bedtimeInstant(record) {
                 bedtimes.append(instant)
             }
             guard let date = date(from: record) else { continue }
@@ -236,9 +238,34 @@ public enum OuraResponseParser {
     private static func isMorningReSleep(_ record: SleepRecord,
                                          calendar: Calendar = .current) -> Bool {
         guard !isNight(record.type),
-              let raw = record.bedtime_start,
-              let instant = ISO8601DateFormatter().date(from: raw) else { return false }
+              let instant = bedtimeInstant(record) else { return false }
         return calendar.component(.hour, from: instant) < 12
+    }
+
+    /// A record's `bedtime_start` as an instant — **the one door**, because all
+    /// three callers of it were wrong in the same way.
+    ///
+    /// Each read the string with a bare `ISO8601DateFormatter()`, which accepts
+    /// `2026-07-19T23:30:00+08:00` and rejects the fractional-seconds form. A
+    /// rejection is `nil`, and `nil` is indistinguishable here from "Oura sent
+    /// no bedtime": the bedtime collector skipped the record, `isMorningReSleep`
+    /// returned false, and nothing anywhere logged a parse failure.
+    ///
+    /// What that cost, measured against the reader's own export rather than
+    /// argued: **119 Oura `sleepLatencyMinutes` samples and zero Oura
+    /// `sleepOnset` samples.** The typed parser demonstrably ran on 119 nights
+    /// and every bedtime it emitted evaporated — so circadian consistency had
+    /// no Oura input at all, and the split-night fix (`isMorningReSleep`, added
+    /// 2026-08-02 for exactly the "7.5 h reported as 4 h" defect) was disabled
+    /// from the day it shipped, silently, while its tests passed on
+    /// hand-written fixtures with no fractional seconds.
+    ///
+    /// `PayloadDate.parse` tries the fractional form, then the plain one, so
+    /// **this is correct without establishing which one Oura actually sends** —
+    /// a question the diagnosis had parked as needing a captured live payload.
+    /// Tolerating both retires it instead of answering it.
+    private static func bedtimeInstant(_ record: SleepRecord) -> Date? {
+        record.bedtime_start.flatMap(PayloadDate.parse)
     }
 
     /// The one rule for "does this segment count toward the night", callable
@@ -252,10 +279,7 @@ public enum OuraResponseParser {
 
     private static func date(from record: SleepRecord) -> Date? {
         if let day = record.day, let d = dayFormatter.date(from: day) { return d }
-        if let start = record.bedtime_start {
-            return ISO8601DateFormatter().date(from: start)
-        }
-        return nil
+        return bedtimeInstant(record)
     }
 
     static func day(_ s: String?) -> Date? { s.flatMap { dayFormatter.date(from: $0) } }

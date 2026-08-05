@@ -211,25 +211,15 @@ public enum ShotsyImport {
         return Double(text.replacingOccurrences(of: ",", with: "."))
     }
 
+    /// Shotsy writes both `2025-08-22T09:53:01Z` and, for some rows, a
+    /// fractional-seconds variant, and one `ISO8601DateFormatter` cannot accept
+    /// both — the rule this file has stated correctly since it was written.
+    /// `PayloadDate.parse` is that rule, held in one place: stating it three
+    /// times is what let `OuraResponseParser` state it wrongly and lose every
+    /// Oura bedtime in the reader's history without a single failing test.
     static func isoDate(_ text: String?) -> Date? {
-        guard let text else { return nil }
-        return isoWithFraction.date(from: text) ?? isoPlain.date(from: text)
+        text.flatMap(PayloadDate.parse)
     }
-
-    /// Two formatters because Shotsy writes both `2025-08-22T09:53:01Z` and,
-    /// for some rows, a fractional-seconds variant — and one `ISO8601DateFormatter`
-    /// cannot accept both.
-    private static let isoPlain: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
-
-    private static let isoWithFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
 
     /// "  stomach - lower right " → "Stomach - Lower Right".
     static func cleanedSite(_ raw: String?) -> String? {

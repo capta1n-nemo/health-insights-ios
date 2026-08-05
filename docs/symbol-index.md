@@ -70,7 +70,7 @@ the place to look.
   - `ShortcutIngest` :36
 - `Ingestion/ShotsyImport.swift`
   - `ShotsyImport` :26
-  - `ShotsyUnit` :248
+  - `ShotsyUnit` :238
 - `Insights/ActivityDoseModel.swift`
   - `ActivityDoseModel` :30
 - `Insights/BloodPressureEstimator.swift`

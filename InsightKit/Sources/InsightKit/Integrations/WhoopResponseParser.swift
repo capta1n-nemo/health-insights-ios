@@ -8,15 +8,13 @@ import Foundation
 /// strain features.
 public enum WhoopResponseParser {
 
-    private static let iso: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
+    /// This parser hand-rolled the fractional-then-plain fallback correctly, and
+    /// so did `ShotsyImport`, and `OuraResponseParser` — the third copy — did
+    /// not, losing every Oura bedtime in the reader's history. Three
+    /// implementations of one rule is how the wrong one hides, so all three
+    /// route through `PayloadDate.parse` now and `verify.sh` bans the shape.
     private static func date(_ s: String?) -> Date? {
-        guard let s else { return nil }
-        return iso.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+        s.flatMap(PayloadDate.parse)
     }
 
     // MARK: Recovery
