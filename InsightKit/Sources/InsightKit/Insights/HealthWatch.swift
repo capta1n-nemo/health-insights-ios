@@ -40,10 +40,52 @@ public enum HealthWatchModel {
     public static let referenceDays = 21
     /// Daily values a signal needs in the reference period before it can vote.
     public static let minimumReferenceDays = 7
-    /// How far a signal must move before it counts as leaning at all.
+    /// How far a signal must move before the card **points at it**.
+    ///
+    /// ⚠️ **This is a presentation threshold and no longer a scoring gate.** It
+    /// used to be both, and that was the defect measured on 2026-08-05: four
+    /// signals *all* leaning the illness way at z = 0.95 scored exactly 100,
+    /// "Nothing stirring", because `score` opened with `guard signal.isLeaning`
+    /// and threw the other side of the bar away. The reader reported it from the
+    /// other end — *"my heart rate is still elevated, my HRV is still down …
+    /// why am I now back at 99%"*. The score is continuous now; this only
+    /// decides which rows are worth naming on the card.
     public static let leaningZ = 1.0
-    /// And how far before it is leaning hard.
+    /// And how far before the card calls it a hard lean.
     public static let strongZ = 2.0
+
+    /// How far one channel's departure can count, in SDs.
+    ///
+    /// The second half of the same defect: with no cap, one signal at z = 3.0
+    /// scored **55** while four signals at z = 1.2 scored **64** — the exact
+    /// opposite of what this file's own doc comment claimed it did. Past two and
+    /// a half SDs a single channel carries almost no additional information
+    /// about *illness* and quite a lot about a hot bedroom, a hard session or a
+    /// sensor slipping, so it stops accumulating.
+    public static let channelCap = 2.5
+
+    /// `E[max(0, Z)] = 1/√(2π)` for a standard normal.
+    ///
+    /// **The number that makes this calibrated rather than merely continuous.**
+    /// A perfectly well body scores about 0.4 on the one-sided statistic below,
+    /// every single day, purely from noise — so a curve that read 0.4 as
+    /// evidence would grade health itself as a symptom. The score is a function
+    /// of how far past this the day sits, in units of the statistic's own null
+    /// spread, which is why it can be stated as a false-alarm budget at all.
+    static let nullMean = 1 / (2 * Double.pi).squareRoot()
+    /// `Var[max(0, Z)] = ½ − 1/(2π)`.
+    static let nullVariance = 0.5 - 1 / (2 * Double.pi)
+
+    /// How much the surviving channels still move together, after the same-basis
+    /// collapse has taken out the pairs that are one measurement twice.
+    ///
+    /// A stated assumption, not a measurement — an equicorrelation of 0.3 for
+    /// signals that share a sympathetic drive without sharing an instrument. The
+    /// simulation in `SymptomRadarTests` runs the alarm rate at 0, 0.3 and 0.5
+    /// so the cost of being wrong is written down rather than hoped about: at
+    /// 0.5 the strong band fires about three times as often as designed, which
+    /// is a degradation and not a collapse.
+    static let assumedDependence = 0.3
 
     /// One signal's verdict.
     public struct Signal: Sendable, Equatable, Identifiable {
@@ -198,24 +240,99 @@ public enum HealthWatchModel {
         return out
     }
 
+    /// The weighted mean one-sided departure, in SDs.
+    ///
+    /// **One joint statistic, never a count of channels past a threshold.** Six
+    /// signals each at 95% specificity, OR'd together, give a 26.5% false-alarm
+    /// rate — roughly a hundred alarming mornings a year on a body that is
+    /// perfectly well. That arithmetic is why this is a mean and not a tally.
+    ///
+    /// One-sided per channel: a signal moving the *welcome* way is good news and
+    /// contributes nothing, rather than cancelling out one that moved the wrong
+    /// way. A gloriously high HRV does not disprove a raised resting heart rate.
+    static func concern(_ signals: [Signal]) -> Double {
+        var weighted = 0.0
+        var total = 0.0
+        for signal in signals {
+            guard let weight = watched.first(where: { $0.metric == signal.metric })?.weight
+            else { continue }
+            total += weight
+            guard signal.isConcerning else { continue }
+            weighted += weight * Swift.min(channelCap, abs(signal.zScore))
+        }
+        guard total > 0 else { return 0 }
+        return weighted / total
+    }
+
+    /// How far past an ordinary day this one sits, in the statistic's own null
+    /// standard deviations. Zero is a perfectly well body; three is a finding.
+    ///
+    /// The null spread is computed from the weights that actually voted rather
+    /// than fixed, because it genuinely changes with them: `Var[Σwᵢxᵢ/Σwᵢ] =
+    /// Var[x]·Σwᵢ²/(Σwᵢ)²`. A morning where the ring was off and only two
+    /// channels reported is a noisier morning, and this says so instead of
+    /// grading it on a four-channel scale.
+    ///
+    /// ⚠️ **The channels are not independent, and assuming they were fired on
+    /// 5.3% of well days — nineteen mornings a year.** That number is measured,
+    /// not feared: the first version of this used `Var·Σwᵢ²/(Σwᵢ)²`, and the
+    /// simulation in `SymptomRadarTests` caught it immediately.
+    ///
+    /// `collapsingDuplicates` removes the worst of the dependence — the two HRV
+    /// metrics, the thermal pair, the whole cardiac/autonomic group where
+    /// resting heart rate and rMSSD come off one interbeat stream and correlate
+    /// −0.93, and respiratory rate against oxygen saturation. What survives
+    /// still shares a sympathetic drive, so the spread carries an equicorrelated
+    /// term at `assumedDependence`:
+    ///
+    ///     Var[Σwᵢxᵢ/Σwᵢ] = Var[x]·(Σwᵢ²(1−ρ) + ρ(Σwᵢ)²) / (Σwᵢ)²
+    ///
+    /// **The property that buys**, measured over 400,000 simulated null days:
+    /// the excess at a given quantile becomes almost identical whether four
+    /// channels reported or two (99.45th percentile: 3.26 against 3.35). A
+    /// morning when the ring was off is then graded on the same scale as a
+    /// morning when everything reported, rather than on a quietly stricter one.
+    static func excess(_ signals: [Signal]) -> Double {
+        let weights = signals.compactMap { signal in
+            watched.first { $0.metric == signal.metric }?.weight
+        }
+        let total = weights.reduce(0, +)
+        let sumOfSquares = weights.reduce(0) { $0 + $1 * $1 }
+        guard total > 0, sumOfSquares > 0 else { return 0 }
+        let variance = nullVariance
+            * (sumOfSquares * (1 - assumedDependence) + assumedDependence * total * total)
+            / (total * total)
+        return Swift.max(0, (concern(signals) - nullMean) / variance.squareRoot())
+    }
+
     /// 0–100, higher is better.
     ///
     /// Deliberately *not* worst-offender-dominant, which is the rule everywhere
     /// else in this app. One signal off is an ordinary Tuesday — the whole point
-    /// here is agreement, so the votes accumulate and a single outlier barely
-    /// registers. Four signals at z = 1.2 should worry you considerably more than
-    /// one at z = 3.
+    /// here is agreement, so the departures accumulate and a single outlier
+    /// cannot dominate. Four signals at z = 1.2 worry this card considerably
+    /// more than one at z = 3, which is what its doc comment always said and
+    /// what, until 2026-08-05, it did the exact reverse of.
+    ///
+    /// **The anchors are measured null quantiles, not chosen numbers.** From
+    /// 400,000 simulated well days at `assumedDependence`:
+    ///
+    /// | Excess | Percentile | Well days a year above it | Score |
+    /// | --- | --- | --- | --- |
+    /// | 1.9 | 95th | ~18 | 85 — the card starts pointing at rows |
+    /// | 3.3 | 99.45th | ~2 | 50 — the card says something is going on |
+    ///
+    /// So the band edges are a **stated false-alarm budget**: about two alarming
+    /// mornings a year on a body that is perfectly well. The comparison worth
+    /// keeping in mind is six signals each at 95% specificity simply OR'd
+    /// together, which gives ninety-seven.
+    ///
+    /// The band *values* — 85 and 50 — did not move when this was rebuilt. Only
+    /// the statistic under them, and what they now mean.
     static func score(_ signals: [Signal]) -> Double {
-        let concern = signals.reduce(0.0) { total, signal in
-            guard signal.isLeaning else { return total }
-            guard let weight = watched.first(where: { $0.metric == signal.metric })?.weight
-            else { return total }
-            // Full weight at `strongZ`, and nothing below `leaningZ`.
-            let magnitude = Swift.min(1, (abs(signal.zScore) - leaningZ) / (strongZ - leaningZ))
-            return total + weight * magnitude
-        }
-        // Two signals fully leaning is already a strong finding.
-        return Swift.max(0, Swift.min(100, 100 - concern / 2 * 100))
+        ScoreCurve.through([(0, 100), (1.0, 94), (1.9, 85), (2.5, 72),
+                            (3.3, 50), (4.0, 35), (5.0, 18), (6.0, 8), (8.0, 2)],
+                           at: excess(signals))
     }
 }
 
@@ -232,18 +349,45 @@ public extension HealthWatchModel.Output {
     /// Labels over the already-continuous score — bands, like Readiness's, not
     /// a scoring curve, so there is nothing to enrol in `ScoreContinuityTests`.
     ///
-    /// The thresholds are statements about the *vote*, read back through
-    /// `score = 100 − concern/2 × 100`:
-    /// - 85 is concern 0.3 — nothing, or one signal barely past leaning.
-    /// - 50 is concern 1.0, which is **exactly** the largest single vote (skin
-    ///   temperature, weight 1.0, fully leaning) — so `strongSigns` is
-    ///   structurally guaranteed to mean at least two signals leaning at once.
-    ///   Agreement is the finding; one dramatic number never reaches it.
+    /// The thresholds are statements about how far past an ordinary day this
+    /// one sits, in the joint statistic's own null standard deviations:
+    /// - **85 is one null SD.** Below it the day is inside the range a well body
+    ///   produces on its own, and the card says nothing is stirring.
+    /// - **50 is two and a half.** Under the null that is roughly a 1-in-160
+    ///   morning, or about **two false alarms a year** — a stated budget rather
+    ///   than a threshold somebody liked the look of. Six signals each at 95%
+    ///   specificity, OR'd, would give ninety-seven.
+    ///
+    /// ⚠️ **`strongSigns` additionally requires two signals leaning**, and that
+    /// is a rule rather than an emergent property. It used to be emergent —
+    /// weight 1.0 fully leaning landed exactly on 50 — and that guarantee was
+    /// lost when the score became a properly calibrated mean, because on a
+    /// morning when only two channels reported, one extreme channel can reach
+    /// any excess at all. The claim is the card's whole thesis and is worth
+    /// stating outright: **agreement is the finding, and one dramatic number is
+    /// never the finding.** The score itself stays continuous; only the label is
+    /// gated, and the card still shows the number underneath it.
+    /// ⚠️ **And `quiet` additionally requires that nothing is leaning hard**, for
+    /// the mirror-image reason. The joint statistic is a measure of *agreement*,
+    /// and it is right that one channel cannot move it far — but the reader's
+    /// resting heart rate sitting 23 bpm above their own normal is something
+    /// stirring, whatever the other signals are doing, and a card that answers
+    /// "nothing stirring" to that has told them something false. The two gates
+    /// are symmetric: **agreement decides how strong a finding is, and a single
+    /// hard lean is enough to stop the card giving an all-clear.**
     var status: SymptomRadarStatus {
-        if score >= 85 { return .quiet }
-        if score >= 50 { return .someSigns }
+        let anythingHard = signals.contains {
+            $0.isConcerning && abs($0.zScore) >= HealthWatchModel.strongZ
+        }
+        if score >= 85 && !anythingHard { return .quiet }
+        if score >= 50 || leaning.count < 2 { return .someSigns }
         return .strongSigns
     }
+
+    /// How far past an ordinary day this one sits, in null SDs — the quantity
+    /// the score renders. Exposed so the card can say *how unusual*, and so a
+    /// test can measure the false-alarm rate the bands claim.
+    var excess: Double { HealthWatchModel.excess(signals) }
 }
 
 /// The pure machinery behind the symptom-radar card: the day-by-day timeline,

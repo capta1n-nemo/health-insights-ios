@@ -129,15 +129,171 @@ final class SymptomRadarTests: XCTestCase {
         let one = try XCTUnwrap(HealthWatchModel.evaluate(
             samples: singleOutlier(), now: radarNow, calendar: radarCalendar))
         XCTAssertEqual(one.leaning.count, 1)
-        XCTAssertEqual(one.score, 55, accuracy: 1e-9,
-                       "weight 0.9 fully leaned should land exactly on 55")
         XCTAssertEqual(one.status, .someSigns,
                        "exactly one leaning signal can never reach strongSigns")
+        // The other half of that sentence, and it needs its own gate: this
+        // fixture is a resting heart rate 23 bpm above the reader's own normal
+        // with everything else settled. The joint statistic is *right* that one
+        // channel does not make a convergence — it scores \(one.score) — but
+        // "nothing stirring" would be a false answer to a heart rate like that.
+        XCTAssertGreaterThan(one.score, 85,
+                             "the agreement statistic should be relaxed here")
+        XCTAssertNotEqual(one.status, .quiet,
+                          "one signal 23 bpm out was reported as nothing stirring")
     }
 
-    /// The structural claim behind the bands: under 50 requires agreement,
-    /// because the largest single vote (weight 1.0, fully leaning) lands
-    /// exactly on 50. Swept over every timeline day of every fixture.
+    // MARK: - The 2026-08-05 defect, from both ends
+
+    /// **The reader's own bug report.** *"My heart rate is still elevated, my
+    /// HRV is still down … why am I now back at 99%?"*
+    ///
+    /// Four signals all leaning the illness way at z ≈ 0.95 scored **exactly
+    /// 100** — "Nothing stirring" — because the score opened with
+    /// `guard signal.isLeaning` and threw everything under z = 1.0 away. A body
+    /// does not know where the threshold is.
+    func testSignalsJustUnderTheLeaningBarStillCount() {
+        func signals(at z: Double) -> [HealthWatchModel.Signal] {
+            [(.skinTemperatureDeviation, true), (.restingHeartRate, true),
+             (.respiratoryRate, true), (.oxygenSaturation, false)]
+                .map { (metric: MetricType, rising: Bool) in
+                    HealthWatchModel.Signal(metric: metric, recent: 0, reference: 0,
+                                            zScore: rising ? z : -z, isConcerning: true)
+                }
+        }
+        let justUnder = HealthWatchModel.score(signals(at: 0.95))
+        let nothing = HealthWatchModel.score(signals(at: 0))
+
+        XCTAssertLessThan(justUnder, 95,
+                          "four signals all leaning at z = 0.95 scored \(justUnder) — the reader's bug")
+        XCTAssertLessThan(justUnder, nothing)
+        // For the record, so the next reader of this file has the figure: this
+        // day used to score **exactly 100** and now scores about 90. It is not
+        // 50, and it should not be — four channels 0.95 SD out is around the
+        // 85th percentile of an ordinary week, which is a slightly-off day
+        // rather than a finding.
+        //
+        // ⚠️ **That is the whole of what this fix buys, and it is not all of
+        // what the reader asked for.** Their day-after complaint is about
+        // *memory* — a departure that has lasted two days should not be judged
+        // as though today were the first time. That is the accumulation half,
+        // tracked separately.
+        XCTAssertGreaterThan(justUnder, 80)
+    }
+
+    /// **The other end of the same defect.** Measured before the fix: one signal
+    /// at z = 3.0 scored 55 while four at z = 1.2 scored 64 — the precise
+    /// opposite of what `HealthWatchModel.score`'s own doc comment claimed, and
+    /// the opposite of what this card is for. Agreement is the finding.
+    func testFourSignalsAgreeingWorryItMoreThanOneShouting() {
+        func signal(_ metric: MetricType, _ z: Double,
+                    concerning: Bool) -> HealthWatchModel.Signal {
+            .init(metric: metric, recent: 0, reference: 0, zScore: z,
+                  isConcerning: concerning)
+        }
+        let four = [signal(.skinTemperatureDeviation, 1.2, concerning: true),
+                    signal(.restingHeartRate, 1.2, concerning: true),
+                    signal(.respiratoryRate, 1.2, concerning: true),
+                    signal(.oxygenSaturation, -1.2, concerning: true)]
+        let oneShouting = [signal(.skinTemperatureDeviation, 0.1, concerning: false),
+                           signal(.restingHeartRate, 3.0, concerning: true),
+                           signal(.respiratoryRate, 0.1, concerning: false),
+                           signal(.oxygenSaturation, -0.1, concerning: false)]
+
+        XCTAssertLessThan(HealthWatchModel.score(four),
+                          HealthWatchModel.score(oneShouting),
+                          "one signal shouting outranked four agreeing")
+    }
+
+    /// The score has to be continuous *through* the old threshold, or the fix
+    /// has only moved the cliff.
+    func testTheScoreHasNoCliffAtTheOldThreshold() {
+        func score(at z: Double) -> Double {
+            HealthWatchModel.score([
+                .init(metric: .skinTemperatureDeviation, recent: 0, reference: 0,
+                      zScore: z, isConcerning: true),
+                .init(metric: .restingHeartRate, recent: 0, reference: 0,
+                      zScore: z, isConcerning: true),
+                .init(metric: .respiratoryRate, recent: 0, reference: 0,
+                      zScore: z, isConcerning: true)])
+        }
+        var previous = score(at: 0)
+        for step in 1...4000 {
+            let value = score(at: Double(step) / 1000)
+            XCTAssertLessThan(abs(value - previous), 1.0,
+                              "a jump of more than a point at z = \(Double(step) / 1000)")
+            previous = value
+        }
+    }
+
+    /// ⚠️ **The band edges claim a false-alarm budget, so measure it.**
+    /// `strongSigns` is anchored on the 99.45th percentile of the null — about
+    /// two alarming mornings a year on a body that is perfectly well, against
+    /// the ninety-seven that six signals each at 95% specificity would give if
+    /// they were simply OR'd together.
+    ///
+    /// **This test has already earned its place.** The first version of `excess`
+    /// assumed independent channels; this measured the real rate at 5.3% —
+    /// nineteen mornings a year — and the spread grew an equicorrelation term
+    /// the same hour.
+    ///
+    /// Run at three dependences, because 0.3 is an assumption and the cost of it
+    /// being wrong belongs in a number rather than in a worry.
+    func testTheFalseAlarmBudgetIsWhatTheBandsClaim() {
+        // A fixed sequence rather than a random one: a calibration test that
+        // fails once a fortnight is a test nobody trusts.
+        var seed: UInt64 = 0x9E3779B97F4A7C15
+        func uniform() -> Double {
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+            return Double(seed % 1_000_000) / 1_000_000 + 1e-9
+        }
+        func normal() -> Double {
+            (-2 * Foundation.log(uniform())).squareRoot()
+                * Foundation.cos(2 * .pi * uniform())
+        }
+
+        let metrics: [(MetricType, Bool)] = [
+            (.skinTemperatureDeviation, true), (.restingHeartRate, true),
+            (.respiratoryRate, true), (.oxygenSaturation, false)]
+
+        // The budget at the design assumption, and what it costs to be wrong in
+        // either direction. Measured, then written down.
+        let budget: [(dependence: Double, allowed: Double)] = [
+            (0.0, 0.004),   // channels genuinely independent — better than designed
+            (0.3, 0.008),   // the assumption: ~2 alarming mornings a year
+            (0.5, 0.025),   // half again as dependent: ~6 a year, a degradation
+        ]
+
+        for (correlation, allowed) in budget {
+            var alarms = 0
+            let trials = 40_000
+            for _ in 0..<trials {
+                let common = normal()
+                let signals = metrics.map { metric, rising -> HealthWatchModel.Signal in
+                    let z = correlation.squareRoot() * common
+                        + (1 - correlation).squareRoot() * normal()
+                    return HealthWatchModel.Signal(
+                        metric: metric, recent: 0, reference: 0,
+                        zScore: rising ? z : -z, isConcerning: z > 0)
+                }
+                // Through `output(fromEvaluated:)` rather than `score` directly,
+                // so the same-basis collapse and the two-signal gate are both in
+                // the measurement. Respiratory rate and oxygen saturation are one
+                // family and do collapse — the real morning has three channels,
+                // not four, and a budget measured on four would be flattering.
+                if HealthWatchModel.output(fromEvaluated: signals)?.status == .strongSigns {
+                    alarms += 1
+                }
+            }
+            let rate = Double(alarms) / Double(trials)
+            XCTAssertLessThan(rate, allowed,
+                              "at dependence \(correlation) the strong band fires on \(rate * 100)% of well days — about \(Int((rate * 365).rounded())) mornings a year")
+        }
+    }
+
+    /// The structural claim behind the bands, now stated as a rule rather than
+    /// left emergent: `strongSigns` needs two signals leaning, because one
+    /// dramatic number is never the finding. Swept over every timeline day of
+    /// every fixture.
     func testStrongSignsRequiresAgreement() {
         for fixture in [history(illDays: 0), history(illDays: 3),
                         history(illDays: 6), singleOutlier()] {
