@@ -38,7 +38,9 @@ final class MetricExplainerTests: XCTestCase {
         for metric in MetricType.allCases {
             guard let e = MetricExplainer.explanation(for: metric) else { continue }
             for text in [e.whatItIs, e.soWhat] {
-                XCTAssertFalse(text.contains("**"), "\(metric) renders literal asterisks: \(text)")
+                // Single asterisks too — a `**`-only check let `*shape*` through
+                // in the energy explainer minutes after this test was written.
+                XCTAssertFalse(text.contains("*"), "\(metric) renders literal asterisks: \(text)")
                 XCTAssertFalse(text.contains("_"), "\(metric) renders a literal underscore: \(text)")
                 XCTAssertFalse(text.contains("`"), "\(metric) renders a literal backtick: \(text)")
             }

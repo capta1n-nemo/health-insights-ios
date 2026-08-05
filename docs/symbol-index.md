@@ -249,6 +249,8 @@ the place to look.
   - `ScoreBand` :9
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
+- `Presentation/EnergyCurveExplainer.swift`
+  - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
   - `CardRequirement` :227
   - `InputGroup` :238

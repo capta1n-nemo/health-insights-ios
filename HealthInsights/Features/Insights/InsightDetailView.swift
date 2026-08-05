@@ -616,8 +616,22 @@ struct InsightDetailView: View {
                            trailing: String(format: "%.0f spent of %.0f",
                                             energy.spent, energy.morningCharge),
                            caveat: .modelledCurve) {
-                EnergyCurveChart(curve: energy.curve,
-                                 morningCharge: energy.morningCharge)
+                VStack(alignment: .leading, spacing: 12) {
+                    EnergyCurveChart(curve: energy.curve,
+                                     morningCharge: energy.morningCharge)
+                    // The reader could not read this chart, and the header said
+                    // "84 spent of 96" with nothing anywhere saying what a unit
+                    // is or where the morning figure came from. It is the one
+                    // chart whose subject is inside a day, and it was the only
+                    // one with no sentence attached.
+                    if let how = EnergyCurveExplainer.howItWorks(energy) {
+                        Text("How this works").font(.subheadline.weight(.semibold))
+                        Text(how).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Text("So what?").font(.subheadline.weight(.semibold))
+                    Text(EnergyCurveExplainer.soWhat(energy))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
         }
     }
