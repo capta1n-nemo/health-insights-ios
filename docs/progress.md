@@ -12,7 +12,7 @@ already in the export and unread.
 
 ## ⚠️ Outstanding from the 2026-08-04 Mac session — READ THIS FIRST
 
-**Thirty-nine tracked items, fifteen done, twenty-four open** (2026-08-05:
+**Thirty-nine tracked items, sixteen done, twenty-three open** (2026-08-05:
 #26 closed, #27 halved, #35–#39 added; #19 closed). These are the
 reader's own requests plus defects found by loading their real export. They are
 **not** in the generated table below — that table indexes the older roadmap.
@@ -48,7 +48,7 @@ in their own words, or a defect diagnosed to a file and line.
 | 23 | **Signal audit** — every card × every available signal, with justified weightings, against the 45 modelled types and 320,913 raw rows |
 | 32 | **Event confirmation feed** — the app flags an event ("heart rate spiked 30 mins this evening — sexual activity?") and the reader confirms or corrects. GPS map, time, why it was flagged. ⚠️ **Location is a new permission surface and a serious privacy decision — needs an explicit ruling before any code** |
 | 33 | **In-app Research section** — why each card decides as it does. Source: `docs/research-notes.md` (publishable) only |
-| 34 | **HRV and every other term in plain language** — reader: "what even is HRV… am i about to die?" Three parts everywhere: what it is, what *mine* means (own baseline, never a population table), and so-what. Applies to rMSSD/SDNN, VO₂max, SpO2, sleep efficiency, latency, vascular age, TDEE, cardiovascular load |
+| ~~34~~ | ~~**HRV and every other term in plain language**~~ **First pass done 2026-08-05 (`818ac62`, `7b8ac78`)** — `MetricExplainer` carries what-it-is and so-what for every jargon metric, exhaustive so a new one forces the decision, and `yours` places today's value in the reader's **own** p10–p90, returning nil below ten readings rather than inventing a range. Reads one instrument, not a pool — pooling watch and ring would dress a 13 bpm device gap as the reader's own variability. Rendered on the metric detail page. **Still to do: the derived figures the reader also named — TDEE and cardiovascular load — are not `MetricType`s and have no home here yet, and the card sections (Readiness, Sleep, Fitness) still use the terms without linking to the explanation.** Original note: — reader: "what even is HRV… am i about to die?" Three parts everywhere: what it is, what *mine* means (own baseline, never a population table), and so-what. Applies to rMSSD/SDNN, VO₂max, SpO2, sleep efficiency, latency, vascular age, TDEE, cardiovascular load |
 | 20 | **Web time-slider + DeepDive** — banding, grey underlay, dots and the legend are done. The morph slider with granularity selection, and renaming "Over time" → DeepDive with life-wide trends, are not |
 | 5 | **Apple Health `export.xml` converter** — scope confirmed: keep everything. The *app's own* export loads today (`32e6ce1`); Apple's raw XML does not |
 | 8 | **Body scanner capture** — the mesh renders (`2dfde08`) but **ARKit capture does not exist at all**. No camera, LiDAR or guided flow anywhere in the repo |
