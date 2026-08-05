@@ -162,6 +162,91 @@ Two smaller things landed with it:
 
 ## Current focus
 
+**Session 28 (2026-08-06) — the reader answered all 24 open questions and
+reversed 11 of the 12 refusals. Three of the reversed cards shipped.**
+
+### Read `docs/backlog.md` §A and §B5 first — they are specifications now
+
+§A was 24 blocking questions and is now 24 decisions. §B5 was "deliberately
+refused, re-proposing needs a new argument" and is now a build list with one
+survivor (#32, meal-to-outcome, which the reader also refused).
+
+⚠️ **A new standing rule 0 governs everything**: *"ground breaking and unique —
+do stuff others will not do. I do not care about compliance at this point, it's
+my personal project."* **Compliance, clearance and the public-repo privacy
+posture are no longer reasons to refuse a feature.** They remain reasons to word
+one carefully and to print its error. Thin data means show the error bar, not
+show nothing — **a permanent null is not the safe option, it is the useless
+one.** If this app ever gets a second user, §B5's original reasons all return,
+which is why they are preserved in place rather than deleted.
+
+### What shipped
+
+- **Biological age** (§B5 #29) — the app's own, `BiologicalAgeModel`. Markers
+  inverted through published age norms, combined by inverse-variance weighting
+  (σ = population spread ÷ the norm curve's own slope). **No tunable parameter
+  anywhere**, and chronological age deliberately excluded, which costs an honest
+  ±11 years the card leads with.
+- **Cuffless BP** (§B5 #28) — the estimator already existed; the refusal read as
+  a flat no for a shipped feature. Ungated from `status.isGrounded`, and Q2's two
+  ± and two cuff ages collapsed to one of each.
+- **Mental health** (§B5 #27) — built on behavioural departures, never
+  reassures, makes no diagnostic claim.
+- Q3 fitness-age width, Q4 micronutrients wired, Q5 feedback ungated.
+
+### ⚠️ Six defects, all found by opening the app, none findable by a test
+
+Every one is a claim about what a number *means*, and `verify.sh` was green
+through all of them. **The simulator, loaded with the reader's real export, is
+what found them** — this is the strongest evidence yet for the session-24 rule.
+
+1. Biological age published **"22"** with two markers, one carrying **95%** — a
+   single measurement under a grander name. Now refuses below three markers.
+2. One read window deleted three of five markers: VO₂max and cuff readings do
+   not arrive daily. Windows now match how fast each quantity moves.
+3. A clamped marker **voted hardest** — its slope was read at the clamp, out in
+   the steepest tail, so σ came out smallest.
+4. Excluding clamped markers then threw away two of the reader's five.
+   ⚠️ **The structural finding, which generalises to every norm-inverting model
+   here: these curves are medians, and for several markers the whole span of
+   adult ageing is narrower than the spread between people at one age.** So a
+   large share of ordinary readers sit outside the curve, and clamping deletes
+   exactly the people whose markers are furthest from typical.
+5. The dial read **30** beside a headline of "close to your years" — the
+   headline discounted the error, the dial compared with zero.
+6. **"Mind 80" in green** on the balance web beside Fitness 33, which reads as
+   *your mind is fine and your body is not* — the one claim that card exists to
+   refuse, arriving through the chart rather than the copy.
+
+**The rule from 6, now in `BalanceWeb.belongsOnBalanceWeb` and its test: a card
+whose best available answer is "nothing found" cannot share an axis with cards
+that grade a level.** It is the symptom radar's 2026-08-04 defect reached from a
+different direction, and no careful wording inside a card survives being drawn
+as a tall green spoke next to a short red one.
+
+### ⚠️ `walkingSpeed` reads **0 days in the last 90** in the simulator
+
+Measured on screen, and it contradicts this file's own claim above ("1,093 days
+each, 91 of the last 90", measured 2026-08-05 against the **raw export
+catalogue**). The Gait card still scores 100 — on `walkingAsymmetry` and
+`walkingSteadiness`, with the speed channel silently absent, which is the
+"a guard that skips is a guard that hides" shape again.
+
+**Unresolved, and it is the next session's cheapest real find.** Either
+`load-real-export.sh` does not promote the gait triad into canonical samples, or
+the promotion path drops it. **Do not trust "N days of X" in this file without
+re-measuring it in the container you are actually running.**
+
+### The next session's build list
+
+`docs/backlog.md` §0 carries the ordered list. Unstarted and largest:
+**the cycle tab** (§A3 — all four decisions answered; it is for the reader's
+wife, against the Oura subscription she pays for), the Fitness sections
+(#34/#35, where the effort score must feed the overall fitness score — that part
+is new work, not a relocation), sound exposure, sleep apnoea, radar accuracy,
+score decomposition inside the insight-web deep dive, and the platform work
+(notifications, delete-everything, export gaps, calendar).
+
 **Session 26 (2026-08-05) — two ingestion defects closed, one of them silent
 for the life of the feature. ⚠️ Nothing is pushed; see the blocker below.**
 

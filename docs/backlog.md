@@ -24,10 +24,10 @@ pushed:
 
 | | Item | Where |
 |---|---|---|
-| 1 | **Own-brand biological age** — *"the entire point of the app"* | §B5 #29 |
-| 2 | **Cuffless BP, given properly** — the estimator already exists | §B5 #28 |
-| 3 | **Mental health card** | §B5 #27 |
-| 4 | **The cycle tab** — for the reader's wife, against Oura's paid feature | §B5 #31, §A3 |
+| ~~1~~ | ✅ **Own-brand biological age** — shipped `972e2d7` | §B5 #29 |
+| ~~2~~ | ✅ **Cuffless BP, ungated** — shipped `0ea9411` | §B5 #28 |
+| ~~3~~ | ✅ **Mental health card** — shipped `867129e` | §B5 #27 |
+| **1** | **The cycle tab** — for the reader's wife, against Oura's paid feature. **Now the largest unstarted thing** | §B5 #31, §A3 |
 | 5 | **Score decomposition inside the insight-web deep dive** | §B5 #38, S2 |
 | 6 | Fitness sections: intensity (feeding the score), steps/distance/flights | §B5 #34–35 |
 | 7 | Sound exposure · sleep apnoea · radar accuracy | §B5 #30, #33, #36 |
@@ -120,10 +120,10 @@ rather than deleted.
 | # | Question | ✅ Decision |
 |---|---|---|
 | Q1 | Substance card at 4 episodes: honest version or wait? | **Ship the honest version.** Per-episode deltas, the named alternative explanation beside each row, no score, and the sentence "nothing has happened the same way often enough to tell it from an ordinary run" |
-| Q2 | BP card shows two ± and two cuff ages on one screen | Reader asked *"what do you mean?"* — fair, the row was written for someone looking at the screen. **What it means:** the card prints "±14, fitted to 23 readings" in one place and "the ±13 it is judged on" a few inches below, and "over a day old" beside "2 days ago", so it contradicts itself twice on one screen. **Decision (mine, stated so it is not re-asked): show one ± — the one the estimate is actually judged on — and one cuff age.** The other becomes a line in the detail sheet |
-| Q3 | Fitness age: VO₂ 30 → a 68-year-old's fitness. Right? | **"Honestly doesn't seem right."** Confirmed. Below VO₂ ~36 the norm table is extrapolation off its lowest anchor (32 at 65). **Floor the extrapolation and widen the stated ±.** Moves `FitnessInsight` *and* `HeartHealthScore.vo2Score` |
-| Q4 | Micronutrients: score now or wait? | **Estimate now, state the limitation, name the data that would sharpen it.** Wires `MicronutrientTargets`, which is currently dead code, and makes the Nutrition card's mandatory sex/DOB ask true instead of false |
-| Q5 | Feedback gated so Nutrition/Metabolism cannot be rated | **Ungate.** One line |
+| Q2 ✅ | BP card shows two ± and two cuff ages on one screen. **Shipped `0ea9411`** | Reader asked *"what do you mean?"* — fair, the row was written for someone looking at the screen. **What it means:** the card prints "±14, fitted to 23 readings" in one place and "the ±13 it is judged on" a few inches below, and "over a day old" beside "2 days ago", so it contradicts itself twice on one screen. **Decision (mine, stated so it is not re-asked): show one ± — the one the estimate is actually judged on — and one cuff age.** The other becomes a line in the detail sheet |
+| Q3 ✅ | Fitness age: VO₂ 30 → a 68-year-old's fitness. Right? **Shipped `5330d92`** | **"Honestly doesn't seem right."** Confirmed. Below VO₂ ~36 the norm table is extrapolation off its lowest anchor (32 at 65). **Floor the extrapolation and widen the stated ±.** Moves `FitnessInsight` *and* `HeartHealthScore.vo2Score` |
+| Q4 ✅ | Micronutrients: score now or wait? **Shipped `5330d92`** | **Estimate now, state the limitation, name the data that would sharpen it.** Wires `MicronutrientTargets`, which is currently dead code, and makes the Nutrition card's mandatory sex/DOB ask true instead of false |
+| Q5 ✅ | Feedback gated so Nutrition/Metabolism cannot be rated. **Shipped `5330d92`** | **Ungate.** One line |
 
 ### A2 — Decisions on things not yet started
 
@@ -187,6 +187,8 @@ rather than deleted.
 | 12 | **Sustained load** | Insights | Scores. **This is the stress card** — the name is why it is hard to find |
 | 13 | **How you walked** | Insights | Scores. Gait, shipped 2026-08-05 |
 | 14 | **Substance Impact** | Insights | Scores. See Q1 |
+| 15 | **Biological age** | Insights | Scores. Shipped 2026-08-06. Its own bespoke section shows every marker's age, error and share |
+| 16 | **Mental health** | Insights | Scores. Shipped 2026-08-06. ⚠️ Deliberately **off** the balance web — see §E D17 |
 
 ### B2 — You asked for them; they do not exist
 
@@ -237,9 +239,9 @@ shipping them honest rather than reckless.
 
 | # | Item | Original reason (kept — it still shapes the wording) | ✅ Ruling |
 |---|---|---|---|
-| 27 | **Mental health card** | Nine adversarial attacks, all do-not-ship. MindfulSession 0 rows, StateOfMind 0, MoodChanges 0; the whole symptom log is one row. Every design produced a permanent null, and *"you seem fine"* arriving by arithmetic to someone having a bad month is the worst available failure | **BUILD IT.** *"I want a mental health card. Figure it out, creative licence + data science."* ⚠️ **The one attack that still stands is the failure mode, not the feature**: the card must never reassure. It reports what the body did, asks what the reader felt, and the arithmetic runs the reader's own answers against their own physiology |
-| 28 | **Cuffless blood pressure** | Whoop took an FDA warning letter; cuffless PPG has no finalised validation protocol. 51 real cuff readings are better | **BUILD IT.** Reader: *"Did we not already build the experimental BP estimate????"* — **yes, `BloodPressureEstimator` already does exactly this** (personal calibration, reports its own ±). The refusal was about *a second, cuff-free card*, and reads as a flat no. **What "do it" means here: stop hiding it behind the cuff, and give a daily estimate with its error** |
-| 29 | **Own-brand biological age** | You would get a worse black box with a smaller *n*. Relaying Oura's with its error attached is strictly more honest — that is #26 | **BUILD IT.** *"THESE SORTS OF THINGS ARE THE ENTIRE POINT OF THE APP. WHY WOULD YOU SAY NO."* Correct, and the refusal misread the brief. The answer to "a black box" is **not to build a black box**: every term visible, every weight visible, every one attributable |
+| 27 ✅ | **Mental health card** — shipped `867129e` | Nine adversarial attacks, all do-not-ship. MindfulSession 0 rows, StateOfMind 0, MoodChanges 0; the whole symptom log is one row. Every design produced a permanent null, and *"you seem fine"* arriving by arithmetic to someone having a bad month is the worst available failure | **BUILD IT.** *"I want a mental health card. Figure it out, creative licence + data science."* ⚠️ **The one attack that still stands is the failure mode, not the feature**: the card must never reassure. It reports what the body did, asks what the reader felt, and the arithmetic runs the reader's own answers against their own physiology |
+| 28 ✅ | **Cuffless blood pressure** — shipped `0ea9411` | Whoop took an FDA warning letter; cuffless PPG has no finalised validation protocol. 51 real cuff readings are better | **BUILD IT.** Reader: *"Did we not already build the experimental BP estimate????"* — **yes, `BloodPressureEstimator` already does exactly this** (personal calibration, reports its own ±). The refusal was about *a second, cuff-free card*, and reads as a flat no. **What "do it" means here: stop hiding it behind the cuff, and give a daily estimate with its error** |
+| 29 ✅ | **Own-brand biological age** — shipped `972e2d7` | You would get a worse black box with a smaller *n*. Relaying Oura's with its error attached is strictly more honest — that is #26 | **BUILD IT.** *"THESE SORTS OF THINGS ARE THE ENTIRE POINT OF THE APP. WHY WOULD YOU SAY NO."* Correct, and the refusal misread the brief. The answer to "a black box" is **not to build a black box**: every term visible, every weight visible, every one attributable |
 | 30 | **Sleep-apnoea card** | Asserting or screening for apnoea is FDA-clearance territory. Trending the index inside Sleep is fine; a card whose *name* implies a condition is not | **BUILD IT** |
 | 31 | **Cycle / fertility** | Zero rows, contraceptive claims need clearance, unstated assumption about the reader | **BUILD IT — a whole new tab.** *"Basically do everything Flo does."* Assumption now stated (Q18: the reader's wife). Zero rows remains the real constraint |
 | 32 | **Meal-to-outcome / TDEE / intake-driven anything** | `dietaryEnergy`: 30 days ever, **0 in the last 90**. The gate is ~80% of logged days; the reader is at 0% | ❌ **UPHELD — the only one.** Reader: *"I don't care, don't do it."* The single refusal both sides agree on |
@@ -307,6 +309,8 @@ shipping them honest rather than reckless.
 | D13 | **The document/OCR path is unaudited** | The one input that turns a photograph into a health number |
 | D14 | **Roadmap rows 33–38 are stale** | The symptom-radar rows all shipped |
 | D15 | **`docs/card-sections.md` partially corrected 2026-08-06** | Two false "closed" claims reopened; the per-section tables still need a sweep |
+| D17 | ⚠️ **`walkingSpeed` reads 0 days in the last 90 in the simulator**, contradicting the 1,093-day figure measured against the raw export catalogue. The Gait card still scores 100, on its other two channels, with the speed channel silently absent | Next session's cheapest real find. Either `load-real-export.sh` does not promote the gait triad, or the promotion path drops it |
+| D18 | **Five cards still have no bespoke section** — gait, sustainedLoad, nutrition, metabolism, readiness. Biological age shipped with one; mental health did not | S1 |
 | D16 | **Score history is empty for five cards** | readiness, sleep, energy, substanceImpact, fitness — the 90-day replay landed after the last export |
 
 ---

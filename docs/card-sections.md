@@ -208,6 +208,8 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Nutrition | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Metabolism | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Mental health | Insights | ● | ● | ● | ● | ○ none yet | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Four cards
 draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
@@ -1045,7 +1047,11 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 7. ~~**Three cards have no bespoke section**~~ — ~~**closed.** All nine now have
    one.~~ ⚠️ **REOPENED 2026-08-06 by audit: five of fourteen fall through to
    `default: EmptyView()`** — gait, sustainedLoad, nutrition, metabolism and
-   readiness. The claim was true of nine cards and stopped being true the moment
+   readiness. **Update, same day: sixteen cards now, and six without one** —
+   biological age shipped *with* its section (`biologicalAgeMarkersCard`, the
+   one that makes the card not a black box), and mental health shipped without.
+   The count moves every time a card ships, which is the argument for making the
+   switch exhaustive rather than counting again next session. The claim was true of nine cards and stopped being true the moment
    the tenth shipped, which is the failure mode a "closed" tick invites. For
    **gait** it is not cosmetic: that card's whole reason to exist is the
    `speed = step length × cadence` decomposition, and with no section it reaches

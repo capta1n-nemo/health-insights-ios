@@ -133,6 +133,10 @@ that is not yet automated is the next thing to automate.
 | **Pushing without running the gate** | 1 red CI | ✅ `pre-push-gate.sh` hook + a `lint` job in CI, so it holds without the harness. **Hardened 2026-08-02**: the hook was invoked by a relative path and hook processes inherit the shell's *drifted* cwd, so a push issued after a `cd` skipped the gate silently (exit 127 is a non-blocking hook error). Now `$CLAUDE_PROJECT_DIR`-absolute, and `verify.sh` lints settings.json hook commands for relative paths (canaried) |
 | A rule referencing a script that is on disk but uncommitted | 1 | ✅ `verify.sh` asks `git ls-files`, not the filesystem |
 | A hard-coded count going stale in a doc nobody re-read | 4+ | ✅ counts deleted rather than updated |
+| **Rebuild the whole app to see one card's model output** | **2** | ⬜ **open, and the top candidate — see the roadmap.** Session 28 spent roughly ten build-launch-navigate-screenshot cycles (~20 s build each, plus four swipes and a tap to reach one card) to answer questions like *how many days of walking speed does this see* and *why did this marker drop out*. Every answer was one number the model already had. Session 27 did the same thing with the radar |
+| **A norm table too narrow for the population it is inverted for** | **1** | ⬜ open — biological age's body-fat curve ran 16–25% for men, which is the fitness-industry band, so an ordinary reader at 30% fell off the end and the marker was silently discarded. The general shape: **a median curve is only invertible for the people it covers, and for several markers the whole span of adult ageing is narrower than the spread between people at one age.** No mechanical check yet; the rule is *before inverting a norm curve, check what fraction of ordinary readers fall outside it* |
+| **A caveat string describing a bias nobody corrected** | **1** | ⬜ open — biological age's HRV row said "the norms are short supine recordings; this is a whole night, which reads higher", and the table was the supine one. **Documenting a bias is not handling one**, and it is the same shape as the 2026-08-05 finding that a comment describing behaviour is not evidence of it |
+| **A card's silence rendered as excellence on a shared axis** | **2** | ⬜ open — the symptom radar (2026-08-04, taken off the balance web) and mental health (2026-08-06, caught before push by looking at the screen). Now a stated rule in `belongsOnBalanceWeb` and asserted in `BalanceWebTests`: **a card whose best answer is "nothing found" cannot share an axis with cards that grade a level** |
 | **An app-target-only compile error the local gate cannot see** | **4** | ✅ **automated on Darwin 2026-08-04 (session 25)** — `verify.sh --tests` now runs the real `xcodebuild` against the iOS SDK, so a Mac session's gate sees exactly what CI sees. Three of session 21's four red CI pushes were this: an internal `PeerStandingModel.isModelled` read from the app, a missing `.screenTime` arm in `onsetDriverIcon`, a missing `import InsightKit` — all three *name resolution*, and `swiftc -parse` resolves no names at all. **The planned fix was a textual cross-target symbol check, and it is now not worth building**: it was a Linux workaround for having no iOS SDK, and the compiler answers the same question exactly, with no list to maintain and no false positives. Canaried both ways — an undefined identifier appended to an app file is parse-clean and fails the new check. Cost is ~1.4s incremental, minutes on a cold checkout. ⚠️ **Still open for a hosted Linux session**, which has no SDK and no Xcode; there, CI remains the only compiler |
 | **A new card invisible rather than empty** | **1** | ✅ automated — `CardVisibilityTests` evaluates *every registered model against an empty profile* and asserts that a card waiting on something the reader can supply stays on screen to ask (2026-08-03, session 24). Nutrition and Metabolism both returned `notReady`, which sets no `primaryValue` and no unmet requirement, so `isWorthShowing` filtered them off the tab — green tests, green CI, successful install, and **the user found two features missing from a build that contained them**. The rule was right and its vocabulary was too narrow: a grounding fact was treated as the only thing a reader can hand a card, and an *input* is the other |
 | **Nothing in the project could see what the app looked like** | **every session until now** | ✅ **automated 2026-08-04 (session 25)** — `SyntheticSeed` + a debug-only Settings section fill a simulator with deterministic, plausibility-checked series, so charts, reference bands, scored cards and the balance web are verifiable on a Mac. Writes through `DataStore.replaceManualSamples`, the same upsert `ingestShortcut` uses, so only the trigger is debug-only. **Still phone-only**: the substance shading (no substance events generated), real HealthKit bucketing, camera, LiDAR, ring and scale. Previously: ⚠️ partly — `scripts/simulator.sh` + the `use-the-simulator` skill (2026-08-03, session 24) give a Mac session build/boot/install/screenshot, and `bootstrap-swift.sh` now exits on Darwin so that session does not download a Linux toolchain over Xcode's. **Partly, because the Health app does not ship on the simulator**: every card renders empty there, so charts, bands and shading still need the phone. See the roadmap for the seeding idea that would close the rest |
@@ -172,6 +176,52 @@ that is not yet automated is the next thing to automate.
 | **A status script answering a *re-run* with the previous run's verdict** | 1 | ✅ automated (2026-08-02) — the verdict ref is keyed on the sha alone, so `--wait` returned instantly with a failure that had not happened yet. `deploy-status.sh --fresh` baselines what is recorded and waits for it to change. Worse than no answer, because it looks like a result |
 | **A count assigned from `parsed.x.count` with no merge call** | 1 | ⬜ open — the import alert said "12 side effects" and meant "12 seen", not "12 kept". Found only because a new `DataDomain` case demanded something to render. The grep shape is recorded in the `add-data-or-input` skill; no lint, because the assignment is legitimate wherever a merge really did happen |
 | Device verification | every | ❌ not automatable — only the user can do it |
+
+### Session 28 notes — 2026-08-06
+
+**Red CI (0)** across three pushes, each waited on with `ci-status.sh` before the
+next — the session-27 lesson ("a push that is not waited on is a push whose
+result nobody knows") held.
+
+**Rework (0 shipped).** Four design reversals happened *inside* the session and
+none reached a commit, which is the distinction this column is for:
+
+1. Biological age clamped out-of-range markers → excluded them → **extrapolated
+   and weighed them**. Two rewrites of the same decision, and only the third is
+   right. The first two were found by the screen, not by reasoning.
+2. Mental health went **onto** the balance web and came off it an hour later,
+   because rendered it drew "Mind 80" in green beside Fitness 33.
+3. A test banning the substring `diagnos` failed on the card's own disclaimer —
+   *"it does not diagnose anything and it cannot"*. **Forbidding a word forbids
+   denying it**, and the test as written would have forced the card to be less
+   clear about its limits in order to pass the check that exists to keep it
+   honest. Now checked per sentence: a diagnostic word may appear only in a
+   sentence that negates it.
+4. The fitness-age error bar was going to be a second inversion until it became
+   obvious that two inversions can disagree about the clamp and print a range
+   that does not contain its own midpoint.
+
+**Re-derivation (1), named.** `InsightEngine.evaluateAll` was read to find out
+whether models receive filtered samples — `docs/architecture.md` ▸ the pipeline
+section already answers it. Cost: one round trip, mid-diagnosis.
+
+**⚠️ The doc claim that cost the most, and it was this file's own.**
+`activeContext.md` states walking speed has "1,093 days each, 91 of the last 90".
+On screen the biological age card reported **0 days in the last 90**, and several
+cycles went into disbelieving it. Both are true of different things: the 1,093
+was measured against the **raw export catalogue**, and the card reads *canonical
+samples*. **The rule the session-25 note already stated one level up — "before
+writing 'already arriving', count its rows in the last 90 days" — needs its
+second half: count them in the layer the consumer actually reads.** Recorded as
+backlog D17, unresolved, and it is the next session's cheapest real find.
+
+**What made the session cheap where it was cheap.** `docs/backlog.md` turned 24
+questions into 24 decisions in one pass and was written *before any code*, so
+nothing was re-asked; the `add-insight` skill carried all six exhaustive
+switches for two new cards without a single missed one; and two guards —
+`ContributorsTests` and `CandidateReachabilityTests` — caught biological age
+silently dropping two declared inputs, which produced the `UnusedMarker` design
+that makes every dropped marker state its own reason to the reader.
 
 ### Session 24 notes
 
@@ -365,6 +415,40 @@ thing first" is not counted.** Three of the four new ledger rows are about that
 class rather than about correctness.
 
 ## The efficiency roadmap
+
+### ⬜ `scripts/card-dump.sh` — read a card's model output without building the app — **session 28, the top open row**
+
+**The measurement.** Session 28 rebuilt and relaunched the app roughly **ten
+times** to answer questions the model could have printed in a second: how many
+days of walking speed the card sees, why a marker was dropped, whether a value
+sat off the end of its curve, what a driver line actually says. Each cycle is a
+~20 s `xcodebuild`, a launch, a tab tap and four swipes — and two of them were
+wasted outright, once by screenshotting before the build finished and once by
+misreading the screenshot's coordinate scale.
+
+**Why the simulator is still not the answer.** It is the right tool for *what the
+reader sees* — it found all six of this session's defects and nothing else would
+have. It is the wrong tool for *what the model computed*, and using it for the
+second question is what made the loop expensive.
+
+**The shape.** A command that loads `~/HealthSeed/`'s export through the real
+ingest, runs `InsightEngine`, and prints one card's `InsightResult` — headline,
+score, every driver, every contributor and weight:
+
+```bash
+./scripts/card-dump.sh biologicalAge
+```
+
+Everything it needs already exists: `load-real-export.sh` knows where the record
+is, the export decoders are in InsightKit, and InsightKit builds and runs on the
+command line. **It must refuse any path inside the working tree**, exactly as
+`load-real-export.sh` does — this repo is public and that file is one person's
+health data — and it must never write its output anywhere git can see.
+
+**What it retires.** The whole class of "rebuild the app to read a number",
+which is now a two-session ledger row, and it makes the simulator cheaper by
+leaving it for the question only it can answer.
+
 
 ### ⬜ Seed the simulator, so it can verify more than empty states — session 24
 
@@ -737,6 +821,7 @@ with guesses.
 | 25 | 2026-08-04 | 19 | **0** | 2 (the timing test, twice) | 0 | 1365 → 1442 | **The app target type-checked by the gate** — `verify.sh --tests` runs the real `xcodebuild` on a Mac, closing the four-red-push "app-target symbol the gate cannot see" category *here* and retiring the planned textual cross-target check as obsolete; **`SyntheticSeed` + a debug-only loader** — charts, bands and scored cards verifiable on a simulator for the first time, the top efficiency-roadmap item; **`scripts/load-real-export.sh`** — the reader's own record in a simulator, which found two defects synthetic data structurally could not; **the Oura night-dating fix** — one line in `startDateKeys` retiring five faults at once (15,604 rows at midnight UTC, naps passing as nights, inverted spans, collapsed instants); **mirror collapse by value identity** rather than by device name, so it survives a renamed shortcut and also catches the duplicate nightly feeds; **`verify.sh` reads `git ls-files`**, so a lint claiming things are "committed" no longer walks the filesystem; derived data out of iCloud Drive (766 MB was syncing to the reader's account, and it was breaking codesigning) | **Zero red CI across nineteen pushes — the best the log records — and six compounding fixes, also the highest.** 2 waste / 19 = 0.11, against 23's 0.20, 22's 0.13 and a 0.56 baseline. **The sting is in a column this table does not have.** Roughly 5.6M subagent tokens went into four research and diagnosis fleets before much was built, and the reader had to ask "where are all the things I asked for?" before that changed; one fleet shipped 1,667 lines of geometry no view consumed, reported as a delivered feature. Three of the four new ledger rows are about sequencing rather than correctness |
 | 26 | 2026-08-05 | **12 (35 commits)** | **0** | 1 (two of my own new tests encoded false premises and were rewritten) | 0 | 1442 → 1550 | **`PayloadDate.parse` as the one date door + a `verify.sh` ban on the bare `ISO8601DateFormatter().date(` shape** — three parsers hand-rolled the fractional-then-plain fallback, `ShotsyImport` even carried a comment stating the rule, and the copy that got it wrong lost every Oura bedtime in the reader's two-year history with every test green; **`DayStamp.local` + a ban on `TimeZone(identifier: "UTC")` in InsightKit** — a date-only field is a local day, held in one place, and keyed on the *shape of the input string* so it cannot corrupt the 109 HealthKit samples that genuinely land at midnight UTC; **`notReady` deleted** — removing the only constructor that could build a card with nothing to say, so "every card shows and every empty card asks" holds by construction; **`CardVisibilityTests` gains the rule in both directions**, replacing a closed-set assertion that had been populated from the build rather than from the rule and was therefore *requiring* the Substance card to be invisible | **Zero red CI across fourteen commits, and the session spent roughly two hours unable to push at all.** The keychain would not release the GitHub credential to this process; the reader re-authenticated and everything landed green in two pushes. ⚠️ **Green CI is not an install**: the deploy failed at the install step on an unreachable phone (`CoreDeviceService was unable to locate a device`), not at signing — so the code is on `main` and not on the device. What the session did buy: **two silent defects found by measuring the reader's own export rather than reading the code** (119 Oura latencies against 0 onsets; 1,720 samples at exactly T00:00:00Z), and **one roadmap row corrected against itself** — #26 claimed the day-stamp bug "roughly halves sensitivity", and the pairs already align at lag 0 in the app's own frame, so a session acting on the row alone would have reported a win that did not happen |
 | 27 | 2026-08-05/06 | **15 (54 commits)** | **1 (cancelled, not broken — see below)** | 3 (named below) | 0 | 1550 → 1628 | **`docs/backlog.md` + the memory-router entry** — every open question, every card ever mentioned (built, requested, proposed, **refused**), every section, integration and quality gap on one flat list, with one rule: *nothing is ever deleted, only marked*; **`roadmap-table.sh` sees nested items** — it matched `- [ ] ` at column 0, so the gate that stops a session closing on a stale roadmap could not see one of its own open rows (59 reported, 60 open); **the radar's null made calibrated** — `E[max(0,Z)]=1/√(2π)` with band edges at *measured* null quantiles plus an equicorrelation term, after a 40,000-day simulation caught the independence assumption firing on 5.3% of well days; **`VitalReader.dailySeries` picks one instrument** — the rule `reading()` had carried for months, applied to the other entry point, after measuring that pooling flipped `isLeaning` on **7.3% of (day, metric) pairs**; **`SymptomType.gradesTheRadar`** — a mood tag could raise the hit rate and never the miss rate on the app's own accuracy number, found with zero instances in the data; **`ContributorsFixture` default 20 → 130 + `testEveryRegisteredModelScoresOnTheFixture`** — three sweeps had been silently skipping the two newest cards from the day they shipped, because a guard that skips is a guard that hides | **One red CI across 54 commits and 15 installs — and the gate caught me claiming zero.** ⚠️ **The row said 0 and `handover-check.sh` refused to close the session**, because `refs/ci/failed` held `0dbc9b6`. That is exactly the check's purpose and it is the second time this log has been corrected by its own gate rather than by its author. **The cause is process, not code**: `ci.yml` sets `cancel-in-progress: true`, and I pushed `79f59cd` moments after `0dbc9b6` without waiting, so the first run was superseded and recorded as failed. Evidence it was not a defect — no `refs/ci/errors` ref was written, and the diff between the two commits is one docs file, so the superseding green run compiled the identical code. **The lesson is still mine: a push that is not waited on is a push whose result nobody knows.** 3 waste / 13 pushes = 0.23, against 25's 0.11 and a 0.56 baseline. ⚠️ **The ratio is the least interesting number here, and the sting sits in two places this table cannot show.** First: **three modules were built with tests in the morning and rendered nowhere until the afternoon** — wiring them up then found six presentation defects *no test could have caught*, because each is a claim about what a name means to a reader; `verify.sh` was green through all six and the simulator was not. Second: **the reader had to ask three times** — for the stress card (shipped, under a name they could not find), for cycle tracking (ten rows, four of them unanswered decisions, reported as "not started"), and finally *"stop losing details"*. Both are sequencing and reporting failures rather than correctness ones, and `docs/backlog.md` exists because of the second. The compounding column is the strongest since 25: an adversarial audit of this session's own work found a comment claiming the opposite of its code, a silent test skip, a blind spot in the handover gate itself, and two false "closed" claims in the card docs — none of which any of 1,626 tests could fail on |
+| 28 | 2026-08-06 | **3 (6 commits)** | **0** | 0 shipped (4 reversals caught before commit — see below) | 1 (named below) | 1628 → 1658 | **`BiologicalAgeModel`** — a biological age with no fitted parameter anywhere: every marker inverted through a published age norm, combined by inverse-variance weighting (σ = population spread ÷ the curve's own slope), so a flat marker demotes itself and gait speed is worth nothing at forty and a great deal at eighty from one table and no special case; **chronological age deliberately excluded**, which costs an honest ±11 years the card leads with rather than the tight number every commercial version prints; **`MicronutrientEstimate`** — `MicronutrientTargets` had been dead code while the Nutrition card made sex and DOB *mandatory because of it*, so an ask whose stated reason never happened is now paid for; **`BloodPressureEstimator.statedUncertainty`** — one error bar, the widest of fit-spread / measured-miss / the ISO cuff floor, which both retires Q2's two-± contradiction and is what makes ungating the estimator safe; **the balance-web rule** — *a card whose best answer is "nothing found" cannot share an axis with cards that grade a level*, now in `belongsOnBalanceWeb` and asserted in both directions by `BalanceWebTests`; **the feedback control ungated**, so the cards most likely to be wrong are no longer the ones the reader cannot tell you are wrong | **Zero red CI across three pushes, and the cheapest column is not the interesting one.** ⚠️ **The interesting number is six: six defects found by opening the app, none of which any of 1,658 tests could fail on**, because each is a claim about what a number *means* — a biological age of 22 whose own explanatory section read "heart-rate variability carries 95% of it"; three of five markers deleted by a single read window; a clamped marker voting *hardest* because its slope was read out in the steepest tail; excluding clamped markers then deleting two of the reader's five; a dial reading 30 beside a headline of "close to your years"; and **"Mind 80" drawn green beside Fitness 33**, which reads as *your mind is fine and your body is not* — the one claim that card exists to refuse, arriving through the chart rather than the copy. **The cost sits in a column this table does not have**: roughly ten build-launch-navigate-screenshot cycles to read numbers the model already held, which is now the ledger's top unautomated row and the roadmap's top item. **The structural finding worth more than any of it**: these norm curves are medians, and for several markers the whole span of adult ageing is narrower than the spread between people at one age — so clamping deletes exactly the readers whose markers are furthest from typical |
 
 ### Session 20 notes
 
