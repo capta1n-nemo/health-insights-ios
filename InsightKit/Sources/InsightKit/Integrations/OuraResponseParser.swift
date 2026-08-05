@@ -133,16 +133,56 @@ public enum OuraResponseParser {
             // `PayloadDate.parse`, never a bare `ISO8601DateFormatter()` — see
             // the note on `bedtimeInstant` below. This line silently produced
             // no bedtimes at all for the whole of the reader's history.
-            if Self.isNight(record.type),
-               let instant = Self.bedtimeInstant(record) {
-                bedtimes.append(instant)
-            }
             guard let date = date(from: record, calendar: calendar) else { continue }
             nights[date, default: []].append(record)
         }
 
         var samples: [HealthMetricSample] = []
         for (date, periods) in nights.sorted(by: { $0.key < $1.key }) {
+            // ⚠️ **A fragment cannot describe a night.**
+            //
+            // The ring writes short periods beside the real one — 63 of them in
+            // the reader's export, median 11 minutes, most ending between 18:00
+            // and 23:00: dozes before bed. Oura files them under the right
+            // night, so their minutes genuinely belong in the total (the
+            // split-night rule above earns that). What they must never supply is
+            // a **rate** or an **event**.
+            //
+            // Measured, each one, rather than argued:
+            //
+            // - **39 of the 63 carry `average_heart_rate: 0`** and no
+            //   `lowest_heart_rate`, so the `min` below returned 0 and
+            //   `MetricSanitizer`'s 25…120 bound then deleted the night's
+            //   resting heart rate outright. The reader has **119 nights of
+            //   Oura sleep duration and only 89 of resting heart rate**, and
+            //   restoring the 26 takes their runs of five consecutive
+            //   resting-HR nights from 7 to 11 — the quantity the
+            //   illness-detection research calls the binding constraint on this
+            //   whole feature.
+            // - A doze is period 0, so its `latency: 0` read as "fell asleep
+            //   instantly" on **19 of 119 nights**.
+            // - Its bedtime — reachable since `bedtimeInstant` was fixed — would
+            //   set the night's onset on **24 of 114**, moving it a median of
+            //   3.7 hours. The sofa, not the bed.
+            //
+            // ⚠️ Same defence as the nap filter, one axis over: **that one asks
+            // *when*, this asks *how much*.** Neither is a judgement about the
+            // sleep; both are about whether a record can speak for a night.
+            //
+            // ⚠️ Two consequences worth naming rather than discovering later.
+            // A period with `total_sleep_duration` absent counts as zero here,
+            // so a night whose only record omits the field is now dropped
+            // entirely — benign today (all 178 of the reader's records carry
+            // it) but a behaviour change. And the reported duration still sums
+            // the fragments while the efficiency comes from the substantive
+            // period alone, so the two describe slightly different quantities of
+            // time; that is deliberate, because a doze's minutes are real sleep
+            // but its efficiency is not the night's.
+            let substantive = periods.filter {
+                ($0.total_sleep_duration ?? 0) >= SleepNights.minimumNightSeconds
+            }
+            guard !substantive.isEmpty else { continue }
+
             func add(_ type: MetricType, _ value: Double?) {
                 guard let value else { return }
                 samples.append(HealthMetricSample(type: type, value: value,
@@ -156,7 +196,7 @@ public enum OuraResponseParser {
             // Rates hold across them, so they combine as a sleep-time-weighted
             // mean — a 6 h period must outweigh a 40-minute continuation.
             func weightedMean(_ field: (SleepRecord) -> Double?) -> Double? {
-                let pairs = periods.compactMap { p -> (Double, Double)? in
+                let pairs = substantive.compactMap { p -> (Double, Double)? in
                     guard let v = field(p) else { return nil }
                     return (v, p.total_sleep_duration ?? p.time_in_bed ?? 1)
                 }
@@ -171,23 +211,31 @@ public enum OuraResponseParser {
             // The night's sleeping low is the lowest of any period's low.
             // Prefer each period's sleeping low as a resting-HR proxy; fall
             // back to its average.
+            // `substantive`, and this is the line that was costing 26 nights of
+            // resting heart rate: a fragment's `average_heart_rate` of 0 won
+            // every `min`.
             add(.restingHeartRate,
-                periods.compactMap { $0.lowest_heart_rate ?? $0.average_heart_rate }.min())
+                substantive.compactMap { $0.lowest_heart_rate ?? $0.average_heart_rate }.min())
             add(.heartRateVariabilityRMSSD, weightedMean(\.average_hrv))
             add(.respiratoryRate, weightedMean(\.average_breath))
             // "Fell asleep in about N min" is a claim about going to bed, so it
             // is the *first* period's figure — a continuation's near-instant
             // re-onset after a 4 am wake must not halve the night's latency.
-            let first = periods.min { a, b in
+            let first = substantive.min { a, b in
                 (a.bedtime_start ?? "\u{FFFF}") < (b.bedtime_start ?? "\u{FFFF}")
             }
+            // The night's bedtime comes from the same first substantive period,
+            // so a doze on the sofa cannot become the time the reader went to
+            // bed. This used to be appended during the grouping loop above,
+            // where every `isNight` record voted.
+            if let instant = first.flatMap(Self.bedtimeInstant) { bedtimes.append(instant) }
             add(.sleepLatencyMinutes, first?.latency.map { $0 / 60 })
             // Oura publishes its own efficiency, so a single-period night uses
             // that figure untouched — deriving it would produce a second,
             // slightly different number for the same named quantity. Across
             // periods it combines time-in-bed-weighted, which reduces to the
             // published figure when there is one period.
-            let efficiencies = periods.compactMap { p -> (Double, Double)? in
+            let efficiencies = substantive.compactMap { p -> (Double, Double)? in
                 if let e = p.efficiency { return (e, p.time_in_bed ?? p.total_sleep_duration ?? 1) }
                 if let asleep = p.total_sleep_duration, let inBed = p.time_in_bed, inBed > 0 {
                     return (asleep / inBed * 100, inBed)

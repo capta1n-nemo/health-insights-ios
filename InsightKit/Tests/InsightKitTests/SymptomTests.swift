@@ -106,4 +106,41 @@ final class SymptomTests: XCTestCase {
         XCTAssertLessThan(SymptomSeverity.mild, SymptomSeverity.moderate)
         XCTAssertLessThan(SymptomSeverity.moderate, SymptomSeverity.severe)
     }
+
+    // MARK: - The ledger must be gradeable in both directions
+
+    /// ⚠️ **The defect this exists to stop, found on 2026-08-05 before it had a
+    /// single instance.** The radar's confirm side counted any non-chronic tag;
+    /// its miss side clusters only illness-like ones. `moodChanges` is neither
+    /// chronic nor a known GLP-1 effect, so it could **only ever raise the hit
+    /// rate and never the miss rate** — a one-directional error on the one
+    /// number this app prints about its own accuracy.
+    ///
+    /// The general rule: **a detector may only be graded by evidence that could
+    /// have gone either way.**
+    func testOnlyMoodIsBarredFromGradingTheRadar() {
+        // ⚠️ Not symmetry with `isInfectionLike` — a first version asserted that
+        // and two shipped tests refuted it in one run: nausea and hot flushes
+        // legitimately confirm while being deliberately kept out of the miss
+        // clustering. The exclusion is mood specifically, and the reason is that
+        // a mood is not evidence of a bodily illness.
+        for type in SymptomType.allCases where type != .moodChanges {
+            XCTAssertTrue(type.gradesTheRadar, "\(type) stopped grading the radar")
+        }
+        XCTAssertTrue(SymptomType.allCases.contains(.moodChanges),
+                      "the one exclusion this rule exists for has been removed")
+    }
+
+    /// Named explicitly, because this is the case that was live and the reason
+    /// the rule exists.
+    func testAMoodTagNeverGradesTheIllnessRadar() {
+        XCTAssertFalse(SymptomType.moodChanges.gradesTheRadar,
+                       "a low mood would be scored as the illness radar being right")
+        // Sleep changes DO grade it — disrupted sleep is a real illness
+        // symptom, and unlike mood it is a statement about the body.
+        XCTAssertTrue(SymptomType.sleepChanges.gradesTheRadar)
+        // And the ones that genuinely are illness evidence still are.
+        XCTAssertTrue(SymptomType.fever.gradesTheRadar)
+        XCTAssertTrue(SymptomType.coughing.gradesTheRadar)
+    }
 }

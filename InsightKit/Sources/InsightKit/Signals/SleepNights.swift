@@ -82,6 +82,23 @@ public enum SleepNights {
     /// minutes to last night's total.
     static let afternoonCutoffHour = 12
 
+    /// The least *asleep* time that can be a night.
+    ///
+    /// **Measured, not chosen.** In the reader's export Oura's `sleep`-typed
+    /// periods run 0.5 → 51 minutes and then jump to 116, while its
+    /// `long_sleep` records never fall below 191. Any floor inside that
+    /// 52–115-minute gap separates the two populations cleanly; an hour is the
+    /// round number inside it.
+    ///
+    /// ⚠️ **This is not a nap filter and must never become one.** A nap is
+    /// excluded by *type* on the Oura path and by *time of day* here
+    /// (`afternoonCutoffHour`) — both are decisions about **when** sleep
+    /// happened. This is a decision about **how much** of it there was: four
+    /// minutes of recording is not a night and cannot describe one. Naps and
+    /// fragments keep their raw rows either way; what they lose is the right to
+    /// supply a night's rate or a night's event.
+    public static let minimumNightSeconds: Double = 60 * 60
+
     /// Nightly samples for every night these segments describe.
     ///
     /// Emits `.sleepDurationHours`, `.sleepDeepMinutes`, `.sleepRemMinutes`,
@@ -122,6 +139,12 @@ public enum SleepNights {
         }
 
         var samples: [HealthMetricSample] = []
+        /// The nights that cleared the floor. The onset series is filtered
+        /// against this, so a night the duration series refused cannot arrive
+        /// with a bedtime attached — the invariant this file's doc comment
+        /// already claims ("the two agree on what a night is by construction")
+        /// and which the floor would otherwise have broken.
+        var nightsWithSleep: Set<Date> = []
         for (night, group) in byNight {
             let asleep = group.filter { $0.kind.isAsleep }
             // A cluster with no plausible onset is a nap that happened to fall
@@ -137,7 +160,10 @@ public enum SleepNights {
             }
 
             let asleepSeconds = asleep.reduce(0) { $0 + $1.seconds }
-            guard asleepSeconds > 0 else { continue }
+            // `>=`, not `>`: an exactly-one-hour night is a night, and a shipped
+            // parser fixture uses precisely 3600 seconds.
+            guard asleepSeconds >= minimumNightSeconds else { continue }
+            nightsWithSleep.insert(night)
             add(.sleepDurationHours, asleepSeconds / 3600)
 
             func minutes(_ kind: SleepSegment.Kind) -> Double? {
@@ -163,8 +189,13 @@ public enum SleepNights {
             }
         }
 
-        // The onset series, from the same segments and the same night rule.
-        let onsets = SleepOnset.samples(fromSegmentStarts: nightly.filter(\.kind.isAsleep).map(\.start),
+        // The onset series, from the same segments, the same night rule **and
+        // the same floor**.
+        let onsetStarts = nightly.filter {
+            $0.kind.isAsleep
+                && nightsWithSleep.contains(SleepOnset.night(of: $0.start, calendar: calendar))
+        }.map(\.start)
+        let onsets = SleepOnset.samples(fromSegmentStarts: onsetStarts,
                                         source: source, calendar: calendar)
         return (samples + onsets).sorted { $0.start < $1.start }
     }

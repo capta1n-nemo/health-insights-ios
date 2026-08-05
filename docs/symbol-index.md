@@ -106,7 +106,7 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
-  - `SymptomRadarInsight` :899
+  - `SymptomRadarInsight` :907
   - `SymptomRadarModel` :429
   - `SymptomRadarStatus` :374
 - `Insights/HeartAgeAnalyser.swift`
@@ -241,9 +241,9 @@ the place to look.
 - `Models/SourceOrigin.swift`
   - `SourceOrigin` :11
 - `Models/Symptom.swift`
-  - `SymptomEvent` :169
-  - `SymptomPromotion` :186
-  - `SymptomSeverity` :136
+  - `SymptomEvent` :212
+  - `SymptomPromotion` :229
+  - `SymptomSeverity` :179
   - `SymptomType` :27
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71

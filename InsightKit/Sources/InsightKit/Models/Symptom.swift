@@ -124,6 +124,49 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
              .moodChanges, .hotFlashes, .vomiting, .diarrhea: return false
         }
     }
+
+    /// Whether this tag may **grade the symptom radar** — in either direction.
+    ///
+    /// ⚠️ **The ledger was one-directional and would have started lying the day
+    /// the reader logged a mood.** The confirm side counted any tag that was not
+    /// chronic and not dose-explained; the miss side clusters only
+    /// `isInfectionLike` days. `moodChanges` is neither chronic nor a known
+    /// GLP-1 effect, so it could **only ever raise the hit rate and never the
+    /// miss rate** — on the one number this app prints back about its own
+    /// accuracy.
+    ///
+    /// It is not hypothetical. `HealthKitService` already requests
+    /// `HKCategoryTypeIdentifierMoodChanges`, `SymptomType.moodChanges` exists,
+    /// and `SymptomPromotion.events` is a bare identifier lookup with no mood
+    /// exclusion — so a single State of Mind entry in Apple Health would have
+    /// been promoted, landed in an episode's confirm window during any ordinary
+    /// autonomic dip, and been scored as the illness radar having been *right*.
+    /// There are zero mood rows in the reader's export today, which is exactly
+    /// why this is cheap to fix now and expensive later.
+    ///
+    /// ⚠️ **The first attempt at this was `isInfectionLike`, and two shipped
+    /// tests refuted it in one run.** A dose-window nausea with no dose, and an
+    /// occasional hot flush, both legitimately confirm an episode today — they
+    /// are plausible illness symptoms even though they are deliberately kept out
+    /// of the *miss* clustering, where "a signal that fires on every bad night is
+    /// not a signal" (see `isInfectionLike`). That asymmetry is a known,
+    /// documented limitation of the ledger and it is not what is wrong here.
+    ///
+    /// What is wrong is narrower and is not fixable by symmetry: **a mood is not
+    /// evidence of a bodily illness.** The radar reads four autonomic channels
+    /// and claims to detect infection; a low mood during an autonomic dip is the
+    /// one inference this app has written down that it must never make. So this
+    /// excludes exactly that, and says why, rather than pretending the rest of
+    /// the ledger is symmetric when it is not.
+    public var gradesTheRadar: Bool {
+        switch self {
+        case .moodChanges: return false
+        case .fever, .coughing, .shortnessOfBreath, .nausea, .headache, .fatigue,
+             .dizziness, .chestTightnessOrPain, .abdominalCramps, .bloating,
+             .heartburn, .sleepChanges, .hotFlashes, .vomiting, .diarrhea:
+            return true
+        }
+    }
 }
 
 /// How strongly, on Apple's own scale.

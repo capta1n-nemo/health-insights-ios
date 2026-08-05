@@ -829,7 +829,12 @@ public enum SymptomRadarModel {
             else { continue }
             let confirmed = presentByDay.contains { day, tags in
                 guard day >= confirmStart && day <= confirmEnd else { return false }
-                let signal = tags.filter { !chronicTypes.contains($0.type) }
+                // `gradesTheRadar`, so the confirm side and the miss side draw
+                // from one population. Without it a mood tag could raise the hit
+                // rate and never the miss rate — see `SymptomType.gradesTheRadar`.
+                let signal = tags.filter {
+                    !chronicTypes.contains($0.type) && $0.type.gradesTheRadar
+                }
                 return !signal.isEmpty && !isDoseExplained(day: day, tags: signal)
             }
             if confirmed {
@@ -844,6 +849,9 @@ public enum SymptomRadarModel {
         // Misses: cluster the infection-like tag days (≤ 3 days apart joins),
         // grade a cluster only where the radar had output to flag with, and
         // call it a miss when no flag day falls in [clusterStart − 3, clusterEnd].
+        // `isInfectionLike`, deliberately narrower than the confirm side above:
+        // a tag that fires on every bad night would make a miss of every bad
+        // night. The asymmetry is documented on that property.
         let infectionDays = presentByDay
             .filter { _, tags in tags.contains { $0.type.isInfectionLike } }
             .keys.sorted()
