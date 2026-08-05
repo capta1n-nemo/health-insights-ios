@@ -139,34 +139,28 @@ section it sits in rather than by judgement:
 | 30 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
 | 31 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
 | 32 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
-| 33 | The card itself — `InsightID.symptomRadar`, daily, rendering `HealthWatchMode… | Symptom radar — the sickness early warning | next |
-| 34 | "No signs" must not read as reassurance | Symptom radar — the sickness early warning | next |
-| 35 | Name the confounder from data the app already holds | Symptom radar — the sickness early warning | next |
-| 36 | Never call a dose reaction an infection | Symptom radar — the sickness early warning | next |
-| 37 | Track the episode, not just the onset — start, peak, and each signal's return… | Symptom radar — the sickness early warning | next |
-| 38 | Grade itself against the reader's own symptom tags | Symptom radar — the sickness early warning | next |
-| 39 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
-| 40 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
-| 41 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
-| 42 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
-| 43 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
-| 44 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
-| 45 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
-| 46 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
-| 47 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
-| 48 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
-| 49 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
-| 50 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
-| 51 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
-| 52 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
-| 53 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
-| 54 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 55 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 56 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 57 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 58 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 59 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 60 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 33 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
+| 34 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
+| 35 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
+| 36 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
+| 37 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
+| 38 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
+| 39 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
+| 40 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
+| 41 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
+| 42 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
+| 43 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
+| 44 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
+| 45 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
+| 46 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
+| 47 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
+| 48 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 49 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 50 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 51 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 52 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 53 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 54 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -1844,32 +1838,32 @@ reference with a 4-day gap between them, z-scored, counted only when they move
 the way illness pushes them. It is within touching distance of Oura's design and
 is currently a section inside Readiness. What is missing is the card.
 
-- [ ] **The card itself** — `InsightID.symptomRadar`, daily, rendering
+- [x] **The card itself** — `InsightID.symptomRadar`, daily, rendering
       `HealthWatchModel` directly. Three states on Oura's precedent (nothing
       stirring / some signs / strong signs) and a radar of the seven signals
       showing which moved and how far. Which signals moved is more actionable
       than a score.
-- [ ] **"No signs" must not read as reassurance.** The best published
+- [x] **"No signs" must not read as reassurance.** The best published
       prospective validation of this approach — sleep resting HR, respiratory
       rate and HRV over 470 health-care workers — is **43% sensitivity at 95%
       specificity** (JMIR Formative Research, 2024). A model of this kind misses
       more than half of real infections. Every competitor puts a green tick in
       the quiet state; this card has to say what quiet actually means, and that
       is the most important sentence on it.
-- [ ] **Name the confounder from data the app already holds.** Apple lists
+- [x] **Name the confounder from data the app already holds.** Apple lists
       *possible* causes generically. This app has the substance log, the GLP-1
       dose schedule and screen time, so it can say "you logged alcohol on two of
       these three nights" instead. The universal substance shading (2026-08-03)
       is the visual half of this and is already in.
-- [ ] **Never call a dose reaction an infection.** Nausea and fatigue after a
+- [x] **Never call a dose reaction an infection.** Nausea and fatigue after a
       GLP-1 dose are the drug working. The app knows the dose dates and the
       modelled level; no competitor does. Flagging an infection on titration day
       is the kind of wrong a reader remembers.
-- [ ] **Track the episode, not just the onset** — start, peak, and each signal's
+- [x] **Track the episode, not just the onset** — start, peak, and each signal's
       return to baseline ("day 3, two of four signals back inside your range").
       The standing criticism of Whoop's Health Monitor is that it flags a bug
       and then goes quiet.
-- [ ] **Grade itself against the reader's own symptom tags.** HealthKit writes
+- [x] **Grade itself against the reader's own symptom tags.** HealthKit writes
       fifteen symptom categories into this app's raw pile — nausea, fatigue,
       headache, fever, coughing — and nothing reads them. They are both the
       training signal and the honesty feature: the card can report its own hit

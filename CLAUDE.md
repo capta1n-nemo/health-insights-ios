@@ -149,6 +149,14 @@ So:
   it. The audit is cumulative.
 
 ## Memory Router
+- `docs/backlog.md` -> **START HERE. The exhaustive list**: every open question,
+  every card ever mentioned (built, requested, proposed, refused), every section,
+  every integration, every quality gap, and the reader's standing rules. Written
+  2026-08-06 because the roadmap's own structure had begun hiding things — a
+  nested item was invisible to its generator, and six symptom-radar rows sat open
+  for hours after shipping. **Nothing is ever deleted from it, only marked**;
+  removing a row is how a backlog starts lying. `progress.md` remains the
+  historical roadmap and keeps its generated table.
 - `docs/architecture.md` -> Core data pipeline, BYO-Key API client, and Swift patterns.
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
