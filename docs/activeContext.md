@@ -164,15 +164,33 @@ reader's 16 events are in the export and were never in the simulator. **An empty
 substance card on a seeded simulator is expected and says nothing about the
 phone.** Same is true of anything else SwiftData-backed.
 
-**Open decision the reader raised, not yet acted on:** *"every card should show,
-even if it hasn't got data yet."* All twelve registered cards are visible on the
-real export today, so this bites only a fresh install or a reader with no
-wearable, where the three daily cards have no number, no requirement and no ask.
-The counter-rationale is recorded at `Insight.swift:166-171` and is about Today
-specifically. **Making every card visible is only half the job** — the
-2026-08-04 finding was that a visible card leading with "No data yet" is the
-same dead end one layer in, so each newly-visible card needs an empty state that
-says what it wants. Ask before doing it.
+### The listing rule changed, and `notReady` is gone
+
+**The reader's rule, 2026-08-05: *"every card should show, even if it hasn't got
+data yet."*** Decided and built (`6b8c419`). The old rule — a numberless card
+earns its place only when there is something to do — was defended on the grounds
+that a fresh install would otherwise carry seven dead cards. **That conceded the
+wrong half: the problem with a dead card is that it is dead, not that it is
+there.**
+
+Four cards vanished on an empty profile (Readiness, Sleep, Energy, Body
+Composition) and two led with "No data yet".
+
+- **`notReady` is deleted, not deprecated.** It was the only constructor that
+  could build a card with nothing to say — headline "No data yet",
+  `invitesInput: false` — and both its callers already carried a good sentence,
+  passed as the *explanation* while the row renders the *headline*. Deleting it
+  is what makes the rule hold by construction rather than by review.
+- **Two cards were wrong at one end of their range and now split the state.**
+  "Building baseline" is true on night three and false on a fresh install, where
+  it describes a process that is not happening; "No night yet" was wrong for a
+  reader whose ring stopped syncing a fortnight ago.
+- ⚠️ **`ReadinessInsight.evaluate` rebuilds its result field-by-field from the
+  one `score(_:)` returns, and forwarded seven fields but not `invitesInput`** —
+  so the card set the flag and the wrapper dropped it. A wrapper that
+  reconstructs a value by hand will lose the next field added to it too.
+
+Verified on a wiped simulator: five daily cards, five real asks, no dead ends.
 
 ### Seen, not reasoned about
 
