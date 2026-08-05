@@ -3,6 +3,39 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
+## Read `docs/backlog.md` first (added 2026-08-06)
+
+Every open question, every card ever mentioned, every requested section,
+integration and quality gap is on **one flat list** there. It exists because
+this file and `progress.md` between them had begun losing things: the roadmap
+generator could not see a nested item, six symptom-radar rows sat open after
+shipping, and the reader had to ask three separate times for work that was on
+no list they could find. **Nothing is ever deleted from the backlog, only
+marked.**
+
+## Three things this session's own work got wrong, found by auditing it
+
+Recorded because each is a *class*, and none of 1,626 tests could fail on any.
+
+1. **A comment claimed the opposite of its code.** The CUSUM's status branch
+   said the accumulated path could escalate without two leaning signals. It
+   cannot — memory's excess caps at exactly `strongSignsExcess`, `ScoreCurve`
+   returns an anchor exactly at its input, that anchor is (3.3, 50), so
+   `score >= 50` always wins first. The code was the intended design; the
+   comment overclaimed. **A comment describing behaviour is still not evidence
+   of it.**
+2. **A guard that skips is a guard that hides.** `ScoreAttributionTests` took
+   `ContributorsFixture`'s 20-day default while every other caller passed 130,
+   and each sweep opens `guard result.score != nil else { continue }`. Sustained
+   Load (118 days) and Gait (393) were skipped by all three sweeps from the day
+   they shipped, in silence. The default is 130 now and
+   `testEveryRegisteredModelScoresOnTheFixture` asserts the set being examined
+   is the set that exists.
+3. **The handover gate had a blind spot in itself.** `roadmap-table.sh` matched
+   `- [ ] ` at column 0, so one nested open item was invisible to the table, to
+   `--check`, and therefore to the gate meant to stop a session closing on a
+   stale roadmap.
+
 ## Six things established on 2026-08-05 (afternoon), in priority order
 
 **1. `docs/progress.md` was wrong about six data domains, and the correction is
