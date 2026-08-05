@@ -783,6 +783,82 @@ public enum SymptomRadarModel {
         /// Infection-like tag clusters the radar had data for and never flagged.
         public let misses: Int
         public var flags: Int { hits + unconfirmed + pending }
+
+        // MARK: The day counters — backlog #36, added 2026-08-06
+        //
+        // ⚠️ **All three were already computed inside `ledger` and thrown
+        // away.** `flags` counts *episodes*, which is why no flag **rate** was
+        // printable: a reader asking "how often does this card cry wolf" is
+        // asking about days, and the app had the day set in hand and discarded
+        // it every single evaluation.
+        //
+        // The reason it matters more than three counters usually would: the
+        // radar's whole thesis is early detection, and its own research figure
+        // is 43% sensitivity at 95% specificity — so "no signs" is not
+        // reassurance and the card is supposed to say so *with numbers*. It had
+        // none of its own to say it with.
+
+        /// Days in the window on which the card was not quiet.
+        public let flaggedDays: Int
+        /// Days it reached its strongest band, whatever that band is called.
+        public let strongDays: Int
+        /// Days in the window at all, graded or not — the denominator for
+        /// coverage, which is a different question from the flag rate.
+        public let windowDays: Int
+
+        /// How often this card spoke, over the days it could actually judge.
+        ///
+        /// Nil rather than zero when nothing was gradeable: "it never flagged"
+        /// and "it never had anything to look at" are opposite statements and a
+        /// 0% would say the first while meaning the second.
+        public var flagRate: Double? {
+            gradedDays > 0 ? Double(flaggedDays) / Double(gradedDays) : nil
+        }
+
+        /// What fraction of the window the card could judge at all. **The
+        /// number that makes a quiet radar readable**: a green card over 30%
+        /// coverage means something very different from one over 95%.
+        public var coverage: Double? {
+            windowDays > 0 ? Double(gradedDays) / Double(windowDays) : nil
+        }
+
+        public init(gradedDays: Int, hits: Int, unconfirmed: Int, pending: Int,
+                    misses: Int, flaggedDays: Int = 0, strongDays: Int = 0,
+                    windowDays: Int = 0) {
+            self.gradedDays = gradedDays
+            self.hits = hits
+            self.unconfirmed = unconfirmed
+            self.pending = pending
+            self.misses = misses
+            self.flaggedDays = flaggedDays
+            self.strongDays = strongDays
+            self.windowDays = windowDays
+        }
+    }
+
+    /// **How often this card spoke, and how much it could see** — the four day
+    /// counters, with no symptom log and no medication schedule in scope.
+    ///
+    /// Split out of `ledger` deliberately rather than letting a caller pass
+    /// empty inputs to get the same numbers. The counters genuinely do not
+    /// depend on tags or doses — only `hits`, `unconfirmed`, `pending` and
+    /// `misses` do — and a call site that fakes two arguments to reach a third
+    /// result is one refactor away from a caller who fakes them and *does* read
+    /// the grades. Backlog #36.
+    public static func dayCounters(samples: [HealthMetricSample], now: Date = Date(),
+                                   calendar: Calendar = .current) -> SymptomRadarLedger {
+        let today = calendar.startOfDay(for: now)
+        let windowStart = calendar.date(byAdding: .day, value: -(ledgerDays - 1), to: today)
+            ?? today
+        let timeline = SymptomRadarModel.timeline(samples: samples, days: ledgerDays,
+                                                  endingAt: now, calendar: calendar)
+        let graded = timeline.filter { $0.day >= windowStart && $0.day <= today }
+        return SymptomRadarLedger(
+            gradedDays: graded.filter { $0.output != nil }.count,
+            hits: 0, unconfirmed: 0, pending: 0, misses: 0,
+            flaggedDays: graded.filter { ($0.output?.status ?? .quiet) != .quiet }.count,
+            strongDays: graded.filter { $0.output?.status == .strongSigns }.count,
+            windowDays: daysBetween(windowStart, today, calendar: calendar) + 1)
     }
 
     public static func ledger(timeline: [DaySnapshot], symptoms: [SymptomEvent],
@@ -895,9 +971,16 @@ public enum SymptomRadarModel {
             if gradeable && !flaggedInRange { misses += 1 }
         }
 
+        let strongDays = graded.filter { $0.output?.status == .strongSigns }.count
+
         return SymptomRadarLedger(gradedDays: gradedDays, hits: hits,
                                   unconfirmed: unconfirmed, pending: pending,
-                                  misses: misses)
+                                  misses: misses,
+                                  // `flagDays` is built above for the miss
+                                  // calculation and was discarded with it.
+                                  flaggedDays: flagDays.count,
+                                  strongDays: strongDays,
+                                  windowDays: windowDayCount)
     }
 
     /// Whole calendar days from `a` to `b` — signed, so callers can ask both

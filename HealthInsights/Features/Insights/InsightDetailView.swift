@@ -842,6 +842,71 @@ struct InsightDetailView: View {
                     noun: "day of overnight vitals",
                     plural: "days of overnight vitals"))
             }
+            radarScorecard
+        }
+    }
+
+    /// **The radar's report on itself** — backlog #36.
+    ///
+    /// The original refusal was right about the hard part: an honest
+    /// *sensitivity* figure is years away at one symptom tag, and this card must
+    /// never print one. What it was wrong about is that there is nothing
+    /// printable today. **How often this card spoke, and how much of the window
+    /// it could see at all, are facts about the reader's own record**, and they
+    /// are the two numbers that make a quiet radar readable: green over 30%
+    /// coverage means something very different from green over 95%.
+    ///
+    /// ⚠️ **Two blocks, never mixed, and the separation is the design.** What it
+    /// did on this record is descriptive and carries no truth claim. What it was
+    /// designed to do is a simulation under a stated assumption. Merging them is
+    /// how a design budget becomes a measured accuracy.
+    ///
+    /// Nothing here is titled "accuracy", and no hit rate, sensitivity or
+    /// positive predictive value appears — every one of those needs a symptom
+    /// log this reader does not have, and printing a degenerate one would be
+    /// worse than printing nothing.
+    @ViewBuilder private var radarScorecard: some View {
+        let ledger = model.memoized("radarDayCounters") {
+            SymptomRadarModel.dayCounters(samples: model.samples)
+        }
+        if let flagRate = ledger.flagRate, let coverage = ledger.coverage {
+            Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                Text("What this card has done on your record")
+                    .font(.subheadline.weight(.medium))
+                scorecardRow("Days it said something",
+                             String(format: "%d of %d judged · %.0f%%",
+                                    ledger.flaggedDays, ledger.gradedDays, flagRate * 100))
+                if ledger.strongDays > 0 {
+                    scorecardRow("Of those, at its strongest", "\(ledger.strongDays)")
+                }
+                scorecardRow("Days it could judge at all",
+                             String(format: "%d of %d · %.0f%%",
+                                    ledger.gradedDays, ledger.windowDays, coverage * 100))
+                Text(coverage < 0.7
+                     ? "It was blind for \(ledger.windowDays - ledger.gradedDays) of those days — nothing worn, or nothing synced. A quiet card over patchy coverage is not the same as a quiet card over a full one, and this is the number that tells them apart."
+                     : "Coverage that high means a quiet card is genuinely quiet rather than absent.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider().padding(.vertical, 2)
+                Text("What it was designed to do")
+                    .font(.subheadline.weight(.medium))
+                Text("The bands were set to a stated false-alarm budget of about two mornings a year, under the assumption that the signals are only partly correlated. That is a design figure from a simulation, not a measurement of you — the line above is the measurement.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("⚠️ It cannot tell you how often it is right. The best published validation of this approach catches under half of what it looks for, so a quiet radar is not reassurance — and grading it against your own symptom tags needs far more of them than exist here.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func scorecardRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(.caption.weight(.medium)).monospacedDigit()
         }
     }
 

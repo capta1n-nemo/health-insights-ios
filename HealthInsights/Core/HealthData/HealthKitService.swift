@@ -165,6 +165,14 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierNumberOfTimesFallen",
         // Cardio / respiratory / other vitals
         "HKQuantityTypeIdentifierForcedVitalCapacity",
+        // ⚠️ **Apnoea, added 2026-08-06 to make a claim measurable rather than
+        // to build on.** Backlog #30 was refused partly on "the reader has no
+        // apnoea data" — which was unfalsifiable, because neither identifier was
+        // being requested, so HealthKit would have returned nothing even if the
+        // Watch had been recording it for a year. Two strings; unknown
+        // identifiers resolve to nil on older SDKs, so this is safe on any
+        // device. Count the rows before building any UI on it.
+        "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances",
         "HKQuantityTypeIdentifierForcedExpiratoryVolume1", "HKQuantityTypeIdentifierPeakExpiratoryFlowRate",
         "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBasalBodyTemperature", "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
         "HKQuantityTypeIdentifierInsulinDelivery", "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages",
@@ -198,6 +206,7 @@ final class HealthKitService {
         "HKCategoryTypeIdentifierEnvironmentalAudioExposureEvent", "HKCategoryTypeIdentifierHeadphoneAudioExposureEvent",
         "HKCategoryTypeIdentifierToothbrushingEvent", "HKCategoryTypeIdentifierHandwashingEvent",
         "HKCategoryTypeIdentifierSexualActivity", "HKCategoryTypeIdentifierMenstrualFlow",
+        "HKCategoryTypeIdentifierSleepApneaEvent",
         "HKCategoryTypeIdentifierLowCardioFitnessEvent", "HKCategoryTypeIdentifierAppleWalkingSteadinessEvent",
         "HKCategoryTypeIdentifierNausea", "HKCategoryTypeIdentifierHeadache", "HKCategoryTypeIdentifierFatigue",
         "HKCategoryTypeIdentifierDizziness", "HKCategoryTypeIdentifierFever", "HKCategoryTypeIdentifierCoughing",
