@@ -280,6 +280,15 @@ public enum VitalSignsCheck {
     /// Days of history the baseline is built from, and the minimum that must be
     /// present before any judgement is made.
     static let baselineDays = 28
+    /// Days between the reading and the window it is judged against.
+    ///
+    /// Two, matching what `HealthWatchModel` has always had and for the reason
+    /// the reader found the hard way: without it a departure ages into its own
+    /// baseline, and the same value stops being unusual by lasting. Two rather
+    /// than the radar's four because this scan judges a *day* rather than a
+    /// three-day mean, so it needs less clearance — and every day of gap is a
+    /// day of history the estimate does not get.
+    static let referenceGapDays = 2
     static let minimumBaselineDays = 7
     /// A metric seen at all within this window is one the user "normally
     /// records", and therefore counts toward coverage.
@@ -322,7 +331,8 @@ public enum VitalSignsCheck {
             guard let vital = VitalReader.reading(
                 spec.metric, from: samples, now: now,
                 windowDays: baselineDays, minimumDays: minimumBaselineDays,
-                freshWithin: spec.freshWithin, calendar: calendar) else { continue }
+                freshWithin: spec.freshWithin, gapDays: referenceGapDays,
+                calendar: calendar) else { continue }
 
             if vital.isFresh {
                 readings.append(reading(spec: spec, value: vital.value, at: vital.date,

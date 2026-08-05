@@ -63,6 +63,7 @@ public enum VitalReader {
                                windowDays: Int = defaultWindowDays,
                                minimumDays: Int = defaultMinimumDays,
                                freshWithin: TimeInterval = defaultFreshness,
+                               gapDays: Int = 0,
                                calendar: Calendar = .current) -> VitalReading? {
         // One series per physical device, de-duplicated: the same ring arriving
         // twice is one instrument.
@@ -74,8 +75,32 @@ public enum VitalReader {
         for (series, daily) in zip(breakdown.sources, buckets) {
             guard let today = daily.last else { continue }
 
-            let cutoff = today.date.addingTimeInterval(-Double(windowDays) * 86_400)
-            let history = daily.dropLast().filter { $0.date >= cutoff }.map(\.value)
+            // **A gap, so the last few days cannot set the bar they are judged
+            // against.** `dropLast()` alone removes only *today*, which is what
+            // let a departure age into its own baseline — the reader caught it
+            // twice on 2026-08-05 ("still the same value.. but no longer in
+            // danger?"). Robust spread removed the dominant term; this removes
+            // the rest of it, and it is the same device `HealthWatchModel` has
+            // always had (`referenceGapDays`).
+            //
+            // Zero by default: a caller that wants "how does today compare with
+            // the recent past" — a trend, a chart's own mean — is asking a
+            // different question and must not silently lose its newest days.
+            let earlier = daily.dropLast()
+            func window(gap: Int) -> [Double] {
+                let gapEnd = today.date.addingTimeInterval(-Double(gap) * 86_400)
+                let cutoff = gapEnd.addingTimeInterval(-Double(windowDays) * 86_400)
+                return earlier.filter { $0.date >= cutoff && $0.date < gapEnd }.map(\.value)
+            }
+            // **The gap is affordable, not mandatory.** It costs `gapDays` of
+            // history, and a reader who has just started has none to spare —
+            // holding the line strictly would leave them with no judgement at
+            // all for their first week and a half, which is worse than the
+            // weakness the gap exists to remove. So: take the gap when the
+            // window can still clear its own minimum without those days, and
+            // fall back to today's behaviour when it cannot.
+            let gapped = window(gap: gapDays)
+            let history = gapped.count >= minimumDays ? gapped : window(gap: 0)
             let deviation = history.count >= minimumDays
                 ? Baseline.deviation(latest: today.value, history: history)
                 : nil

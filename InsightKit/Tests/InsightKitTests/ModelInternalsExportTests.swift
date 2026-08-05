@@ -110,7 +110,13 @@ final class ModelInternalsExportTests: XCTestCase {
         let text = export(samples: samples)
         XCTAssertTrue(text.contains("| Resting Heart Rate | 70 bpm |"),
                       "today's value and its unit lead the row: \(text)")
-        XCTAssertTrue(text.contains("20 of \(VitalSignsCheck.baselineDays) days"))
+        // **Eighteen, not twenty.** `referenceGapDays` holds the two most
+        // recent days out of the window, so a departure cannot age into the
+        // baseline that judges it — and the exported count states the window
+        // that was actually used rather than the history that exists.
+        let used = 20 - VitalSignsCheck.referenceGapDays
+        XCTAssertTrue(text.contains("\(used) of \(VitalSignsCheck.baselineDays) days"),
+                      "the exported baseline count must be the window actually used: \(text)")
     }
 
     /// "+31 after use" is a finding or noise depending on the pool sizes, so
