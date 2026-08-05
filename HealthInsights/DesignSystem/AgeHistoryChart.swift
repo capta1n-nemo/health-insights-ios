@@ -92,23 +92,42 @@ struct AgeHistoryChart: View {
         }
     }
 
-    /// Every age in view plus three years of headroom, so a line never runs
-    /// along the edge of the plot.
+    /// **A whole life, 0 to 100 — deliberately not the visible data.**
+    ///
+    /// The reader, 2026-08-05: *"its weird that my age is the very bottom of
+    /// the graph, its basically along the bottom... it should start with 0 (age
+    /// 0) and go up to age 100"*.
+    ///
+    /// This is a considered exception to `add-chart` §10's "the axis fits the
+    /// data in the visible window, not a round number above it", and the reason
+    /// it is safe here is that **an age is meaningful on an absolute scale in a
+    /// way a heart-rate variability is not**. Fitted to its own data the axis
+    /// spanned roughly the low thirties to the low seventies, which made a
+    /// four-year gap between two ages look like the whole plot and pinned the
+    /// reader's real age to the floor — reading as "you are at the bottom" when
+    /// it meant "this is the smallest number here".
+    ///
+    /// Against a lifespan the same gap is a small distance, which is what it
+    /// is. The cost is honest and accepted: a year's change is now barely
+    /// visible, and this chart is about *standing*, not about week-to-week
+    /// movement.
+    ///
+    /// `visible` is unused and kept in the signature so the wrapper's
+    /// per-window call site is unchanged; a fixed domain is the point.
     static func domain(_ visible: [AgePoint]) -> ClosedRange<Double>? {
-        var values: [Double] = []
-        for point in visible {
-            values.append(point.chronological)
-            if let heart = point.heart { values.append(heart) }
-            if let fitness = point.fitness { values.append(fitness) }
-        }
-        guard let low = values.min(), let high = values.max() else { return nil }
-        // A hard floor of one year's width, or a perfectly flat history would
-        // produce a degenerate domain.
-        let pad = Swift.max(3, (high - low) * 0.15)
-        return (low - pad)...(high + pad)
+        0...100
     }
 
-    static let chronologicalTint = Color.secondary
+    /// **Not `Color.secondary`.** It rendered as a pale grey at 0.5 opacity
+    /// against a grey plot and the reader could not see it at all — which is
+    /// fatal for the one line the other two are read against.
+    ///
+    /// Its own palette slot rather than a brighter grey: hue is identity in
+    /// this app (`add-chart` §3), and the reference deserves one as much as the
+    /// two computed ages do. Solid, because a chronological age is measured —
+    /// dash means inferred and nothing else.
+    static let chronologicalSlot = 0
+    static var chronologicalTint: Color { Theme.paletteColour(slot: chronologicalSlot) }
 
     /// Explicit `some ChartContent`, as every mark builder in this app must
     /// have: without it the chain resolves to 3D chart content on this SDK and
@@ -121,7 +140,7 @@ struct AgeHistoryChart: View {
             LineMark(x: .value("Day", point.date),
                      y: .value("Age", point.chronological),
                      series: .value("Series", "You"))
-                .foregroundStyle(Self.chronologicalTint.opacity(0.5))
+                .foregroundStyle(Self.chronologicalTint)
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
                 .interpolationMethod(.linear)
         }

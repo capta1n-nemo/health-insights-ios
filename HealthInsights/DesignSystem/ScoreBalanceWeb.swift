@@ -79,7 +79,7 @@ struct ScoreBalanceWeb: View {
             ZStack {
                 grid
                 referenceLayer
-                currentLayer
+                currentLayer(radius: radius)
                 referenceDots(centre: centre, radius: radius)
                 vertices(centre: centre, radius: radius)
                 labels(centre: centre, radius: radius)
@@ -188,35 +188,41 @@ struct ScoreBalanceWeb: View {
         }
     }
 
-    /// Today's scores, **each wedge coloured by its own spoke's band**.
+    /// Today's scores, filled with the **radial** band ramp.
     ///
-    /// ## Why wedges rather than one gradient
+    /// ## Why radial, after two wrong answers
     ///
-    /// The reader asked to see which parts of the web have moved into green,
-    /// amber or red — the same reading the dials and the score-over-time charts
-    /// give. The obvious implementation, one gradient across the polygon, is
-    /// the thing `add-chart` §7 forbids and this file's own header already
-    /// rejected: a linear gradient resolves against the mark's bounding box, so
-    /// it would shade by *which spoke happens to point up* and encode nothing.
+    /// The reader wanted the same reading the dials and the score-over-time
+    /// area give: red is bad, green is good, and the colour means the same
+    /// thing on every chart. Two earlier attempts were rejected for reasons
+    /// that still stand:
     ///
-    /// An angular gradient is no better. Between a green spoke and a red one it
-    /// interpolates through amber — inventing a middle band for a stretch of
-    /// chart where no card sits. That is hatch-never-blend (§8) in polar form:
-    /// two quantities drawn over one another must never mix into a third
-    /// colour that reads as a real value.
+    /// - **A linear gradient** resolves against the mark's bounding box, so it
+    ///   shades by *which spoke happens to point up* — it encodes the chart's
+    ///   rotation, not the reader's scores (`add-chart` §7).
+    /// - **An angular gradient** interpolates between a green spoke and a red
+    ///   one through amber, inventing a middle band for a stretch of chart
+    ///   where no card sits — hatch-never-blend (§8) in polar form.
     ///
-    /// So the fill is **one wedge per spoke**, each running from the centre out
-    /// to that spoke's vertex and halfway to each neighbour. Every coloured
-    /// region therefore belongs to exactly one score and takes exactly that
-    /// score's band colour, with hard edges where ownership changes. Nothing is
-    /// interpolated and nothing is implied about the space between two cards.
-    private var currentLayer: some View {
+    /// **A radial ramp has neither freedom, because its axis is the one the
+    /// geometry already uses: distance from the centre is the score.** A point
+    /// at 70% of the plot radius is green because 70 is green, wherever it sits
+    /// around the circle. That is the same rule as `Theme.scoreFill`, read from
+    /// the centre outward instead of the top down, and it is why the wedges are
+    /// gone: they coloured a *region* by one card's band, so the same colour
+    /// meant a different value at different radii.
+    ///
+    /// ⚠️ **The gradient is anchored to the score-100 radius, not to the
+    /// polygon.** Anchored to the shape's own extent — which is what a bare
+    /// `.fill(gradient)` does — a profile scoring 30 across the board would get
+    /// the whole ramp inside its small shape and read green at its rim. That is
+    /// §7's warning in radial form, and it is the one thing to check if this
+    /// ever looks wrong again.
+    private func currentLayer(radius: CGFloat) -> some View {
         ZStack {
-            ForEach(Array(snapshot.spokes.enumerated()), id: \.offset) { index, spoke in
-                WebWedgeShape(fractions: fractions, index: index,
-                              radiusRatio: Self.plotRadiusRatio, progress: progress)
-                    .fill(Theme.color(forScore: spoke.score).opacity(0.22))
-            }
+            WebPolygonShape(fractions: fractions,
+                            radiusRatio: Self.plotRadiusRatio, progress: progress)
+                .fill(Theme.scoreRadialFill(radius: radius, opacity: 0.34))
             // The outline stays one accent-coloured path rather than following
             // the bands: it is the shape's silhouette, and a stroke that
             // changed colour per segment would read as eleven separate marks

@@ -66,6 +66,46 @@ enum Theme {
     /// The consequence worth stating: a chart that never rises above 45 is
     /// entirely red, which is the correct reading and the one the previous
     /// version could not produce.
+    /// `scoreFill`'s rule on a radial chart: **the band ramp runs outward from
+    /// the centre**, red in the middle, amber through the fair band, green at
+    /// the rim.
+    ///
+    /// The reader's rule, 2026-08-05: a fill's colour must mean the same thing
+    /// here as it does on the score-over-time area — and it now does, because
+    /// on a radar the encoded quantity *is* the distance from the centre.
+    ///
+    /// **This is the shape that answers the objection which made the web flat.**
+    /// A `LinearGradient` on a polygon shades by which spoke happens to point
+    /// up, so it encodes the chart's orientation rather than the reader's
+    /// scores — which is why the fill was flat until now. A radial ramp has no
+    /// such freedom: its axis is the same axis the geometry already uses.
+    ///
+    /// ⚠️ **`radius` must be the distance that represents 100, never the
+    /// polygon's own extent.** That is `add-chart` §7 in its radial form: anchor
+    /// the stops to the shape's own bounding box and a profile scoring 30 gets
+    /// the whole red-amber-green ramp squeezed inside its small shape, so its
+    /// rim reads green while every score on it is poor.
+    static func scoreRadialFill(center: UnitPoint = .center,
+                                radius: CGFloat,
+                                opacity: Double = 0.30) -> RadialGradient {
+        RadialGradient(stops: scoreRadialStops(opacity: opacity),
+                       center: center, startRadius: 0, endRadius: radius)
+    }
+
+    /// The stops of that ramp, centre → rim, exposed so any other radial fill
+    /// can share them rather than restating the thresholds.
+    ///
+    /// The mirror of `scoreFill`: there location 0 is the top of the shape and
+    /// therefore the *highest* score; here location 0 is the centre and
+    /// therefore the *lowest*. Same two thresholds, same three colours, read
+    /// from the opposite end.
+    static func scoreRadialStops(opacity: Double = 0.30) -> [Gradient.Stop] {
+        [.init(color: bad.opacity(opacity), location: 0),
+         .init(color: warn.opacity(opacity), location: scoreWarnFloor / 100),
+         .init(color: good.opacity(opacity), location: scoreGoodFloor / 100),
+         .init(color: good.opacity(opacity), location: 1)]
+    }
+
     static func scoreFill(peak: Double, opacity: Double = 0.30) -> LinearGradient {
         let top = Swift.max(peak, 1)          // never divide by zero
         // location 0 is the top of the filled shape, i.e. a score of `top`.
