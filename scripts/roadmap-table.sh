@@ -43,9 +43,14 @@ lines = DOC.read_text().splitlines()
 # stay true until the user opts in per signal.**` closes its bold on the second
 # line — so gather the item's block before reading a title out of it.
 def block_at(i):
-    parts = [lines[i][len("- [ ] "):]]
+    indent = len(lines[i]) - len(lines[i].lstrip())
+    parts = [lines[i].lstrip()[len("- [ ] "):]]
     for line in lines[i + 1:]:
-        if not line.strip() or not line.startswith(" "):
+        # A nested item's continuation is indented FURTHER than the item itself;
+        # a sibling at the same depth ends the block.
+        if not line.strip():
+            break
+        if len(line) - len(line.lstrip()) <= indent:
             break
         parts.append(line.strip())
     return " ".join(parts)
@@ -80,7 +85,13 @@ for i, line in enumerate(lines):
         group, subsection = line[3:].strip(), ""
     elif line.startswith("### "):
         subsection = line[4:].strip()
-    elif line.startswith("- [ ] "):
+    # ⚠️ `lstrip()`, not `startswith` at column 0. The gate counted 59 open
+    # items while 60 were open: a single NESTED item — "Reconcile the symptom
+    # log against the hand-entered side effects", indented under its parent —
+    # was invisible to the table, to `--check`, and therefore to the handover
+    # gate that is supposed to stop a session closing on a stale roadmap. A
+    # counter that cannot see an item cannot notice it going stale.
+    elif line.lstrip().startswith("- [ ] "):
         if group not in GROUPS:
             continue
         where = subsection or group

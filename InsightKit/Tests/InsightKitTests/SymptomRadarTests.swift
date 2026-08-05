@@ -958,4 +958,33 @@ final class SymptomRadarTests: XCTestCase {
     func testRadarIsRegisteredOnToday() {
         XCTAssertEqual(InsightID.symptomRadar.cadence, .daily)
     }
+
+    /// ⚠️ **Pinning arithmetic a review had to derive**, because the comment on
+    /// this branch used to claim the opposite. Memory maxes out at exactly
+    /// `strongSignsExcess`, `ScoreCurve` returns an anchor exactly at its input,
+    /// and that anchor is (3.3, 50) — so a memory-only day scores exactly 50 and
+    /// can never be `strongSigns`. Intended: "this has gone on for weeks" is a
+    /// quieter claim than "today is bad".
+    func testMemoryAloneCannotReachStrongSigns() {
+        let cappedExcess = SymptomRadarModel.Memory.accumulationCap
+            / SymptomRadarModel.Memory.decisionInterval * HealthWatchModel.strongSignsExcess
+        XCTAssertEqual(cappedExcess, HealthWatchModel.strongSignsExcess, accuracy: 1e-9)
+        XCTAssertEqual(HealthWatchModel.score(excess: cappedExcess), 50, accuracy: 1e-9,
+                       "the memory ceiling no longer lands on the band edge")
+
+        // And through the real path: a long settled-then-departed stretch, where
+        // today itself is unremarkable.
+        let samples = history(illWindows: [0...5])
+        let timeline = SymptomRadarModel.timeline(samples: samples, days: 30,
+                                                  endingAt: radarNow, calendar: radarCalendar)
+        let today = HealthWatchModel.evaluate(samples: samples, now: radarNow,
+                                              calendar: radarCalendar)
+        if let today, today.excess < HealthWatchModel.strongSignsExcess {
+            let verdict = SymptomRadarModel.verdict(today: today, timeline: timeline)
+            if verdict.isCarriedForward {
+                XCTAssertNotEqual(verdict.status, .strongSigns,
+                                  "memory escalated on its own, which the score curve forbids")
+            }
+        }
+    }
 }

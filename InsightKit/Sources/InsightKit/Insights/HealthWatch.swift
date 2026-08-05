@@ -602,13 +602,28 @@ public enum SymptomRadarModel {
         } else if today.leaning.count >= 2
                     || memory.statistic >= Memory.decisionInterval {
             // Today's path needs two signals leaning, because agreement across
-            // channels is the finding. **The accumulated path does not need
-            // it**, and that is deliberate rather than an oversight: reaching
-            // the decision interval takes days of sustained departure, which is
-            // agreement across *time*. A lone channel pinned at its cap
-            // contributes about half an SD a day after the allowance, so it
-            // needs some ten consecutive days to get there — and ten days of one
-            // signal stuck away from normal is not "one dramatic number".
+            // channels is the finding. The accumulated clause substitutes
+            // agreement across *time* for it: sustained departure is evidence
+            // of a different kind, and a lone channel pinned at its cap needs
+            // some ten consecutive days to reach the decision interval.
+            //
+            // ⚠️ **What this clause does NOT do, and an earlier comment here
+            // claimed it did: memory cannot reach `strongSigns` on its own.**
+            // The arithmetic, because it is not obvious and a review had to
+            // derive it: `Accumulation.excess` is `statistic / decisionInterval
+            // * strongSignsExcess` and `accumulationCap == decisionInterval`, so
+            // memory's excess maxes out at **exactly** `strongSignsExcess`;
+            // `ScoreCurve.through` returns an anchor's score exactly at its
+            // input; that anchor is (3.3, 50); so a memory-only day scores
+            // exactly 50 and the `score >= 50` branch above always takes it
+            // first.
+            //
+            // That is the intended design — "this has been going on for weeks"
+            // is a quieter claim than "today is bad", and only the second gets
+            // to be loud. The clause still earns its place for the case where
+            // *today* is bad enough to score under 50 without two channels
+            // leaning, and a maxed accumulation vouches for it. `SymptomRadarTests`
+            // pins both halves so nobody has to derive this again.
             status = .strongSigns
         } else {
             status = .someSigns

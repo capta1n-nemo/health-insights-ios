@@ -816,4 +816,30 @@ final class ScoreAttributionTests: XCTestCase {
                               "\(model.id) has a score and hasn't said how it is formed")
         }
     }
+
+    /// ⚠️ **The guard that hides.** Every sweep in this file opens with
+    /// `guard result.score != nil else { continue }`, which is correct — a card
+    /// with no number has no attribution to check — and which means a card that
+    /// *cannot* score on the fixture is skipped in silence rather than failing.
+    ///
+    /// Sustained Load and Gait were skipped by all three sweeps from the day
+    /// they shipped, because the shared fixture defaulted to 20 days and their
+    /// windows are 118 and 393. An audit found it; no test did.
+    ///
+    /// So this one asserts the opposite of the others: not that the scoring
+    /// cards explain themselves, but that **the set of cards being examined is
+    /// the set that exists.** Anything genuinely unscoreable on a full fixture
+    /// has to be named here with a reason.
+    func testEveryRegisteredModelScoresOnTheFixture() {
+        let samples = ContributorsFixture.fullCoverage(now: attributionNow)
+        let profile = ContributorsFixture.profile(now: attributionNow)
+        let results = InsightEngine().evaluateAll(samples: samples, profile: profile,
+                                                  now: attributionNow)
+        // Cards that legitimately cannot score from sensed data alone: their
+        // input is a log the fixture does not carry.
+        let logDriven: Set<InsightID> = [.substanceImpact, .symptomRadar]
+        let silent = results.filter { $0.score == nil && !logDriven.contains($0.id) }
+        XCTAssertTrue(silent.isEmpty,
+                      "these cards are skipped by every sweep in this file: \(silent.map(\.id))")
+    }
 }

@@ -106,7 +106,7 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
-  - `SymptomRadarInsight` :907
+  - `SymptomRadarInsight` :922
   - `SymptomRadarModel` :429
   - `SymptomRadarStatus` :374
 - `Insights/HeartAgeAnalyser.swift`

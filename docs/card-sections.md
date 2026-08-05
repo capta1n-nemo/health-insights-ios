@@ -1042,8 +1042,15 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 
 ### Still open
 
-7. ~~**Three cards have no bespoke section**~~ — **closed.** All nine now have
-   one. Heart Health and Readiness share `weightedContributionCard` ("How this
+7. ~~**Three cards have no bespoke section**~~ — ~~**closed.** All nine now have
+   one.~~ ⚠️ **REOPENED 2026-08-06 by audit: five of fourteen fall through to
+   `default: EmptyView()`** — gait, sustainedLoad, nutrition, metabolism and
+   readiness. The claim was true of nine cards and stopped being true the moment
+   the tenth shipped, which is the failure mode a "closed" tick invites. For
+   **gait** it is not cosmetic: that card's whole reason to exist is the
+   `speed = step length × cadence` decomposition, and with no section it reaches
+   the reader as one driver line inside a generic card. The rest of this item
+   still records what was true then: Heart Health and Readiness share `weightedContributionCard` ("How this
    is weighted"), drawn from `InsightResult.contributors`' renormalised weight —
    no new type and no model change, exactly as Phase 2 predicted. Body
    Composition got "What you're made of", backed by `BodyCompositionSplit` in
@@ -1183,7 +1190,7 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 ## How to keep this current
 
 - **Columns** come from `InsightDetailView.body`.
-- **Rows** come from `InsightID.allCases` — nine — see the `add-insight` skill.
+- **Rows** come from `InsightID.allCases` — **fourteen** as of 2026-08-06; this line said nine until an audit caught it — see the `add-insight` skill.
 - **Cell values** come from each model's `InsightResult` plus its `requirements`
   and `contributions`.
 

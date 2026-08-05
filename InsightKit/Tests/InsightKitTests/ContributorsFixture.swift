@@ -11,7 +11,22 @@ import Foundation
 /// and drifting silently, since each suite would still pass against its own.
 enum ContributorsFixture {
 
-    static func fullCoverage(days: Int = 20, now: Date) -> [HealthMetricSample] {
+    /// ⚠️ **130, not 20, and the default is the whole point.**
+    ///
+    /// Three sweeps in `ScoreAttributionTests` took this default while every
+    /// other caller passed 130, and each sweep opens with
+    /// `guard result.score != nil else { continue }`. So the two newest cards —
+    /// Sustained Load (28 days against the 90 before) and Gait (28 against the
+    /// previous year) — returned nil on a 20-day fixture and were **silently
+    /// skipped by the very tests that exist to prove every scoring card explains
+    /// its own number.** Found by an audit, not by a failure, because a guard
+    /// that skips is a guard that hides.
+    ///
+    /// "Full coverage" has to mean enough *history* for every registered card,
+    /// not just enough metrics. A card whose window is longer than this needs
+    /// this raised again, and `testEveryRegisteredModelScoresOnTheFixture` is
+    /// what will say so.
+    static func fullCoverage(days: Int = 130, now: Date) -> [HealthMetricSample] {
         let defaults: [MetricType: Double] = [
             .heartRate: 68, .restingHeartRate: 58, .walkingHeartRateAverage: 95,
             .heartRateVariabilitySDNN: 52, .heartRateVariabilityRMSSD: 48,

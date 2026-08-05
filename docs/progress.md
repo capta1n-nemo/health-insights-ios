@@ -131,41 +131,42 @@ section it sits in rather than by judgement:
 | 22 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
 | 23 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
 | 24 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 25 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
-| 26 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
-| 27 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
-| 28 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
-| 29 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
-| 30 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
-| 32 | The card itself — `InsightID.symptomRadar`, daily, rendering `HealthWatchMode… | Symptom radar — the sickness early warning | next |
-| 33 | "No signs" must not read as reassurance | Symptom radar — the sickness early warning | next |
-| 34 | Name the confounder from data the app already holds | Symptom radar — the sickness early warning | next |
-| 35 | Never call a dose reaction an infection | Symptom radar — the sickness early warning | next |
-| 36 | Track the episode, not just the onset — start, peak, and each signal's return… | Symptom radar — the sickness early warning | next |
-| 37 | Grade itself against the reader's own symptom tags | Symptom radar — the sickness early warning | next |
-| 38 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
-| 39 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
-| 40 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
-| 41 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
-| 42 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
-| 43 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
-| 44 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
-| 45 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
-| 46 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
-| 47 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
-| 48 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
-| 49 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
-| 50 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
-| 51 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
-| 52 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
-| 53 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 54 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 55 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 56 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 57 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 58 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 59 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 25 | Reconcile the symptom log against the hand-entered side effects | Every domain of health — the direction, and what is already arriving | next |
+| 26 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
+| 27 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
+| 28 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
+| 29 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
+| 30 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
+| 32 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
+| 33 | The card itself — `InsightID.symptomRadar`, daily, rendering `HealthWatchMode… | Symptom radar — the sickness early warning | next |
+| 34 | "No signs" must not read as reassurance | Symptom radar — the sickness early warning | next |
+| 35 | Name the confounder from data the app already holds | Symptom radar — the sickness early warning | next |
+| 36 | Never call a dose reaction an infection | Symptom radar — the sickness early warning | next |
+| 37 | Track the episode, not just the onset — start, peak, and each signal's return… | Symptom radar — the sickness early warning | next |
+| 38 | Grade itself against the reader's own symptom tags | Symptom radar — the sickness early warning | next |
+| 39 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
+| 40 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
+| 41 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
+| 42 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
+| 43 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
+| 44 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
+| 45 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
+| 46 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
+| 47 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
+| 48 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
+| 49 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
+| 50 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
+| 51 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
+| 52 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
+| 53 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
+| 54 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 55 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 56 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 57 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 58 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 59 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 60 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
