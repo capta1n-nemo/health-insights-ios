@@ -112,6 +112,28 @@ final class MetricExplainerTests: XCTestCase {
         XCTAssertTrue(text.contains("bpm"), text)
     }
 
+    /// **The optimised rank must equal the one it replaced, ties and all.**
+    ///
+    /// `yours` used to call `Baseline.quantile` twice and `Baseline.percentile`
+    /// once — three sorts of an array that is tens of thousands of readings on
+    /// heart rate, from a SwiftUI body. It sorts once now. The first version of
+    /// that rewrite counted entries **strictly less than** the value while
+    /// `Baseline.percentile` counts entries **at or below** it: identical
+    /// without ties, and a rounded daily metric is nothing but ties. A faster
+    /// percentile that reports a different one is not a performance fix.
+    func testTheSortedRankMatchesBaselinePercentileOnTiedData() throws {
+        // Twenty readings of exactly 66, which is what a resting heart rate
+        // series actually looks like.
+        let tied = Array(repeating: 66.0, count: 20) + [60, 62, 64, 68, 70, 72]
+        let text = try XCTUnwrap(MetricExplainer.yours(.restingHeartRate, value: 66,
+                                                      history: tied))
+        // Baseline.percentile(66) here is 26/26 minus the three above = 0.88,
+        // which is the upper end — not the lower end a strictly-less-than
+        // count would have produced.
+        XCTAssertTrue(text.contains("upper end") || text.contains("higher than almost any day"),
+                      "the rank disagrees with Baseline.percentile on tied data: \(text)")
+    }
+
     /// Self-explanatory metrics are deliberately silent, and that has to stay a
     /// decision rather than drift into "we never got round to it".
     func testTheSelfExplanatoryAreDeliberatelySilent() {

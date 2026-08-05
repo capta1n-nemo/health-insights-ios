@@ -48,10 +48,17 @@ public enum MetricExplainer {
         guard let low = quantile(0.1, ofSorted: sorted),
               let high = quantile(0.9, ofSorted: sorted),
               high > low else { return nil }
-        // Rank of `value` in the sorted array — the same figure
-        // `Baseline.percentile` computes, without re-sorting.
-        let below = sorted.firstIndex { $0 >= value } ?? sorted.count
-        let percentile = Double(below) / Double(sorted.count)
+        // Rank of `value`, matching `Baseline.percentile` **exactly**: it counts
+        // entries `<= value`, so this is the index of the first entry strictly
+        // greater. The first draft of this line used `>=`, i.e. strictly-less
+        // — which agrees only when there are no ties, and a rounded daily
+        // metric is nothing but ties. On a resting heart rate that reads 66 on
+        // twenty days it under-reported the percentile far enough to move the
+        // sentence from "toward the upper end of" to "toward the lower end of".
+        // A faster percentile that quietly reports a different one is not a
+        // performance fix.
+        let atOrBelow = sorted.firstIndex { $0 > value } ?? sorted.count
+        let percentile = Double(atOrBelow) / Double(sorted.count)
 
         let unit = metric.unit.isEmpty ? "" : " \(metric.unit)"
         let range = "\(format(low, metric))–\(format(high, metric))\(unit)"
