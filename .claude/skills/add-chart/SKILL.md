@@ -133,6 +133,51 @@ between two heights is inherently unstacked. It is also the min/max-band shape
 this repo carried for months as an unverified hazard; it is now shipping in
 `BodyCompositionTrendChart` and does work.
 
+## 7a. A fill's colour ramp follows the quantity's own axis
+
+**The user's standing rule, 2026-08-05:** *"I want the fill to be a circular
+gradient, so closest to the inner circle is obviously red, further out goes more
+orange / green, match it to the 'Score over time' area fill rule… I want any
+similar kind of graph that has a fill to follow this kind of design."*
+
+So: **any filled shape whose height, radius or extent encodes a scored quantity
+carries the band ramp, and the ramp runs along the axis that encodes it.**
+
+- **Cartesian, y encodes the score** → `Theme.scoreFill(peak:)`, a
+  `LinearGradient` top-to-bottom. Green high, amber through the fair band, red
+  low.
+- **Radial, radius encodes the score** → `Theme.scoreRadialFill(radius:)`, the
+  same stops read from the centre outward. Red at the middle, green at the rim.
+
+Both share `ScoreBand`'s thresholds, so a shape drawn amber cannot sit beside
+prose calling it good.
+
+**Why the axis matters more than the gradient type.** The balance web was flat
+for months, and the reasons were right at the time: a `LinearGradient` on a
+polygon resolves against the mark's bounding box, so it shades by *which spoke
+happens to point up* — it encodes the chart's rotation. An `AngularGradient` is
+worse: between a green spoke and a red one it interpolates through amber,
+inventing a middle band for a stretch where no card sits, which is §8 in polar
+form. A **radial** ramp has neither freedom, because its axis is the one the
+geometry already uses.
+
+The test to apply to any new fill: **does moving along the gradient mean moving
+along the quantity?** If yes, ramp it. If the gradient's direction is decided by
+layout rather than by data, do not.
+
+⚠️ **Anchor the stops to the extent that represents the scale's end, never to the
+shape's own bounding box.** This is §7's warning and it bites hardest here: a
+profile scoring 30 across the board, filled with a gradient anchored to its own
+small polygon, reads *green at its rim* while every score on it is poor.
+`scoreFill` takes `peak:` and `scoreRadialFill` takes `radius:` for exactly this
+reason — pass the value that means 100, not the value the shape happens to reach.
+
+**A fill between two series is a different thing and does not take the band
+ramp.** `AgeHistoryChart` fills between the reader's real age and each computed
+age: the quantity there is the *gap*, not a score, so it takes the series' own
+hue at low opacity. `AreaMark(x:yStart:yEnd:)` takes no `stacking:`, which is
+what lets two such bands overlap honestly rather than one displacing the other.
+
 ## 8. One quantity drawn over another: hatch it, never blend it
 
 **This is the standing approach. Use `Theme.hatch(light:dark:_:)`.**
@@ -221,6 +266,9 @@ Run this against any chart being added or reviewed. Each line is a shipped defec
 - [ ] Anything deciding whether two series can look alike lives in InsightKit (§5).
 - [ ] A gradient's stops are computed against the **mark's** extent, not the plot
       area (§7).
+- [ ] A fill encoding a score carries the band ramp, along the axis that encodes
+      it — linear for height, radial for radius — anchored to the value that
+      means 100 (§7a).
 - [ ] Every stacked series has a value at **every** x, zero where absent (§7).
 - [ ] Band membership does not change from point to point (§7).
 - [ ] Anything drawn over anything else is a hatch, not a wash (§8).

@@ -144,6 +144,35 @@ struct AgeHistoryChart: View {
                 .lineStyle(StrokeStyle(lineWidth: 1.5))
                 .interpolationMethod(.linear)
         }
+        // **Filled to your own age, not to the axis.** The reader asked for a
+        // fill "similar to the activity graph, where they can overlap", and the
+        // quantity this chart is actually about is the *gap* — how much older
+        // or younger than you a system reads. An area between the two lines
+        // draws exactly that, and shades below your age when the news is good,
+        // which a fill to the baseline cannot express at all.
+        //
+        // `AreaMark(x:yStart:yEnd:)` takes no `stacking:` — an absolute band
+        // between two heights is inherently unstacked, which is what lets the
+        // two bands overlap honestly instead of one displacing the other
+        // (`add-chart` §7).
+        //
+        // ⚠️ Kept to a light opacity on purpose: where both bands cover the
+        // same stretch they *do* mix, and §8's hatch-never-blend applies. The
+        // mixing is tolerable only because both bands share a baseline the
+        // reader can see — your own age is drawn solid on top of both — so
+        // neither region is ever the sole carrier of a value.
+        ForEach(visible.filter { $0.heart != nil }) { point in
+            AreaMark(x: .value("Day", point.date),
+                     yStart: .value("Age", point.chronological),
+                     yEnd: .value("Age", point.heart ?? point.chronological))
+                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.heartSlot).opacity(0.16))
+        }
+        ForEach(visible.filter { $0.fitness != nil }) { point in
+            AreaMark(x: .value("Day", point.date),
+                     yStart: .value("Age", point.chronological),
+                     yEnd: .value("Age", point.fitness ?? point.chronological))
+                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot).opacity(0.16))
+        }
         ForEach(visible.filter { $0.heart != nil }) { point in
             LineMark(x: .value("Day", point.date),
                      y: .value("Age", point.heart ?? 0),
