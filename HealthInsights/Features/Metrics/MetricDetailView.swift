@@ -161,11 +161,19 @@ struct MetricDetailView: View {
     /// between two devices dressed as the reader's own variability, and today's
     /// value would sit "in the middle" of a range it is nowhere near. The
     /// densest source is the one the reader actually wears.
+    /// ⚠️ **Memoized, because this is a computed property read from a `body`
+    /// and it touches every reading of the densest source** — tens of thousands
+    /// for heart rate. Unmemoized it allocated that array and sorted it on
+    /// every body evaluation, which is the exact shape that made the Insights
+    /// hero laggy in 2026-08-02 (`InsightsListView.comparisonSeries`). The key
+    /// carries the metric so two detail pages cannot share an answer.
     private var personalReading: String? {
-        guard let series = allData.sources.max(by: { $0.samples.count < $1.samples.count }),
-              let latest = series.samples.last else { return nil }
-        return MetricExplainer.yours(metric, value: latest.value,
-                                     history: series.samples.map(\.value))
+        model.memoized("explainer.\(metric.rawValue)") {
+            guard let series = allData.sources.max(by: { $0.samples.count < $1.samples.count }),
+                  let latest = series.samples.last else { return String?.none }
+            return MetricExplainer.yours(metric, value: latest.value,
+                                         history: series.samples.map(\.value))
+        }
     }
 
     /// Names the span on screen: the timeframe's own label until the user pans

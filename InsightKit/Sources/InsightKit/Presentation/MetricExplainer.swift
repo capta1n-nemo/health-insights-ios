@@ -38,11 +38,20 @@ public enum MetricExplainer {
     /// install.
     public static func yours(_ metric: MetricType, value: Double,
                              history: [Double]) -> String? {
-        guard history.count >= minimumHistory,
-              let low = Baseline.quantile(0.1, of: history),
-              let high = Baseline.quantile(0.9, of: history),
-              let percentile = Baseline.percentile(value, history: history),
+        // **Sorted once.** `Baseline.quantile` and `Baseline.percentile` each
+        // sort their input, so the obvious three calls are three O(n log n)
+        // passes over the same array — and on heart rate that array is tens of
+        // thousands of readings, from a SwiftUI computed property. Sort here,
+        // read three answers off it.
+        guard history.count >= minimumHistory else { return nil }
+        let sorted = history.sorted()
+        guard let low = quantile(0.1, ofSorted: sorted),
+              let high = quantile(0.9, ofSorted: sorted),
               high > low else { return nil }
+        // Rank of `value` in the sorted array — the same figure
+        // `Baseline.percentile` computes, without re-sorting.
+        let below = sorted.firstIndex { $0 >= value } ?? sorted.count
+        let percentile = Double(below) / Double(sorted.count)
 
         let unit = metric.unit.isEmpty ? "" : " \(metric.unit)"
         let range = "\(format(low, metric))–\(format(high, metric))\(unit)"
@@ -60,6 +69,16 @@ public enum MetricExplainer {
     /// Ten days is the floor for quoting a personal range. Below it the p10–p90
     /// is two or three readings wide and "your usual" would be a fiction.
     static let minimumHistory = 10
+
+    /// `Baseline.quantile`'s interpolation, on an array already sorted.
+    private static func quantile(_ q: Double, ofSorted sorted: [Double]) -> Double? {
+        guard !sorted.isEmpty else { return nil }
+        if sorted.count == 1 { return sorted[0] }
+        let position = Swift.min(Swift.max(q, 0), 1) * Double(sorted.count - 1)
+        let lower = Int(position.rounded(.down))
+        let upper = Swift.min(lower + 1, sorted.count - 1)
+        return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - Double(lower))
+    }
 
     private static func format(_ value: Double, _ metric: MetricType) -> String {
         let decimals = abs(value) < 10 && metric.unit != "bpm" ? 1 : 0
