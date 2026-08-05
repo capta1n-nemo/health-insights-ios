@@ -1,7 +1,25 @@
 import Foundation
 
 /// OAuth tokens for a provider, persisted in the Keychain.
-struct OAuthTokens: Codable {
+///
+/// ⚠️ **Deliberately NOT `Codable`, and that is the whole point** (backlog Q10,
+/// 2026-08-06). The reader approved building the four missing export fields with
+/// one condition: *"do not include tokens."* Omitting them from an export is a
+/// promise kept by whoever writes the next export; **removing the conformance
+/// makes it a compile error instead.**
+///
+/// A token can no longer be a stored property of any `Encodable` type anywhere
+/// in the app without the build failing. `ProviderCredentialStore` converts
+/// through a private `StoredTokens` at the two Keychain sites and nowhere else,
+/// so the serialisable form exists for exactly as long as it takes to write it
+/// to the Keychain and cannot escape this file.
+///
+/// **This repo is public.** `docs/privacy-and-ip.md` records what was found
+/// exposed once and why git history cannot be redacted in place. The difference
+/// between "the export happens not to contain tokens today" and "an export
+/// containing tokens does not compile" is the difference between a convention
+/// and a guarantee.
+struct OAuthTokens {
     var accessToken: String
     var refreshToken: String?
     var expiresAt: Date?
@@ -78,16 +96,47 @@ struct ProviderCredentialStore {
 
     // MARK: Tokens
 
+    /// The **only** serialisable shape a token ever takes, and it is private to
+    /// this store.
+    ///
+    /// `OAuthTokens` gave up `Codable` so that a token cannot be a stored
+    /// property of anything encodable — see the note on that type. The Keychain
+    /// still needs bytes, so the conversion happens here, in two functions, and
+    /// the encodable form never leaves this file.
+    ///
+    /// Keeping the coding keys identical to the old synthesised ones is
+    /// load-bearing: a reader who is already connected has tokens in their
+    /// Keychain written by the previous shape, and changing a key name here
+    /// would silently log them out of every provider on upgrade.
+    private struct StoredTokens: Codable {
+        var accessToken: String
+        var refreshToken: String?
+        var expiresAt: Date?
+        var grantedScopes: [String]?
+
+        init(_ tokens: OAuthTokens) {
+            accessToken = tokens.accessToken
+            refreshToken = tokens.refreshToken
+            expiresAt = tokens.expiresAt
+            grantedScopes = tokens.grantedScopes
+        }
+
+        var tokens: OAuthTokens {
+            OAuthTokens(accessToken: accessToken, refreshToken: refreshToken,
+                        expiresAt: expiresAt, grantedScopes: grantedScopes)
+        }
+    }
+
     func tokens(for providerID: String) -> OAuthTokens? {
         guard let raw = keychain.get("\(providerID).tokens"),
               let data = raw.data(using: .utf8),
-              let tokens = try? JSONDecoder().decode(OAuthTokens.self, from: data)
+              let stored = try? JSONDecoder().decode(StoredTokens.self, from: data)
         else { return nil }
-        return tokens
+        return stored.tokens
     }
 
     func setTokens(_ tokens: OAuthTokens?, for providerID: String) {
-        guard let tokens, let data = try? JSONEncoder().encode(tokens),
+        guard let tokens, let data = try? JSONEncoder().encode(StoredTokens(tokens)),
               let raw = String(data: data, encoding: .utf8) else {
             keychain.delete("\(providerID).tokens")
             return

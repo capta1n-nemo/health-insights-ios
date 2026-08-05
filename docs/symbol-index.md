@@ -176,6 +176,8 @@ the place to look.
   - `ScoreChangeReader` :106
 - `Insights/ScoreCurve.swift`
   - `ScoreCurve` :33
+- `Insights/ScoreDecomposition.swift`
+  - `ScoreDecomposition` :51
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
@@ -463,9 +465,9 @@ the place to look.
 - `Core/Integrations/OuraProvider.swift`
   - `OuraProvider` :12
 - `Core/Integrations/ProviderCredentialStore.swift`
-  - `OAuthTokens` :4
-  - `ProviderCredentialStore` :46
-  - `ProviderCredentials` :37
+  - `OAuthTokens` :22
+  - `ProviderCredentialStore` :64
+  - `ProviderCredentials` :55
 - `Core/Integrations/ShortcutsIntegration.swift`
   - `ShortcutsIntegration` :26
 - `Core/Integrations/ShotsyImportService.swift`

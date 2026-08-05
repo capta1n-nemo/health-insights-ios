@@ -83,15 +83,25 @@ public enum ScoreBlend {
         /// honesty claim this change turns on and it is not visible from a
         /// weight.
         public let isPublishedScale: Bool
+        /// The raw value this term was scored from, and what it was judged
+        /// against. Carried through to `MetricContribution` so the decomposition
+        /// can show the arithmetic rather than only its result — see backlog #38.
+        public let value: Double?
+        public let baseline: Double?
+        public let z: Double?
 
         public init(metric: MetricType, higherIsBetter: Bool?, score: Double,
-                    weight: Double, detail: String, isPublishedScale: Bool = true) {
+                    weight: Double, detail: String, isPublishedScale: Bool = true,
+                    value: Double? = nil, baseline: Double? = nil, z: Double? = nil) {
             self.metric = metric
             self.higherIsBetter = higherIsBetter
             self.score = score
             self.weight = weight
             self.detail = detail
             self.isPublishedScale = isPublishedScale
+            self.value = value
+            self.baseline = baseline
+            self.z = z
         }
     }
 
@@ -131,9 +141,16 @@ public enum ScoreBlend {
             + extra.map { ($0, extraTotal > 0 ? $0.weight / extraTotal * share : 0) }
 
         let score = weighted.reduce(0) { $0 + $1.0.score * $1.1 }
+        // ⚠️ **`term.score` used to be dropped here**, which is why no card
+        // could answer "why is my score low". The blend knew every component's
+        // own 0–100 and threw all of them away the instant it had the weighted
+        // mean — so the detail screen could show a share and never the number
+        // the share was applied to. Backlog #38 / S2.
         let contributions = weighted.map { term, weight in
             MetricContribution(metric: term.metric, higherIsBetter: term.higherIsBetter,
-                               weight: weight, detail: term.detail)
+                               weight: weight, detail: term.detail,
+                               componentScore: term.score, value: term.value,
+                               baseline: term.baseline, z: term.z)
         }
         return (score, contributions)
     }
@@ -156,7 +173,11 @@ public enum ScoreBlend {
         return Term(metric: reading.metric, higherIsBetter: higherIsBetter, score: score,
                     weight: weight,
                     detail: MetricValueFormatter.string(reading.value, reading.metric) + departure,
-                    isPublishedScale: false)
+                    isPublishedScale: false,
+                    // A supporting term is *defined* by its departure from the
+                    // reader's own baseline, so it is the one kind of term that
+                    // can always fill these in.
+                    value: reading.value, baseline: reading.baseline, z: reading.zScore)
     }
 
     /// A supporting term with a share, or a weight-0 row that says why not —
