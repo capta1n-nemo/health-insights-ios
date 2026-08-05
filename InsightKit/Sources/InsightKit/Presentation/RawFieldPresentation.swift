@@ -112,10 +112,26 @@ public enum RawFieldPresentation {
         "227": "Metabolic age",
     ]
 
-    static let recordingDetailLeaves: Set<String> = [
-        "attrib", "category", "model", "modelid", "deviceid", "hash_deviceid",
-        "sleep_algorithm_version", "sleep_analysis_reason", "type", "period",
+    /// Recording details, and **the name each one should carry**.
+    ///
+    /// ⚠️ Naming them is half the point and was missed the first time: seen on
+    /// screen, the row read "Attrib — how it was recorded — 0", which tells a
+    /// reader nothing except that the app has a field it cannot explain. A
+    /// field worth listing is a field worth naming.
+    static let recordingDetailNames: [String: String] = [
+        "attrib": "How it was measured",
+        "category": "Measurement category",
+        "model": "Device model",
+        "modelid": "Device model ID",
+        "deviceid": "Device ID",
+        "hash_deviceid": "Device ID",
+        "sleep_algorithm_version": "Sleep algorithm version",
+        "sleep_analysis_reason": "Why sleep was analysed",
+        "type": "Record type",
+        "period": "Period number",
     ]
+
+    static var recordingDetailLeaves: Set<String> { Set(recordingDetailNames.keys) }
 
     /// Whether a field describes **how** a reading was recorded rather than what
     /// was read. Not hidden — this tab is the app's answer to "what do you know
@@ -134,6 +150,7 @@ public enum RawFieldPresentation {
         if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
             return named
         }
+        if let named = recordingDetailNames[leaf.lowercased()] { return named }
         guard genericLeaves.contains(leaf.lowercased()), parts.count >= 2 else {
             return humanised(leaf)
         }
@@ -183,6 +200,7 @@ public enum RawFieldPresentation {
             if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
                 return named
             }
+            if let named = recordingDetailNames[leaf.lowercased()] { return named }
             // Structural containers are dropped before anything counts levels,
             // so widening reaches the nearest component that names something.
             // The leaf itself is kept whatever it is — a field genuinely called

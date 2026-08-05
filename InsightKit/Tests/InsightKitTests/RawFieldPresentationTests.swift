@@ -215,6 +215,12 @@ final class RawFieldPresentationTests: XCTestCase {
     /// was taken rather than what it says, and two of them are constant across
     /// every row the reader has. Listing a constant 1 as a data point is noise.
     func testRecordingDetailsAreNotMistakenForMeasurements() {
+        // And each carries a NAME, not its wire key — seen on screen, the row
+        // read "Attrib — how it was recorded — 0", which explains nothing.
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "withings.measure.attrib"),
+                       "How it was measured")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "oura.sleep.sleep_algorithm_version"),
+                       "Sleep algorithm version")
         for identifier in ["withings.measure.attrib", "withings.measure.category",
                            "withings.measure.model", "withings.measure.modelid",
                            "oura.sleep.sleep_algorithm_version"] {
