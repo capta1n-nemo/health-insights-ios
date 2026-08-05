@@ -201,6 +201,14 @@ struct DataTabView: View {
                     ContentUnavailableView.search(text: trimmed)
                 } else {
                     List {
+                        // Above the catalogue, because it answers a different
+                        // question — "what changed" rather than "what have you
+                        // got" — and because a reader who opens this tab after a
+                        // new connector wants that first. Not a `DataDomain`:
+                        // it is a view *of* the domains rather than one of them,
+                        // and giving it a case would put it in the search
+                        // vocabulary, where it makes no sense.
+                        whatChangedSection
                         // **Exhaustive over `DataDomain`, and that is the
                         // point.** This screen is the app's answer to "what do
                         // you know about me", and it kept quietly failing to be
@@ -516,6 +524,64 @@ struct DataTabView: View {
                 ? RawFieldPresentation.codedSeriesSummary(text) : text
         }
         return RawFieldPresentation.formatted(number, unit: latest.unit)
+    }
+
+    // MARK: - What changed
+
+    /// **The reader's own idea**, 2026-08-05: *"remember that idea of how we can
+    /// point out new data points synced, and point out now deprecated data?"*
+    ///
+    /// Two lists, and the second one is the harder promise. See
+    /// `TypeSightingLedger` for why neither can be derived from the samples.
+    private var newlyArrived: [String] {
+        model.sightingLedger.newlyArrived(asOf: Date())
+    }
+
+    /// ⚠️ **Only where the source is demonstrably still alive.** Without that
+    /// qualifier this announces "your ring data is deprecated" the week the ring
+    /// spent on charge — wrong, and alarming in a health app.
+    private var stoppedArriving: [String] {
+        let now = Date()
+        return model.sightingLedger.stoppedArriving(
+            asOf: now, activeSourcePrefixes: model.sightingLedger.activePrefixes(asOf: now))
+    }
+
+    /// A readable name for a ledger identifier, which may be a canonical metric
+    /// or a raw field.
+    private func typeName(_ identifier: String) -> String {
+        if let metric = MetricType(rawValue: identifier) { return metric.displayName }
+        if identifier.contains(".") { return RawFieldPresentation.title(forPath: identifier) }
+        return model.otherDataGroups.first { $0.id == identifier }?.displayName ?? identifier
+    }
+
+    @ViewBuilder private var whatChangedSection: some View {
+        // Search hides this: it answers "what changed", and a query is a
+        // question about something else.
+        if trimmed.isEmpty {
+            if !newlyArrived.isEmpty {
+                Section {
+                    ForEach(newlyArrived, id: \.self) { identifier in
+                        Label(typeName(identifier), systemImage: "sparkles")
+                    }
+                } header: {
+                    Text("New since you last looked")
+                } footer: {
+                    Text("Data types this app had never received before — a new connector, a new device, or one that only just started sending them. This is when the app first *saw* each one, not when the readings were taken, so a connector backfilling two years of history doesn't fill this list.")
+                }
+            }
+            if !stoppedArriving.isEmpty {
+                Section {
+                    ForEach(stoppedArriving, id: \.self) { identifier in
+                        Label(typeName(identifier), systemImage: "pause.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("No longer arriving")
+                } footer: {
+                    Text("Nothing new for two months, while the same source kept sending everything else — so this is the field going quiet rather than the device being off. Your data is untouched; it just isn't being added to.")
+                }
+            }
+        }
     }
 
     @ViewBuilder private var otherDataSection: some View {

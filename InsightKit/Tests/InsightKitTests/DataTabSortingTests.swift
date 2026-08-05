@@ -129,4 +129,30 @@ final class DataTabSortingTests: XCTestCase {
         let data = try JSONEncoder().encode(ledger)
         XCTAssertEqual(try JSONDecoder().decode(TypeSightingLedger.self, from: data), ledger)
     }
+
+    /// The caller of `stoppedArriving` needs a set of live sources, and getting
+    /// it from anywhere else lets the two halves disagree about what "recently"
+    /// means. Derived from the ledger, so they cannot.
+    func testActivePrefixesComeFromTheLedgerItself() {
+        var ledger = TypeSightingLedger()
+        ledger.observe("oura.sleep.rem", at: now)
+        ledger.observe("withings.weight", at: now.addingTimeInterval(-200 * 86_400))
+        ledger.observe("HKQuantityTypeIdentifierStepCount", at: now)
+
+        let live = ledger.activePrefixes(asOf: now)
+        XCTAssertTrue(live.contains("oura."))
+        XCTAssertTrue(live.contains("HKQuantityTypeIdentifier"),
+                      "a HealthKit type has no dot and must not become its own prefix")
+        XCTAssertFalse(live.contains("withings."),
+                       "a source silent for 200 days was called alive")
+    }
+
+    /// ⚠️ **One quiet HealthKit type does not mean HealthKit went away.** The
+    /// prefix has to be the type class, or every silent field would be its own
+    /// living source and could never be reported as stale.
+    func testAHealthKitTypeGroupsUnderItsClassAndNotUnderItself() {
+        XCTAssertEqual(TypeSightingLedger.prefix(of: "HKQuantityTypeIdentifierStepCount"),
+                       "HKQuantityTypeIdentifier")
+        XCTAssertEqual(TypeSightingLedger.prefix(of: "oura.daily_sleep.score"), "oura.")
+    }
 }

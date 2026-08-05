@@ -101,6 +101,73 @@ final class AppModel {
     /// Everything the app has learned about provider schemas — every field ever
     /// ingested, its type, whether it feeds a vital, and what it might map to.
     private(set) var fieldCatalogue = FieldCatalogue()
+
+    /// **When the app first met each kind of data, and when it last saw it.**
+    ///
+    /// The reader's idea, 2026-08-05: *"remember that idea of how we can point
+    /// out new data points synced, and point out now deprecated data?"*
+    ///
+    /// ⚠️ **It cannot be derived from the samples, which is why it is stored.**
+    /// A sample carries the date the *reading* was taken, and every connector
+    /// backfills — plug in a new ring and two years of history arrives at once.
+    /// Deriving "new" from the earliest sample date would have been wrong for
+    /// 202 of this reader's 203 identifiers. What makes a type new is when the
+    /// **app** first saw it, and nothing else records that.
+    private(set) var sightingLedger = TypeSightingLedger()
+
+    private static let sightingLedgerKey = "typeSightingLedger"
+
+    private func loadSightingLedger() {
+        guard let data = UserDefaults.standard.data(forKey: Self.sightingLedgerKey),
+              let ledger = try? JSONDecoder().decode(TypeSightingLedger.self, from: data)
+        else { return }
+        sightingLedger = ledger
+    }
+
+    private func saveSightingLedger() {
+        if let data = try? JSONEncoder().encode(sightingLedger) {
+            UserDefaults.standard.set(data, forKey: Self.sightingLedgerKey)
+        }
+    }
+
+    /// Every kind of data the app currently holds, in the vocabulary the ledger
+    /// speaks. Canonical metrics as well as raw fields: a scale arriving and
+    /// body fat appearing for the first time is exactly the event the reader
+    /// asked to be told about, and it is not a raw identifier.
+    private var heldTypeIdentifiers: Set<String> {
+        Set(otherSamples.map(\.identifier))
+            .union(samples.map { $0.type.rawValue })
+    }
+
+    /// ⚠️ **The debut this feature must not have.** On the first launch after
+    /// shipping it, every identifier the reader already holds would look brand
+    /// new — 158 "new data type" announcements for data they have had for years.
+    /// Seeding writes them all in as pre-existing, and `seed` is idempotent so a
+    /// migration that runs twice cannot rewrite a genuine first sighting.
+    private func seedSightingLedgerIfNeeded(now: Date = Date()) {
+        guard sightingLedger.sightings.isEmpty else { return }
+        let held = heldTypeIdentifiers
+        guard !held.isEmpty else { return }   // nothing yet: seed on a later run
+        sightingLedger.seed(held, at: now)
+        saveSightingLedger()
+        DiagnosticsLog.shared.info(
+            "Data", "Recorded \(held.count) existing data types as pre-existing")
+    }
+
+    /// Record what actually arrived in this sync.
+    ///
+    /// **Only what arrived**, never the retained cache — a type kept alive from
+    /// last week's cache did not arrive today, and observing it would make the
+    /// "no longer arriving" half permanently silent.
+    private func observeArrivals(_ identifiers: some Sequence<String>,
+                                 now: Date = Date()) {
+        var changed = false
+        for identifier in identifiers {
+            sightingLedger.observe(identifier, at: now)
+            changed = true
+        }
+        if changed { saveSightingLedger() }
+    }
     private(set) var substanceEvents: [SubstanceEvent] = [] {
         didSet {
             substanceLoadCache = nil
@@ -1179,6 +1246,11 @@ final class AppModel {
         engine = loaded.engine
         results = loaded.results
 
+        // After the samples are in, so the first-run seed sees the whole
+        // catalogue rather than an empty one and announces nothing.
+        loadSightingLedger()
+        seedSightingLedgerIfNeeded()
+
         // A stored summary written from *these* results is the real thing and is
         // worth showing immediately. Only fall back to the template when there
         // isn't one, or when the results have moved since it was written — the
@@ -1579,6 +1651,10 @@ final class AppModel {
         if !freshOther.isEmpty {
             diag.ok("Import", "\(freshOther.count) other data point(s) imported")
         }
+        // What genuinely arrived this sync — raw fields and canonical metrics
+        // both, and neither from the retained cache.
+        observeArrivals(Set(freshOther.map(\.identifier))
+                            .union(freshSamples.map { $0.type.rawValue }))
 
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.

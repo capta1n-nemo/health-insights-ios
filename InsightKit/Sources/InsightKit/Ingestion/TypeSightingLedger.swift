@@ -106,4 +106,37 @@ public struct TypeSightingLedger: Codable, Sendable, Equatable {
             return activeSourcePrefixes.contains { identifier.hasPrefix($0) }
         }.keys.sorted()
     }
+
+    /// The prefixes that are still delivering, worked out from the ledger itself.
+    ///
+    /// The caller for `stoppedArriving` needs a set of live sources, and the
+    /// ledger is the only thing that knows when each identifier last arrived —
+    /// so deriving it here keeps the two halves from disagreeing about what
+    /// "recently" means.
+    ///
+    /// A prefix is the identifier up to its first `.` for a provider path
+    /// (`oura.`, `withings.`), and the whole HealthKit type-class prefix
+    /// otherwise, because `HKQuantityTypeIdentifier…` has no dots and one
+    /// silent HealthKit type does not mean HealthKit went away.
+    public func activePrefixes(asOf now: Date,
+                               within: TimeInterval = staleAfter) -> Set<String> {
+        var live = Set<String>()
+        for (identifier, sighting) in sightings
+        where now.timeIntervalSince(sighting.lastImported) < within {
+            live.insert(Self.prefix(of: identifier))
+        }
+        return live
+    }
+
+    static func prefix(of identifier: String) -> String {
+        if let dot = identifier.firstIndex(of: ".") {
+            return String(identifier[...dot])
+        }
+        for known in ["HKQuantityTypeIdentifier", "HKCategoryTypeIdentifier",
+                      "HKCorrelationTypeIdentifier", "HKWorkoutTypeIdentifier"]
+        where identifier.hasPrefix(known) {
+            return known
+        }
+        return identifier
+    }
 }
