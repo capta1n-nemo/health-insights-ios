@@ -113,6 +113,38 @@ compact = os.path.join(support, "synced_samples.hisc")
 if os.path.exists(compact):
     os.remove(compact)
 
+# **Everything else that lives in SwiftData, for the same reason.**
+#
+# The reader, 2026-08-05: "didn't import substances, didn't import all the
+# things that populated the cards… so therefore your emulator doesn't look like
+# my app, and you can't validate everything". Half of that was this script
+# rather than the export: their file already carried the substance log, the
+# grounding facts and the side effects, and only the two sample caches were
+# ever written. `AppModel.importExportedRecords()` picks this up — Settings ▸
+# Developer ▸ Import records from export.
+records = {k: d.get(k) for k in ("substances", "symptoms", "sideEffects")}
+
+# **The profile's `inputs` is an alternating key/value ARRAY, not an object.**
+# Swift encodes a dictionary whose key is not a `String` that way, so
+# `[GroundingKind: GroundingInput]` comes out as
+# ["weightGoal", {...}, "score2Region", {...}, ...]. Decoding it as an object in
+# Swift throws, and — because one `decode` covered the whole payload — that
+# single mismatch silently lost the substances and side effects too. Flattened
+# here to {kind: value}, which is all the importer needs.
+raw_inputs = ((d.get("profile") or {}).get("inputs")) or []
+flat = {}
+if isinstance(raw_inputs, list):
+    for i in range(0, len(raw_inputs) - 1, 2):
+        key, entry = raw_inputs[i], raw_inputs[i + 1]
+        if isinstance(key, str) and isinstance(entry, dict) and "value" in entry:
+            flat[key] = entry["value"]
+elif isinstance(raw_inputs, dict):
+    for key, entry in raw_inputs.items():
+        flat[key] = entry.get("value") if isinstance(entry, dict) else entry
+records["profile"] = {"inputs": flat}
+with open(os.path.join(support, "records_import.json"), "w") as f:
+    json.dump(records, f, default=str)
+
 # Score history lives in SwiftData, not in a JSON cache, so it cannot be
 # written by copying a file. It is dropped here for the debug importer in
 # `AppModel.importScoreHistory()` to pick up and replay through `recordScore`

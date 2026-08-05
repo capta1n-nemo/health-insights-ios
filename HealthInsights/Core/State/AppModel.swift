@@ -622,6 +622,95 @@ final class AppModel {
         return written
     }
 
+    /// Import the parts of an export that **live in SwiftData and therefore
+    /// cannot be restored by copying a file**.
+    ///
+    /// The reader, 2026-08-05: *"the master export feature didn't seem to
+    /// correctly export EVERYTHING… didn't import substances, didn't import all
+    /// the things that populated the cards… so therefore your emulator doesn't
+    /// look like my app, and you can't validate everything"*.
+    ///
+    /// Half of that was a **loader** gap rather than an export one, and this
+    /// closes it. Their export already carried 16 substance events, their
+    /// medication history, side effects, symptom tags and every grounding fact;
+    /// `scripts/load-real-express.sh` writes only the two JSON sample caches,
+    /// so none of it reached the simulator. What that cost, concretely:
+    /// Substance Impact showed its invite state rather than the real analysis,
+    /// Cardiovascular Risk could not run at all without age and sex, and Blood
+    /// Pressure read as uncalibrated because the cuff readings are grounding
+    /// facts.
+    ///
+    /// Every write goes through the **shipped** store API — `addSubstanceEvent`,
+    /// `saveGrounding`, `logSideEffect`, `replaceMedicationHistory` — for the
+    /// same reason `importScoreHistory` uses `recordScore`: a parallel write
+    /// path is one that can drift from the real one and then validate nothing.
+    ///
+    /// Returns a per-kind count so a silent no-op is distinguishable from a
+    /// successful import of an export that happened to be empty.
+    @discardableResult
+    func importExportedRecords() -> [String: Int] {
+        struct SideEffectRow: Decodable {
+            let name: String; let severity: Int; let date: Date
+        }
+        struct ProfileRow: Decodable { let inputs: [String: Double]? }
+
+        guard let base = try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                      in: .userDomainMask,
+                                                      appropriateFor: nil, create: false),
+              let data = try? Data(contentsOf: base.appendingPathComponent("records_import.json")),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return [:] }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        // ⚠️ **Each section decodes on its own.** The first version decoded one
+        // `Payload` covering all four, and a single shape mismatch — the
+        // profile's `inputs`, which Swift encodes as an alternating key/value
+        // *array* because its key is not a `String` — threw and silently lost
+        // the substances and side effects with it. The button reported "Nothing
+        // to import" while sixteen events sat in the file. One bad section must
+        // cost only that section.
+        func section<T: Decodable>(_ key: String, as type: T.Type) -> T? {
+            guard let part = root[key],
+                  let data = try? JSONSerialization.data(withJSONObject: part) else { return nil }
+            return try? decoder.decode(type, from: data)
+        }
+
+        var counts: [String: Int] = [:]
+
+        // Substance events, skipped by id so a second import cannot duplicate.
+        let existing = Set(dataStore.loadSubstanceEvents().map(\.id))
+        for event in section("substances", as: [SubstanceEvent].self) ?? []
+        where !existing.contains(event.id) {
+            dataStore.addSubstanceEvent(event)
+            counts["substances", default: 0] += 1
+        }
+
+        for effect in section("sideEffects", as: [SideEffectRow].self) ?? [] {
+            dataStore.logSideEffect(name: effect.name, severity: effect.severity, at: effect.date)
+            counts["sideEffects", default: 0] += 1
+        }
+
+        // Grounding facts — the ones without which whole cards cannot score.
+        for (raw, value) in section("profile", as: ProfileRow.self)?.inputs ?? [:] {
+            guard let kind = GroundingKind(rawValue: raw) else { continue }
+            dataStore.saveGrounding(kind: kind, value: value)
+            counts["grounding", default: 0] += 1
+        }
+
+        // ⚠️ **`reloadLoggedData` does not touch the substance log**, which is
+        // why the first version of this reported "16 substances" and left the
+        // card reading "Log to see effects": the rows were in SwiftData and the
+        // engine still held the empty log it was bound to at launch. Reload it
+        // and the grounding profile explicitly.
+        substanceEvents = dataStore.loadSubstanceEvents()
+        profile = dataStore.loadProfile()
+        reloadLoggedData()
+        recompute()
+        return counts
+    }
+
     /// Remove everything `seedSyntheticData` wrote, so the empty state — the one
     /// every reader sees first, and the one the invisible-cards defect lived in
     /// — is still reachable without erasing the whole simulator.

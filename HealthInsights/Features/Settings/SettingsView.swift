@@ -180,6 +180,7 @@ struct SettingsView: View {
     /// screen rather than only here: no finding about the reader may ever come
     /// from a screenshot of generated data.
     @State private var importedScoreRows: Int?
+    @State private var importedRecords: String?
 
     @ViewBuilder
     private var syntheticDataSection: some View {
@@ -195,6 +196,22 @@ struct SettingsView: View {
                 Label(importedScoreRows.map { "Imported \($0) score rows" }
                         ?? "Import score history from export",
                       systemImage: "clock.arrow.circlepath")
+            }
+            // Substances, grounding facts and side effects live in SwiftData, so
+            // `load-real-export.sh` cannot carry them by copying a file — and
+            // without them Substance Impact shows its invite state and
+            // Cardiovascular Risk cannot score at all. See
+            // `AppModel.importExportedRecords`.
+            Button {
+                let counts = model.importExportedRecords()
+                importedRecords = counts.isEmpty
+                    ? "Nothing to import"
+                    : counts.sorted { $0.key < $1.key }
+                        .map { "\($0.value) \($0.key)" }.joined(separator: ", ")
+            } label: {
+                Label(importedRecords.map { "Imported \($0)" }
+                        ?? "Import records from export",
+                      systemImage: "tray.and.arrow.down")
             }
             Button(role: .destructive) {
                 model.clearSyntheticData()
