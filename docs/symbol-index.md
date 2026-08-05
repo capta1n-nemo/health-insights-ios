@@ -369,6 +369,8 @@ the place to look.
 - `Substances/Substance.swift`
   - `SubstanceClass` :12
   - `SubstanceEvent` :60
+- `Substances/SubstanceEpisodes.swift`
+  - `SubstanceEpisodes` :15
 - `Substances/SubstanceImpactInsight.swift`
   - `SubstanceImpactInsight` :16
 - `Substances/SubstanceLoad.swift`
@@ -376,7 +378,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :828
+  - `SubstanceWindow` :903
 - `Testing/SyntheticSeed.swift`
   - `SyntheticSeed` :41
 - `Text/CardStateExport.swift`

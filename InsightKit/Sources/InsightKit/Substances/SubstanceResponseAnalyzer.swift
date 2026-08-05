@@ -607,7 +607,9 @@ public enum SubstanceResponseAnalyzer {
     // MARK: - Insight surface
 
     /// Build a dashboard-ready `InsightResult` from an analysis.
-    public static func insightResult(events: [SubstanceEvent], samples: [HealthMetricSample], now: Date = Date()) -> InsightResult {
+    public static func insightResult(events: [SubstanceEvent], samples: [HealthMetricSample],
+                                     now: Date = Date(),
+                                     calendar: Calendar = .current) -> InsightResult {
         let id = InsightID.substanceImpact
         let title = "Substance Impact"
 
@@ -638,7 +640,7 @@ public enum SubstanceResponseAnalyzer {
                 drivers: [], unmetRequirements: [], invitesInput: true)
         }
 
-        let analysis = analyze(events: events, samples: samples, now: now)
+        let analysis = analyze(events: events, samples: samples, now: now, calendar: calendar)
 
         // A response in the unwanted direction is the finding; one the other way
         // is worth keeping but not worth leading with.
@@ -694,7 +696,21 @@ public enum SubstanceResponseAnalyzer {
                         + "after use vs \(e.baselineNights) clean — counts for less until "
                         + "there are more)"
                     : ""
-                drivers.append(InsightDriver(text: "\(name) \(Self.deltaLabel(e)) after use\(evidence)",
+                // **Every row names what else could explain it.** This is the
+                // mechanism, not a disclaimer. On the reader's own record
+                // `heartRate` "responded" to stimulants at 0.91 SD and fell to
+                // 0.03 once same-day step count was in the model — the effect
+                // was their own movement, and a card reporting it without this
+                // clause would have been confidently wrong with no way for the
+                // reader to tell.
+                //
+                // The app does not yet adjust for these covariates, so naming
+                // them is the honest interim: the reader can see the candidate
+                // and discount it themselves. Adjusting properly is the next
+                // step and is on the roadmap.
+                let alternative = SubstanceEpisodes.alternativeExplanation(for: e.metric)
+                    .map { " — could also be \($0)" } ?? ""
+                drivers.append(InsightDriver(text: "\(name) \(Self.deltaLabel(e)) after use\(evidence)\(alternative)",
                                              isNotable: e.isAdverse))
             }
         }
@@ -801,6 +817,65 @@ public enum SubstanceResponseAnalyzer {
                                   ? " — capped: your measured response carries the score"
                                   : "")),
                         isModifiable: true)
+        }
+
+        // **The honesty gate. The reader's standing rule, 2026-08-05: "Honest
+        // version, always!"**
+        //
+        // A response is a claim about what a substance does to this person, and
+        // one occasion cannot support it. Independent statistical review of the
+        // reader's own record established how thin the ground is: with three
+        // episodes and roughly eight effective dimensions among the watched
+        // metrics, **every** candidate effect was removable by same-day
+        // movement or by sleep duration, and the record supported *zero*
+        // confirmations. The clearest case — heart rate "responding" to
+        // stimulants at 0.91 SD — fell to 0.03 once step count was in the
+        // model. It was their own movement.
+        //
+        // So below three occasions the card describes and does not score.
+        // `primaryValue` still carries the recent load, because *how much was
+        // taken* is counted rather than inferred and is honest at any n; the
+        // score is what rests on the response, and that is what is withheld.
+        // ⚠️ **The gate is on the response terms, not on the whole score**, and
+        // the first version of this got that wrong in a way worth recording.
+        //
+        // Withholding the score entirely below three occasions looks principled
+        // and silently breaks the card for the person it is most for: under any
+        // gap rule, someone who uses most evenings is **one continuous
+        // episode**, forever, so they would never reach three and never see a
+        // number. The reader's own brief for this card is "measure the impact
+        // to me and tell me when I'm overdoing it" — and *how much was taken*
+        // is counted rather than inferred, so it is honest at any n. It is the
+        // **response** that rests on replication.
+        //
+        // So below three occasions the dial reports exposure alone, the
+        // measured differences are still described with their alternative
+        // explanations beside them, and nothing is called a response.
+        let occasions = SubstanceEpisodes.episodes(events: events, calendar: calendar).count
+        let canAssertResponse = occasions >= SubstanceEpisodes.minimumEpisodesToDescribe
+        guard canAssertResponse else {
+            let word = occasions == 1 ? "one occasion" : "\(occasions) separate occasions"
+            return InsightResult(
+                id: id, title: title, primaryValue: analysis.recentLoad,
+                headline: analysis.loadBand.prefix(1).uppercased() + analysis.loadBand.dropFirst(),
+                // Load only. `effects: []` is the whole point — the differences
+                // below are measured and shown, and none of them moves a number
+                // until it has repeated.
+                score: Self.score(load: analysis.recentLoad, effects: []),
+                confidence: .low,
+                explanation: "This is your recent load — how much you have logged, which is "
+                    + "counted rather than estimated. What it did to you is a separate "
+                    + "question and there is not enough yet to answer it: you have logged "
+                    + "\(word), and the same numbers move on their own for a dozen reasons. "
+                    + "The differences below are real measurements, but any one of them can "
+                    + "be an ordinary week. From three separate occasions this starts saying "
+                    + "which ones repeat.",
+                driverLines: drivers.filter { $0.isNotable == true }
+                    + drivers.filter { $0.isNotable != true },
+                unmetRequirements: [],
+                contributors: contributors,
+                weighting: .worstOffender,
+                otherFactors: loadFactor.map { [$0] } ?? [])
         }
 
         return InsightResult(
