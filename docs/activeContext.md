@@ -136,6 +136,134 @@ because the export holds 109 HealthKit samples that genuinely land at
 **So: do not report a detection gain from `4128ab3`.** Say what it is — an
 accidental reconciliation removed.
 
+### ⚠️ The symptom radar: measured, designed, and deliberately not shipped
+
+**The reader, 2026-08-05:** *"Today my heart rate is still elevated, my HRV is
+still down, and yesterday it flagged I had symptoms which was absolutely
+correct. Why am I now back at 99% just 1 day later?"*
+
+**Their card fires on 26.2% of days on their own export** — 37 flag days in 141
+evaluable. The research's measured false-positive rate for six signals OR'd at
+95% specificity is **26.5%**. The card is already behaving like the naive
+count-the-metrics rule, to within a point. Their real 27 Jul–4 Aug replays as
+90.4 → 100 → 100 → 60.0 → 80.5 → 94.1 → 88.3 → 100 → 100.
+
+**Three separate causes, all confirmed against the code:**
+
+1. **The score is a step function at z = 1.0.** `guard signal.isLeaning`
+   (`HealthWatch.swift`) discards anything below it, so **four signals all
+   leaning the wrong way at z = 0.95 score exactly 100, "Nothing stirring"** —
+   measured, not argued. Worse, the ramp saturates at z = 2, so one lone signal
+   at z = 3.0 scores 55 while four at z = 1.2 score 64: **a single outlier is
+   treated as more alarming than four signals agreeing**, which is the exact
+   opposite of what the function's own doc comment says it does.
+2. **The denominator moves.** The 4-day gap keeps *yesterday* out of the
+   reference window, not last week. On their export the reference **spread** for
+   resting heart rate swung **2.7×** (0.59 → 1.57) as July's excursions aged
+   into the 21-day pool. Every z divides by it. Median/MAD holds the same
+   windows at 1.00 → 1.26. **Fixed in `Baseline` (`37fc697`), not yet wired.**
+   Note separately that `VitalReader.reading` has **no gap at all**, so on every
+   *other* card yesterday's excursion is inside today's baseline.
+3. **The episode machinery is built and inert.** `SymptomRadarModel.episodes`
+   reaches prose only; score, status and `primaryValue` all come from `watch`.
+   `SymptomRadarEpisode` already carries `peakDay`, `leaningMetrics` and
+   `recoveries` — "day 3 of this, 2 of 4 channels back inside your range" needs
+   wiring, not new machinery. There is a second snap-back too:
+   `guard collapsed.count >= 2` drops the whole card to "Waiting for today's
+   sync" mid-episode.
+
+**The design, calibrated on their history — build it whole or not at all.**
+Four channels (thermal 1.0, cardiac 0.9, respiratory 0.8, oxygen 0.5), pooled by
+mean of one-sided deviations. One joint statistic
+`S_t = Σ w·max(0,u) / Σ w`. Median/MAD scale floored at each metric's measured
+noise floor. CUSUM `C_t = max(0, C_{t-1} + S_t − k)`.
+
+- ⚠️ **The trap that breaks it:** `S` is one-sided and therefore right-skewed
+  (mean 0.36 vs median 0.31). Textbook `k = δ/2` or `k = median(S)` both make C
+  climb monotonically — replayed, it reached ≈15 and alarmed on **98% of
+  four-channel nights**. `k` must be a high quantile of the reader's own `S`.
+  Solved from their replay: **k = p80(S) = 0.631, h = 4.90** → 1 alarm episode
+  in 141 nights, 7 alarm nights (5.0%). Neither is a constant.
+- **A coverage gate is first-class**: without it the alarm rate ran *backwards*
+  (2-channel nights 26.7% vs 4-channel 5.6%). Under 3 channels cannot alarm.
+- **The shipped collapse is wrong for this**: `sharesMeasurementBasis` folds
+  respiratory rate with oxygen saturation (both `.respiratory` family), which
+  merges two of the only three independent channels, and it *discards* the
+  loser's z. The radar needs its own channel map.
+- **Honest limit: detection gets slower.** A sustained 1.0 SD all-channel shift
+  takes 14 nights to alarm, 1.5 SD takes 6, 2.0 SD takes 4. That is the
+  research's explicit trade — steadiness and specificity, paid for in speed.
+  It is **not** "better detection" and must not be sold as such.
+
+**Why it is not shipped yet:** swapping the estimator alone made five
+`SymptomRadarTests` fixtures stop flagging, because the noise floors make the
+detector quieter — the opposite of the reported complaint. A scale estimator and
+a threshold have to be calibrated together. Half a recalibration, shipped to
+someone watching their own health, is worse than none.
+
+**The reader's "count how many metrics are away from normal" — the honest
+answer.** Right in spirit, and they are already living inside the naive version:
+that is what the 26.2% is. Counting correlated channels also inflates agreement
+— HR and HRV correlate −0.93 because the ring derives both from one interbeat
+stream, so "3 of 7 signals off" can be one measurement three times. What they
+want is breadth of *agreement*, which `S_t` is. **And the card must place itself
+against its neighbours**: `VitalSignsCheck` and "How far from your normal" are
+the OR'd 17-vital scan at threshold 1.5, correct *there* because they answer
+"is any one thing unusual". The radar answers the opposite question, and unless
+it says so the reader sees "7 vitals outside normal" on one screen and "quiet"
+on another.
+
+⚠️ **Nothing here confirms the reader's report.** The export ends 2026-08-04 and
+they describe 08-05; on the last two days present, cardiac sits at u = −0.25 and
++0.23 — essentially neutral. Their phone holds data this export does not. No
+claim above rests on their recollection.
+
+### The signal audit: add nothing
+
+Asked what else could feed the radar and Readiness. The answer, measured against
+their export: **every candidate is a bit-identical copy of a voting signal, a
+restatement of the same axis, or a measured increase in the false-alarm rate.**
+The three genuinely independent channels (respiratory rate, temperature, SpO2)
+are also the three quietest, and **closing respiratory-rate coverage is worth
+more than any modelling change** — which costs no code at all. Symptom tags are
+the exception worth building: symptoms alone reach AUC 0.71 against sensors'
+0.72, and both together 0.80, with a *specific* question ("chills you couldn't
+warm up from", LR ≈ 7) worth far more than a vague one.
+
+### ⚠️ Substance impact across every metric: refuted on the reader's own data
+
+**The reader:** *"if I take substances 3 times, and all 3 times I see certain
+metrics all get impacted.. I can now draw a conclusion."* The instinct is right —
+replication across independent episodes is exactly the defence against testing
+45 metrics — and the design built on it was **refuted by independent statistical
+review**, on their real record:
+
+- **The headline finding is movement, not the substance.** `heartRate`'s effect
+  falls from min|z| 0.91 to **0.03** once same-day `stepCount` is in the model
+  (clean-day residual r = +0.647). The card would have said "your heart rate
+  rises after use, 3 times out of 3" when their heart rate on those days is
+  what their own step count predicts.
+- **Three of the four "confirmed" are welcome-direction**, so the card would
+  have told a harm-reduction reader their replicated response to stimulants is
+  *moving more, burning more and sleeping more deeply*. Two of those three are
+  the same measurement (r = 0.912).
+- **The permutation null was anti-conservative ~2×** (blocks drawn from the days
+  the trend was fitted on); p-values triple when corrected.
+- **Benjamini-Hochberg is invalid here** — clean-day residuals give
+  r(restingHR, HRV) = **−0.795**, negative dependence, which breaks BH's
+  assumption. Needs Benjamini-Yekutieli or Westfall-Young.
+- **The whole finding set flips on the day boundary**: 3 metrics confirm at
+  UTC+8, 1 at UTC, **0 at UTC−5**.
+- **At 3 episodes, ~8 effective dimensions and every candidate removable by
+  movement or sleep, this record supports zero confirmations.**
+
+**So the honest card at n=3 is: per-episode deltas, the named alternative
+explanation beside each row, no score, and the sentence "nothing has happened
+the same way often enough to tell it from an ordinary run."** Shipping a machine
+that turns "we cannot tell yet" into four confirmed findings is the failure mode
+this app exists to avoid. The Bug 5 evidence-count half was correct and landed
+separately (`1b39c9b`).
+
 ### The third invisible card, and the guard that was pinning it
 
 The reader asked why Substance Impact was not showing. Two things were true and
