@@ -59,7 +59,17 @@ public extension InsightID {
         // merged card opens with how you actually slept, and that is the first
         // thing anyone checks in the morning.
         // The radar is a claim about today for the same reason Readiness is.
-        case .readiness, .sleep, .energy, .substanceImpact, .symptomRadar:
+        //
+        // **Substance Impact moved to `trend` on 2026-08-05, at the reader's
+        // instruction:** *"that isn't something I'm just worried about day to
+        // day, it's something I want to look at more long term."* It was daily
+        // because a dose is a thing that happened today — but the card does not
+        // report the dose, it reports the *response*, which is measured by
+        // comparing windows across a 90-day pool and only becomes trustworthy
+        // once several exposures agree. A number built from months of history
+        // answering "what does this do to me" is a trend card by the definition
+        // at the top of this file, whatever the cadence of the events under it.
+        case .readiness, .sleep, .energy, .symptomRadar:
             return .daily
         // VO₂max, body composition, risk and blood pressure all move over
         // months. `default:` is deliberate rather than exhaustive here — a new

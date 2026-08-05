@@ -115,14 +115,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :82
+  - `GroundingRequirement` :92
   - `InsightCadence` :50
-  - `InsightConfidence` :74
-  - `InsightDriver` :110
+  - `InsightConfidence` :84
+  - `InsightDriver` :120
   - `InsightID` :15
-  - `InsightModel` :337
-  - `InsightResult` :127
-  - `RequirementStatus` :98
+  - `InsightModel` :347
+  - `InsightResult` :137
+  - `RequirementStatus` :108
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`

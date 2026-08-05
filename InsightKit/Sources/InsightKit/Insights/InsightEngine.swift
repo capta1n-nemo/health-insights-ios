@@ -20,19 +20,26 @@ public struct InsightEngine: Sendable {
             SymptomRadarInsight(),
             SleepInsight(),
             EnergyInsight(),
-            // Bound to an empty log; the app rebinds it on every recompute via
-            // `withSubstanceLog(_:)`. Registering it here is what finally puts it
-            // in front of everything that iterates `models` — score recording,
-            // score replay, the comparison chart — all of which skipped it
-            // silently while it was built by a free function.
-            SubstanceImpactInsight(),
             HeartHealthInsight(),
             FitnessInsight(),
             CardiovascularRiskInsight(preferredEngine: .combined),
             BloodPressureInsight(),
             BodyCompositionInsight(),
             NutritionInsight(),
-            MetabolismInsight()
+            MetabolismInsight(),
+            // Bound to an empty log; the app rebinds it on every recompute via
+            // `withSubstanceLog(_:)`. Registering it at all is what finally put
+            // it in front of everything that iterates `models` — score
+            // recording, score replay, the comparison chart — all of which
+            // skipped it silently while it was built by a free function.
+            //
+            // **Last, and beside Nutrition and Metabolism deliberately.**
+            // Registry order is tab order, so when this became a `trend` card on
+            // 2026-08-05 it would otherwise have displaced Heart Health as the
+            // first thing on Insights. These three are the app's log-driven
+            // cards — each answers a question about something the reader chose
+            // to do rather than something a sensor noticed — so they group.
+            SubstanceImpactInsight()
         ]
     }
 

@@ -200,7 +200,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Substance Impact | Today | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
@@ -414,7 +414,7 @@ invalidates.
 | Readiness | daily | 0 | — | Vitals Check, Health Watch |
 | Sleep | daily | 0 | — | Sleep Quality, Sleep Debt, Sleep Regularity |
 | Energy | daily | 0 | — | — |
-| Substance Impact | daily | 0 | `.substanceLog` (override) | — |
+| Substance Impact | trend | 0 | `.substanceLog` (override) | — |
 | Heart Health | trend | 2 | `.groundingFacts` | Where You Stand (centiles), Resting HR |
 | Fitness | trend | 2 | `.groundingFacts` | Cardio Fitness, Fitness Trajectory, fitness age |
 | Heart Attack & Stroke Risk | trend | 10 | `.groundingFacts` | heart age |
