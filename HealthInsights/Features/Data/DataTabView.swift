@@ -461,21 +461,77 @@ struct DataTabView: View {
 
     /// Everything imported that we don't yet model as a first-class vital, so it
     /// can be reviewed and later promoted into proper metrics/insights.
+    ///
+    /// **This was one flat alphabetical list of 158 identifiers** on the
+    /// reader's own record, each rendered from its full dotted path, and eleven
+    /// consecutive rows read "Daily activity · Contributors: Mee…" — every
+    /// visible character shared, the distinguishing word truncated away. Three
+    /// changes, all of them decided in InsightKit where they are tested:
+    /// `RawFieldGrouping` puts each field in a titled section,
+    /// `RawFieldPresentation.title(forPath:)` leads with the leaf, and
+    /// `converted` fixes the units that read as nonsense ("32.26 count").
+    /// A section of the catalogue. A named type rather than a tuple because
+    /// `ForEach(_:id:)` needs a key path and **a key path into a tuple element
+    /// does not compile** — `verify.sh` bans `\.0` for exactly this, and caught
+    /// this line the first time it was written.
+    private struct FieldSection: Identifiable {
+        let group: RawFieldGrouping.Group
+        let fields: [RawMetricGroup]
+        var id: String { group.rawValue }
+    }
+
+    /// Titles resolved **across the whole catalogue at once**, because
+    /// uniqueness is a property of a list and not of an identifier — see
+    /// `RawFieldPresentation.titles(for:)`. Computed once per render rather than
+    /// per row: it is O(paths) and this list is several hundred long.
+    private var fieldTitles: [String: String] {
+        let dotted = filteredOtherGroups.map(\.id).filter { $0.contains(".") }
+        return RawFieldPresentation.titles(for: dotted)
+    }
+
+    private var fieldSections: [FieldSection] {
+        let titles = fieldTitles
+        func name(_ group: RawMetricGroup) -> String {
+            // HealthKit identifiers have no dotted path, and their own display
+            // name is already the readable form.
+            titles[group.id] ?? group.displayName
+        }
+        return Dictionary(grouping: filteredOtherGroups) { RawFieldGrouping.group(for: $0.id) }
+            .sorted { $0.key < $1.key }
+            .map { FieldSection(group: $0.key,
+                                fields: $0.value.sorted { name($0) < name($1) }) }
+    }
+
+    /// The newest reading, in a unit a reader can read.
+    private func fieldValue(_ group: RawMetricGroup) -> String? {
+        // `latestReal`, not `latest`: a provider placeholder of exactly 0 is not
+        // a reading, and this row printed one beside a min of 35.19.
+        guard let latest = group.latestReal else { return nil }
+        guard let number = latest.numericValue else {
+            // A long coded string — Oura's per-30-second hypnogram, say — is not
+            // a value and printing 400 characters of it truncated tells nobody
+            // anything.
+            let text = latest.formattedValue
+            return RawFieldPresentation.isCodedSeries(text)
+                ? RawFieldPresentation.codedSeriesSummary(text) : text
+        }
+        return RawFieldPresentation.formatted(number, unit: latest.unit)
+    }
+
     @ViewBuilder private var otherDataSection: some View {
-        if !filteredOtherGroups.isEmpty {
+        let sections = fieldSections
+        let titles = fieldTitles
+        ForEach(sections) { section in
             Section {
-                ForEach(filteredOtherGroups) { group in
+                ForEach(section.fields) { field in
                     NavigationLink {
-                        OtherDataDetailView(group: group)
+                        OtherDataDetailView(group: field)
                     } label: {
                         HStack {
-                            Text(group.displayName).lineLimit(1)
+                            Text(titles[field.id] ?? field.displayName).lineLimit(1)
                             Spacer()
-                            // `latestReal`, not `latest`: a provider
-                            // placeholder of exactly 0 is not a reading, and
-                            // this row printed one beside a min of 35.19.
-                            if let latest = group.latestReal {
-                                Text(latest.formattedValue)
+                            if let value = fieldValue(field) {
+                                Text(value)
                                     .foregroundStyle(.secondary).monospacedDigit()
                                     .lineLimit(1).truncationMode(.tail)
                             }
@@ -483,9 +539,14 @@ struct DataTabView: View {
                     }
                 }
             } header: {
-                Text("Other data")
+                Text(section.group.title)
             } footer: {
-                Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
+                // The footer goes on the last section only, so it reads as a
+                // statement about the whole catalogue rather than being repeated
+                // thirteen times.
+                if section.id == sections.last?.id {
+                    Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
+                }
             }
         }
     }
