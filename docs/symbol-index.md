@@ -368,7 +368,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :794
+  - `SubstanceWindow` :828
 - `Testing/SyntheticSeed.swift`
   - `SyntheticSeed` :41
 - `Text/CardStateExport.swift`

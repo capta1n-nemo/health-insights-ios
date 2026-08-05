@@ -53,6 +53,22 @@ public enum SubstanceResponseAnalyzer {
 
         /// The thinner side of the comparison. Two means are only as trustworthy
         /// as the smaller pool behind them: 3-versus-300 is a 3-reading finding.
+        ///
+        /// ⚠️ **Both sides count distinct days, and until 2026-08-05 they
+        /// counted raw samples — which made this discount vacuous exactly where
+        /// it was needed most.** Heart rate carries tens of thousands of
+        /// readings in a 90-day window; pooled per sample they gave a standard
+        /// error near 0.01 SD, so a difference built from four exposure
+        /// occasions was treated as though it rested on thousands of
+        /// independent observations. It does not: readings minutes apart are
+        /// not independent, and the whole point of this discount is that "a
+        /// handful of readings taken close together may share a confound the
+        /// clean pool doesn't".
+        ///
+        /// A day is still not an *episode* — several consecutive days of use
+        /// are one exposure, and counting them separately still overstates the
+        /// evidence. That is the next step and it is tracked on the roadmap.
+        /// This change fixes the thousandfold error, not the twofold one.
         public var evidencePairs: Int { Swift.min(affectedNights, baselineNights) }
 
         /// Standard error of the difference in means, in baseline SDs —
@@ -165,11 +181,12 @@ public enum SubstanceResponseAnalyzer {
         (.walkingAsymmetry, true)
     ]
 
-    public static func analyze(events: [SubstanceEvent], samples: [HealthMetricSample], now: Date = Date()) -> Analysis {
+    public static func analyze(events: [SubstanceEvent], samples: [HealthMetricSample],
+                               now: Date = Date(), calendar: Calendar = .current) -> Analysis {
         var effects: [MetricEffect] = []
         for (metric, upIsAdverse) in watched {
             if let e = effect(for: metric, upIsAdverse: upIsAdverse, events: events,
-                              samples: samples, now: now) {
+                              samples: samples, now: now, calendar: calendar) {
                 effects.append(e)
             }
         }
@@ -186,7 +203,7 @@ public enum SubstanceResponseAnalyzer {
 
     static func effect(for metric: MetricType, upIsAdverse: Bool,
                        events: [SubstanceEvent], samples: [HealthMetricSample],
-                       now: Date) -> MetricEffect? {
+                       now: Date, calendar: Calendar = .current) -> MetricEffect? {
         // Contemporaneous, on both sides — see `comparisonWindowDays`.
         let cutoff = now.addingTimeInterval(-comparisonWindowDays * 86_400)
         let series = samples.samples(of: metric)
@@ -196,12 +213,24 @@ public enum SubstanceResponseAnalyzer {
 
         var affected: [Double] = []
         var baseline: [Double] = []
+        // **Distinct days, not readings — the fields are called `…Nights` and
+        // until 2026-08-05 they held sample counts.** See the note on
+        // `MetricEffect.evidencePairs` for what that cost.
+        var affectedDays: Set<Date> = []
+        var baselineDays: Set<Date> = []
         for sample in series {
             let follows = times.contains { t in
                 let dt = sample.start.timeIntervalSince(t)
                 return dt >= 0 && dt <= afterWindow
             }
-            if follows { affected.append(sample.value) } else { baseline.append(sample.value) }
+            let day = calendar.startOfDay(for: sample.start)
+            if follows {
+                affected.append(sample.value)
+                affectedDays.insert(day)
+            } else {
+                baseline.append(sample.value)
+                baselineDays.insert(day)
+            }
         }
         guard affected.count >= 2, baseline.count >= 3,
               let a = Baseline.mean(affected), let b = Baseline.mean(baseline), b != 0 else { return nil }
@@ -209,9 +238,14 @@ public enum SubstanceResponseAnalyzer {
         let deltaAbs = a - b
         let deltaPct = deltaAbs / abs(b) * 100
         let adverse = upIsAdverse ? deltaAbs > 0 : deltaAbs < 0
+        // The *means* are unchanged — still every reading, at full resolution,
+        // because an 18-hour window genuinely covers part of a day and
+        // aggregating first would throw that away. Only the **uncertainty** is
+        // recounted, which is the half that was wrong.
         return MetricEffect(metric: metric, baseline: b, afterUse: a,
                             deltaAbsolute: deltaAbs, deltaPercent: deltaPct,
-                            affectedNights: affected.count, baselineNights: baseline.count,
+                            affectedNights: affectedDays.count,
+                            baselineNights: baselineDays.count,
                             isAdverse: adverse,
                             baselineSD: Baseline.standardDeviation(baseline) ?? 0)
     }
