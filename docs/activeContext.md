@@ -136,6 +136,67 @@ because the export holds 109 HealthKit samples that genuinely land at
 **So: do not report a detection gain from `4128ab3`.** Say what it is — an
 accidental reconciliation removed.
 
+### The baseline defect, found from three directions in one day
+
+**One mechanism, three reports, now fixed on the flagging path.**
+
+- The radar returning to 99 the day after a correct flag.
+- *"Yesterday my HRV was in danger zone, and today, its still the same value..
+  but no longer in danger?"*
+- The golden dataset's own test, which had **pinned** the bug since it was
+  written and predicted the remedy in its comment.
+
+"Your normal" is a rolling window ending yesterday, so a departure ages into the
+window that judges it. A z-score divides by the spread, **a standard deviation
+has a breakdown point of zero**, and one excursion inflates it — so the same
+value scores a smaller z and falls back under the bar without moving. **The
+longer something persists, the more normal it looks.**
+
+`Baseline.deviation(robust:)` measures the spread with median/MAD on the
+flagging path. The golden dataset's sustained fever, which used to sit *below*
+the unusual bar at ~1.9 because three of its four febrile nights were inside its
+own baseline, now scores **z ≈ 5.0**.
+
+⚠️ **Opt-in, and the reason is measured.** Applied everywhere it made
+`ReadinessScore` **fall** across a month of steadily improving HRV, because the
+robust spread approaches its asymptote differently on a growing window. A reader
+getting better must never be told they are getting worse. Flagging goes robust;
+scoring keeps the classical estimator; the caller states which question it is
+asking.
+
+**Still open:** `VitalReader.reading` has no reference *gap* (roadmap #38) — only
+today is dropped. The robust scale removes the dominant term but not that one.
+
+### The simulator can now look like the phone
+
+The reader: *"your emulator doesn't look like my app, and you can't validate
+everything"*. Correct, and half of it was **this repo's loader**, not the export.
+Their file already carried 16 substance events, 9 side effects and all 12
+grounding facts; only the two sample caches were ever written, because the rest
+is SwiftData.
+
+`AppModel.importExportedRecords()` + Settings ▸ Developer closes it. Measured
+before and after on their record:
+
+    Substance Impact   "Log to see effects"  →  60, "HR +7 after use"
+    Blood Pressure     58, Experimental      →  38, Validated
+
+**The BP swing is the point**: cuff readings and cholesterol are *grounding
+facts*, so without them the card estimated instead of calibrating — and twenty
+points of card was being validated against nothing.
+
+⚠️ **Two defects found only by tapping the button**, neither visible from the
+build, the tests or the returned counts: one `decode` covered all four sections
+so a single shape mismatch lost the rest (the profile's `inputs` is an
+alternating key/value *array*, because Swift encodes a dictionary that way when
+its key is not a `String`), and **`reloadLoggedData()` does not touch the
+substance log**, so the import reported "16 substances" while the card still
+read "Log to see effects".
+
+**Still missing from the export itself**, tracked not fixed: connector
+connection state (the boolean and last-sync — *never* the tokens), suggestion
+dismissals, the feedback ledger, prediction outcomes.
+
 ### Launch went from 98 s to under 8 s, and the cause was a file nobody looked at twice
 
 **Measured on the reader's own record, before and after, on the same simulator.**
