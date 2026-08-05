@@ -3,6 +3,59 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
+## Six things established on 2026-08-05 (afternoon), in priority order
+
+**1. `docs/progress.md` was wrong about six data domains, and the correction is
+the important part.** It listed eight unbuilt domains as "arriving" and "a
+promotion plus a reader, not new plumbing". Measured against the reader's own
+export — 158 raw identifiers, 320,913 rows — **daylight, UV, spirometry, inhaler
+use, mindful minutes, mood, menstrual flow, sexual activity, falls and
+toothbrushing have zero rows. Not thin: absent.** "Arriving" had been inferred
+from the read request in `HealthKitService` and never checked against a row
+count. **The general rule, now written beside that list: before writing "already
+arriving" about a data source, count its rows in the last 90 days.**
+
+**2. The densest signal in the record was in the raw pile, unread, for a year.**
+`walkingSpeed`, `walkingStepLength`, `walkingDoubleSupportPercentage` — 1,093
+days each, 91 of the last 90, 366 of the last 365, from the iPhone alone. Now
+`GaitInsight`, which decomposes a speed change into step length versus cadence
+(speed = length × cadence exactly, so the shares are an identity and not a fit).
+**Worth generalising: the raw catalogue is where the next card comes from, and
+the way to find it is to count coverage per identifier, not to read names.**
+
+**3. The radar's score was wrong in both directions, and the reader found it.**
+`guard signal.isLeaning` meant four signals all leaning at z = 0.95 scored
+exactly 100; the ramp saturating at z = 2 meant one signal at z = 3 outranked
+four at z = 1.2. Both fixed by one continuous calibrated statistic —
+`E[max(0,Z)] = 1/√(2π)` as the null, band edges at **measured** null quantiles
+(95th and 99.45th), a per-channel cap at 2.5 SD. ⚠️ **The independence assumption
+was wrong and a simulation caught it in one run** — 5.3% of well days, nineteen
+mornings a year — so the spread carries an equicorrelation term at ρ = 0.3.
+
+**4. The radar now has memory (CUSUM, k = 0.5, h = 6), and the bound is the
+subtle part.** Unbounded it stood at 13.5 a fortnight after recovery. Bounded at
+the decision interval it drops out of `strongSigns` on the first well day. Also:
+h = 6 rather than the 5 offline simulation gave, because
+`collapsingDuplicates` selects the harder-leaning of a pair and selecting a
+maximum inflates the statistic — **measure through the real path, not a model of
+it.**
+
+**5. Three modules built in the morning rendered nowhere until the afternoon.**
+`RawFieldGrouping`, `RawFieldPresentation`, `TypeSightingLedger` — all tested,
+all dead. ⚠️ **A "step 1–3 of 5" plan that ends at the model is a plan that ships
+nothing**, and this session did it three times in one day. Wiring them up found
+six presentation defects **that no test could have caught**, because each is a
+claim about what a name means to a reader ("Average — 99.08", "Activity balance"
+twice with different values, "Contributors efficiency", "Daily readiness hrv
+balance", "32.00 years", "185 steps" for a series length). **Look at the screen.**
+
+**6. Errors can usually be derived rather than cited, and derived is better.**
+`AgeComparison` (roadmap #18): the fitness age's ±9 years comes from the slope of
+the very norm table it inverts; the heart age's from how far apart the two
+published risk equations land on *this reader's* numbers. Where a vendor
+publishes a number bare, the row says so — **and that sentence is the most useful
+thing in the section**, because no competitor prints any accuracy figure at all.
+
 ## How a session should go (read this first)
 
 Ask whatever you need to ask, make the change, run `swift test` if a toolchain
