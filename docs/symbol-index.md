@@ -138,6 +138,8 @@ the place to look.
   - `MetricPattern` :16
   - `PatternFinder` :48
   - `PatternKind` :4
+- `Insights/MicronutrientTargets.swift`
+  - `MicronutrientTargets` :22
 - `Insights/NutritionInsight.swift`
   - `NutritionInsight` :283
   - `NutritionModel` :19

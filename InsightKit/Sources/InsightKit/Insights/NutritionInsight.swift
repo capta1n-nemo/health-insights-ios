@@ -299,9 +299,40 @@ public struct NutritionInsight: InsightModel {
     /// Sex changes the water figure by a quarter, and nothing else here. Not
     /// mandatory: without it the card scores everything else and the water row
     /// uses the higher figure, which is stated on the row.
+    /// **Mandatory as of 2026-08-05, at the reader's instruction**, and the
+    /// reason is the eleven micronutrients rather than the water figure it used
+    /// to cite.
+    ///
+    /// Every published micronutrient intake moves with sex and several move
+    /// with age — iron is 18 mg for a menstruating reader against 8 for a man,
+    /// more than twofold. Without both facts the card cannot score any of them,
+    /// and scoring them against the wrong row is worse than not scoring them:
+    /// it tells someone who is deficient that they are fine.
+    ///
+    /// `isMandatory` is what carries this to the reader — it is what makes the
+    /// setup flow insist rather than offer, and what puts the ask on the front
+    /// page when it is still missing.
     public var requirements: [GroundingRequirement] {
-        [.init(kind: .biologicalSex, isMandatory: false,
-               rationale: "The published water figure differs by sex — 2.5 L for men, 2.0 L for women.")]
+        [.init(kind: .biologicalSex, isMandatory: true,
+               rationale: "Every published vitamin and mineral figure differs by sex — iron alone is 18 mg a day against 8. Without it none of them can be scored."),
+         .init(kind: .dateOfBirth, isMandatory: true,
+               rationale: "Calcium, iron, magnesium and vitamin D all change with age, so the target has to know how old you are.")]
+    }
+
+    /// Which of the two profile facts are still missing.
+    ///
+    /// Each reports itself. The old rule was `profile.sex == nil ? requirements
+    /// : []`, which hid the date-of-birth ask entirely for anyone who had
+    /// already set a sex — so half the micronutrient targets stayed
+    /// unresolvable with nothing on screen saying why.
+    func unmet(for profile: UserHealthProfile, now: Date) -> [GroundingRequirement] {
+        requirements.filter { requirement in
+            switch requirement.kind {
+            case .biologicalSex: return profile.sex == nil
+            case .dateOfBirth: return profile.age(asOf: now) == nil
+            default: return false
+            }
+        }
     }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
@@ -310,9 +341,20 @@ public struct NutritionInsight: InsightModel {
             // `invitesInput` because the missing thing is a food log, which
             // the reader can supply — without it this card is filtered off the
             // tab and cannot ask.
-            return invitingInput(id, title,
-                                 action: "Log what you eat",
-                                 message: "Log what you eat — through Apple Health, MyFitnessPal or any app that writes to it, or by sharing a Shotsy backup — and this card scores it against published guidance from WHO, EFSA and SACN. It needs \(NutritionModel.minimumLoggedDays) days of logging before it will say anything.")
+            // **The profile ask travels with the empty state.** It used to be
+            // reported only once a food log existed, so a reader with neither
+            // was asked for the log and never for the two facts every vitamin
+            // and mineral target needs — and then the first day they logged
+            // anything, half the card could not be scored for a reason nobody
+            // had mentioned. Ask for both at once.
+            return InsightResult(
+                id: id, title: title, primaryValue: nil,
+                headline: "Log what you eat",
+                score: nil, confidence: .low,
+                explanation: "Log what you eat — through Apple Health, MyFitnessPal or any app that writes to it, or by sharing a Shotsy backup — and this card scores it against published guidance from WHO, EFSA and SACN. It needs \(NutritionModel.minimumLoggedDays) days of logging before it will say anything.",
+                drivers: [],
+                unmetRequirements: unmet(for: profile, now: now),
+                invitesInput: true)
         }
 
         // Completeness first, because every number under it is a mean over the
@@ -336,7 +378,7 @@ public struct NutritionInsight: InsightModel {
             confidence: out.completeness >= NutritionModel.completeEnough ? .moderate : .low,
             explanation: "Your last \(NutritionModel.windowDays) days of food logging, scored against published guidance — WHO, EFSA and SACN — with each figure named on its own row. Calories are charted and never scored: no published number says what one person should eat.",
             driverLines: drivers,
-            unmetRequirements: profile.sex == nil ? requirements : [],
+            unmetRequirements: unmet(for: profile, now: now),
             contributors: out.contributions,
             weighting: .weightedAverage)
     }
