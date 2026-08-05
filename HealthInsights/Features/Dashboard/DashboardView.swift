@@ -381,6 +381,9 @@ struct InsightCard: View {
         // An hourglass, not a candle or a calendar: this is a rate, and the
         // card leads with the pace rather than the number.
         case .biologicalAge: return "hourglass"
+        // Deliberately not a brain, a cloud or a rain symbol: this card
+        // reports behaviour and refuses to illustrate a mood it cannot see.
+        case .mentalHealth: return "person.crop.circle"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

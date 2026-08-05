@@ -46,6 +46,10 @@ public struct InsightEngine: Sendable {
             // standing example of what happens when one of these is built and
             // not registered.
             BiologicalAgeInsight(),
+            // The reader asked for this by name. Registered beside the other
+            // sensed-signal cards rather than with the log-driven three below,
+            // because it has something to say from the first fortnight.
+            MentalHealthInsight(),
             // Bound to an empty log; the app rebinds it on every recompute via
             // `withSubstanceLog(_:)`. Registering it at all is what finally put
             // it in front of everything that iterates `models` — score

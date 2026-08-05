@@ -288,8 +288,13 @@ final class BalanceWebTests: XCTestCase {
     ///    built from cardio fitness, blood pressure and body fat, so drawing it
     ///    beside them would show one agreement as four independent findings.
     ///    Every other card here reads signals nothing else on the web reads.
+    /// 3. `mentalHealth` — **its best answer is "nothing found"**, which is the
+    ///    radar's argument reached from a different direction. Its top band means
+    ///    four numbers did not move; drawn as "Mind 80" in green beside Fitness
+    ///    33 it reads as *your mind is fine and your body is not*, which is the
+    ///    one claim that card exists to refuse. Seen on screen, 2026-08-06.
     func testEveryOtherScoringCardStillBelongsOnTheWeb() {
-        let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge]
+        let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge, .mentalHealth]
         for id in InsightID.allCases where !excluded.contains(id) {
             XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
         }

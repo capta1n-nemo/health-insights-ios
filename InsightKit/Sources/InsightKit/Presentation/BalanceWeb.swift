@@ -313,6 +313,29 @@ public extension InsightID {
         // one thing a balance chart must not carry.
         case .biologicalAge:
             return false
+        // ⚠️ **Off the web, and this reverses the decision made an hour earlier
+        // in the same session — because the screen settled it.**
+        //
+        // The argument for putting it on was that it asks a different question
+        // of the same instruments: a fortnight's departure rather than a level.
+        // That is true and it is not the point. Rendered, it drew **"Mind 80"
+        // in green** beside Fitness 33 and BP 38, which reads as *your mind is
+        // fine and your body is not* — the exact claim this card is built to
+        // refuse, arriving through the chart instead of the copy.
+        //
+        // It is the symptom radar's defect precisely: that card drew as the
+        // highest spoke because it had **found nothing**, and silence rendered
+        // as excellence on the one card whose whole design exists to prevent
+        // that. Mental health's top band means "these four numbers did not
+        // move", which is the same kind of silence.
+        //
+        // The general rule, worth more than either instance: **a card whose
+        // best available answer is "nothing found" cannot share an axis with
+        // cards that grade a level.** No amount of careful wording inside the
+        // card survives being drawn as a tall green spoke next to a short red
+        // one.
+        case .mentalHealth:
+            return false
         case .symptomRadar:
             return false
         }
@@ -333,6 +356,7 @@ public extension InsightID {
         case .sustainedLoad: return "Stress"
         case .gait: return "Walking"
         case .biologicalAge: return "Age"
+        case .mentalHealth: return "Mind"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

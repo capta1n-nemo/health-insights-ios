@@ -125,14 +125,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :137
-  - `InsightCadence` :95
-  - `InsightConfidence` :129
-  - `InsightDriver` :165
+  - `GroundingRequirement` :150
+  - `InsightCadence` :108
+  - `InsightConfidence` :142
+  - `InsightDriver` :178
   - `InsightID` :15
-  - `InsightModel` :392
-  - `InsightResult` :182
-  - `RequirementStatus` :153
+  - `InsightModel` :405
+  - `InsightResult` :195
+  - `RequirementStatus` :166
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -140,6 +140,9 @@ the place to look.
 - `Insights/LaggedCorrelation.swift`
   - `LagFinder` :27
   - `LaggedRelationship` :14
+- `Insights/MentalHealthModel.swift`
+  - `MentalHealthInsight` :227
+  - `MentalHealthModel` :55
 - `Insights/MetabolismInsight.swift`
   - `EnergyBalance` :43
   - `EnergyBalanceModel` :72
@@ -275,7 +278,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :60
+  - `InsightPalette` :61
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14

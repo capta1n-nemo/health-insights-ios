@@ -156,6 +156,7 @@ public extension InsightID {
         case .sustainedLoad: return "sustained-load-v1"
         case .gait: return "gait-v1"
         case .biologicalAge: return "biological-age-v1"
+        case .mentalHealth: return "mental-health-v1"
         }
     }
 }

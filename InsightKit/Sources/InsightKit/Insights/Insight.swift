@@ -87,6 +87,19 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// bar — around a decade — and prints it, which is the trade every
     /// commercial version declines to make.
     case biologicalAge
+    /// **How the last fortnight has gone, from behaviour rather than mood.**
+    ///
+    /// Refused after nine adversarial attacks, every one of which read
+    /// HealthKit's mood surfaces and found zero rows. Reversed by the reader on
+    /// 2026-08-06: *"I want a mental health card. Figure it out, creative
+    /// licence + data science."* The answer to "there is no mood data" is this
+    /// app's own thesis — use the data people already have — and behaviour is
+    /// the most replicated correlate there is.
+    ///
+    /// ⚠️ The one attack that survives is a design constraint, not an objection:
+    /// **this card never reassures.** Its top band means four numbers have not
+    /// moved, and says so in those words.
+    case mentalHealth
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
