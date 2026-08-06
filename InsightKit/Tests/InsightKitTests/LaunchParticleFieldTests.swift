@@ -191,17 +191,47 @@ final class LaunchParticleFieldTests: XCTestCase {
             }
             return Swift.max(best, 1e-6)
         }
-        // Sizes large enough that each run is milliseconds rather than
-        // microseconds, so the ratio is measuring the work and not the clock.
+        // ⚠️ **Equal work on both sides of the ratio, and that is the third fix
+        // this assertion has needed.** Wall clock → size ratio → minimum of
+        // five → this. It failed the gate again on 2026-08-06 at 10.7× under a
+        // load average of 33 (ten agents compiling at once), and the cause was
+        // not noise in general but a *bias* in how the previous version
+        // sampled it.
+        //
+        // Minimum-of-N is asymmetric when the two runs are different lengths.
+        // The large build took four times as long, so it had four times the
+        // exposure to being preempted, and every one of its five samples was
+        // hit while the small build's five easily found a clean slot. The
+        // minimum rescued the denominator and not the numerator, so the ratio
+        // rose — a measurement artefact that looks exactly like the complexity
+        // regression this test exists to catch.
+        //
+        // So both sides now measure **the same amount of work**: four small
+        // builds against one large one, 80,000 points either way. Equal
+        // duration means equal exposure, whatever the machine is doing, and
+        // linear generation puts the ratio at 1. Nothing here trusts the
+        // machine to be quiet — which is the property a gate that runs on a
+        // busy laptop actually needs.
         _ = LaunchParticleField.build(heartCount: 5_000, ringCount: 0)   // warm up
 
-        let small = fastest(of: 5) { _ = LaunchParticleField.build(heartCount: 20_000, ringCount: 0) }
-        let large = fastest(of: 5) { _ = LaunchParticleField.build(heartCount: 80_000, ringCount: 0) }
+        let batchOfSmall = fastest(of: 5) {
+            for _ in 0..<4 { _ = LaunchParticleField.build(heartCount: 20_000, ringCount: 0) }
+        }
+        let oneLarge = fastest(of: 5) {
+            _ = LaunchParticleField.build(heartCount: 80_000, ringCount: 0)
+        }
 
-        XCTAssertLessThan(large / small, 8.0,
+        // 1.0 is linear. The ceiling catches a doubling of the constant or any
+        // real change of complexity class — quadratic generation would put
+        // 80,000 points at four times the cost of four 20,000-point runs — and
+        // leaves room for the genuine super-linear effects at this size that
+        // are nothing to do with the algorithm: cache pressure and one large
+        // allocation against four small ones.
+        let ratio = oneLarge / batchOfSmall
+        XCTAssertLessThan(ratio, 2.0,
                           "generation is scaling worse than linearly in the particle count "
-                          + "(4× the points took \(large / small)× the time) — a bisection or "
-                          + "rejection loop has probably regained a factor")
+                          + "(80,000 points in one build cost \(ratio)× the same 80,000 points "
+                          + "in four) — a bisection or rejection loop has probably regained a factor")
     }
 
     /// The cloud is the size it says it is. Kept separate from the timing above

@@ -15,3 +15,10 @@ Package.resolved
 node_modules/
 .wrangler/
 .dev.vars
+
+# Agent worktrees. Created inside the repo by the Agent tool with
+# isolation: "worktree", removed when the agent finishes. They are gitlinks,
+# not content — committing them (2026-08-06, feb4672) put ten dangling
+# submodule pointers in a public repo that would break any fresh clone, and
+# `git add -A` is what picked them up. Ignored so it cannot happen again.
+.claude/worktrees/
