@@ -1947,6 +1947,11 @@ final class AppModel {
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
         recompute()
+        // The summary is written from `results`, so this one caller waits for
+        // the pass it just started. The interface is free during the wait —
+        // that is the difference from running it inline, and it is the whole
+        // fix for the reader's "Syncing your devices" hang.
+        await recomputeSettled()
         launchPhase = .summarising
         await refreshSummaryIfChanged(now: startedAt, diag: diag)
         lastRefreshedAt = Date()
@@ -2120,8 +2125,79 @@ final class AppModel {
             .withSymptoms(symptoms, medication: activeMedication?.schedule)
             // Both calendar cards, in one call — see `withCalendar`.
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
-        results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
-        recordScores(results)
+
+        // ⚠️ **The insight pass is off the main actor, and the reader found
+        // out the hard way.** *"When it says 'Syncing your devices' it hangs
+        // the UI/UX and the app becomes unresponsive"* — 2026-08-06, on their
+        // own phone.
+        //
+        // Measured before changing anything: `evaluateAll` over 379,990
+        // samples and eighteen models takes **2.36 s on an M-series Mac**, so
+        // several seconds on a phone, and `recompute()` is called from
+        // thirty-three places. Every one of them froze the interface for the
+        // duration.
+        //
+        // The evidence was already in this file. `hydrate()` detaches this
+        // exact work with a comment explaining that the engine and the sample
+        // types were built platform-free for testing, and that the same
+        // property is what lets them leave the main thread. **The sync path
+        // simply never got the same treatment** — an optimisation applied to
+        // one of two symmetrical paths, which this repo has already named as
+        // "a bug with a good comment on it" once (`RawCacheCodec`, 2026-08-05).
+        //
+        // What stays on the main actor above: the SwiftData reads, the
+        // medication-level rebuild and the engine binding. All three are cheap
+        // and all three mutate state the pass then reads. What moves is the
+        // pure function of `(engine, samples, events, profile)`.
+        let engineNow = engine
+        let samplesNow = samples
+        let eventsNow = vitalEvents
+        let profileNow = profile
+        recomputeGeneration &+= 1
+        let generation = recomputeGeneration
+        // Kept so `recomputeSettled()` can await it — `performRefresh` writes
+        // the daily summary from `results` and must not read the previous
+        // pass's.
+        recomputeTask = Task.detached(priority: .userInitiated) {
+            let evaluated = engineNow.evaluateAll(samples: samplesNow,
+                                                  events: eventsNow,
+                                                  profile: profileNow)
+            await MainActor.run { [weak self] in
+                self?.applyRecomputed(evaluated, generation: generation)
+            }
+        }
+    }
+
+    /// Bumped on every `recompute()`, so a pass that lands after a newer one
+    /// started is discarded rather than overwriting fresher results. Same
+    /// guard, and the same reason, as `scoreHistoryGeneration`.
+    @ObservationIgnored private var recomputeGeneration = 0
+    @ObservationIgnored private var recomputeTask: Task<Void, Never>?
+
+    /// Wait for the in-flight evaluation to land.
+    ///
+    /// Only the sync path needs this: it writes the Today summary from
+    /// `results` immediately afterwards, and without the await it would
+    /// summarise the *previous* pass. The thirty-two UI-mutation call sites
+    /// deliberately do **not** wait — `results` is `@Observable`, so the cards
+    /// redraw when the pass lands, which is the whole point of moving it.
+    func recomputeSettled() async {
+        await recomputeTask?.value
+    }
+
+    /// Everything that must happen on the main actor once the pass is in.
+    ///
+    /// Ordering is identical to what `recompute()` used to do inline; only the
+    /// thread changed. In particular `invalidateDerivedCaches()` still runs
+    /// *before* the derived-series record loop — see the note on that loop for
+    /// what happens when it does not.
+    private func applyRecomputed(_ evaluated: [InsightResult], generation: Int) {
+        // A pass built from samples that have since been replaced is not
+        // merely stale, it is wrong: it would put the old record's scores on
+        // screen under the new record's data.
+        guard generation == recomputeGeneration else { return }
+        results = evaluated
+        recordScores(evaluated)
         // Grounding and substance edits reach here without touching `samples`,
         // so the sample-set invalidation hook won't have fired.
         invalidateDerivedCaches()
@@ -2136,7 +2212,7 @@ final class AppModel {
         // eighteen results and wiped them a line later. Found on the simulator:
         // "Refresh complete — 18 insights" in the diagnostics log while the
         // Data tab's Generated-insights row stayed absent.
-        for result in results {
+        for result in evaluated {
             derivedSeries.record(result, on: Date())
         }
         // After `reloadLoggedData()` above has refreshed `cycleDays`, so the
