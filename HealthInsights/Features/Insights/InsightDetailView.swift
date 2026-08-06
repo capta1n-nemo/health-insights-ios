@@ -29,6 +29,17 @@ struct InsightDetailView: View {
     let insightID: InsightID
     @Environment(AppModel.self) private var model
     @State private var groundingKind: GroundingKind?
+    /// **Calendar corrections in progress, keyed by event id.**
+    ///
+    /// View-local and uncommitted on purpose: the reader edits as many axes of
+    /// a row as they like and nothing reaches the store until they save. It is
+    /// a *third* layer over the model's guess and any stored correction, and
+    /// it writes into neither — backlog C4's rule, which is what keeps
+    /// classifier accuracy measurable.
+    ///
+    /// Cleared per row on save or discard rather than wholesale, so editing one
+    /// row cannot silently throw away an edit in progress on another.
+    @State private var pendingCalendarEdits: [String: CalendarEventClassification] = [:]
     @State private var feedbackGiven = false
     @State private var timeframe: Timeframe = .month
     /// The reader's own answer about their build, where they gave one. A
@@ -187,7 +198,14 @@ struct InsightDetailView: View {
 
     private func calendarReviewRow(_ event: CalendarEvent,
                                    judgement: CalendarEventJudgement) -> some View {
-        let effective = judgement.effective
+        // The draft, if the reader has started editing this row. It is the
+        // *third* layer, on top of the model's guess and the reader's stored
+        // correction — and it deliberately never writes into either. Keeping
+        // guess and correction apart is what makes accuracy measurable
+        // (backlog C4); an uncommitted draft must not be able to disturb that.
+        let draft = pendingCalendarEdits[event.id]
+        let shown = draft ?? judgement.effective
+        let effective = shown
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(event.title.isEmpty ? "Untitled" : event.title)
@@ -201,82 +219,154 @@ struct InsightDetailView: View {
             // The six axes, as chips. `Decider` is what distinguishes a fact
             // from a guess, and the reader should be able to see which is which
             // before deciding whether to argue with it.
+            // ⚠️ **Every judgement-call chip is a picker, and picking does not
+            // commit.** The reader, 2026-08-06: *"if I just select one
+            // correction metric (e.g. change from work to personal) I cannot
+            // correct any of the other metrics, it just disappears.. so let me
+            // change as many as needed, then confirm."*
+            //
+            // The old shape was a "Not quite" menu whose every leaf wrote
+            // straight through to the store, so a row could only ever be
+            // corrected on one axis before the controls vanished. Edits now
+            // land in `pendingCalendarEdits` — view-local, uncommitted — and
+            // the row stays put and keeps its controls until the reader says
+            // to save.
             HStack(spacing: 4) {
-                reviewChip(effective.context.title,
-                           decided: effective.decider(for: CalendarEventClassification.contextKey))
-                reviewChip(effective.occasion.title,
-                           decided: effective.decider(for: CalendarEventClassification.occasionKey))
-                reviewChip(effective.presence.title, decided: .fact)
-                reviewChip(effective.formality.title,
-                           decided: effective.decider(for: CalendarEventClassification.formalityKey))
-                if effective.isMarathon {
+                editableChip(shown.context.title,
+                             decided: shown.decider(for: CalendarEventClassification.contextKey),
+                             options: CalendarEventClassification.Context.allCases,
+                             label: { $0.title }) { option in
+                    editCalendarDraft(event.id, judgement: judgement, context: option)
+                }
+                editableChip(shown.occasion.title,
+                             decided: shown.decider(for: CalendarEventClassification.occasionKey),
+                             options: CalendarEventClassification.Occasion.allCases,
+                             label: { $0.title }) { option in
+                    editCalendarDraft(event.id, judgement: judgement, occasion: option)
+                }
+                // Presence and duration are read off the event itself. There is
+                // nothing to disagree with, so they stay plain chips.
+                reviewChip(shown.presence.title, decided: .fact)
+                editableChip(shown.formality.title,
+                             decided: shown.decider(for: CalendarEventClassification.formalityKey),
+                             options: CalendarEventClassification.Formality.allCases,
+                             label: { $0.title }) { option in
+                    editCalendarDraft(event.id, judgement: judgement, formality: option)
+                }
+                if shown.isMarathon {
                     reviewChip("Marathon", decided: .fact)
                 }
             }
-            if judgement.isConfirmed || judgement.correction != nil {
-                Label(judgement.correction != nil ? "You corrected this" : "You confirmed this",
-                      systemImage: "checkmark.circle.fill")
-                    .font(.caption2).foregroundStyle(Theme.good)
+
+            // Three states, deliberately distinguishable at a glance: an
+            // untouched guess awaiting review, an edit not yet saved, and a
+            // settled row. A reader scanning the list has to be able to see
+            // which is which without tapping anything.
+            if draft != nil {
+                HStack(spacing: 10) {
+                    Button("Save") { saveCalendarDraft(event.id) }
+                        .buttonStyle(.borderedProminent)
+                    Button("Discard") { pendingCalendarEdits[event.id] = nil }
+                        .buttonStyle(.bordered)
+                    Text("Not saved yet")
+                        .font(.caption2).foregroundStyle(Theme.warn)
+                }
+                .font(.caption)
+            } else if judgement.isConfirmed || judgement.correction != nil {
+                HStack(spacing: 10) {
+                    Label(judgement.correction != nil ? "You corrected this" : "You confirmed this",
+                          systemImage: "checkmark.circle.fill")
+                        .font(.caption2).foregroundStyle(Theme.good)
+                    Spacer()
+                    // ⚠️ **The row stays and the decision is reversible.** The
+                    // reader's own words: *"i cannot un-confirm in case i did
+                    // want to actually change it"*, and *"when i do confirm it
+                    // should stay in the list, not disappear!"* It never did
+                    // disappear — but it lost every control, which is the same
+                    // thing from the outside.
+                    Button("Change") {
+                        model.reviewCalendarEvent(event.id, correction: nil, confirmed: false)
+                    }
+                    .font(.caption).buttonStyle(.bordered)
+                }
             } else {
                 HStack(spacing: 10) {
                     Button("That's right") {
                         model.reviewCalendarEvent(event.id, correction: nil, confirmed: true)
                     }
-                    Menu("Not quite") {
-                        // Correcting the two axes that are judgement calls.
-                        // Presence and duration are facts read off the event and
-                        // are not offered — there is nothing to disagree with.
-                        Menu("It was…") {
-                            ForEach(CalendarEventClassification.Context.allCases) { option in
-                                Button(option.title) {
-                                    correctCalendar(event.id, judgement: judgement,
-                                                    context: option)
-                                }
-                            }
-                        }
-                        Menu("It was a…") {
-                            ForEach(CalendarEventClassification.Occasion.allCases) { option in
-                                Button(option.title) {
-                                    correctCalendar(event.id, judgement: judgement,
-                                                    occasion: option)
-                                }
-                            }
-                        }
-                        Menu("The tone was…") {
-                            ForEach(CalendarEventClassification.Formality.allCases) { option in
-                                Button(option.title) {
-                                    correctCalendar(event.id, judgement: judgement,
-                                                    formality: option)
-                                }
-                            }
-                        }
-                    }
+                    .font(.caption).buttonStyle(.bordered)
+                    Text("or tap a label to change it")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
-                .font(.caption).buttonStyle(.bordered)
             }
         }
         .padding(.vertical, 3)
     }
 
-    /// One axis changed, the rest kept — and the whole thing recorded as a
-    /// **reader** decision so nothing later overwrites it.
-    private func correctCalendar(_ eventID: String, judgement: CalendarEventJudgement,
-                                 context: CalendarEventClassification.Context? = nil,
-                                 occasion: CalendarEventClassification.Occasion? = nil,
-                                 formality: CalendarEventClassification.Formality? = nil) {
-        let base = judgement.effective
+    /// A chip that is also a picker.
+    ///
+    /// Same appearance as `reviewChip` so the row does not become a wall of
+    /// buttons, with a chevron as the only affordance — the "or tap a label to
+    /// change it" line beneath carries the rest, because a chip that looks
+    /// tappable and a chip that is a fact must still be told apart.
+    private func editableChip<Option: Hashable & Identifiable>(
+        _ text: String,
+        decided: CalendarEventClassification.Decider,
+        options: [Option],
+        label: @escaping (Option) -> String,
+        onPick: @escaping (Option) -> Void
+    ) -> some View {
+        Menu {
+            ForEach(options) { option in
+                Button(label(option)) { onPick(option) }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                Text(text)
+                Image(systemName: "chevron.down").font(.system(size: 7))
+            }
+            .font(.caption2)
+            .foregroundStyle(decided == .reader ? Theme.good
+                             : (decided == .fact ? Theme.accent : .secondary))
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background {
+                Capsule().fill(Color.secondary.opacity(decided == .fact ? 0.18 : 0.08))
+            }
+        }
+    }
+
+    /// Change one axis of the **draft**, leaving the store alone.
+    ///
+    /// Seeded from `judgement.effective` on the first edit, so a second edit
+    /// builds on the first rather than on the model's original guess — which
+    /// is the whole point, and what the old one-shot menu could not do.
+    private func editCalendarDraft(_ eventID: String, judgement: CalendarEventJudgement,
+                                   context: CalendarEventClassification.Context? = nil,
+                                   occasion: CalendarEventClassification.Occasion? = nil,
+                                   formality: CalendarEventClassification.Formality? = nil) {
+        let base = pendingCalendarEdits[eventID] ?? judgement.effective
         var deciders = base.deciders
         if context != nil { deciders[CalendarEventClassification.contextKey] = .reader }
         if occasion != nil { deciders[CalendarEventClassification.occasionKey] = .reader }
         if formality != nil { deciders[CalendarEventClassification.formalityKey] = .reader }
-        let corrected = CalendarEventClassification(
+        pendingCalendarEdits[eventID] = CalendarEventClassification(
             context: context ?? base.context,
             occasion: occasion ?? base.occasion,
             presence: base.presence,
             formality: formality ?? base.formality,
             hours: base.hours,
             deciders: deciders)
-        model.reviewCalendarEvent(eventID, correction: corrected, confirmed: false)
+    }
+
+    /// Commit the draft as one correction, and clear it.
+    ///
+    /// `confirmed: true` because saving an edit *is* the reader settling the
+    /// row — the old flow left a corrected row unconfirmed, so it kept asking
+    /// about something already answered.
+    private func saveCalendarDraft(_ eventID: String) {
+        guard let draft = pendingCalendarEdits[eventID] else { return }
+        model.reviewCalendarEvent(eventID, correction: draft, confirmed: true)
+        pendingCalendarEdits[eventID] = nil
     }
 
     private func reviewChip(_ text: String,
