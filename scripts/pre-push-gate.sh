@@ -60,6 +60,32 @@ case "$command" in
 esac
 
 if ! output=$(./scripts/verify.sh --tests 2>&1); then
+    # **A build-database collision is not a failed gate, and must not be
+    # worded like one.** The wording below tells the reader to fix their diff
+    # and, failing that, to justify pushing anyway — both wrong when the cause
+    # is a concurrent build, and on 2026-08-06 that is exactly what happened:
+    # the collision's own message is two `error:` lines, so the grep below
+    # picked it up and presented it as a broken diff. Checked first, and the
+    # whole block is kept rather than grepped, because the actionable part is
+    # the instruction to wait rather than the line naming the fault.
+    #
+    # ⚠️ **Matches verify.sh's own words, not xcodebuild's.** The obvious
+    # pattern here is `database is locked`, and it is wrong: verify.sh
+    # *replaces* that line with its own message rather than printing it, so
+    # grepping for xcodebuild's wording matches nothing and the collision
+    # falls through to the "your diff is broken" branch below — the very bug
+    # this is here to fix. Caught by canary, 2026-08-06. `Another build
+    # holds` is a contract between the two scripts; the raw phrase is kept as
+    # a second alternative in case a future verify.sh passes the log through.
+    if printf '%s' "$output" | grep -qE 'Another build holds|database is locked'; then
+        deny "$(printf '%s' "$output" | grep -A3 -E 'Another build holds|database is locked' | head -8)
+
+The gate did not fail — it could not run. Another build holds the same
+derived-data path, so nothing about this change has been checked either way.
+
+Wait for the other build to finish and push again. Do not work around this by
+skipping the gate: it has verified nothing, so a push now is unverified."
+    fi
     # The tail is what a reader needs; the full run is long and mostly the test
     # roster scrolling past.
     detail=$(printf '%s' "$output" | grep -E 'error:|does not mention|Rules reference|half-done|stale|✗' | head -20)

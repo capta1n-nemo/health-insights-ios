@@ -51,6 +51,42 @@ KIT_TESTS=InsightKit/Tests
 # app-target compile below for why that costs real money on this Mac.
 DERIVED_ROOT="${HEALTH_INSIGHTS_DERIVED:-$HOME/Library/Caches/health-insights}"
 
+# **One slot per worktree, because two gates genuinely do run at once.**
+#
+# Xcode keeps a single `build.db` per derived-data path and holds a lock on it
+# for the whole build, so two concurrent `verify.sh --tests` runs sharing a
+# path both die with "database is locked". That failure is *not* a compile
+# error, but it arrives as two `error:` lines, which is precisely what
+# `pre-push-gate.sh` greps for — so it reached the reader dressed as "your
+# change broke the build" when nothing was wrong with the diff. Hit twice on
+# 2026-08-06, when a worktree-isolated agent and the main checkout ran the
+# gate simultaneously. CLAUDE.md actively encourages those agents, so
+# concurrent gates are the expected case and not an exotic one.
+#
+# ⚠️ **The tradeoff is a cold build, and it is paid per worktree, once.** The
+# main checkout keeps the unsuffixed path so its incremental build stays at
+# ~1.4s; a linked worktree starts from nothing the first time it runs the gate
+# — minutes — and is warm thereafter. That is the price of not interleaving
+# two builds in one cache, and it is far below the cost of the red push it
+# prevents. `HEALTH_INSIGHTS_DERIVED` still overrides the root, and still
+# suffixes beneath it; point two worktrees at one root *and* the same slot
+# only if you want them to share a cache and are sure they will not race.
+#
+# `--git-dir` and `--git-common-dir` are the same path in the main working
+# tree and differ in every linked worktree. That is the canonical test —
+# pattern-matching the path for `/worktrees/` would be fooled by a checkout
+# that merely lives in a directory of that name.
+DERIVED_SLOT=verify-ios
+if [ "$(git rev-parse --git-dir 2>/dev/null)" \
+   != "$(git rev-parse --git-common-dir 2>/dev/null)" ]; then
+    # Basename so `du -sh` is readable by a human, CRC of the *full* path so
+    # two worktrees that happen to share a basename still get separate slots.
+    # Outside a git repo both rev-parses fail to the same empty string, so
+    # this branch is skipped and the main slot is used — the safe default.
+    wt_root=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+    DERIVED_SLOT="verify-ios-$(basename "$wt_root")-$(printf '%s' "$wt_root" | cksum | cut -d' ' -f1)"
+fi
+
 # --- Architecture rules from CLAUDE.md ------------------------------------
 
 # Scoped to where view models live. The three integration services in
@@ -750,9 +786,29 @@ if [ "${1:-}" = "--tests" ]; then
                 -project "$APP.xcodeproj" \
                 -scheme "$APP" \
                 -destination 'generic/platform=iOS' \
-                -derivedDataPath "$DERIVED_ROOT/verify-ios" \
+                -derivedDataPath "$DERIVED_ROOT/$DERIVED_SLOT" \
                 CODE_SIGNING_ALLOWED=NO > "$ioslog" 2>&1 || iosfail=1
-            if [ "$iosfail" -ne 0 ]; then
+            # **Checked before the `error:` grep below, because it would be
+            # caught by it.** Xcode reports a locked build database as
+            # `error: unable to attach DB: error: accessing build database`
+            # — two `error:` lines for something that is not a compile error
+            # at all, which is how a concurrent build came to be reported as a
+            # broken diff on 2026-08-06. The per-worktree slot above makes the
+            # cross-worktree case impossible, but two runs in the *same*
+            # checkout can still race: `pre-push-gate.sh` re-runs the whole
+            # gate on `git push`, so a manual `verify.sh` still going when the
+            # push fires collides with itself. Name it instead of letting the
+            # reader debug their own code.
+            if [ "$iosfail" -ne 0 ] && grep -q 'database is locked' "$ioslog"; then
+                # ⚠️ `Another build holds` is a contract, not just prose:
+                # `pre-push-gate.sh` greps for it to tell a collision from a
+                # real failure. Reword the rest freely; keep those three words.
+                note 'Another build holds this derived-data path — NOT a compile error, and not your diff.'
+                printf '%s\n' "Path: $DERIVED_ROOT/$DERIVED_SLOT"
+                printf '%s\n' 'Something else is building: another verify.sh, a push whose gate re-runs it, or Xcode itself.'
+                printf '%s\n' 'Wait for it to finish and run this again. Nothing here has been checked, so this is not a pass.'
+                fail=1
+            elif [ "$iosfail" -ne 0 ]; then
                 note 'The app target does not compile for iOS:'
                 grep -E 'error:' "$ioslog" | head -12
                 # A build can fail without printing `error:` (a missing scheme, a
