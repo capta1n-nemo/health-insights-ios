@@ -59,6 +59,17 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// between "get the tape out" and "stand in front of the phone" — which is
     /// a choice inside the sheet, not a different kind of data.
     case bodyMeasurements
+    /// The reader's name and emails — `ReaderIdentity`, backlog B7 H1.
+    ///
+    /// **One case for the whole conversation** — name, work emails, personal
+    /// emails, one sheet — for the reason `.bodyMeasurements` is one case: they
+    /// answer one question ("who are you, to your calendar?") and three
+    /// near-identical rows would bury it. Strings, so it is not a grounding
+    /// fact; see `ReaderIdentity` for why it cannot live in the profile.
+    case readerIdentity
+    /// One period of leave, entered by hand — backlog B7 H4. Past or planned:
+    /// *"I should also be able to input holidays that are planned manually."*
+    case holiday
 
     public var id: String { rawValue }
 
@@ -75,6 +86,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyType: return "Your build"
         case .screenTime: return "Screen time"
         case .bodyMeasurements: return "Body measurements"
+        case .readerIdentity: return "Name & emails"
+        case .holiday: return "Holiday or leave"
         }
     }
 
@@ -104,6 +117,10 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Override the app's read of your build if you disagree with it. It estimates from your own measurements; you know your frame."
         case .screenTime:
             return "Yesterday's total from Settings ▸ Screen Time. Apple won't let an app read it, so this is the way in — and it lets the sleep card ask whether tech time is what's keeping you up."
+        case .readerIdentity:
+            return "Your name, work and personal emails. Lets the calendar tell whose meeting — and whose OOO block — an event is. Stays on this phone and is never exported."
+        case .holiday:
+            return "Time off, past or planned. Goes into one leave record beside what your calendar shows, so the app can know how long since you last had any."
         }
     }
 
@@ -120,6 +137,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyType: return "figure.stand"
         case .screenTime: return "iphone"
         case .bodyMeasurements: return "figure.mixed.cardio"
+        case .readerIdentity: return "person.crop.circle"
+        case .holiday: return "beach.umbrella"
         }
     }
 
@@ -127,10 +146,15 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     public var group: InputGroup {
         switch self {
         case .profileFacts: return .aboutYou
+        // A holiday is a dated entry like a substance or a dose — logged as it
+        // happens (or as it is booked), not a standing fact.
         case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect,
-             .screenTime:
+             .screenTime, .holiday:
             return .asItHappens
-        case .medicationRegimen, .bodyType, .bodyMeasurements: return .aboutYou
+        // Identity is entered once and changed rarely — the profile's shape,
+        // even though it is not a grounding fact.
+        case .medicationRegimen, .bodyType, .bodyMeasurements, .readerIdentity:
+            return .aboutYou
         case .bloodTestPhoto, .fileImport: return .bringItIn
         }
     }
@@ -147,7 +171,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
              .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
-             .bodyMeasurements:
+             .bodyMeasurements, .readerIdentity, .holiday:
             return nil
         }
     }
@@ -205,6 +229,24 @@ public extension InputKind {
         // the card is scoring on the weakest instrument it has. The 30-day
         // re-scan nudge is separate and comes from `BodyScanCadence`.
         case .bodyMeasurements: return .offeredAndPrompted
+        // On the Work impact card (`ContributionRoute.readerIdentity`), because
+        // identity is what decides whose OOO block a work day contains — the
+        // card whose numbers it moves is where the reader will wonder about it.
+        // Offered, never prompted: the classifier runs without it, an unnamed
+        // OOO is already never counted as work, and nagging someone to type
+        // their own name is how a prompt gets dismissed forever.
+        case .readerIdentity: return .offeredOnly
+        // Settings (and the `+` menu) only, for now — and the reason is a date,
+        // not a principle: **no shipped card reads the holiday ledger yet.**
+        // B7 H6 wires work impact, travel, stress and mental health to
+        // `daysSinceLastLeave`, each with a `modelVersion` bump, and the card
+        // offer belongs in that change — a card offering an input its model
+        // ignores would be claiming a sensitivity it does not have.
+        case .holiday:
+            return .settingsOnly("No shipped card reads the holiday ledger yet "
+                + "(B7 H6). Offering the log on a card whose score ignores it "
+                + "would claim a sensitivity the model does not have; the offer "
+                + "moves onto the cards in the same change that wires them.")
         }
     }
 

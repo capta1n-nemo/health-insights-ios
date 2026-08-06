@@ -220,6 +220,103 @@ struct SideEffectDataView: View {
     }
 }
 
+// MARK: - Holidays
+
+/// The reader's leave — the merged `HolidayLedger` (B7 H5), newest first.
+///
+/// The rows are ledger *periods*, not raw records: the merge is the whole
+/// point of the page, since neither source alone shows one deduplicated
+/// record. Each row says which source it came from, because "your calendar
+/// suggested this" and "you told me this" are different claims.
+///
+/// **Deleting is offered on entered periods only.** An entered period maps to
+/// rows the reader created and can sensibly remove; a detected one is the
+/// calendar's — the way to remove it is to correct the event's classification
+/// on the Work impact review list, and a delete here would silently reappear
+/// on the next sync, the trap `SymptomDataView` refuses for the same reason.
+struct HolidaysDataView: View {
+    @Environment(AppModel.self) private var model
+
+    private var periods: [HolidayLedger.Period] {
+        model.holidayLedger.periods.reversed()
+    }
+
+    var body: some View {
+        DomainDataScaffold(
+            title: DataDomain.holidays.title,
+            entriesHeader: "Leave",
+            entryCount: periods.count,
+            emptyHeadline: "No leave recorded yet",
+            emptyMessage: "Holidays found in your calendar and ones you enter from the + menu appear here as one record — knowing when you last had leave is a data point in its own right.",
+            emptySymbol: "beach.umbrella",
+            overview: {
+                Section {
+                    Text(standing)
+                        .font(.caption).foregroundStyle(.secondary)
+                } footer: {
+                    Text(DataDomain.holidays.summary)
+                }
+            },
+            rows: {
+                ForEach(periods) { period in
+                    row(period)
+                        .swipeActions {
+                            if period.source == .entered {
+                                Button("Delete", role: .destructive) {
+                                    delete(period)
+                                }
+                            }
+                        }
+                }
+            })
+    }
+
+    private var standing: String {
+        switch model.holidayLedger.daysSinceLastLeave(asOf: Date()) {
+        case 0: return "You are on leave now."
+        case .some(let days):
+            return "Your last leave ended \(days) \(days == 1 ? "day" : "days") ago."
+        case nil:
+            return "No leave taken yet — everything recorded is booked ahead."
+        }
+    }
+
+    private func row(_ period: HolidayLedger.Period) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(period.label ?? (period.source == .detected
+                                      ? "From your calendar" : "Leave"))
+                Text(rangeLabel(period))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                let days = period.dayCount()
+                Text("\(days) \(days == 1 ? "day" : "days")")
+                    .font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                Text(period.source == .detected ? "detected" : "entered")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func rangeLabel(_ period: HolidayLedger.Period) -> String {
+        let first = period.firstDay.formatted(date: .abbreviated, time: .omitted)
+        guard period.dayCount() > 1 else { return first }
+        return "\(first) – \(period.lastDay.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    /// Remove every entered record inside the swiped period. A merged period
+    /// can stand for several rows; deleting "that leave" means all of them, and
+    /// leaving one behind would look like the delete half-worked.
+    private func delete(_ period: HolidayLedger.Period) {
+        for entry in model.holidayEntries
+        where entry.firstDay <= period.lastDay && entry.lastDay >= period.firstDay {
+            model.deleteHoliday(entry)
+        }
+    }
+}
+
 /// Symptoms the reader has tagged, newest first.
 ///
 /// Read-only, unlike its neighbours, and deliberately: every one of these came

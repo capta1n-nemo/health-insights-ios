@@ -101,9 +101,9 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :331
-  - `TravelDrainModel` :181
-  - `WorkImpactInsight` :266
+  - `TravelDrainInsight` :346
+  - `TravelDrainModel` :184
+  - `WorkImpactInsight` :269
   - `WorkImpactModel` :21
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11
@@ -235,14 +235,14 @@ the place to look.
   - `WithingsResponseParser` :11
 - `Models/CalendarEvent.swift`
   - `CalendarEvent` :44
-  - `CalendarModel` :123
+  - `CalendarModel` :136
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :248
+  - `CalendarClassifierAccuracy` :270
   - `CalendarEventClassification` :35
-  - `CalendarEventJudgement` :206
+  - `CalendarEventJudgement` :228
 - `Models/CalendarEventClassifier.swift`
-  - `CalendarEventBucket` :218
-  - `CalendarEventClassifier` :30
+  - `CalendarEventBucket` :389
+  - `CalendarEventClassifier` :31
 - `Models/CycleLog.swift`
   - `Cycle` :98
   - `CycleDay` :81
@@ -257,6 +257,8 @@ the place to look.
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :106
   - `MetricSource` :5
+- `Models/HolidayLedger.swift`
+  - `HolidayLedger` :39
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
   - `BucketSize` :9
@@ -278,6 +280,8 @@ the place to look.
 - `Models/RawMetricSample.swift`
   - `RawMetricGroup` :61
   - `RawMetricSample` :15
+- `Models/ReaderIdentity.swift`
+  - `ReaderIdentity` :40
 - `Models/SampleCacheCodec.swift`
   - `SampleCacheCodec` :38
 - `Models/Sex.swift`
@@ -312,8 +316,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :227
-  - `InputGroup` :238
+  - `CardRequirement` :269
+  - `InputGroup` :280
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :63
@@ -529,19 +533,20 @@ the place to look.
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
   - `CalendarEventRecord` :227
-  - `CalendarJudgementRecord` :280
+  - `CalendarJudgementRecord` :327
   - `CycleDayRecord` :199
-  - `DoseLogRecord` :432
-  - `FeedbackRecord` :370
+  - `DoseLogRecord` :479
+  - `FeedbackRecord` :417
   - `GroundingRecord` :9
+  - `HolidayEntry` :295
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :400
-  - `PredictionOutcomeRecord` :337
-  - `SideEffectRecord` :464
+  - `MedicationRecord` :447
+  - `PredictionOutcomeRecord` :384
+  - `SideEffectRecord` :511
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :319
+  - `SuggestionDismissalRecord` :366
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -637,15 +642,16 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :836
+  - `OtherDataDetailView` :885
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
   - `DerivedScoreDataView` :125
+  - `HolidaysDataView` :237
   - `MedicationDataView` :59
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
-  - `SymptomDataView` :229
+  - `SymptomDataView` :326
 - `Features/Data/GeneratedInsightsDataView.swift`
   - `GeneratedCardDataView` :57
   - `GeneratedInsightsDataView` :11
@@ -665,20 +671,22 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :268
+  - `GroundingKindList` :277
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :166
+  - `GroundedSummary` :170
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `AddInputMenu` :148
-  - `BodyTypeSheet` :287
-  - `InputSheet` :206
-  - `PushedInSheet` :260
-  - `ScreenTimeEntrySheet` :366
-  - `SideEffectEntrySheet` :715
+  - `AddInputMenu` :159
+  - `BodyTypeSheet` :302
+  - `HolidayEntrySheet` :850
+  - `InputSheet` :217
+  - `PushedInSheet` :275
+  - `ReaderIdentitySheet` :729
+  - `ScreenTimeEntrySheet` :381
+  - `SideEffectEntrySheet` :909
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :182
@@ -730,8 +738,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :306
-  - `OtherDataListView` :319
+  - `FullExport` :313
+  - `OtherDataListView` :326
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :363
   - `IntegrationRow` :264

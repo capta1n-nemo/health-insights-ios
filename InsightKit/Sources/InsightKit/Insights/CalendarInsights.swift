@@ -84,7 +84,10 @@ public enum WorkImpactModel {
             guard weekday != 1 && weekday != 7 else { continue }
             let classification = byID[event.id] ?? CalendarEventClassifier.classify(event)
             // Only work counts. A dentist appointment is a commitment and it is
-            // not what this card is about.
+            // not what this card is about. An OOO-shaped block never reaches
+            // here whoever it belongs to (B7 H2): `.leave` buckets personal,
+            // `.absence` buckets other, and both carry zero `loadHours` — so an
+            // absence cannot inflate a working day even in a work calendar.
             guard CalendarEventBucket(classification) == .work else { continue }
             load[day, default: 0] += classification.loadHours
         }
@@ -279,6 +282,18 @@ public struct WorkImpactInsight: InsightModel {
     public var requirements: [GroundingRequirement] { [] }
     /// The calendar is construction state, not `samples`.
     public var readsOnlySamples: Bool { false }
+
+    /// Identity (B7 H1), because it decides whose OOO block a working day
+    /// contains — the input that most directly moves this card's load figures.
+    /// `.offeredOnly`, so it is findable here and never nagged for. Travel
+    /// drain deliberately does **not** offer it: that model reads time-zone
+    /// changes and no classifications, and a card offering an input its model
+    /// ignores would be claiming a sensitivity it does not have.
+    ///
+    /// ⚠️ H6 — this model reading the holiday *ledger* ("you have not had
+    /// leave in N months") is deliberately not wired yet; it changes the score
+    /// and needs a `modelVersion` bump, per the fitness-v2 precedent.
+    public var contributions: [ContributionRoute] { [.readerIdentity] }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {

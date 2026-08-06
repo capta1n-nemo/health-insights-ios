@@ -99,6 +99,12 @@ final class CalendarModelTests: XCTestCase {
     /// are where a calendar stops being a schedule and becomes a dossier. A
     /// video link is kept as a *boolean* for the same reason — "was it remote"
     /// is the question; the URL is not.
+    ///
+    /// `organizerIsReader` joined with B7 H2, and it is the boolean pattern
+    /// again, taken deliberately: the reader asked the app to be *"email aware,
+    /// and user aware"* so it can tell whose OOO block an event is, and the
+    /// answer to "did I organise this" is yes/no/unknown — the organiser's
+    /// *address* answers nothing further and stays banned below.
     func testTheEventStoresNoNotesAndNoAttendees() {
         let mirror = Mirror(reflecting: event(dayOffset: 0, startHour: 9, hours: 1))
         let fields = Set(mirror.children.compactMap(\.label))
@@ -108,6 +114,7 @@ final class CalendarModelTests: XCTestCase {
         }
         XCTAssertEqual(fields, ["id", "start", "end", "isAllDay",
                                 "timeZoneIdentifier", "calendarName", "kind",
-                                "title", "location", "hasVideoLink"])
+                                "title", "location", "hasVideoLink",
+                                "organizerIsReader"])
     }
 }

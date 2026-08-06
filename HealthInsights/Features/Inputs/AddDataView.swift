@@ -135,6 +135,17 @@ struct AddDataView: View {
         case .screenTime:
             let days = model.screenTimeDaysRecorded
             return days == 0 ? nil : "\(days) \(days == 1 ? "day" : "days")"
+        case .readerIdentity:
+            // The name if given, the email count otherwise — the reader's own
+            // device is the one place the name renders.
+            if let name = model.readerIdentity.name, !name.isEmpty { return name }
+            let emails = model.readerIdentity.allEmails.count
+            return emails == 0 ? nil : "\(emails) email\(emails == 1 ? "" : "s")"
+        case .holiday:
+            // Entered records only, matching `usedInputs` — this row is about
+            // what the reader has given, not what the calendar suggested.
+            let count = model.holidayEntries.count
+            return count == 0 ? nil : "\(count) recorded"
         }
     }
 }
@@ -239,6 +250,10 @@ private struct InputSheet: View {
             BodyTypeSheet()
         case .screenTime:
             ScreenTimeEntrySheet()
+        case .readerIdentity:
+            ReaderIdentitySheet()
+        case .holiday:
+            HolidayEntrySheet()
         }
     }
 
@@ -700,6 +715,185 @@ private extension ScreenTimeEntrySheet {
         pendingWeek = PendingWeek(weekStart: weekStart, totalMinutes: weekly.minutes,
                                   days: days, capturedAt: capturedAt)
         scanOutcome = nil
+    }
+}
+
+/// The reader's name and emails — `ReaderIdentity`, backlog B7 H1.
+///
+/// One sheet for the whole conversation: the name answers "is that OOO block
+/// about me", the emails answer "did I organise this", and they were asked for
+/// in one breath. Saving runs `AppModel.saveReaderIdentity`, which re-reads
+/// every OOO-shaped block already classified — so an "Annual leave" filed as
+/// ambiguous last week becomes the reader's leave the moment they say who they
+/// are.
+struct ReaderIdentitySheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name = ""
+    @State private var workEmails: [String] = []
+    @State private var personalEmails: [String] = []
+    @State private var newWorkEmail = ""
+    @State private var newPersonalEmail = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Your name", text: $name)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Name")
+                } footer: {
+                    Text("As it appears in your calendar — so \"\(name.isEmpty ? "Your Name" : name) on holiday – OOO\" reads as yours, and anyone else's block never counts as your meeting.")
+                }
+
+                emailSection(title: "Work emails", emails: $workEmails,
+                             draft: $newWorkEmail,
+                             footer: "The addresses meetings are organised from. Lets the app tell an event you organised from one you just attend.")
+                emailSection(title: "Personal emails", emails: $personalEmails,
+                             draft: $newPersonalEmail,
+                             footer: "Kept separate from work on purpose — which kind of address organised an event is itself context.")
+
+                Section {
+                    Text("Stays on this phone. It is read by the calendar classifier and by nothing else — it is never exported, and never leaves the device.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Name & emails")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        model.saveReaderIdentity(ReaderIdentity(
+                            name: trimmed.isEmpty ? nil : trimmed,
+                            workEmails: commit(workEmails, draft: newWorkEmail),
+                            personalEmails: commit(personalEmails, draft: newPersonalEmail)))
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                name = model.readerIdentity.name ?? ""
+                workEmails = model.readerIdentity.workEmails
+                personalEmails = model.readerIdentity.personalEmails
+            }
+        }
+    }
+
+    /// A typed-but-not-added address still saves — losing what is visible in
+    /// the field because "Add" wasn't tapped is a form of data loss the reader
+    /// cannot see happening.
+    private func commit(_ emails: [String], draft: String) -> [String] {
+        let extra = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (extra.isEmpty ? emails : emails + [extra])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    @ViewBuilder private func emailSection(title: String,
+                                           emails: Binding<[String]>,
+                                           draft: Binding<String>,
+                                           footer: String) -> some View {
+        Section {
+            ForEach(emails.wrappedValue.indices, id: \.self) { index in
+                HStack {
+                    Text(emails.wrappedValue[index])
+                    Spacer()
+                    Button {
+                        emails.wrappedValue.remove(at: index)
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove \(emails.wrappedValue[index])")
+                }
+            }
+            HStack {
+                TextField("Add an address", text: draft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.emailAddress)
+                Button {
+                    let trimmed = draft.wrappedValue
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+                    emails.wrappedValue.append(trimmed)
+                    draft.wrappedValue = ""
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .disabled(draft.wrappedValue
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } header: {
+            Text(title)
+        } footer: {
+            Text(footer)
+        }
+    }
+}
+
+/// One period of leave, entered by hand — backlog B7 H4.
+///
+/// Past or future, deliberately: *"I should also be able to input holidays
+/// that are planned manually"* — and planned leave is exactly the entry a
+/// calendar cannot yet show. Reviewing and deleting live on the Holidays data
+/// page; this sheet only adds, like every other entry sheet.
+struct HolidayEntrySheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var firstDay = Date()
+    @State private var lastDay = Date()
+    @State private var label = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("First day", selection: $firstDay,
+                               displayedComponents: .date)
+                    // Clamped from below so the pickers cannot describe a
+                    // negative holiday; the model normalises again anyway.
+                    DatePicker("Last day", selection: $lastDay,
+                               in: firstDay..., displayedComponents: .date)
+                    TextField("Label (optional) — e.g. Coast trip", text: $label)
+                } header: {
+                    Text("Leave")
+                } footer: {
+                    Text("Both days count — one day off is the same date twice. Future leave is welcome: booked time off is part of the record.")
+                }
+                Section {
+                    Text("Merged with any leave found in your calendar into one record, on the Data tab under Holidays — the same week never counts twice.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Holiday or leave")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        model.logHoliday(firstDay: firstDay, lastDay: lastDay,
+                                         label: label)
+                        dismiss()
+                    }
+                }
+            }
+            .onChange(of: firstDay) { _, newValue in
+                if lastDay < newValue { lastDay = newValue }
+            }
+        }
     }
 }
 
