@@ -429,6 +429,41 @@ EOF
     fi
 fi
 
+# --- The full export must pass every argument it has -----------------------
+#
+# Backlog D39: `DataExportView.buildFullExport()` shipped without passing
+# `cycles:`, so every logged bleeding day exported as `[]`. The key was present
+# and the data was not, which is worse than a missing key — nothing in the file
+# says anything was dropped.
+#
+# **No test in InsightKit can catch this and none ever will.** The gap is in the
+# caller: `HealthDataExport.init` defaults the argument, the app target has a
+# single native target with no test host, and `HealthDataExportTests` asserts on
+# the encoded payload of a bundle it built itself. So the check lives here.
+#
+# The reader's tenet, 2026-08-06: *"we need to build this into the export
+# mechanism, all the data points so when we combine it all at a server-level
+# later, we can build these baselines and norms and global trends."* The export
+# is the only route from a phone to a pool, so an argument silently defaulted is
+# a quantity that can never become a norm. See `docs/norms-and-telemetry.md`.
+#
+# A defaulted argument the caller genuinely should not pass would need its own
+# exemption; there is none today, and adding one should be argued for in the
+# initialiser's doc comment first.
+exportsrc=InsightKit/Sources/InsightKit/Text/HealthDataExport.swift
+exportcaller=HealthInsights/Features/Settings/DataExportView.swift
+if [ -f "$exportsrc" ] && [ -f "$exportcaller" ]; then
+    initblock=$(awk '/public init\(generatedAt:/,/\) \{/' "$exportsrc")
+    missing=""
+    for label in $(printf '%s' "$initblock" | grep -oE '[a-zA-Z]+:' | tr -d ':'); do
+        grep -q "$label:" "$exportcaller" || missing="$missing $label"
+    done
+    if [ -n "$missing" ]; then
+        note "HealthDataExport arguments the app never passes, so they export empty:$missing"
+        fail=1
+    fi
+fi
+
 # --- Every chart carries the substance shading -----------------------------
 #
 # The user's rule, 2026-08-03: *"make sure the stimulant impact shading is on

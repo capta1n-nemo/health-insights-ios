@@ -168,6 +168,45 @@ de-duplicated value against a windowed baseline, with freshness. Every insight
 does now; six used to hand-roll it and each got it wrong differently, which is
 what the type exists to stop happening again.
 
+## 4b. Say how it reaches the EXPORT, not only the Data tab
+
+**The reader's core tenet, 2026-08-06** — quoted because it changes what a new
+metric owes:
+
+> *"for things that have no research, we are going to do the research and find
+> the 'norms' ourselves… we need to build this into the export mechanism, all
+> the data points so when we combine it all at a server-level later, we can
+> build these baselines and norms and global trends."*
+
+For most of what this app measures and nearly all of what it derives, **no
+published norm exists**, and the app is being built to measure one. The export
+is the only route from a phone to a server-side pool, so **a quantity missing
+from the export is a quantity that can never become a norm.**
+
+A `MetricType` gets there for free — it is a `HealthMetricSample` and rides the
+`samples` key — so for this skill the rule is a check, not a chore:
+
+- [ ] The metric's readings are canonical `HealthMetricSample`s. If they are
+      *not* (a paired reading, a period, a shape), it needs a `DataDomain` and
+      its own export key — load `add-data-or-input` instead.
+- [ ] **"It is recomputable" is never a reason to leave something out.**
+      Recomputability is a property of the device that still holds the raw data;
+      a pool has the file and nothing else. That argument was used once, to keep
+      derived series out of the export, and was reversed the same day — the
+      superseded reasoning is kept in `HealthDataExport.exportKey(for:)`.
+- [ ] If the metric will be *derived* rather than measured, it is a
+      `DerivedSeriesID`, not a `MetricType` — see `DerivedSeries.swift` for why
+      — and it exports under `generatedInsights` automatically.
+
+Two checks hold this and neither depends on memory: `HealthDataExportTests
+.testEveryDataDomainsKeyIsPopulatedOnAFullyPopulatedExport`, and a
+`verify.sh` rule that fails when `DataExportView.buildFullExport()` omits any
+`HealthDataExport.init` argument. Background: `docs/norms-and-telemetry.md`.
+
+⚠️ **This is about the personal export only.** The coarsened, cohort-stratified
+thing a pool would receive is `NormContribution`, it is summaries and never
+dated series, and **nothing in this build sends anything.**
+
 ## 5. Tests that will move
 
 - `MetricExplainerTests` — runs over `MetricType.allCases`, so a thin or

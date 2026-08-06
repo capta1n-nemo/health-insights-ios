@@ -507,3 +507,38 @@ Resting Heart Rate page cross-device defect · Body Composition after the hatch 
    thirty-six metrics used to return `nil` on the argument that explaining a
    step is condescension; the superseded reasoning is kept in that function's
    doc comment. See `docs/data-conventions.md` §4.
+11. ⚠️ **Every quantity the app holds or derives reaches the export** (2026-08-06)
+    — *"for things that have no research, we are going to do the research and
+    find the 'norms' ourselves… we need to build this into the export mechanism,
+    all the data points so when we combine it all at a server-level later, we can
+    build these baselines and norms and global trends."*
+
+    For most of what this app derives **no published norm exists**, and the app
+    is being built to measure one. The export is the only route from a phone to
+    a server-side pool, so **a quantity missing from the export is a quantity
+    that can never become a norm.** The standing question changes from *"is
+    there a published norm for this?"* to **"is this recorded in a form that
+    could become one?"**
+
+    **"It is recomputable" is not an exemption.** Recomputability is a property
+    of the device that still holds the raw data. That argument kept derived
+    series out of the export and was reversed the same day; the superseded
+    reasoning is kept in `HealthDataExport.exportKey(for: .generatedInsights)`.
+    This is the export half of the derived-series rule above: that one makes a
+    card's figures into data sources on the phone, this one gets them off it.
+
+    Enforced, not remembered — and in two places, because a key can exist and
+    be empty (that was D39):
+    `HealthDataExportTests.testEveryDataDomainsKeyIsPopulatedOnAFullyPopulatedExport`
+    decodes the payload and fails an empty key; `scripts/verify.sh` reads the
+    parameter labels off `HealthDataExport.init` and fails when
+    `DataExportView.buildFullExport()` does not pass one. Both skills
+    (`add-metric-type`, `add-data-or-input`) now ask for the export, not only
+    the Data tab.
+
+    ⚠️ **Unchanged by this: the app still never shows a norm it does not have.**
+    Collecting toward a future norm is not permission to invent a present one.
+    And **nothing is sent in this build** — `NormContribution` is the shape a
+    pool would receive (cohort, week bucket, summaries, no free text, no dated
+    series) and there is no transport for it anywhere. See
+    `docs/norms-and-telemetry.md`.
