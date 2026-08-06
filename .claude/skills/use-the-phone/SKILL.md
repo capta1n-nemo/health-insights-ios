@@ -64,6 +64,18 @@ a swipe. Synthetic drags appear not to be interpreted as swipes here. Use
 several scrolls, a `wait`, and a final `screenshot` is the normal unit of work;
 one action per call turns a two-minute check into twenty.
 
+⚠️ **The session ends the moment the reader touches the phone** —
+*"iPhone Mirroring ended due to iPhone use. Lock your iPhone to connect."*
+There is a **Connect** button in the window, but it only works once the phone
+is locked again. So:
+
+- Do the looking in **one uninterrupted run**, and say what you still need to
+  see before the reader picks the phone up.
+- If a verification is half done, say so plainly rather than reporting the
+  half you got. A deploy that says `installed` is not a UI that has been seen.
+- After a drop, `screenshot` returns the "iPhone in Use" panel rather than an
+  error — **check for it before believing anything you read on a stale frame.**
+
 ## What the phone can settle that nothing else can
 
 Everything in this list was unverifiable before, and several were open questions
