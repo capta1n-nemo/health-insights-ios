@@ -85,18 +85,29 @@ final class CalendarModelTests: XCTestCase {
         XCTAssertEqual(busiest.hours, 7, accuracy: 0.001)
     }
 
-    /// ⚠️ **The privacy shape is part of the type, not a convention.** A calendar
-    /// names people, addresses and appointments; this repo is public. If a title
-    /// or a location ever needs to be stored that is a deliberate decision, and
-    /// this test is where somebody will notice they are taking it.
-    func testTheEventCarriesNoContentBeyondItsShape() {
+    /// ⚠️ **The privacy shape is part of the type, not a convention** — and this
+    /// test now guards a *different* rule from the one it was written for.
+    ///
+    /// It originally asserted the type carried no title and no location, so that
+    /// widening it would be a decision somebody took rather than a struct
+    /// drifting. **The decision was taken, by the reader, hours later**: they
+    /// asked for the events to be read and classified. So the content is here.
+    ///
+    /// What survives is the part that always mattered: **notes and attendees are
+    /// still not stored.** None of the six judgements the reader asked for needs
+    /// the body of an event or the list of people in it, and those two fields
+    /// are where a calendar stops being a schedule and becomes a dossier. A
+    /// video link is kept as a *boolean* for the same reason — "was it remote"
+    /// is the question; the URL is not.
+    func testTheEventStoresNoNotesAndNoAttendees() {
         let mirror = Mirror(reflecting: event(dayOffset: 0, startHour: 9, hours: 1))
         let fields = Set(mirror.children.compactMap(\.label))
-        for banned in ["title", "notes", "location", "attendees", "url", "organizer"] {
+        for banned in ["notes", "attendees", "organizer", "url", "body", "description"] {
             XCTAssertFalse(fields.contains(banned),
                            "CalendarEvent grew a \(banned) field — that is a privacy decision, not a refactor")
         }
         XCTAssertEqual(fields, ["id", "start", "end", "isAllDay",
-                                "timeZoneIdentifier", "calendarName", "kind"])
+                                "timeZoneIdentifier", "calendarName", "kind",
+                                "title", "location", "hasVideoLink"])
     }
 }

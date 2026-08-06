@@ -21,12 +21,17 @@ import InsightKit
 /// metadata at all — so a calendar event's own time zone is the cleanest signal
 /// of a flight available without asking for location.
 ///
-/// ## ⚠️ What it deliberately does not read
+/// ## ⚠️ What it reads, and what it refuses to keep
 ///
-/// **No titles, no notes, no attendees, no locations.** See `CalendarEvent` for
-/// the argument; the short version is that a calendar names people, addresses
-/// and appointments, this repo is public, and the two cards that motivated the
-/// integration need *when* and *where in the world*, not *what*.
+/// It reads titles and locations, because the reader asked for the events to be
+/// classified (2026-08-06) and six of their six questions need the words. See
+/// `CalendarEvent` for the reversal and its reasoning.
+///
+/// **Notes and attendees are read once, here, and never stored.** The only thing
+/// taken from them is a boolean — was a video-conference link attached — because
+/// that is the question ("did it include a remote meeting link") and the URL
+/// answers nothing further. This function is the only place in the app where an
+/// event's notes exist at all, and they do not outlive the loop.
 ///
 /// The reader picks which calendars to include and that choice is persisted, so
 /// "sync my work calendar and not my family one" is one tap rather than an
@@ -156,6 +161,18 @@ final class CalendarIntegration: HealthIntegration {
         return SyncedData()
     }
 
+    /// The video-conference hosts worth recognising. A list rather than "is a
+    /// URL", because a link to an agenda is not a way of attending.
+    private static let videoHosts = [
+        "zoom.us", "teams.microsoft", "teams.live", "meet.google", "webex",
+        "whereby.com", "gotomeeting", "bluejeans", "chime.aws", "facetime",
+    ]
+
+    private static func mentionsVideoCall(_ text: String?) -> Bool {
+        guard let text = text?.lowercased(), !text.isEmpty else { return false }
+        return videoHosts.contains { text.contains($0) }
+    }
+
     /// The events themselves, for whatever stores them.
     func fetchEvents(now: Date = Date()) throws -> [CalendarEvent] {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
@@ -183,7 +200,17 @@ final class CalendarIntegration: HealthIntegration {
                 isAllDay: event.isAllDay,
                 timeZoneIdentifier: event.timeZone?.identifier,
                 calendarName: event.calendar.title,
-                kind: isMultiDay ? .multiDay : (event.isAllDay ? .allDay : .timed))
+                kind: isMultiDay ? .multiDay : (event.isAllDay ? .allDay : .timed),
+                title: event.title ?? "",
+                location: event.location,
+                // ⚠️ **The link is detected and not kept.** "Did it include a
+                // remote meeting link" is the question the reader asked; the URL
+                // itself answers nothing further and is one more identifying
+                // string to hold. Notes are read here and never stored, for the
+                // same reason — this is the only place they are touched.
+                hasVideoLink: Self.mentionsVideoCall(event.location)
+                    || Self.mentionsVideoCall(event.url?.absoluteString)
+                    || Self.mentionsVideoCall(event.notes))
         }
     }
 }

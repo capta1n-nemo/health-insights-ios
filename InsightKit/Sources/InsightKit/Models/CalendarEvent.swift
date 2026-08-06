@@ -15,18 +15,32 @@ import Foundation
 /// device, so the app target does the fetching and hands over these — the same
 /// division `HealthMetricSample` already draws against HealthKit.
 ///
-/// ## ⚠️ What is deliberately not stored
+/// ## ⚠️ It reads the event's content, and that reverses an earlier decision
 ///
-/// **No title, no notes, no attendees, no location.** A calendar is the most
-/// revealing thing on a phone — it names people, addresses, appointments and
-/// diagnoses — and this repo is public. What the two cards that motivated it
-/// actually need is *when the reader was busy, where in the world they were, and
-/// how the day was shaped*. None of that requires knowing what the meeting was
-/// called.
+/// The first version of this type stored **no title, no location and no notes**,
+/// on the grounds that a calendar names people, addresses and appointments,
+/// this repo is public, and the two cards it was built for needed only *when*
+/// and *where in the world*. A test asserted the absence, precisely so that
+/// widening it would have to be a decision somebody took rather than a struct
+/// drifting.
 ///
-/// So this carries times, a coarse `kind`, and the event's own time zone. If a
-/// future card genuinely needs a title, that is a decision to take deliberately
-/// and to write down — not something to widen this struct into by habit.
+/// **That decision was taken, by the reader, hours later** (2026-08-06): *"I
+/// want it to use AI to read the meetings and their content, and actually rank
+/// each calendar item."* So the content is read — and the rule that actually
+/// mattered is unchanged and now stated where it belongs:
+///
+/// 1. **Content is read on the device and never leaves it.** Classification runs
+///    against Apple's on-device model; there is no network path.
+/// 2. **A title, a location or a note must never reach a doc, a commit message,
+///    a test fixture, a log line or an export.** `docs/privacy-and-ip.md`'s rule
+///    is the shape of a finding, never the reading — and an event title is the
+///    most identifying string this app will ever hold.
+/// 3. **Notes are still not stored.** The reader asked for six specific
+///    judgements and none of them needs the body of an event; a *derived
+///    boolean* — `hasVideoLink` — carries what "did it include a remote meeting
+///    link" actually asks, without keeping the link.
+///
+/// The test that guarded the old rule now guards this one.
 public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codable {
     /// A stable identifier from the calendar store, so re-syncing updates rather
     /// than duplicates.
@@ -44,9 +58,22 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     public let timeZoneIdentifier: String?
     /// Which of the reader's calendars it came from — the *calendar's* name, not
     /// the event's. "Work", "Family", "Travel" is exactly the axis the work-impact
-    /// card needs and carries none of the event's own content.
+    /// card needs, and it remains the single strongest signal for work-versus-
+    /// personal even now that the title is available.
     public let calendarName: String
     public let kind: Kind
+
+    // MARK: Content — read on device, never exported. See the type's own note.
+
+    /// The event's title.
+    public let title: String
+    /// Where it said to be, when it said anywhere. **The presence signal**: an
+    /// event with a place is one the reader had to physically attend.
+    public let location: String?
+    /// Whether a video-conference link was attached — derived in the app target
+    /// from the location, URL and notes, so the *fact* of a link is kept and the
+    /// link itself is not.
+    public let hasVideoLink: Bool
 
     /// A coarse shape, decided by the app rather than by the event's words.
     public enum Kind: String, Sendable, Codable, CaseIterable {
@@ -67,7 +94,9 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     }
 
     public init(id: String, start: Date, end: Date, isAllDay: Bool,
-                timeZoneIdentifier: String?, calendarName: String, kind: Kind) {
+                timeZoneIdentifier: String?, calendarName: String, kind: Kind,
+                title: String = "", location: String? = nil,
+                hasVideoLink: Bool = false) {
         self.id = id
         self.start = start
         self.end = end
@@ -75,6 +104,9 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
         self.timeZoneIdentifier = timeZoneIdentifier
         self.calendarName = calendarName
         self.kind = kind
+        self.title = title
+        self.location = location
+        self.hasVideoLink = hasVideoLink
     }
 
     public var durationHours: Double {

@@ -278,6 +278,45 @@ shipping them honest rather than reckless.
 
 ---
 
+## B6 — The calendar brief (reader, 2026-08-06)
+
+**A whole feature in one message, and it is bigger than the integration it
+extends.** Recorded in full because it is the specification:
+
+> *"When we import the calendar data, I want it to use AI to read the meetings
+> and their content, and actually rank each calendar item on: was this work or
+> personal? Was this actually a meeting, or just something like a reminder? Did
+> it have a location (meaning I had to be somewhere), or did it include a remote
+> meeting link? How long was the meeting? Was it a marathon workshop? Was it
+> travel? … The sentiment of the meeting — is it a chill catchup or a formal
+> meeting with a client?*
+>
+> *And to see this, I want a section in both cards that shows the list of items
+> from your calendar, and the relevant details for each item, with an
+> opportunity to correct them or confirm, which the model can learn from … These
+> will then go into the overall score of the card.*
+>
+> *And uniquely, this will become a new data source, like Work Events, Personal
+> Events, Travel Events."*
+
+| # | Piece | State |
+|---|---|---|
+| C1 ✅ | **The six axes as a typed model** — `CalendarEventClassification`, with `Decider` per axis (fact / rules / model / reader) | Shipped |
+| C2 ✅ | **The deterministic classifier** — `CalendarEventClassifier`, 23 tests. Answers duration, presence, travel, reminder-vs-meeting exactly; leaves work-vs-personal on an ambiguous title, and sentiment, for the model | Shipped |
+| C3 ✅ | **`loadHours`** — an hour of formal client meeting in a room is not an hour of blocked focus time, and a reminder costs nothing. This is what a card's score reads | Shipped |
+| C4 ✅ | **The learning loop's data shape** — `CalendarEventJudgement` keeps the guess and the reader's correction **apart**, so accuracy is measurable and re-classifying cannot overwrite the reader. `CalendarClassifierAccuracy` refuses a figure below 10 reviews | Shipped |
+| C5 ✅ | **The buckets** — `CalendarEventBucket`: Work / Personal / Travel / Other, derived not stored, travel outranking the calendar it was booked in | Shipped |
+| C6 ⬜ | **The on-device model call.** `FoundationModelSummarizer` shows the pattern (`SystemLanguageModel.availability`, `LanguageModelSession`, graceful fallback). It may only move **context** and **formality** — `CalendarEventClassifier.refined` enforces that and is tested. ⚠️ Prompt must never leave the device | **Next** |
+| C7 ⬜ | **Persisting events and judgements.** Nothing survives a launch today. A `@Model` per event and per judgement, registered in `DataStore`'s schema (an unregistered `@Model` silently never persists) | **Next, and C6 is useless without it** |
+| C8 ⬜ | **The review section, in both cards** — the list with its details and confirm/correct controls | Blocked on C7 |
+| C9 ⬜ | **The buckets as `DataDomain` cases** — Work Events, Personal Events, Travel Events in the Data tab | Blocked on C7 |
+| C10 ⬜ | **Travel drain (#15) and work impact (#16) themselves** | Blocked on C7 |
+
+⚠️ **C7 is the keystone.** Every remaining row is blocked on it, and it is the
+cheapest of them.
+
+---
+
 ## C. Sections requested
 
 | # | Section | Where | Note |

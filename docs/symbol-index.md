@@ -214,8 +214,15 @@ the place to look.
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
 - `Models/CalendarEvent.swift`
-  - `CalendarEvent` :30
-  - `CalendarModel` :91
+  - `CalendarEvent` :44
+  - `CalendarModel` :123
+- `Models/CalendarEventClassification.swift`
+  - `CalendarClassifierAccuracy` :248
+  - `CalendarEventClassification` :35
+  - `CalendarEventJudgement` :206
+- `Models/CalendarEventClassifier.swift`
+  - `CalendarEventBucket` :218
+  - `CalendarEventClassifier` :30
 - `Models/CycleLog.swift`
   - `Cycle` :98
   - `CycleDay` :81
@@ -452,7 +459,7 @@ the place to look.
 - `Core/Integrations/AppleHealthProvider.swift`
   - `AppleHealthProvider` :7
 - `Core/Integrations/CalendarIntegration.swift`
-  - `CalendarIntegration` :35
+  - `CalendarIntegration` :40
 - `Core/Integrations/CredentialValidator.swift`
   - `CredentialValidator` :20
 - `Core/Integrations/HealthDataAppIntents.swift`
