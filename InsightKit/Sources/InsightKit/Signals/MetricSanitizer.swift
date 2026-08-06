@@ -68,6 +68,10 @@ public extension MetricType {
              // Zero is the *good* value for both of these: no time in atrial
              // fibrillation, and a perfectly symmetric gait.
              .atrialFibrillationBurden, .walkingAsymmetry,
+             // And for this one: a night whose breathing never wavered reads
+             // zero, and dropping it would hide exactly the calm nights the
+             // trend needs for contrast.
+             .breathingDisturbanceIndex,
              // Zero is the honest reading before the first dose and long after
              // the last — dropping it would make the curve start mid-air.
              .activeMedicationLevel:
@@ -160,6 +164,11 @@ public extension MetricType {
         case .vo2Max: return 5...100
         case .vascularAge: return 10...120
         case .dayStrain: return 0...21          // Whoop's own scale
+        // A proprietary index with no published ceiling (107 nights on the
+        // reader's export, 2026-08-06, all comfortably inside this). The bound
+        // rejects a value that arrived as something else entirely — a
+        // percentage of the night, a count of minutes — never a bad night.
+        case .breathingDisturbanceIndex: return 0...100
         // Generous: the highest rung of any GLP-1 ladder here is 15 mg, and a
         // weekly injectable accumulates to several times a single dose before
         // it plateaus. 200 mg is not reachable by any regimen this app models,

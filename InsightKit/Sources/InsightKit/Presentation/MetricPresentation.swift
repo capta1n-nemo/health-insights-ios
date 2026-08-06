@@ -77,7 +77,14 @@ public extension MetricType {
              .atrialFibrillationBurden: return .cardiac
         case .heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
              .heartRateRecovery: return .autonomic
-        case .respiratoryRate, .oxygenSaturation: return .respiratory
+        // The disturbance index is `.respiratory` rather than `.sleep`,
+        // deliberately: it measures the night's *breathing*, off the same
+        // overnight sensing as SpO₂. Filed under `.sleep` the pattern finder
+        // would suppress "on nights breathing is disturbed, sleep efficiency
+        // drops" as a tautology — and that cross-system relationship is
+        // exactly what trending the index is for.
+        case .respiratoryRate, .oxygenSaturation,
+             .breathingDisturbanceIndex: return .respiratory
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return .thermal
         case .bloodPressureSystolic, .bloodPressureDiastolic, .vascularAge,
              .peripheralPerfusionIndex: return .circulatory
@@ -256,6 +263,11 @@ public extension MetricType {
         case .distanceWalkingRunning: return 71
         case .flightsClimbed: return 72
         case .physicalEffort: return 73
+        // Appended, like every case since 30, after re-reading the max above
+        // rather than trusting a plan (the scouting pass said 70; three
+        // features appended since). Its usual chart is the Sleep card's own
+        // nested section, where it draws alone, so the tail costs nothing.
+        case .breathingDisturbanceIndex: return 74
         }
     }
 
@@ -331,6 +343,10 @@ public extension MetricType {
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
+             // One index per night, varying inside a personal band — the same
+             // shape as every other nightly figure here. Never a total:
+             // disturbance indices added across a month mean nothing.
+             .breathingDisturbanceIndex,
              .bloodGlucose, .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .heartRateRecovery, .walkingSteadiness, .walkingAsymmetry,
              // A day's walking is many bouts, so the day has a spread and not
@@ -405,6 +421,9 @@ public extension MetricType {
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
+             // One figure a night, so two nights apart is a gap like any
+             // other nightly series.
+             .breathingDisturbanceIndex,
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
@@ -536,6 +555,18 @@ public extension MetricType {
             // band in minutes would tell a short sleeper their perfectly normal
             // proportions are abnormal. `SleepQualityInsight` scores the share
             // instead, which is the form the evidence is in.
+            return nil
+
+        case .breathingDisturbanceIndex:
+            // No band, and here the missing band is the safety line. Oura
+            // publishes no clinical scale for its index, and the thresholds
+            // that do exist (AHI 5/15/30 events per hour) grade a sleep
+            // study's apnoea–hypopnoea index — a different quantity from a
+            // ring's proprietary composite. A band drawn here would be read
+            // as an apnoea screen, which is a diagnostic claim and
+            // FDA-clearance territory this chart must not enter. Trending
+            // the index against the reader's own nights is fine; asserting
+            // what a level means is not (backlog #30).
             return nil
 
         case .sleepLatencyMinutes:

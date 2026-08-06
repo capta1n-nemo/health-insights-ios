@@ -135,6 +135,10 @@ public enum MetricExplainer {
             return MetricExplanation(
                 whatItIs: "How many breaths you take a minute while asleep.",
                 soWhat: "It is remarkably stable night to night, which is exactly why a change matters. It is one of the earliest signals that something is brewing — often before a temperature moves.")
+        case .breathingDisturbanceIndex:
+            return MetricExplanation(
+                whatItIs: "How uneven your breathing was while you slept — an index your ring builds overnight from dips in blood oxygen and the movement that goes with interrupted breaths. Higher means a more disturbed night's breathing.",
+                soWhat: "Breathing that fragments during sleep undermines a night before it shortens it. This is an index on the maker's own scale, not an apnoea test — it cannot diagnose one, and no published threshold says what any given level means. What it can do honestly is trend: your own nights against your own nights, so a sustained change is visible and, if it persists, is something to raise with a clinician — the only place that question can actually be answered.")
         case .skinTemperature, .skinTemperatureDeviation, .bodyTemperature:
             return MetricExplanation(
                 whatItIs: "How warm you are overnight. Wearables usually report the change from your own normal rather than an absolute figure, because wrist and finger temperature depend heavily on the room.",

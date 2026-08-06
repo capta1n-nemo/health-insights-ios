@@ -60,6 +60,10 @@ public extension MetricType {
             return .body
         case .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
+             // With the night it describes, not under Heart & circulation
+             // beside respiratory rate: a reader looking for how their
+             // breathing was overnight looks where the night's data lives.
+             .breathingDisturbanceIndex,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
              .dayStrain:
             return .sleepRecovery

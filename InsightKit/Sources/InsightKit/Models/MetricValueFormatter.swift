@@ -20,7 +20,12 @@ public enum MetricValueFormatter {
         case .bodyMass, .leanBodyMass, .muscleMass, .boneMass,
              .sleepDurationHours, .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
-             .dayStrain:
+             .dayStrain,
+             // One decimal like strain, and for the effort-intensity reason:
+             // most nights sit in single digits, so the `default:` integer
+             // would render a recent-range read-out like "3–3" out of nights
+             // that genuinely differ.
+             .breathingDisturbanceIndex:
             return String(format: "%.1f", value)
         // Only these two carry their own "%" — matching what callers already
         // expect, so nothing starts rendering "97% %".

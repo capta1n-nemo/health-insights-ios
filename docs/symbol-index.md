@@ -330,7 +330,7 @@ the place to look.
   - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :763
+  - `MetricPalette` :794
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88

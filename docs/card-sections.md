@@ -237,6 +237,17 @@ totals (`OuraResponseParser.isMorningReSleep`), afternoon and evening naps and
 untimed rest records stay excluded, and a re-sleep still never provides the
 night's bedtime or latency.
 
+**Sleep's night card carries three nested deep-dives** — "Your fortnight"
+(5f), "How fast you fall asleep" (5n), and, since 2026-08-06, **"Breathing
+during sleep"** (5o): Oura's nightly breathing-disturbance index promoted from
+the raw catalogue (backlog #30/S9), drawn with the shared `MultiSourceChart`
+against the reader's own recent range and reported by the model as a weight-0
+contribution — trended, never scored, and its caveat says outright that it is
+not an apnoea test. The onset and breathing deep-dives are their own
+`@ViewBuilder` members rather than more lines in `sleepNightCard`, because
+`card-map.sh` reads titles from a 4,000-character window per member and fails
+open past it (activeContext finding 3).
+
 It was five until 2026-08-01. Heart Health and Readiness had their centile strip
 and their departure panel nested under "How this is weighted", which was their
 bespoke section — and when that section went universal *and closed by default*,
@@ -587,6 +598,7 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
 | 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
 | 5n | How fast you fall asleep | Sleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| 5o | Breathing during sleep | Sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
 | 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
@@ -700,7 +712,7 @@ raw `Chart {}` that does none of the three. See the `add-chart` skill ▸ 9a.
 | `ScoreHistoryChart` | ● | ● | ● shared | ● `window(spanning:)` |
 | `MetricOverlayChart` | ● | ● | ● shared | ● |
 | `BloodPressureChart` | ● | ● | ● shared | ● takes `timeframe` |
-| `MultiSourceChart` (metric detail) | ● | ● | ● shared | ● |
+| `MultiSourceChart` (metric detail + Sleep's breathing section) | ● | ● | ● shared | ● |
 | `ScoreComparisonChart` (Insights list) | ● | ● | ● shared | — no picker on that screen |
 | `AgeHistoryChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
 | `SubstanceLoadChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
