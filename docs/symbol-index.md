@@ -467,7 +467,7 @@ the place to look.
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
-  - `DiagnosticsLog` :18
+  - `DiagnosticsLog` :21
 - `Core/Documents/DocumentScanService.swift`
   - `DocumentScanService` :18
   - `ScreenTimeWeekScan` :89
@@ -637,7 +637,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :836
+  - `OtherDataDetailView` :835
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`

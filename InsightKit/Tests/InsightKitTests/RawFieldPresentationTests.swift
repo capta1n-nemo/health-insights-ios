@@ -231,4 +231,88 @@ final class RawFieldPresentationTests: XCTestCase {
             XCTAssertFalse(RawFieldPresentation.isRecordingDetail(identifier), identifier)
         }
     }
+
+    // MARK: - Metadata never renders as a reading (D27)
+
+    /// ⚠️ **Naming a recording detail was only half the fix.** On screen the
+    /// rows still read "How it was measured — 0", "Device model ID — 16",
+    /// "Measurement categ… — 1" — each a code dressed as a measurement, with a
+    /// trend chevron. A code either decodes to words or the row prints nothing.
+    func testARecordingDetailCodeDecodesToWordsOrStaysSilent() {
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(0, unit: "", identifier: "withings.measure.attrib"),
+            "Measured by the device")
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(2, unit: "", identifier: "withings.measure.attrib"),
+            "Entered by hand")
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(1, unit: "", identifier: "withings.measure.category"),
+            "A measurement")
+        // An opaque identifier has no words, so it prints nothing at all —
+        // "Device model ID — 16" is noise shaped like a reading.
+        XCTAssertNil(RawFieldPresentation.rowValue(16, unit: "", identifier: "withings.measure.modelid"))
+        XCTAssertNil(RawFieldPresentation.rowValue(3, unit: "", identifier: "oura.sleep.type"))
+        // And an unobserved code is not guessed at — same rule as `unit(_:)`.
+        XCTAssertNil(RawFieldPresentation.rowValue(7, unit: "", identifier: "withings.measure.attrib"))
+    }
+
+    /// An actual measurement keeps the unit-and-precision path — the new door
+    /// must not change what walks through the old one.
+    func testAnOrdinaryMeasurementStillRendersThroughRowValue() {
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(35.89, unit: "degC",
+                                          identifier: "HKQuantityTypeIdentifierBasalBodyTemperature"),
+            "35.9 °C")
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(70, unit: "count",
+                                          identifier: "oura.daily_readiness.score"),
+            "70")
+    }
+
+    // MARK: - Oura stress & resilience (D28)
+
+    /// ⚠️ **`stress_high` is SECONDS of the day in that state.** The row
+    /// printed the raw four-digit figure — hours of the day dressed as a
+    /// count, beside neighbours whose numbers are readings.
+    func testStressDurationsRenderAsTimeNotSeconds() {
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(9900, unit: "", identifier: "oura.daily_stress.stress_high"),
+            "2h 45m")
+        XCTAssertEqual(
+            RawFieldPresentation.rowValue(1800, unit: "", identifier: "oura.daily_stress.recovery_high"),
+            "30m")
+    }
+
+    /// A state word reads as a word; the hypnogram summary still works through
+    /// the same door; an unfamiliar string passes through verbatim.
+    func testStateWordsReadAsWordsAndEverythingElseIsUntouched() {
+        XCTAssertEqual(
+            RawFieldPresentation.rowText("normal", identifier: "oura.daily_stress.day_summary"),
+            "Normal")
+        XCTAssertEqual(
+            RawFieldPresentation.rowText("solid", identifier: "oura.daily_resilience.level"),
+            "Solid")
+        XCTAssertEqual(
+            RawFieldPresentation.rowText("3311111111111", identifier: "oura.sleep.hypnogram"),
+            "13 values")
+        XCTAssertEqual(
+            RawFieldPresentation.rowText("Body Smart", identifier: "withings.measure.model"),
+            "Body Smart")
+    }
+
+    /// The stress fields carry names, not leaf fragments — "Stress high" names
+    /// nothing — and like the named Withings measures they survive list-wide
+    /// collision resolution intact.
+    func testStressFieldsCarryNames() {
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "oura.daily_stress.stress_high"),
+                       "Time stressed")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "oura.daily_stress.recovery_high"),
+                       "Time restored")
+        XCTAssertEqual(RawFieldPresentation.title(forPath: "oura.daily_resilience.level"),
+                       "Resilience level")
+        let titles = RawFieldPresentation.titles(for: ["oura.daily_stress.stress_high",
+                                                       "oura.daily_stress.day_summary"])
+        XCTAssertEqual(titles["oura.daily_stress.stress_high"], "Time stressed")
+        XCTAssertEqual(titles["oura.daily_stress.day_summary"], "Day summary")
+    }
 }

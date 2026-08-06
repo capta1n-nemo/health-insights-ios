@@ -142,6 +142,73 @@ public enum RawFieldPresentation {
         return recordingDetailLeaves.contains(String(leaf).lowercased())
     }
 
+    /// What an integer-coded recording detail's value **means** — or nil, in
+    /// which case the row prints nothing at all.
+    ///
+    /// ⚠️ Naming these fields was only half the fix, and the half that shipped:
+    /// on screen the rows still read **"How it was measured — 0", "Device model
+    /// ID — 16", "Measurement categ… — 1"** — metadata dressed as readings,
+    /// each with a trend chevron. A code either decodes to words a reader can
+    /// use, or it does not print; there is no honest way to show "16" as a
+    /// measurement. Decodings observed against the reader's own record (attrib
+    /// is 0 or 2, category is always 1 — see `recordingDetailNames`); an
+    /// unobserved code returns nil rather than a guess, the same rule
+    /// `unit(_:)` follows.
+    static let recordingDetailCodeWords: [String: [Int: String]] = [
+        "attrib": [0: "Measured by the device", 2: "Entered by hand"],
+        "category": [1: "A measurement"],
+    ]
+
+    public static func recordingDetailValueText(_ identifier: String, value: Double) -> String? {
+        guard let leaf = identifier.split(separator: ".").last,
+              let words = recordingDetailCodeWords[String(leaf).lowercased()],
+              let code = Int(exactly: value)
+        else { return nil }
+        return words[code]
+    }
+
+    // MARK: - Oura stress & resilience (backlog N1's raw material)
+
+    /// Names for the Oura stress and resilience fields, keyed by full path.
+    ///
+    /// Leaf-led titling makes half-names of these: "Stress high" is not a name,
+    /// and "Day summary" under a section that never says *stress* names the
+    /// wrong thing. The two durations use Oura's own vocabulary — its app calls
+    /// them time "stressed" and "restored" — because these are its numbers,
+    /// relayed rather than re-derived.
+    static let ouraStressNames: [String: String] = [
+        "oura.daily_stress.day_summary": "Day summary",
+        "oura.daily_stress.stress_high": "Time stressed",
+        "oura.daily_stress.recovery_high": "Time restored",
+        "oura.daily_resilience.level": "Resilience level",
+    ]
+
+    /// Fields whose value is a number of **seconds** of the day spent in a
+    /// state. A raw figure in the thousands rendered verbatim — hours of the
+    /// day dressed as a count, in a list where every neighbouring number is a
+    /// reading a person can use.
+    static let secondsOfDayIdentifiers: Set<String> = [
+        "oura.daily_stress.stress_high",
+        "oura.daily_stress.recovery_high",
+    ]
+
+    /// Fields whose value is a categorical state word — Oura sends
+    /// `"normal"` / `"stressful"` / `"restored"` for the day summary and
+    /// `"limited"` through `"exceptional"` for resilience — which should read
+    /// as a word, not as a wire token.
+    static let stateWordIdentifiers: Set<String> = [
+        "oura.daily_stress.day_summary",
+        "oura.daily_resilience.level",
+    ]
+
+    /// Seconds → "2h 45m", the form every other duration in this app reads in
+    /// (see `MetricValueFormatter`'s deep/REM minutes). Whole minutes: the
+    /// source resolution is a five-minute stress period, so seconds are noise.
+    public static func hoursAndMinutes(seconds: Double) -> String {
+        let total = Int((seconds / 60).rounded())
+        return total >= 60 ? "\(total / 60)h \(total % 60)m" : "\(total)m"
+    }
+
     public static func title(forPath path: String) -> String {
         let parts = path.split(separator: ".").map(String.init)
         guard let leaf = parts.last else { return path }
@@ -150,6 +217,7 @@ public enum RawFieldPresentation {
         if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
             return named
         }
+        if let named = ouraStressNames[path] { return named }
         if let named = recordingDetailNames[leaf.lowercased()] { return named }
         guard genericLeaves.contains(leaf.lowercased()), parts.count >= 2 else {
             return humanised(leaf)
@@ -200,6 +268,8 @@ public enum RawFieldPresentation {
             if path.hasPrefix("withings.measure."), let named = withingsMeasureNames[leaf] {
                 return named
             }
+            // A named stress field is likewise already a name — same rule.
+            if let named = ouraStressNames[path] { return named }
             if let named = recordingDetailNames[leaf.lowercased()] { return named }
             // Structural containers are dropped before anything counts levels,
             // so widening reaches the nearest component that names something.
@@ -316,5 +386,37 @@ public enum RawFieldPresentation {
     /// measurement, in the units of the metric directly above it.
     public static func codedSeriesSummary(_ text: String) -> String {
         "\(text.count) values"
+    }
+
+    // MARK: - The row's trailing text, decided in one place
+
+    /// The one string a catalogue row prints beside a numeric field's name — or
+    /// nil where printing anything would dress metadata as a measurement.
+    ///
+    /// The view used to take part of this decision inline, which is how a named
+    /// recording detail still rendered its wire code: recognition lived here,
+    /// value rendering lived there, and the two halves never met. Every rule
+    /// about what a number is allowed to claim now sits behind this one call,
+    /// where it is tested: a recording detail decodes to words or stays silent,
+    /// the two Oura stress durations render as time, and everything else keeps
+    /// the unit-and-precision rules of `formatted`.
+    public static func rowValue(_ value: Double, unit: String, identifier: String) -> String? {
+        if isRecordingDetail(identifier) {
+            return recordingDetailValueText(identifier, value: value)
+        }
+        if secondsOfDayIdentifiers.contains(identifier) {
+            return hoursAndMinutes(seconds: value)
+        }
+        return formatted(value, unit: unit)
+    }
+
+    /// The same decision for a text value: a coded series summarises to its
+    /// length, a known state word reads as a word ("solid" → "Solid"), and
+    /// anything else passes through verbatim — an unfamiliar string shown as
+    /// sent is honest, and a transformed one is a guess.
+    public static func rowText(_ text: String, identifier: String) -> String {
+        if isCodedSeries(text) { return codedSeriesSummary(text) }
+        if stateWordIdentifiers.contains(identifier) { return humanised(text) }
+        return text
     }
 }
