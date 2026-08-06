@@ -27,7 +27,7 @@ pushed:
 | ~~1~~ | ✅ **Own-brand biological age** — shipped `972e2d7` | §B5 #29 |
 | ~~2~~ | ✅ **Cuffless BP, ungated** — shipped `0ea9411` | §B5 #28 |
 | ~~3~~ | ✅ **Mental health card** — shipped `867129e` | §B5 #27 |
-| **1** | **The cycle tab** — for the reader's wife, against Oura's paid feature. **Now the largest unstarted thing** | §B5 #31, §A3 |
+| **1** ◐ | **The cycle tab** — ✅ **slice 1 shipped `a8be5ae`**: the fifth tab, a tappable calendar, the cycle you are in, and the range your cycles fall in. ⬜ **Still to come: the fertile window, the phase model, phase-aware baselines, and the Oura temperature channel.** Those need cycles to predict from, which slice 1 collects | §B5 #31, §A3 |
 | ~~5~~ | ✅ **Score decomposition in the deep dive** — shipped `964c03e`, on `ScoreComparisonDetailView` | §B5 #38, S2 |
 | 6 | Fitness sections: intensity (feeding the score), steps/distance/flights | §B5 #34–35 |
 | 7 | Sound exposure (#33) · sleep apnoea (#30, ⚠️ **identifiers now requested — count the rows before building**) · ~~radar accuracy~~ ✅ `44fb94e` | §B5 #30, #33, #36 |
@@ -220,7 +220,7 @@ about her record in a doc, a commit message, or on screen.
 |---|---|---|
 | 15 | **Travel drain** | No event source. **The app captures no HealthKit metadata at all**, so there is no timezone on any sample. The original plan assumed this was free; it is not |
 | 16 | **Work impact** | Needs a calendar. **Your new instruction to build a calendar integration unblocks this and #15** |
-| 17 | **Cycle tracking — a whole fifth tab, 10 items** | Four decisions (Q16–Q19) plus zero rows. See §A3 |
+| 17 ◐ | **Cycle tracking — a whole fifth tab** | ✅ The tab exists and logs. Four decisions answered plus Q25. ⚠️ **Zero rows is still true of the reader's export and says nothing about hers** |
 | 18 | **Stress Tracking "like Oura"** | Possibly already Sustained Load — see Q24 |
 
 ### B3 — Proposed by the competitive research, not built
@@ -267,7 +267,7 @@ shipping them honest rather than reckless.
 | 28 ✅ | **Cuffless blood pressure** — shipped `0ea9411` | Whoop took an FDA warning letter; cuffless PPG has no finalised validation protocol. 51 real cuff readings are better | **BUILD IT.** Reader: *"Did we not already build the experimental BP estimate????"* — **yes, `BloodPressureEstimator` already does exactly this** (personal calibration, reports its own ±). The refusal was about *a second, cuff-free card*, and reads as a flat no. **What "do it" means here: stop hiding it behind the cuff, and give a daily estimate with its error** |
 | 29 ✅ | **Own-brand biological age** — shipped `972e2d7` | You would get a worse black box with a smaller *n*. Relaying Oura's with its error attached is strictly more honest — that is #26 | **BUILD IT.** *"THESE SORTS OF THINGS ARE THE ENTIRE POINT OF THE APP. WHY WOULD YOU SAY NO."* Correct, and the refusal misread the brief. The answer to "a black box" is **not to build a black box**: every term visible, every weight visible, every one attributable |
 | 30 | **Sleep-apnoea card** | Asserting or screening for apnoea is FDA-clearance territory. Trending the index inside Sleep is fine; a card whose *name* implies a condition is not | **BUILD IT** |
-| 31 | **Cycle / fertility** | Zero rows, contraceptive claims need clearance, unstated assumption about the reader | **BUILD IT — a whole new tab.** *"Basically do everything Flo does."* Assumption now stated (Q18: the reader's wife). Zero rows remains the real constraint |
+| 31 ◐ | **Cycle / fertility** — slice 1 shipped `a8be5ae` | Zero rows, contraceptive claims need clearance, unstated assumption about the reader | **BUILD IT — a whole new tab.** *"Basically do everything Flo does."* Assumption now stated (Q18: the reader's wife). Zero rows remains the real constraint |
 | 32 | **Meal-to-outcome / TDEE / intake-driven anything** | `dietaryEnergy`: 30 days ever, **0 in the last 90**. The gate is ~80% of logged days; the reader is at 0% | ❌ **UPHELD — the only one.** Reader: *"I don't care, don't do it."* The single refusal both sides agree on |
 | 33 | **Total sound exposure** | Environmental audio exists on 14 of the last 90 days — summing it with headphones would invent the quiet hours | **BUILD IT.** The honest form: headphone dose is the number, environmental is charted beside it with its coverage stated, and the two are never summed into one figure |
 | 34 | **Physical-effort intensity** | 81,252 rows looks dense and is a trap: 13 of the last 90 days. A z-score over a series that exists one day in seven is not a z-score | **BUILD IT — as a Fitness section**, which is what the original note already recommended. ⚠️ **And the reader added a requirement the refusal never considered: the effort score feeds the overall Fitness score.** That is new work, not a relocation |

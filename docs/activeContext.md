@@ -242,12 +242,31 @@ re-measuring it in the container you are actually running.**
 Eight parallel read-only agents scouted the seven remaining backlog features
 against the code. **Four findings are worth more than the ordering it produced:**
 
-1. ⚠️ **The cycle tab is blocked on a question, not on code.** The app is
+1. ✅ **The cycle tab's blocking question was asked and answered** — see below.
+   Original finding: The app is
    structurally single-user — `ProviderCredentialStore` keys on `providerID`
    alone, `IntegrationRecord.integrationID` is `@Attribute(.unique)`, and
    `deploy.yml` reaches one iPhone. The tab is for the reader's **wife**. Three
    answers give three different builds and only one of them is cheap. **Ask
-   before writing a line.** Asked at the end of session 28; unanswered.
+   before writing a line.**
+
+   **Answered 2026-08-06: she installs on her own phone, with her own key.** So
+   the cycle tab is a *feature of a single-user app*, not a second-profile
+   concept — the cheapest answer, and the only one that keeps her ring's
+   physiology in scope, which is the whole reason this beats Flo. ⚠️ **Nothing
+   may acquire a "whose body is this" dimension without asking again.** And
+   every zero-row figure in these docs is about the *reader's* export; nothing
+   here says anything about her record.
+
+   **Slice 1 shipped (`a8be5ae`)**: the fifth tab, a tappable calendar, the
+   cycle in progress, and cycle length **as a range with its spread**, never as
+   an average. Slice 2 — fertile window, phase model, phase-aware baselines —
+   needs cycles to predict from, which slice 1 collects.
+
+   ⚠️ **Phase-aware baselines are a *fix*, not an enhancement.** A luteal phase
+   raises resting heart rate and respiratory rate and lowers HRV, which is
+   exactly the pattern `HealthWatchModel` reads as illness. The symptom radar
+   must not ship to a cycling reader without them.
 2. **None of the seven needs a new `InsightID`** as scoped — so the six
    exhaustive switches are uncontended. Keep it that way: the moment the cycle
    work acquires a card, seven files come with it and one of them (`cadence`)
