@@ -757,7 +757,13 @@ struct ReaderIdentitySheet: View {
                              footer: "Kept separate from work on purpose — which kind of address organised an event is itself context.")
 
                 Section {
-                    Text("Stays on this phone. It is read by the calendar classifier and by nothing else — it is never exported, and never leaves the device.")
+                    // Still true and deliberately kept (B8 R6). Identity is in
+                    // neither sharing tier: `.full` shares a corrected event's
+                    // artifact, which carries a boolean for "did you organise
+                    // this" and never an address, and `.metadataOnly` carries
+                    // no words at all. Nothing about the reader's name or
+                    // emails is reachable from a `SharedRecord`.
+                    Text("Stays on this phone. It is read by the calendar classifier and by nothing else — it is never exported, never shared to improve the models, and never leaves the device.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

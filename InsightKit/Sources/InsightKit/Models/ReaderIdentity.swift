@@ -25,6 +25,12 @@ import Foundation
 /// 1. **The value stays on the phone.** It is a JSON file in Application
 ///    Support, read by the classifier, and it is **never exported** — the
 ///    export's own keys are the proof (`HealthDataExport` carries no identity).
+///    ⚠️ **It is also in neither sharing tier**, which is worth saying now that
+///    there are tiers (B8 R5): `SharingTier.full` shares a corrected event's
+///    artifact, and that artifact holds a *boolean* for "did you organise this"
+///    and never an address — see `CalendarEventArtifact`. `.metadataOnly`
+///    carries no words at all. So this claim survives B8 unchanged, by
+///    construction rather than by having been overlooked.
 /// 2. **No real name or address ever appears in a test fixture, a doc, a
 ///    commit message or a log line.** Fixtures use obviously fake values
 ///    ("a.reader@example.com"), per `docs/privacy-and-ip.md`.

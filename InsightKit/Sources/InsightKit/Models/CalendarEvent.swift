@@ -29,16 +29,27 @@ import Foundation
 /// each calendar item."* So the content is read — and the rule that actually
 /// mattered is unchanged and now stated where it belongs:
 ///
-/// 1. **Content is read on the device and never leaves it.** Classification runs
-///    against Apple's on-device model; there is no network path.
+/// 1. **Content is read and classified entirely on the device.** There is no
+///    network path out of this app in this build. ⚠️ **It is no longer true
+///    that content can never leave** — backlog B8 R5, at the reader's explicit
+///    instruction, added a two-tier sharing preference in which `SharingTier.full`
+///    would include a corrected event's title and location, and both tiers
+///    default to on. Nothing is transmitted today (no endpoint exists), and
+///    `SharingTier.metadataOnly` never carries a word of it. The honest claim is
+///    *"classification is on-device, and what may ever be shared is stated in
+///    Settings ▸ Data & model improvement"* — not *"it never leaves"*.
 /// 2. **A title, a location or a note must never reach a doc, a commit message,
-///    a test fixture, a log line or an export.** `docs/privacy-and-ip.md`'s rule
-///    is the shape of a finding, never the reading — and an event title is the
-///    most identifying string this app will ever hold.
-/// 3. **Notes are still not stored.** The reader asked for six specific
-///    judgements and none of them needs the body of an event; a *derived
-///    boolean* — `hasVideoLink` — carries what "did it include a remote meeting
-///    link" actually asks, without keeping the link.
+///    a test fixture or a log line.** `docs/privacy-and-ip.md`'s rule is the
+///    shape of a finding, never the reading — and an event title is the most
+///    identifying string this app will ever hold. That rule is unchanged by B8:
+///    a sharing tier the reader can see and switch off is a different thing from
+///    a value pasted into a public repository.
+/// 3. **Notes are still not stored, and neither is the guest list.** The reader
+///    asked for six specific judgements and none of them needs the body of an
+///    event or the names of the people in it; *derived* values carry the
+///    questions instead — `hasVideoLink` for "did it include a remote meeting
+///    link", `organizerIsReader` for "did I organise this", and `attendeeCount`
+///    for how many were in the room.
 ///
 /// The test that guarded the old rule now guards this one.
 public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codable {
@@ -87,6 +98,25 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     /// differently and says why.
     public let organizerIsReader: Bool?
 
+    /// **How many people were invited — never who.** The third value in the
+    /// same family as `hasVideoLink` and `organizerIsReader`: the app-side fetch
+    /// reads `EKEvent.attendees`, keeps the count, and drops the list before it
+    /// is ever stored.
+    ///
+    /// It is here for backlog B8 R3 — the correction record's artifact snapshot
+    /// names it, because a correction on an event whose size is unknown teaches
+    /// less than one on an event that had twelve people in it. `nil` means the
+    /// event carried no attendee information at all, which is the ordinary shape
+    /// of something the reader put in their own calendar; it is *unknown*, not
+    /// zero.
+    ///
+    /// ⚠️ **This deliberately widens a type whose narrowness was tested.**
+    /// `CalendarModelTests.testTheEventStoresNoNotesAndNoAttendees` asserts the
+    /// exact field set precisely so that growth is a decision somebody took. The
+    /// decision: a *count* is not a guest list, and the ban that mattered — the
+    /// names and addresses of other people — is unchanged and still asserted.
+    public let attendeeCount: Int?
+
     /// A coarse shape, decided by the app rather than by the event's words.
     public enum Kind: String, Sendable, Codable, CaseIterable {
         /// A normal timed event.
@@ -108,7 +138,8 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     public init(id: String, start: Date, end: Date, isAllDay: Bool,
                 timeZoneIdentifier: String?, calendarName: String, kind: Kind,
                 title: String = "", location: String? = nil,
-                hasVideoLink: Bool = false, organizerIsReader: Bool? = nil) {
+                hasVideoLink: Bool = false, organizerIsReader: Bool? = nil,
+                attendeeCount: Int? = nil) {
         self.id = id
         self.start = start
         self.end = end
@@ -120,6 +151,7 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
         self.location = location
         self.hasVideoLink = hasVideoLink
         self.organizerIsReader = organizerIsReader
+        self.attendeeCount = attendeeCount
     }
 
     public var durationHours: Double {

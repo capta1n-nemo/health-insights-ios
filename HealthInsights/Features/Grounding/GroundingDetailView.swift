@@ -63,7 +63,15 @@ struct GroundingDetailView: View {
                             }
                         }
                     }
-                    Text("Tap any row to set or change it. Nothing here leaves your device.")
+                    // ⚠️ Was "Nothing here leaves your device." (B8 R6). That
+                    // stopped being true the moment a cuff reading could be
+                    // shared as the *measured* half of an estimate correction —
+                    // "the estimate ran 13 mmHg above the cuff" is built from a
+                    // value typed on this screen. The figure itself is never
+                    // shared, but a difference derived from it can be, and
+                    // pretending otherwise is the kind of copy a reader relies
+                    // on.
+                    Text("Tap any row to set or change it. These stay on your phone. If you have Data & model improvement on, how far an estimate ran from a reading you logged can be shared — the difference, never the reading — and nothing is sent in this build.")
                         .font(.caption2).foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 4)

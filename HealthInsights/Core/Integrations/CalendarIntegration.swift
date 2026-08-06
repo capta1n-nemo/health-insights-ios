@@ -27,11 +27,14 @@ import InsightKit
 /// classified (2026-08-06) and six of their six questions need the words. See
 /// `CalendarEvent` for the reversal and its reasoning.
 ///
-/// **Notes and attendees are read once, here, and never stored.** The only thing
-/// taken from them is a boolean — was a video-conference link attached — because
-/// that is the question ("did it include a remote meeting link") and the URL
-/// answers nothing further. This function is the only place in the app where an
-/// event's notes exist at all, and they do not outlive the loop.
+/// **Notes and the guest list are read once, here, and never stored.** What is
+/// taken from them is two numbers and a boolean: was a video-conference link
+/// attached (the question the reader asked — "did it include a remote meeting
+/// link" — where the URL answers nothing further), and **how many people were
+/// invited**, which B8 R3's correction artifact names and which says nothing
+/// about who they were. This function is the only place in the app where an
+/// event's notes or attendee records exist at all, and they do not outlive the
+/// loop.
 ///
 /// The reader picks which calendars to include and that choice is persisted, so
 /// "sync my work calendar and not my family one" is one tap rather than an
@@ -236,7 +239,14 @@ final class CalendarIntegration: HealthIntegration {
                 hasVideoLink: Self.mentionsVideoCall(event.location)
                     || Self.mentionsVideoCall(event.url?.absoluteString)
                     || Self.mentionsVideoCall(event.notes),
-                organizerIsReader: Self.organizerIsReader(event, identity: identity))
+                organizerIsReader: Self.organizerIsReader(event, identity: identity),
+                // ⚠️ **The count, and the list dies with this closure.** Same
+                // discipline as the two lines above, applied to B8 R3's
+                // artifact: "six people were in the room" is a real signal about
+                // a meeting; six names are six other people's data, in an app
+                // that holds one person's. `nil` where the event carries no
+                // attendee records at all — unknown, not zero.
+                attendeeCount: event.attendees?.count)
         }
     }
 }

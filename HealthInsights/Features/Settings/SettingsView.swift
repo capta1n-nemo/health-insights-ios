@@ -129,7 +129,11 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         } footer: {
-            Text("When Apple Intelligence is available, your daily summary is written by the on-device foundation model. No health data leaves your phone.")
+            // Narrowed 2026-08-06 (B8 R6): the second sentence used to read
+            // "No health data leaves your phone", which reads as a claim about
+            // the whole app and is no longer one. It was only ever true of the
+            // summariser, and it still is — so it now says so.
+            Text("When Apple Intelligence is available, your daily summary is written by the on-device foundation model. Writing it sends nothing anywhere. What may ever be shared is listed under Data & model improvement.")
         }
     }
 
@@ -250,7 +254,7 @@ struct SettingsView: View {
                 }
             }
         } footer: {
-            Text("See exactly what would ever leave your phone to make the models better. Off by default; nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps.")
+            Text("See exactly what would ever leave your phone to make the models better — including your corrections, which are shared in two tiers, both on by default and each switchable off. Nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps.")
         }
     }
 

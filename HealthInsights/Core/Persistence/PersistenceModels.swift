@@ -220,9 +220,15 @@ final class CycleDayRecord {
 /// availability**. If they correct "Client review" to personal and then revoke
 /// calendar access, the correction must not become an orphan pointing at nothing.
 ///
-/// ⚠️ **Content on this row never leaves the device.** `title` and `location` are
-/// here because the reader asked for the events to be classified; they are
-/// excluded from the export by name — see `HealthDataExport`.
+/// ⚠️ **What may leave, and under what.** `title` and `location` are here
+/// because the reader asked for the events to be classified. They are excluded
+/// from the export by name — see `HealthDataExport` — and, since backlog B8 R5,
+/// they *may* leave under `SharingTier.full` as part of a **corrected** event's
+/// artifact. That tier is on by default at the reader's explicit instruction and
+/// is switchable off in Settings ▸ Data & model improvement; `SharingTier.metadataOnly`
+/// never carries a word of either. **Nothing is transmitted in this build** —
+/// there is no endpoint. An event the reader has never reviewed is not shareable
+/// at all: `CalendarEventJudgement.sharedRecord(under:)` returns nil for it.
 @Model
 final class CalendarEventRecord {
     @Attribute(.unique) var eventID: String
@@ -239,6 +245,10 @@ final class CalendarEventRecord {
     /// `CalendarEvent.organizerIsReader`. Optional, so rows written before B7
     /// H2 read back as "unknown" rather than as a claim nobody derived.
     var organizerIsReader: Bool?
+    /// **How many, never who** — see `CalendarEvent.attendeeCount`. Optional for
+    /// the same reason as the line above: rows written before B8 R3 read back as
+    /// unknown rather than as a zero nobody counted.
+    var attendeeCount: Int?
 
     init(event: CalendarEvent) {
         eventID = event.id
@@ -252,6 +262,7 @@ final class CalendarEventRecord {
         location = event.location
         hasVideoLink = event.hasVideoLink
         organizerIsReader = event.organizerIsReader
+        attendeeCount = event.attendeeCount
     }
 
     func update(from event: CalendarEvent) {
@@ -265,6 +276,7 @@ final class CalendarEventRecord {
         location = event.location
         hasVideoLink = event.hasVideoLink
         organizerIsReader = event.organizerIsReader
+        attendeeCount = event.attendeeCount
     }
 
     var event: CalendarEvent? {
@@ -274,7 +286,8 @@ final class CalendarEventRecord {
                              calendarName: calendarName, kind: kind,
                              title: title, location: location,
                              hasVideoLink: hasVideoLink,
-                             organizerIsReader: organizerIsReader)
+                             organizerIsReader: organizerIsReader,
+                             attendeeCount: attendeeCount)
     }
 }
 
@@ -318,11 +331,20 @@ final class HolidayEntry {
     }
 }
 
-/// **What the app decided about an event, and what the reader said back.**
+/// **What the app decided about an event, what the reader said back, and the
+/// event it decided it about.**
 ///
-/// The two are stored as separate blobs on purpose — see `CalendarEventJudgement`
-/// for the argument. Merged, the app could never measure how often it was right
-/// and re-classifying would silently overwrite the reader.
+/// The three are stored as separate blobs on purpose — see
+/// `CalendarEventJudgement` for the argument. Merged, the app could never
+/// measure how often it was right and re-classifying would silently overwrite
+/// the reader.
+///
+/// ⚠️ **No new `@Model` here on purpose.** The artifact is one-to-one with the
+/// judgement and has no identity of its own, so it is a third blob on this row
+/// rather than a fourth entity — which also keeps it out of the trap
+/// `DataStore`'s schema comment names, where an unregistered `@Model` silently
+/// never persists. Adding an optional property to an existing model is a
+/// lightweight SwiftData migration and needs no schema version.
 @Model
 final class CalendarJudgementRecord {
     @Attribute(.unique) var eventID: String
@@ -330,14 +352,25 @@ final class CalendarJudgementRecord {
     var classificationData: Data
     /// JSON of the reader's correction, when they made one.
     var correctionData: Data?
+    /// JSON of the event **as it stood when `classificationData` was written**
+    /// (backlog B8 R3). Written by `DataStore.recordClassification` and by
+    /// nothing else — in particular never by `recordReview`, because a snapshot
+    /// taken at correction time would attribute to the model a version of the
+    /// event it may never have seen.
+    ///
+    /// Optional because rows written before B8 R3 have none, and inventing one
+    /// from today's event is exactly the history-rewrite it exists to prevent.
+    var artifactData: Data?
     var isConfirmed: Bool
     var reviewedAt: Date?
 
     init(eventID: String, classificationData: Data, correctionData: Data? = nil,
+         artifactData: Data? = nil,
          isConfirmed: Bool = false, reviewedAt: Date? = nil) {
         self.eventID = eventID
         self.classificationData = classificationData
         self.correctionData = correctionData
+        self.artifactData = artifactData
         self.isConfirmed = isConfirmed
         self.reviewedAt = reviewedAt
     }
@@ -349,9 +382,12 @@ final class CalendarJudgementRecord {
         let correction = correctionData.flatMap {
             try? decoder.decode(CalendarEventClassification.self, from: $0)
         }
+        let artifact = artifactData.flatMap {
+            try? decoder.decode(CalendarEventArtifact.self, from: $0)
+        }
         return CalendarEventJudgement(eventID: eventID, classification: classification,
                                       correction: correction, isConfirmed: isConfirmed,
-                                      reviewedAt: reviewedAt)
+                                      reviewedAt: reviewedAt, artifact: artifact)
     }
 }
 
