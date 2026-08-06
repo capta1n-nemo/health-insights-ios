@@ -141,6 +141,77 @@ something `samples` and `profile` can't supply, rather than growing a third
   insight doesn't draw the distinction" — honest, but the card then shows every
   line.
 
+## 5a. Every figure the card works out is a data source — REQUIRED
+
+> *"Do this for EVERY card, and make it a rule for every card going forward."*
+> — the reader, 2026-08-06
+
+The complaint that produced this rule, verbatim, and it is worth reading before
+arguing with the rule:
+
+> *"the metrics we are deriving from each card, are still not being turned into
+> their own individual data sources, and used, especially in weightings. E.g. in
+> Biological age card, we created a 'Combined' score, that now should be a score
+> that gets its own data row. … The work impact card… 'What's changed' and 'what
+> goes into this' will only still just show Resting Heart Rate, HRV and sleep
+> duration…. how is that possible, the entire point of this card is to take into
+> consideration work impact, where is that on these sections? Where is that in
+> the weighting section?"*
+
+**So: for every non-metric quantity your model computes, the card must declare
+either a derived series *or*, in a comment at the site, the reason it is a
+pass-through.** Both answers are valuable. A deliberate no, written down, stops
+the next session re-asking.
+
+### The three verdicts
+
+Ask, of each figure: *is it a `MetricType` reading at face value?*
+
+| Verdict | When | What to emit |
+| --- | --- | --- |
+| **(a) Weighted derived input** | It divides the number *beside* the other inputs and has its own coefficient | `DerivedOutput` **and** `ScoreFactor.derived(id, name:weight:detail:)` |
+| **(b) Produced figure** | The card computes it *from* its inputs — a pooled departure, a combined age, an observed TDEE, the contrast two groups of days are split on | `DerivedOutput` **and** `ScoreFactor.producedFigure(id, name:detail:)` — **weight 0**, and `detail` must say why |
+| **(c) Pass-through** | A restatement of one metric: its latest value, its mean, its z-score, its own 0–100 | **Nothing.** A comment naming it and the metric it restates |
+
+(a) is rare — sleep debt and consistency, and the substance load, are the whole
+list today. **(b) is the common case, and its zero is arithmetic rather than
+modesty:** a figure that summarises the rows below it would, if given a share,
+count the same evidence twice and put more than 100% on one card.
+
+**(c) is the reader's own qualifier** — *"unless that was just directly derived
+from one other data point"* — and refusing is free: `MetricContribution` already
+carries `componentScore` and `z`, and `DerivedHarvest` files a
+`.componentScore` and a `.componentDeparture` series from every one of them
+without a model saying anything. A second display name for the same number would
+put it in the Data tab twice.
+
+The two borderline calls already made, so they need not be re-argued:
+
+- **A published-norm inversion is (b), not (c).** Biological age's per-marker age
+  equivalents are monotone in one metric, so they look like pass-throughs — but
+  the norm table is indexed by age, so the same HRV maps to a different age next
+  year. The series moves on days the metric did not, which is the test.
+- **A dispersion statistic is (b), not (c).** The spread of a fortnight of
+  bedtimes is not in the bedtime series at any point.
+
+### Mechanics
+
+- Keys are **baked into stored ids**. Renaming one orphans its history — treat
+  them like a `modelVersion` and never tidy them.
+- `DerivedSeriesID(insight, key)` namespaces by producer; a card may only name
+  its own.
+- Do **not** emit the card's own 0–100 as a series. `ScoreHistory` already
+  trends it.
+
+### What enforces it
+
+`DerivedFactorIdentityTests` runs over `InsightEngine().models` on the full
+fixture and fails if any `.derived(id)` factor names a series the same result
+does not produce — no anonymous weights, no rows linking to empty pages. There
+is deliberately **no** test asserting every card has a derived figure: Readiness
+and Heart Health honestly have none, and such a test would be answered by
+inventing one.
+
 ## 6. Read inputs through `VitalReader`
 
 `Baseline/VitalReader.swift` — the day's de-duplicated value against a windowed
@@ -158,6 +229,8 @@ wrong differently: raw `series.last` is one minute of one afternoon, and
 **since 2026-08-01 the converse too** — every declared metric with data must be
 read. `ScoreAttributionTests` asserts that a card with a score states its
 `weighting`, that its shares sum to 1, and that any row with no share says why.
+`DerivedFactorIdentityTests` asserts that every derived weight names a series the
+card actually produces (§5a).
 
 ## 8. Scoring: a band table is a curve, not a staircase
 

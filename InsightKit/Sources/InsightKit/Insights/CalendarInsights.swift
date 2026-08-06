@@ -63,6 +63,17 @@ public enum WorkImpactModel {
         /// Weighted mean departure, in SDs of the reader's own spread.
         public let pooled: Double
         public let contributions: [MetricContribution]
+
+        /// **The card's independent variable, in one number.**
+        ///
+        /// How much busier the busy half actually was. A comparison across a
+        /// twenty-minute gap and one across five hours produce the same kind of
+        /// answer and are not the same evidence, and until 2026-08-06 nothing on
+        /// this card said which it had.
+        public var loadGapHours: Double { heavyMedianHours - lightMedianHours }
+
+        /// Working days on both sides of the split.
+        public var workingDaysCompared: Int { heavyDays + lightDays }
     }
 
     /// Load per working day, from the classified events.
@@ -178,6 +189,97 @@ public enum WorkImpactModel {
                       MetricValueFormatter.string(channel.onLightDays, channel.metric),
                       abs(channel.towardWorse), direction)
     }
+
+    // MARK: - What the calendar contributes, as data in its own right
+    //
+    // **The reader's complaint, 2026-08-06, and it was exactly right:** *"The
+    // work impact card... 'What's changed' and 'what goes into this' will only
+    // still just show Resting Heart Rate, HRV and sleep duration.... how is that
+    // possible, the entire point of this card is to take into consideration work
+    // impact, where is that on these sections?"*
+    //
+    // It was possible because `candidateMetrics` is `watched.map(\.metric)` and
+    // the model emitted no `otherFactors` at all — so the one quantity the card
+    // is *about*, the calendar load that decides which day lands in which half,
+    // was declared nowhere the reader could look.
+    //
+    // ## ⚠️ Why these carry weight 0, and why that is the honest answer
+    //
+    // The brief for this work asked for real weights. The arithmetic will not
+    // support them, and inventing one would break the reader's own standing rule
+    // that a modelled figure is never dressed up: this card's number is
+    // `ScoreCurve.through(…, at: pooled)`, and `pooled` is the mean of the
+    // per-metric departures — the calendar load is nowhere in that sum. Two
+    // readers with a 20-minute gap and a five-hour gap can score identically.
+    //
+    // Which is itself the finding worth putting on the card. So the load
+    // quantities render as `producedFigure` rows in the weighting section's
+    // *charted, not scored* group, each saying in its own words that it defines
+    // the comparison rather than dividing the number — and they become series,
+    // so "are my weeks getting heavier" is answerable from the Data tab instead
+    // of only from a sentence that is regenerated and discarded every launch.
+    //
+    // The alternative — folding the gap into the score — changes every stored
+    // number this card has and needs its own brief. It is backlog, not a
+    // side effect of a rendering fix.
+
+    static let busyHoursKey = "meetingHoursBusyDays"
+    static let quietHoursKey = "meetingHoursQuietDays"
+    static let loadGapKey = "meetingHoursGap"
+    static let daysComparedKey = "workingDaysCompared"
+    static let pooledKey = "bodyDifferencePooled"
+
+    public static func derivedOutputs(_ out: Output) -> [DerivedOutput] {
+        [
+            .init(key: busyHoursKey, displayName: "Work hours on your busier days",
+                  unit: "h", value: out.heavyMedianHours,
+                  // Neither direction is the good one. A heavy week is a fact
+                  // about a calendar, and this card is not entitled to call it
+                  // a bad one — that is what the body channels are for.
+                  higherIsBetter: nil, precision: 1),
+            .init(key: quietHoursKey, displayName: "Work hours on your quieter days",
+                  unit: "h", value: out.lightMedianHours,
+                  higherIsBetter: nil, precision: 1),
+            .init(key: loadGapKey, displayName: "The gap between your busy and quiet days",
+                  unit: "h", value: out.loadGapHours,
+                  // A wider gap is a *better comparison*, not a better week —
+                  // and there is no field for "better evidence", so this stays
+                  // undirected rather than claiming the wrong good direction.
+                  higherIsBetter: nil, precision: 1),
+            .init(key: daysComparedKey, displayName: "Working days compared",
+                  unit: "days", value: Double(out.workingDaysCompared),
+                  higherIsBetter: true, precision: 0),
+            // The statistic the dial is a rendering of, kept in SD because the
+            // 0–100 above it is a curve and a curve throws away resolution at
+            // both ends. `ScoreHistory` already trends the score; this is the
+            // thing the score is *of*.
+            .init(key: pooledKey, displayName: "How much your body differed on busy days",
+                  unit: "SD", value: out.pooled, higherIsBetter: false, precision: 2),
+        ]
+    }
+
+    /// The calendar quantities as factors, so they appear in "What goes into
+    /// this" and in "How this is weighted" rather than only inside a sentence.
+    public static func calendarFactors(_ out: Output) -> [ScoreFactor] {
+        let id = { (key: String) in DerivedSeriesID(.workImpact, key) }
+        return [
+            ScoreFactor.producedFigure(
+                id(loadGapKey), name: "The gap this comparison rests on",
+                detail: String(format: "%.1f h more work on the busy half — %.1f h against %.1f h. This gap decides which day goes in which group; it carries no share of the number, because the number is how much your *body* differed, not how much your calendar did.",
+                               out.loadGapHours, out.heavyMedianHours, out.lightMedianHours)),
+            ScoreFactor.producedFigure(
+                id(busyHoursKey), name: "Work hours on your busier days",
+                detail: String(format: "%.1f h, median. Charted here and in the Data tab; not scored, because this card measures the difference between two kinds of day rather than judging either one.",
+                               out.heavyMedianHours)),
+            ScoreFactor.producedFigure(
+                id(quietHoursKey), name: "Work hours on your quieter days",
+                detail: String(format: "%.1f h, median. The side everything above is measured against.",
+                               out.lightMedianHours)),
+            ScoreFactor.producedFigure(
+                id(daysComparedKey), name: "Working days compared",
+                detail: "\(out.workingDaysCompared) — \(out.heavyDays) busy against \(out.lightDays) quiet. Context rather than a share: a comparison resting on \(minimumDaysPerHalf * 2) days is not the same evidence as one resting on forty, and nothing else on this card tells you which you have."),
+        ]
+    }
 }
 
 /// **What crossing time zones costs, measured on the reader's own body.**
@@ -199,6 +301,11 @@ public enum TravelDrainModel {
         public let contributions: [MetricContribution]
         /// The zones seen, for the card to name.
         public let zones: [String]
+        /// **Days actually inside a recovery window** — the union of them, not
+        /// `trips × recoveryDays`. Two trips four days apart overlap, and the
+        /// difference between the two figures is the difference between what was
+        /// compared and what a reader would assume was compared.
+        public let disruptedDays: Int
     }
 
     public static func evaluate(events: [CalendarEvent],
@@ -254,7 +361,54 @@ public enum TravelDrainModel {
         return Output(trips: changes.count, channels: channels.sorted { $0.towardWorse > $1.towardWorse },
                       score: WorkImpactModel.score(pooled: pooled), pooled: pooled,
                       contributions: contributions,
-                      zones: Array(Set(changes.map(\.zone))).sorted())
+                      zones: Array(Set(changes.map(\.zone))).sorted(),
+                      disruptedDays: disrupted.count)
+    }
+
+    // MARK: - What the calendar contributes here
+    //
+    // The same shape as work impact and the same verdict, for the same reason:
+    // the calendar decides which days are compared and the score is a curve over
+    // how much the *body* differed between them, so these quantities are the
+    // card's independent variable rather than terms in its sum. Weight 0, both
+    // sections, and a series each.
+    //
+    // Deliberately **not** emitted here: the per-channel means either side of a
+    // trip. They are `MetricContribution.detail` already, and each is the mean of
+    // one metric over a set of days — a bare restatement, which under the
+    // reader's own qualifier ("unless that was just directly derived from one
+    // other data point") must not become a second name for a number the Data tab
+    // already holds.
+
+    static let tripsKey = "timeZoneChanges"
+    static let disruptedDaysKey = "disruptedDays"
+    static let pooledKey = "bodyDifferencePooled"
+
+    public static func derivedOutputs(_ out: Output) -> [DerivedOutput] {
+        [
+            .init(key: tripsKey, displayName: "Time-zone changes found",
+                  unit: "", value: Double(out.trips),
+                  // More trips is more evidence and not a better life; the card
+                  // says so out loud and the series must not disagree with it.
+                  higherIsBetter: nil, precision: 0),
+            .init(key: disruptedDaysKey, displayName: "Days inside a recovery window",
+                  unit: "days", value: Double(out.disruptedDays),
+                  higherIsBetter: nil, precision: 0),
+            .init(key: pooledKey, displayName: "How much your body differed after a change",
+                  unit: "SD", value: out.pooled, higherIsBetter: false, precision: 2),
+        ]
+    }
+
+    public static func calendarFactors(_ out: Output) -> [ScoreFactor] {
+        let id = { (key: String) in DerivedSeriesID(.travelDrain, key) }
+        return [
+            ScoreFactor.producedFigure(
+                id(tripsKey), name: "Time-zone changes found",
+                detail: "\(out.trips) across your calendar. This decides which days are compared and carries no share of the number — and \(out.trips) is a small number, which is the caveat this card leads with rather than hides."),
+            ScoreFactor.producedFigure(
+                id(disruptedDaysKey), name: "Days inside a recovery window",
+                detail: "\(out.disruptedDays) — the \(recoveryDays) days after each change, counted once where two trips overlap. Everything above is measured on these days against every other day."),
+        ]
     }
 }
 
@@ -329,7 +483,11 @@ public struct WorkImpactInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: out.contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            // The calendar, finally declared where the reader looks for what a
+            // card reads — see `WorkImpactModel.calendarFactors`.
+            otherFactors: WorkImpactModel.calendarFactors(out),
+            derivedOutputs: WorkImpactModel.derivedOutputs(out))
     }
 
     private func headline(_ out: WorkImpactModel.Output) -> String {
@@ -395,7 +553,9 @@ public struct TravelDrainInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: out.contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: TravelDrainModel.calendarFactors(out),
+            derivedOutputs: TravelDrainModel.derivedOutputs(out))
     }
 
     private func headline(_ out: TravelDrainModel.Output) -> String {

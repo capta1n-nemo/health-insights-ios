@@ -980,6 +980,105 @@ public struct BiologicalAgeInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: missing,
             contributors: contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(out),
+            derivedOutputs: Self.derivedOutputs(out))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **The reader named this one:** *"In Biological age card, we created a
+    // 'Combined' score, that now should be a score that gets its own data row."*
+    // It was right: the composite was recomputed on every launch, printed in one
+    // sentence and discarded, so "is my biological age moving" could only be
+    // answered by the card re-deriving it in front of you.
+
+    static let combinedKey = "combined"
+    static let uncertaintyKey = "combinedUncertainty"
+    static let paceKey = "paceOfAgeing"
+    /// Prefix for a single marker's own answer. `age.<metric>`.
+    static let markerAgePrefix = "age"
+
+    static func markerAgeKey(_ metric: MetricType) -> String {
+        "\(markerAgePrefix).\(metric.rawValue)"
+    }
+
+    static func derivedOutputs(_ out: BiologicalAgeModel.Output) -> [DerivedOutput] {
+        var series: [DerivedOutput] = [
+            .init(key: combinedKey, displayName: "Biological age (combined)",
+                  unit: "years", value: out.biologicalAge,
+                  higherIsBetter: false, precision: 1),
+            // The width travels with the number everywhere else on this card,
+            // and a series of point estimates with the ± left behind would be
+            // the one presentation this card exists to refuse. It also moves on
+            // its own: it narrows when a marker arrives and widens when one
+            // lapses, which is worth being able to see.
+            .init(key: uncertaintyKey, displayName: "Biological age — the ± on it",
+                  unit: "years", value: out.uncertaintyYears,
+                  higherIsBetter: false, precision: 1),
+        ]
+        if let pace = out.pace {
+            series.append(.init(key: paceKey, displayName: "Pace of ageing",
+                                unit: "years per year", value: pace,
+                                higherIsBetter: false, precision: 2))
+        }
+
+        // ## Each marker's own age: **yes, a series each** — and the reason is
+        // not obvious, so it is written down.
+        //
+        // The reader's qualifier says a figure "directly derived from one other
+        // data point" must not become a second name for it, and a marker age is
+        // monotone in one metric — so on the face of it this is a pass-through
+        // and should be refused.
+        //
+        // It isn't one, because the transform is **not fixed**. Each reading is
+        // inverted through a published norm table indexed by sex *and age*, so
+        // the same 48 ms of HRV maps to a different age equivalent next year
+        // than it does this year. The series therefore moves on days the metric
+        // did not, and cannot be recovered from the metric's own history — which
+        // is precisely the test for whether a derived series is a new quantity
+        // or a rename.
+        //
+        // They are also the only marker-level history this card has: it emits no
+        // `componentScore` and no `z` on purpose (an age equivalent is not a
+        // 0–100 and is not judged against the reader's own past), so the two
+        // free harvest tiers are empty here and this is the whole of it.
+        for marker in out.markers {
+            series.append(.init(key: markerAgeKey(marker.metric),
+                                displayName: "\(marker.label) reads as an age",
+                                unit: "years", value: marker.ageEquivalent,
+                                higherIsBetter: false, precision: 0))
+        }
+        return series
+    }
+
+    /// The composite and its pace, as rows the reader can find.
+    ///
+    /// ⚠️ **Weight 0, and the zero is arithmetic rather than modesty.** The
+    /// markers below already divide 100% of this card between them, and the
+    /// combined age *is* their precision-weighted mean — giving it a share would
+    /// be counting the same five readings twice and would put two hundred per
+    /// cent on one card. See `ScoreFactor.producedFigure`.
+    ///
+    /// The per-marker ages are deliberately **not** factors, only series: each
+    /// marker already has a weighted row carrying its share, and a second row
+    /// per marker would double a list whose whole job is to be read top to
+    /// bottom. The age equivalent is on that row's own sentence already.
+    static func producedFigures(_ out: BiologicalAgeModel.Output) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.biologicalAge, combinedKey),
+                name: "Biological age (combined)",
+                detail: String(format: "%.0f years, ±%.0f — the precision-weighted mean of the markers above. It carries no share of its own: it *is* those shares, and giving it one would count them twice.",
+                               out.biologicalAge, out.uncertaintyYears))
+        ]
+        if let pace = out.pace, let span = out.paceSpanDays {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.biologicalAge, paceKey),
+                name: "Pace of ageing",
+                detail: String(format: "%.2f years of biological age per calendar year, over %d months. Tracked rather than scored — it is a change in the figure above, so it cannot also be an input to it.",
+                               pace, Int((Double(span) / 30.44).rounded()))))
+        }
+        return rows
     }
 }

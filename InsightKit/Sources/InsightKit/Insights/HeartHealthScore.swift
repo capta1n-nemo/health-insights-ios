@@ -303,6 +303,21 @@ public struct HeartHealthInsight: InsightModel {
         }
 
         let all = lines + standingLines
+        // MARK: Derived-series verdict — **nothing to declare, deliberately**
+        //
+        // Same shape and same answer as Readiness (2026-08-06). This composite
+        // is the weighted mean of its components, each of which is one metric
+        // scored against a published reference band; the sub-scores and
+        // departures are already harvested from `contributions`, and
+        // `ScoreHistory` trends the composite.
+        //
+        // ⚠️ **The one figure that would qualify is not computed here.** Heart
+        // rate recovery — the card's own bespoke section — is evaluated by
+        // `HeartResponseModel` in the *view*, so it never reaches this result
+        // and cannot be declared from it. That is a real gap and it is a
+        // rendering-layer one: moving the response model into `evaluate` is the
+        // fix, and it changes what the card reports, so it is backlog rather
+        // than a side effect of this pass. See COMMIT_MESSAGE / backlog §E.
         return InsightResult(
             id: id, title: title, primaryValue: score,
             headline: band, score: score, confidence: confidence,

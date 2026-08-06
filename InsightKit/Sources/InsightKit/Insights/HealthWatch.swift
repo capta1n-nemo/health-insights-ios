@@ -1318,7 +1318,63 @@ public struct SymptomRadarInsight: InsightModel {
                 + lines.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: contributors(for: watch),
-            weighting: .accumulative)
+            weighting: .accumulative,
+            otherFactors: Self.producedFigures(verdict),
+            derivedOutputs: Self.derivedOutputs(verdict))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **The accumulated statistic is the reason this card exists**, and until
+    // now nothing kept it. `S` is a CUSUM run forward over the whole timeline —
+    // a quantity with *memory*, which is precisely what no daily reading has and
+    // what no per-metric departure can be recovered into. The reader's own
+    // complaint about it was that a correct flag was followed by a 99% the next
+    // morning; the fix was to carry `S` forward, and the figure that fix turns
+    // on had no history of its own.
+    //
+    // ## Refused
+    //
+    // - **Each signal's `zScore`** — one metric against its own three-week
+    //   baseline. The reader's stated exception, and already harvested from
+    //   `MetricContribution.z` for free.
+    // - **`leaning.count`** — a threshold count over those same z-scores.
+    //   Deliberately *not* kept, and the reason is this card's founding
+    //   argument: counting signals past a threshold is the OR-of-six mistake
+    //   (a 26.5% false-alarm rate) that the accumulated statistic replaced. A
+    //   series of it would be trending the discarded method.
+
+    static let statisticKey = "accumulatedStatistic"
+    static let daysRunningKey = "daysRunning"
+
+    static func derivedOutputs(_ verdict: SymptomRadarModel.Verdict) -> [DerivedOutput] {
+        [
+            .init(key: statisticKey, displayName: "Accumulated departure",
+                  unit: "", value: verdict.accumulation.statistic,
+                  higherIsBetter: false, precision: 2),
+            .init(key: daysRunningKey, displayName: "Days running above your usual",
+                  unit: "days", value: Double(verdict.accumulation.daysRunning),
+                  higherIsBetter: false, precision: 0),
+        ]
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. This card's basis is
+    /// `.accumulative`: each signal's vote carries its weight, and the
+    /// accumulation is what those votes pile into. Giving the pile a vote of its
+    /// own would count every one of them a second time.
+    static func producedFigures(_ verdict: SymptomRadarModel.Verdict) -> [ScoreFactor] {
+        [
+            .producedFigure(
+                DerivedSeriesID(.symptomRadar, statisticKey),
+                name: "Accumulated departure",
+                detail: String(format: "%.2f, built up over %d day%@ running — this is where the votes below accumulate, so it carries no vote itself%@.",
+                               verdict.accumulation.statistic,
+                               verdict.accumulation.daysRunning,
+                               verdict.accumulation.daysRunning == 1 ? "" : "s",
+                               verdict.isCarriedForward
+                                   ? " — and today it is saying more than today's readings are"
+                                   : ""))
+        ]
     }
 
     // MARK: - The two empty states

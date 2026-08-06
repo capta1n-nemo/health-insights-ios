@@ -238,7 +238,79 @@ public struct BodyCompositionInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements(profile: profile, now: now),
             contributors: (blend?.contributions ?? []) + Self.trackedNotScored(samples: samples),
-            weighting: dial == nil ? .unstated : .weightedAverage)
+            weighting: dial == nil ? .unstated : .weightedAverage,
+            otherFactors: Self.producedFigures(velocity: velocity),
+            derivedOutputs: Self.derivedOutputs(velocity: velocity))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **Velocity is a fitted slope, not a reading.** `percentPerWeek` comes from
+    // least squares over the weigh-ins in the window, and `leanShareOfChange`
+    // divides that slope between two tissues — two figures over two series and a
+    // clock, neither of which exists anywhere in body mass's own history. They
+    // are also the numbers the reader on a GLP-1 actually needs, and until now
+    // they lasted exactly one render.
+    //
+    // ## Refused
+    //
+    // - **`latestWeight`, `bodyFat`, `muscleMass`, `boneMass`** — readings off a
+    //   scale, at face value. The reader's stated exception.
+    // - **`BodyCompositionSplit`** — the partition of body mass into fat, muscle,
+    //   bone and the rest. Every band is one scale reading times a share of
+    //   another, so each is a restatement of a metric the Data tab already
+    //   holds; the *picture* is the point of it and the picture is not a series.
+    //   Reconsider only if the split ever gains a fitted term.
+    // - **`residualSD`** — how noisy the weigh-ins are. Genuinely derived and
+    //   genuinely useful, but it is a property of the measurement rather than of
+    //   the reader, and `changeConfidence` already carries its effect into the
+    //   score. Named here so the next session does not have to re-decide it.
+
+    static let rateKey = "weightChangePerWeek"
+    static let leanShareKey = "leanShareOfChange"
+
+    static func derivedOutputs(velocity: CompositionVelocity?) -> [DerivedOutput] {
+        guard let velocity else { return [] }
+        var series: [DerivedOutput] = [
+            .init(key: rateKey, displayName: "Weight change, fitted",
+                  unit: "%/week", value: velocity.percentPerWeek,
+                  // Neither direction is the good one without a goal, and the
+                  // goal lives in the profile rather than in the series.
+                  higherIsBetter: nil, precision: 2)
+        ]
+        if let share = velocity.leanShareOfChange {
+            series.append(.init(key: leanShareKey,
+                                displayName: "Share of that change that was lean tissue",
+                                unit: "%", value: share * 100,
+                                // Losing lean tissue is the unwelcome outcome
+                                // whichever way the scale is going, which is the
+                                // one direction this figure genuinely has.
+                                higherIsBetter: false, precision: 0))
+        }
+        return series
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. The velocity terms
+    /// already carry their shares on `bodyMass` and `leanBodyMass` rows, which
+    /// is where the chart draws them; these rows name the fitted quantities
+    /// behind those shares rather than adding to them.
+    static func producedFigures(velocity: CompositionVelocity?) -> [ScoreFactor] {
+        guard let velocity else { return [] }
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.bodyComposition, rateKey),
+                name: "Weight change, fitted",
+                detail: String(format: "%+.2f%% a week from %d weigh-ins over %d days — a slope through your readings, not a difference between two of them. The share it carries is on the weight row above.",
+                               velocity.percentPerWeek, velocity.weighIns, velocity.windowDays))
+        ]
+        if let share = velocity.leanShareOfChange {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.bodyComposition, leanShareKey),
+                name: "Share of that change that was lean tissue",
+                detail: String(format: "%.0f%% — its share is on the lean-mass row above; this is the figure behind it, kept so it can be watched over months rather than read once.",
+                               share * 100)))
+        }
+        return rows
     }
 
     /// Signals this card draws but deliberately does not score.

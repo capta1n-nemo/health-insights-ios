@@ -94,10 +94,24 @@ public struct SleepInsight: InsightModel {
         static let respiratory = 0.05
         static let temperature = 0.03
 
-        /// Duration's chart line carries its own term plus the two terms
+        /// Duration's chart line used to carry its own term plus the two terms
         /// measured from the same series — consistency is the spread of the
-        /// sleep series itself and debt is that series against a learned
-        /// need, so three coefficients share one measurement and one line.
+        /// sleep series itself and debt is that series against a learned need,
+        /// so three coefficients shared one measurement and one line.
+        ///
+        /// ⚠️ **Kept for the arithmetic, no longer used as a weight (2026-08-06).**
+        /// The folding was a decision about the *chart*: three quantities from
+        /// one series draw one line, and three legend rows over one line would
+        /// be a lie about the picture. It was never a decision about the
+        /// weighting section, and it read as one — a reader opening "How this is
+        /// weighted" saw sleep duration at 47% and nothing at all about debt or
+        /// consistency, which is the reader's own complaint about the derived
+        /// figures being invisible, one card over.
+        ///
+        /// Debt and consistency are now `.derived` factors carrying their own
+        /// coefficients. They take no palette slot (`ScoreFactor` rows without a
+        /// metric never do), so the chart is unchanged and the total still sums
+        /// to one — see `producedFigures`.
         static let durationLine = duration + debt + consistency
         /// Deep and REM are one restorative term drawn as two stage lines.
         static let stageLine = restorative / 2
@@ -128,9 +142,15 @@ public struct SleepInsight: InsightModel {
                                               days: 14, now: now)
         // Needs a few nights before night-to-night spread means anything; below
         // that it's a neutral figure rather than a damning one.
-        let consistencyScore: Double = nightly.count >= 4
-            ? (Baseline.standardDeviation(nightly).map { max(0, 100 - $0 * 40) } ?? 60)
-            : 60
+        // The spread is held rather than folded straight into the score,
+        // because it is the quantity worth keeping: a 0–100 has a floor and a
+        // ceiling and the hours it came from do not, so "my nights have got
+        // half an hour more scattered" is only readable from the spread.
+        // `nil` below four nights — a neutral 60 is a stand-in for the score and
+        // must not become a fabricated measurement in the Data tab.
+        let durationSpread: Double? = nightly.count >= 4
+            ? Baseline.standardDeviation(nightly) : nil
+        let consistencyScore: Double = durationSpread.map { max(0, 100 - $0 * 40) } ?? 60
 
         // The night's respiratory rate, not the last ten minutes. Wearables
         // report a nightly figure, but daytime readings land in the same series
@@ -342,13 +362,19 @@ public struct SleepInsight: InsightModel {
         //   are in the score — this reports the arithmetic, not an ideal.
         // - The two stage rows each carry the one restorative score at half
         //   its weight, so their two headrooms sum to the term's true one.
+        //
+        // ⚠️ **Duration's line now carries `Weight.duration` alone**, and debt
+        // and consistency carry their own coefficients as derived factors — see
+        // `Weight.durationLine`. The three still sum to what they always summed
+        // to; what changed is that two of them are now visible and trendable
+        // instead of hidden inside a third row's sub-score.
         var contributors = [MetricContribution(
-            metric: .sleepDurationHours, higherIsBetter: true, weight: Weight.durationLine,
-            detail: String(format: "%.1f h · consistency %d/100%@",
-                           lastNight, Int(consistencyScore),
-                           debt.map { String(format: " · %.1f h behind", $0.debtHours) } ?? ""),
-            componentScore: (durationScore * Weight.duration + debtScore * Weight.debt
-                             + consistencyScore * Weight.consistency) / Weight.durationLine,
+            metric: .sleepDurationHours, higherIsBetter: true, weight: Weight.duration,
+            detail: String(format: "%.1f h", lastNight),
+            // Exactly duration's own sub-score now, which makes the
+            // decomposition's counterfactual exact for this row rather than
+            // exact for a blend of three things the row is not named after.
+            componentScore: durationScore,
             value: lastNight)]
         if let regularity {
             // No `value`: the score judges the *spread* of bedtimes, which is
@@ -435,7 +461,133 @@ public struct SleepInsight: InsightModel {
             explanation: "Sleep quality \(Int(score.rounded()))/100 (\(band)) — from last night's \(String(format: "%.1f", lastNight)) hours, how much of your time in bed was actually asleep, how much of the night was deep or REM, how consistent your recent nights are, and your breathing, blood oxygen and skin temperature through it. Deep and REM are scored as a *share* of the night rather than in minutes, so a short sleeper isn't charged twice for one short night.",
             driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
             unmetRequirements: [], contributors: contributors,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.derivedFactors(debt: debt, debtScore: debtScore,
+                                              consistencyScore: consistencyScore,
+                                              durationSpread: durationSpread,
+                                              regularity: regularity),
+            derivedOutputs: Self.derivedOutputs(debt: debt,
+                                                durationSpread: durationSpread,
+                                                regularity: regularity))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **Sleep is the one card on the fleet with genuinely *weighted* derived
+    // inputs**, and they were invisible. `Weight.debt` is 12% of this number and
+    // `Weight.consistency` is 8%, and both were folded into the sleep-duration
+    // row because all three are computed from the same series — a sound decision
+    // about the *chart* that had quietly become a wrong one about the weighting
+    // section. So these two are `ScoreFactor.derived` with real weights, not
+    // `producedFigure`s.
+    //
+    // ## Refused, and why
+    //
+    // - **`restorativeScore`** — already a `componentScore` on both stage rows,
+    //   so `DerivedHarvest` keeps it twice for free. A third copy under a
+    //   third name would be the duplication this design exists to prevent.
+    // - **Every per-night reading** (efficiency, latency, deep, REM, SpO₂,
+    //   respiratory rate) — each is one metric at face value. The reader's own
+    //   qualifier refuses these outright, and their sub-scores and departures
+    //   are harvested from `MetricContribution` regardless.
+    // - **The 0–100 itself** — `ScoreHistory` trends every card's score
+    //   already.
+
+    static let debtKey = "sleepDebtHours"
+    static let needKey = "learnedSleepNeed"
+    static let spreadKey = "nightLengthSpread"
+    static let bedtimeSpreadKey = "bedtimeSpread"
+    static let socialJetlagKey = "socialJetlag"
+
+    static func derivedOutputs(debt: SleepDebtModel.Output?,
+                               durationSpread: Double?,
+                               regularity: CircadianConsistencyModel.Output?) -> [DerivedOutput] {
+        var series: [DerivedOutput] = []
+        if let debt {
+            series.append(.init(key: debtKey, displayName: "Sleep debt",
+                                unit: "h", value: debt.debtHours,
+                                higherIsBetter: false, precision: 1))
+            // **Learned, not typed in.** The need is inferred from the reader's
+            // own record where there is enough of it, so it moves — and a debt
+            // figure whose denominator moved without saying so would be a
+            // changing answer that looked like a changing body.
+            if debt.needIsLearned {
+                series.append(.init(key: needKey, displayName: "Your learned sleep need",
+                                    unit: "h", value: debt.needHours,
+                                    // Needing more sleep is not worse than
+                                    // needing less. It is a property of the
+                                    // person, and the app does not rank it.
+                                    higherIsBetter: nil, precision: 1))
+            }
+        }
+        // **Dispersion, not a reading.** The spread across a fortnight is not in
+        // the nightly series at any single point, which is exactly what makes it
+        // a new quantity rather than a second name for sleep duration.
+        if let durationSpread {
+            series.append(.init(key: spreadKey, displayName: "How much your nights vary",
+                                unit: "h", value: durationSpread,
+                                higherIsBetter: false, precision: 2))
+        }
+        if let regularity {
+            series.append(.init(key: bedtimeSpreadKey, displayName: "How much your bedtime varies",
+                                unit: "h", value: regularity.spreadHours,
+                                higherIsBetter: false, precision: 2))
+            // Weekend against weekday — two groups of nights, so it exists only
+            // once the nights are partitioned. Not a restatement of anything.
+            if let jetlag = regularity.socialJetlagHours {
+                series.append(.init(key: socialJetlagKey, displayName: "Social jet lag",
+                                    unit: "h", value: jetlag,
+                                    higherIsBetter: false, precision: 1))
+            }
+        }
+        return series
+    }
+
+    /// Debt and consistency, carrying the coefficients they have always carried.
+    ///
+    /// ⚠️ These are **weighted**, unlike almost every other derived factor in the
+    /// app — `Weight.debt` and `Weight.consistency` are terms in the sum on the
+    /// same footing as duration and efficiency, so they divide the number rather
+    /// than summarising it. Bedtime spread is the third kind again: `regularity`
+    /// already has its own weighted row against `.sleepOnset`, so the spread is a
+    /// `producedFigure` at zero and says so.
+    static func derivedFactors(debt: SleepDebtModel.Output?,
+                               debtScore: Double,
+                               consistencyScore: Double,
+                               durationSpread: Double?,
+                               regularity: CircadianConsistencyModel.Output?) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = []
+        if let debt {
+            rows.append(.derived(
+                DerivedSeriesID(.sleep, debtKey), name: "Sleep debt",
+                weight: Weight.debt,
+                detail: String(format: "%.1f h behind your %@ need of %.1f h — %d night%@ counted",
+                               debt.debtHours,
+                               debt.needIsLearned ? "learned" : "assumed",
+                               debt.needHours, debt.nightsCounted,
+                               debt.nightsCounted == 1 ? "" : "s")))
+        } else {
+            // The term is still in the sum at a neutral 75 when there is no debt
+            // figure — `debtScore` defaults to it — and saying nothing here
+            // would put 12% of this card behind a row that does not exist.
+            rows.append(.producedFigure(
+                DerivedSeriesID(.sleep, debtKey), name: "Sleep debt",
+                detail: String(format: "Not worked out yet — it needs a run of nights. The term is held at a neutral %.0f meanwhile, which counts neither for nor against you.",
+                               debtScore)))
+        }
+        rows.append(.derived(
+            DerivedSeriesID(.sleep, spreadKey), name: "How much your nights vary",
+            weight: Weight.consistency,
+            detail: durationSpread.map {
+                String(format: "%d/100 — your nights sit ±%.1f h apart over the last fortnight", Int(consistencyScore), $0)
+            } ?? "Not enough nights yet — held at a neutral \(Int(consistencyScore))/100"))
+        if let regularity, regularity.socialJetlagHours != nil {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.sleep, socialJetlagKey), name: "Social jet lag",
+                detail: String(format: "%.1f h between your weekend and weekday bedtimes. Tracked, not scored — bedtime regularity already carries its own share above, and charging the same nights twice would count them twice.",
+                               regularity.socialJetlagHours ?? 0)))
+        }
+        return rows
     }
 
     /// Ohayon 2017 (NSF consensus), piecewise linear through the panel's own

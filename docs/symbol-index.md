@@ -103,9 +103,9 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :346
-  - `TravelDrainModel` :184
-  - `WorkImpactInsight` :269
+  - `TravelDrainInsight` :504
+  - `TravelDrainModel` :286
+  - `WorkImpactInsight` :423
   - `WorkImpactModel` :21
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11
@@ -163,7 +163,7 @@ the place to look.
   - `LagFinder` :27
   - `LaggedRelationship` :14
 - `Insights/MentalHealthModel.swift`
-  - `MentalHealthInsight` :248
+  - `MentalHealthInsight` :278
   - `MentalHealthModel` :55
 - `Insights/MetabolismInsight.swift`
   - `EnergyBalance` :43
@@ -458,7 +458,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :903
+  - `SubstanceWindow` :937
 - `Testing/SyntheticSeed.swift`
   - `SyntheticSeed` :41
 - `Text/CardStateExport.swift`
@@ -706,7 +706,7 @@ the place to look.
   - `BodyOverTimeSection` :24
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
-  - `InsightDetailView` :18
+  - `InsightDetailView` :28
 - `Features/Insights/InsightsHeroModel.swift`
   - `InsightsHeroModel` :31
 - `Features/Insights/InsightsListView.swift`

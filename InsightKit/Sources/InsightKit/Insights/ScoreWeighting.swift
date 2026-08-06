@@ -156,8 +156,24 @@ public struct ScoreFactor: Sendable, Hashable {
     public enum Source: Sendable, Hashable {
         case metric(MetricType)
         case grounding(GroundingKind)
-        /// Neither — something the model derived, like a decaying substance load.
-        case derived
+        /// Neither — something the model worked out, named by the series it
+        /// keeps.
+        ///
+        /// ⚠️ **The id is the whole point, and it used to be absent.** This case
+        /// carried no payload until 2026-08-06, so a row could say "Recent
+        /// substance load — 42%" and nothing on the phone could answer "what has
+        /// that been doing all month". The reader's complaint, verbatim: *"the
+        /// metrics we are deriving from each card, are still not being turned
+        /// into their own individual data sources, and used, especially in
+        /// weightings."* A `.metric` row links to a history; a `.grounding` row
+        /// links to where the fact is entered; the derived row linked nowhere
+        /// because it could not say which derived thing it was.
+        ///
+        /// The id must name a series the same result actually produces — either
+        /// a `DerivedOutput` key or one of the harvested component tiers — and
+        /// `DerivedFactorIdentityTests` fails the build otherwise. An id nothing
+        /// produces is a link to an empty page, which is worse than no link.
+        case derived(DerivedSeriesID)
     }
 
     public let source: Source
@@ -188,6 +204,53 @@ public struct ScoreFactor: Sendable, Hashable {
     public var metric: MetricType? {
         if case .metric(let m) = source { return m }
         return nil
+    }
+
+    /// The series behind a derived factor, so a row can link through to its
+    /// history in the Data tab exactly as a metric row links to its chart.
+    public var derivedSeries: DerivedSeriesID? {
+        if case .derived(let id) = source { return id }
+        return nil
+    }
+
+    // MARK: Constructors for the two shapes a derived factor comes in
+    //
+    // Both exist so the *decision* is made at the call site and is visible in
+    // the diff. The distinction is the one thing about this that is easy to get
+    // wrong, and getting it wrong puts a second 100% on a card.
+
+    /// **A figure that enters the number beside the other inputs, carrying its
+    /// own share.** The substance card's decaying load is the standing example:
+    /// it is a penalty term in the same pool as each measured response, so it
+    /// genuinely divides the score with them.
+    public static func derived(_ id: DerivedSeriesID, name: String, weight: Double,
+                               detail: String, isModifiable: Bool = true) -> ScoreFactor {
+        ScoreFactor(source: .derived(id), name: name, weight: weight,
+                    detail: detail, isModifiable: isModifiable)
+    }
+
+    /// **A figure the card produces rather than consumes — an aggregate of the
+    /// rows below it, or the thing that decides which days those rows compare.**
+    ///
+    /// ⚠️ **Weight 0, and the zero is the honest answer rather than a gap.** A
+    /// pooled departure, a combined biological age, an observed TDEE: each is a
+    /// function *of* the contributors, so handing it a share would count the same
+    /// evidence twice and put 140% on a card whose bars are supposed to sum to
+    /// one. It still belongs on both sections — the reader asked for exactly
+    /// that — so it renders in "What goes into this" and in the weighting
+    /// section's *charted, not scored* group, where every row states why it
+    /// carries nothing.
+    ///
+    /// ⚠️ **`detail` must contain an em-dash clause giving that reason.** It is
+    /// the reader's own rule — an input either carries a share or says on its
+    /// own row why it doesn't — and `ScoreAttributionTests
+    /// .testAnUnweightedRowAlwaysSaysWhy` enforces it over every registered
+    /// model, so a bare figure here fails the build rather than shipping as a
+    /// naked zero.
+    public static func producedFigure(_ id: DerivedSeriesID, name: String,
+                                      detail: String) -> ScoreFactor {
+        ScoreFactor(source: .derived(id), name: name, weight: 0,
+                    detail: detail, isModifiable: true)
     }
 }
 

@@ -1015,7 +1015,69 @@ public struct BloodPressureInsight: InsightModel {
                             detail: base + note)
                     }
                 },
-            weighting: score == nil ? .unstated : weighting)
+            weighting: score == nil ? .unstated : weighting,
+            otherFactors: Self.producedFigures(estimate: estimatePair,
+                                               drivesDial: estimateDrivesDial),
+            derivedOutputs: Self.derivedOutputs(estimate: estimatePair))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **The estimate, and only the estimate.** It is a fit over the reader's own
+    // paired cuff-and-wearable readings, so it is a genuinely modelled number
+    // over two metrics — and it moves when the fit is refreshed even if nothing
+    // was measured that day, which is what makes it a series in its own right
+    // rather than a rename of resting heart rate.
+    //
+    // ## Refused — this card is mostly measurements
+    //
+    // - **`sys` / `dia` / `trend`** — cuff readings, and a mean of cuff
+    //   readings. The most literal pass-through in the app: blood pressure has
+    //   its own Data-tab home and its own card, and a second series called
+    //   "recent pattern" would be that same number under a worse name.
+    // - **Drift** (`BloodPressureEstimator` ▸ Drift) — held-out error of the
+    //   fit. A property of the model rather than of the reader, and the card
+    //   already renders it where it means something. Named here so the decision
+    //   is not re-taken.
+    // - **The ACC/AHA stage** — a category, not a quantity. `DerivedPoint`
+    //   holds a `Double`, and encoding a clinical stage as 0…3 would invite
+    //   exactly the arithmetic on it that the stages forbid.
+
+    static let estimateSystolicKey = "estimatedSystolic"
+    static let estimateDiastolicKey = "estimatedDiastolic"
+
+    static func derivedOutputs(estimate: (systolic: Double, diastolic: Double)?)
+        -> [DerivedOutput] {
+        guard let estimate else { return [] }
+        return [
+            .init(key: estimateSystolicKey, displayName: "Estimated systolic",
+                  unit: "mmHg", value: estimate.systolic,
+                  higherIsBetter: false, precision: 0),
+            .init(key: estimateDiastolicKey, displayName: "Estimated diastolic",
+                  unit: "mmHg", value: estimate.diastolic,
+                  higherIsBetter: false, precision: 0),
+        ]
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`, and here the zero carries
+    /// a second meaning worth keeping distinct. On the estimate route the fit's
+    /// shares are already on the autonomic rows; on a cuff route the estimate is
+    /// not what the dial reads at all, and this row says so out loud rather than
+    /// letting a reader assume the "Experimental" badge applies to their
+    /// measured number.
+    static func producedFigures(estimate: (systolic: Double, diastolic: Double)?,
+                                drivesDial: Bool) -> [ScoreFactor] {
+        guard let estimate else { return [] }
+        let where_ = drivesDial
+            ? "This is what the dial is reading. Its shares are on the rows above — this row is the output of them."
+            : "A cuff reading outranks a model of one, so this is *not* what the dial is reading today. Kept and charted so you can watch the two against each other."
+        return [
+            .producedFigure(
+                DerivedSeriesID(.bloodPressure, estimateSystolicKey),
+                name: "Estimated blood pressure",
+                detail: String(format: "~%.0f/%.0f mmHg, from a fit over your own paired readings — a model, not a measurement. %@",
+                               estimate.systolic, estimate.diastolic, where_))
+        ]
     }
 }
 

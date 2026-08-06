@@ -484,6 +484,25 @@ public struct ReadinessInsight: InsightModel {
         // weight order components arrive in is meaningful.
         let lines = out.components
             .map { InsightDriver.component("\($0.name): \($0.detail)", score: $0.score) }
+        // MARK: Derived-series verdict — **nothing to declare, deliberately**
+        //
+        // The rule (2026-08-06): every card states, for every non-metric figure
+        // it computes, either a derived series or the reason it is a
+        // pass-through. **Readiness computes none.**
+        //
+        // Its number is exactly the weighted mean of its components, and every
+        // component is one metric scored against that metric's own baseline —
+        // there is no pooled statistic, no fitted quantity and no unit
+        // conversion anywhere between the samples and the dial. What each
+        // component *is* worth is already kept: `Output.contributions` carries
+        // `componentScore` and `z` on every row, so `DerivedHarvest` files a
+        // `.componentScore` and a `.componentDeparture` series for each of them
+        // for free. The score itself is trended by `ScoreHistory`.
+        //
+        // Emitting anything more here would be putting the same numbers in the
+        // Data tab a third time. This comment exists so the next session does
+        // not read the empty `derivedOutputs` as an omission — a deliberate no
+        // is a finding, and re-deriving it costs more than reading it.
         return InsightResult(
             id: id, title: title, primaryValue: out.score,
             headline: out.band, score: out.score, confidence: confidence,

@@ -40,13 +40,19 @@ final class SectionCaveatTests: XCTestCase {
         XCTAssertEqual(many?.contains("9 weigh-ins."), true)
     }
 
-    /// The verb has to agree too — "1 more signal is", "4 more signals are".
+    /// The verb has to agree too — "1 more row is", "4 more rows are".
+    ///
+    /// ⚠️ **"row", not "signal", since 2026-08-06.** The group this caveat sits
+    /// over used to hold only measured signals a card charts without scoring; it
+    /// now also holds figures the card *works out* — a pooled departure, a
+    /// combined age — and "signals checked for anything unusual" would describe
+    /// a scan that never ran over those.
     func testVerbsAgreeWithTheirCount() throws {
         let one = try XCTUnwrap(SectionCaveat.unscored(signals: 1).text)
-        XCTAssertTrue(one.hasPrefix("1 more signal is checked"), one)
+        XCTAssertTrue(one.hasPrefix("1 more row is shown"), one)
 
         let many = try XCTUnwrap(SectionCaveat.unscored(signals: 4).text)
-        XCTAssertTrue(many.hasPrefix("4 more signals are checked"), many)
+        XCTAssertTrue(many.hasPrefix("4 more rows are shown"), many)
     }
 
     func testFittedThroughAgreesToo() throws {

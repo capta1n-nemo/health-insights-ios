@@ -312,7 +312,93 @@ public struct CardiovascularRiskInsight: InsightModel {
             explanation: explanation, driverLines: drivers, unmetRequirements: unmet,
             contributors: contributors,
             weighting: .equation(usedModels.map(\.name).joined(separator: " and ")),
-            otherFactors: factors.filter { $0.metric != .bloodPressureSystolic })
+            otherFactors: factors.filter { $0.metric != .bloodPressureSystolic }
+                + Self.producedFigures(consensus: consensus, analysis: ageAnalysis),
+            derivedOutputs: Self.derivedOutputs(consensus: consensus,
+                                                perEngine: usedModels.map { ($0.name, $0.pct) },
+                                                analysis: ageAnalysis))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **The equation outputs.** `consensus` is SCORE2 and ASCVD run over eight
+    // inputs and averaged; the heart age is the same risk inverted through the
+    // age axis. Neither is recoverable from any series the app holds, and both
+    // were computed on every launch and remembered nowhere — so "is my ten-year
+    // risk actually coming down" had no answer except re-running it.
+    //
+    // The **per-engine** percentages are kept separately rather than only their
+    // mean, because the card's own copy leans on their disagreement ("SCORE2
+    // says X, ASCVD says Y") and a mean hides the day the two diverge.
+    //
+    // ## Refused
+    //
+    // - **`systolic`, `totalChol`, `hdl`** — readings at face value.
+    // - **`RiskAttribution`'s shares** — already `ScoreFactor` rows with real
+    //   weights, and each is "this input's effect on the number" rather than a
+    //   quantity about the reader. A series of a share would trend the
+    //   decomposition, not the person.
+
+    static let consensusKey = "tenYearRisk"
+    static let heartAgeKey = "heartAge"
+    static let optimalRiskKey = "tenYearRiskAtOptimal"
+
+    static func derivedOutputs(consensus: Double,
+                               perEngine: [(name: String, pct: Double)],
+                               analysis: HeartAgeAnalyser.Analysis) -> [DerivedOutput] {
+        var series: [DerivedOutput] = [
+            .init(key: consensusKey, displayName: "10-year risk",
+                  unit: "%", value: consensus, higherIsBetter: false, precision: 1)
+        ]
+        for engine in perEngine {
+            series.append(.init(key: "\(consensusKey).\(engine.name)",
+                                displayName: "10-year risk — \(engine.name)",
+                                unit: "%", value: engine.pct,
+                                higherIsBetter: false, precision: 1))
+        }
+        if let heart = analysis.heart {
+            // `heartAge` is the mean across the engines that solved, and is nil
+            // where none did — an absent series says "never computed", which is
+            // the honest reading of that.
+            if let age = heart.heartAge {
+                series.append(.init(key: heartAgeKey, displayName: "Heart age",
+                                    unit: "years", value: age,
+                                    higherIsBetter: false, precision: 0))
+            }
+            // **The modifiable half, as a number.** The card's own line is
+            // "that gap is the modifiable part"; keeping the optimal-risk figure
+            // is what lets the gap be trended rather than re-derived.
+            if let optimal = heart.optimalRiskPercent {
+                series.append(.init(key: optimalRiskKey,
+                                    displayName: "10-year risk with everything at optimal",
+                                    unit: "%", value: optimal,
+                                    higherIsBetter: false, precision: 1))
+            }
+        }
+        return series
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. This card's shares come
+    /// from `RiskAttribution` holding each input at its optimal value and
+    /// re-running the equation; the result of that equation cannot also be one
+    /// of its terms.
+    static func producedFigures(consensus: Double,
+                                analysis: HeartAgeAnalyser.Analysis) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.cardiovascularRisk, consensusKey),
+                name: "10-year risk",
+                detail: String(format: "%.1f%%. The equations' output, not one of their inputs — the inputs and their shares are the rows above.",
+                               consensus))
+        ]
+        if let age = analysis.heart?.heartAge {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.cardiovascularRisk, heartAgeKey),
+                name: "Heart age",
+                detail: String(format: "%.0f — the same risk read off the age axis instead of the percentage one. Tracked rather than scored: it is a restatement of the number above, in years.",
+                               age)))
+        }
+        return rows
     }
 
     private func notYetResult(unmet: [GroundingRequirement]) -> InsightResult {

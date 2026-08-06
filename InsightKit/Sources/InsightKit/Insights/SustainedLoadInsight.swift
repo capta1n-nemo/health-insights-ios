@@ -237,6 +237,48 @@ public struct SustainedLoadInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(out),
+            derivedOutputs: Self.derivedOutputs(out))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **One figure, and it is the card.** `load` is a coverage-normalised
+    // weighted mean of four one-sided departures — the *joint* statistic this
+    // card was built around rather than a count of channels past a threshold,
+    // which is the mistake documented at length in `SustainedLoadModel.evaluate`.
+    // It pools; it gets a series.
+    //
+    // **The channels do not**, and each is refused for the reader's own reason:
+    // `Channel.loadZ` is one metric's month against its own season, which is a
+    // rescaling of a single series. Nothing is lost — each contribution carries
+    // `z`, and `DerivedHarvest` already turns every `z` into a
+    // `.componentDeparture` series without a second display name competing with
+    // the metric's own.
+    //
+    // The 0–100 is not emitted either: `ScoreHistory` already trends every
+    // card's score, and a card publishing its own dial as a derived series would
+    // put the same number in the Data tab twice.
+
+    static let loadKey = "pooledLoad"
+
+    static func derivedOutputs(_ out: SustainedLoadModel.Output) -> [DerivedOutput] {
+        [.init(key: loadKey, displayName: "Sustained load, pooled",
+               unit: "SD", value: out.load,
+               // Positive is toward load, always — the clamp in `evaluate` is
+               // what makes that true — so lower is the welcome direction.
+               higherIsBetter: false, precision: 2)]
+    }
+
+    /// ⚠️ Weight 0 — the channels below already divide this card between them
+    /// and this figure is their weighted mean. See `ScoreFactor.producedFigure`.
+    static func producedFigures(_ out: SustainedLoadModel.Output) -> [ScoreFactor] {
+        [.producedFigure(
+            DerivedSeriesID(.sustainedLoad, loadKey),
+            name: "Sustained load, pooled",
+            detail: String(format: "%.2f SD toward load across %d signal%@, coverage-normalised. It carries no share of its own — it is the weighted mean of the shares above, and the dial is a curve through it.",
+                           out.load, out.channels.count,
+                           out.channels.count == 1 ? "" : "s"))]
     }
 }
