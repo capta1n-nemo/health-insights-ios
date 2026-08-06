@@ -197,13 +197,19 @@ public enum MetricExplainer {
                 whatItIs: "A tape measurement around one part of your body.",
                 soWhat: "Where weight sits matters as much as how much there is — waist relative to height in particular tracks metabolic risk better than weight alone.")
 
+        case .physicalEffort:
+            return MetricExplanation(
+                whatItIs: "How hard your body was working, in METs — multiples of what you burn sitting still. Sitting is 1, a gentle walk about 3, a brisk one about 5, and running roughly 8 and up. Your watch estimates it from movement and heart rate.",
+                soWhat: "Steps and distance say how much you moved; this says how hard. Ten thousand slow steps and an hour of hills are the same on a step counter and very different here, and it is the intensity that most of the health evidence is actually about.")
+
         // MARK: No explanation needed, and that is a decision
         //
         // A step is a step, a kilogram is a kilogram, and a glass of water does
         // not need defining. Explaining the self-explanatory is its own kind of
         // condescension, and it buries the terms that genuinely puzzle someone.
         case .heartRate, .walkingHeartRateAverage, .stepCount, .activeEnergyBurned,
-             .exerciseMinutes, .bodyMass, .height, .sleepDurationHours,
+             .exerciseMinutes, .distanceWalkingRunning, .flightsClimbed,
+             .bodyMass, .height, .sleepDurationHours,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepOnset, .bloodGlucose,
              .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre, .dietarySodium,

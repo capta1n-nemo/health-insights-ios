@@ -60,6 +60,24 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// moderate-intensity definition — that match is why this one, alone of the
     /// activity metrics, can be scored against a published dose).
     case exerciseMinutes           // min
+    /// Distance covered on foot, in kilometres. Apple writes one sample per
+    /// bout, so a day is the sum of them — `.cumulativeTotal`, like steps.
+    case distanceWalkingRunning    // km
+    /// Floors climbed, in flights. Apple's own definition is roughly ten feet
+    /// of ascent, and it is the one activity metric that reads *effort against
+    /// gravity* rather than distance covered.
+    case flightsClimbed            // count
+    /// **How hard you were working, not how long.** Apple's `physicalEffort`
+    /// is in kcal/hr·kg, which *is* the MET by definition — 1 MET is one
+    /// kilocalorie per hour per kilogram of body mass — so no conversion is
+    /// needed and the number on the chart is directly comparable with the
+    /// published intensity bands (`EffortIntensityModel`).
+    ///
+    /// ⚠️ **Watch-only and sparse.** Measured on the reader's export
+    /// 2026-08-06: 81,252 rows, and **14 of the last 90 days**. The row count
+    /// is a trap — it counts per-bout samples, not days — which is why every
+    /// reader of this metric has to state its coverage rather than assume it.
+    case physicalEffort            // METs (kcal/hr·kg)
 
     // Nutrition
     /// What the reader ate, as energy. **The one dietary quantity the app
@@ -230,6 +248,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "Steps"
         case .activeEnergyBurned: return "Active Energy"
         case .exerciseMinutes: return "Exercise Minutes"
+        case .distanceWalkingRunning: return "Distance"
+        case .flightsClimbed: return "Flights Climbed"
+        case .physicalEffort: return "Effort Intensity"
         case .dietaryEnergy: return "Calories Eaten"
         case .dietaryProtein: return "Protein"
         case .dietaryCarbohydrates: return "Carbohydrates"
@@ -304,6 +325,11 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .stepCount: return "steps"
         case .activeEnergyBurned: return "kcal"
         case .exerciseMinutes: return "min"
+        case .distanceWalkingRunning: return "km"
+        case .flightsClimbed: return "flights"
+        // "METs" rather than "kcal/hr·kg". Identical quantity, and the reader
+        // has met the MET on a treadmill display; nobody reads the other form.
+        case .physicalEffort: return "METs"
         case .dietaryEnergy: return "kcal"
         case .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,

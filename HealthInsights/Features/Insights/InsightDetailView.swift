@@ -2430,8 +2430,204 @@ struct InsightDetailView: View {
         // card would otherwise read as the same picture twice.
         case .biologicalAge:
             ageComparisonSection
+        // **Backlog §B5 #34–35, both the reader's own reversals, and both
+        // asked for as *sections on Fitness* rather than as cards.** Two of
+        // them, because "how hard" and "how much" are different questions and
+        // one section answering both would bury the first: intensity is the
+        // thing this app can say that a step counter cannot, and it would have
+        // ended up as a footnote under three totals.
+        case .fitness:
+            effortIntensitySection
+            weeklyMovementSection
         default:
             EmptyView()
+        }
+    }
+
+    // MARK: - Fitness: how hard, and how much
+
+    /// The week's effort, split by intensity band.
+    ///
+    /// **Deliberately not a `Chart`.** Seven horizontal bars need no pan, no
+    /// scrub and no date axis, and a date axis is the only thing the substance
+    /// shading has to land on — so a `Chart` here would have bought the
+    /// `Chart3DContent` overload hazard and the stacked-gap hazard in exchange
+    /// for nothing. It is the same shape `gaitShareBar` already uses for a
+    /// share, one row per day.
+    ///
+    /// ⚠️ **Bar length encodes the day's recorded wear, not a fixed width.** A
+    /// day the watch recorded five hours and one it recorded twenty-two are not
+    /// comparable, and normalising each row to its own width would draw them
+    /// identically. On the reader's own record the p10 recorded day is 301
+    /// minutes and the p90 is 1,362, so this is the common case rather than an
+    /// edge one.
+    @ViewBuilder private var effortIntensitySection: some View {
+        let split = model.memoized("effortSplit") {
+            EffortIntensityModel.dailySplit(samples: model.samples, days: 7,
+                                            now: Date())
+        }
+        let out = model.memoized("effortWeek") {
+            EffortIntensityModel.evaluate(samples: model.samples, now: Date())
+        }
+        if !split.isEmpty {
+            let scale = split.map { $0.lightMinutes + $0.moderateMinutes + $0.vigorousMinutes }
+                .max() ?? 1
+            Divider()
+            InsightSection(
+                title: "How hard you worked",
+                trailing: out.map { String(format: "%.0f min moderate+", $0.moderateMinutes + $0.vigorousMinutes) },
+                caveat: .computed(.partial, effortCaveat(out, days: split.count)),
+                expansion: expansion(preview: effortPreview(out, days: split.count))
+            ) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(split) { day in
+                        effortDayRow(day, scale: scale)
+                    }
+                    Divider()
+                    effortBandKey
+                    if let out {
+                        Text(EffortIntensityModel.coveragePhrase(out))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        // The gate, said as a fact about the week rather than
+                        // as an error. It is the honest state for most weeks on
+                        // this reader's record and it must not read as a fault.
+                        Text("Only \(split.count) of the last 7 days recorded any effort, so there is no weekly figure — a total built from one worn day reads as a quiet week when what happened is that the watch was off.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func effortPreview(_ out: EffortIntensityModel.Output?, days: Int) -> String {
+        guard let out else { return "\(days) of 7 days recorded — too few to total" }
+        guard let share = out.vigorousShare else {
+            return "Nothing above a brisk walk this week"
+        }
+        return String(format: "%.0f%% of your active time was vigorous", share * 100)
+    }
+
+    private func effortCaveat(_ out: EffortIntensityModel.Output?, days: Int) -> String {
+        "Effort intensity comes from your watch, in METs — multiples of what you burn sitting still. "
+            + "It is only recorded while the watch is on, so a quiet row is a day you did little "
+            + "**or** a day it was in a drawer, and this section cannot tell those apart. "
+            + "The bands are the Compendium of Physical Activities' own: under 3, 3–6, and 6 and above."
+    }
+
+    /// One day: a bar whose length is the wear and whose segments are the split.
+    private func effortDayRow(_ day: EffortIntensityModel.Day, scale: Double) -> some View {
+        let total = day.lightMinutes + day.moderateMinutes + day.vigorousMinutes
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Text(day.date, format: .dateTime.weekday(.abbreviated))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(width: 34, alignment: .leading)
+                GeometryReader { geometry in
+                    let width = geometry.size.width * (scale > 0 ? total / scale : 0)
+                    HStack(spacing: 1) {
+                        ForEach(EffortIntensityModel.Band.allCases, id: \.self) { band in
+                            // Every band gets a rectangle on every row, zero
+                            // width where it is absent — the same rule a
+                            // stacked chart needs, for the same reason: a band
+                            // that appears and disappears between rows reads as
+                            // a different quantity.
+                            Rectangle()
+                                .fill(effortColour(band))
+                                .frame(width: max(0, width * (total > 0 ? day.minutes(in: band) / total : 0)))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .frame(height: 12)
+                }
+                .frame(height: 12)
+                Text("\(Int((day.moderateMinutes + day.vigorousMinutes).rounded())) min")
+                    .font(.caption2).monospacedDigit().foregroundStyle(.tertiary)
+                    .frame(width: 54, alignment: .trailing)
+            }
+        }
+    }
+
+    /// Three opacities of one hue rather than three hues.
+    ///
+    /// The bands are **ordered** — light, moderate, vigorous is a scale, not a
+    /// set of categories — and three distinct hues would draw an ordered
+    /// quantity as an unordered one. It also keeps the section out of the
+    /// eight-hue budget `MetricPalette` manages for the charts.
+    private func effortColour(_ band: EffortIntensityModel.Band) -> Color {
+        switch band {
+        case .light: return Theme.accent.opacity(0.22)
+        case .moderate: return Theme.accent.opacity(0.60)
+        case .vigorous: return Theme.accent
+        }
+    }
+
+    private var effortBandKey: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(EffortIntensityModel.Band.allCases.reversed(), id: \.self) { band in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(effortColour(band)).frame(width: 14, height: 8)
+                    Text(band.rawValue).font(.caption2)
+                    Text(band.example).font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    /// Steps, distance and flights for the week — backlog §B5 #35.
+    ///
+    /// Three totals and no score. None of the three has a published band worth
+    /// drawing (the 10,000-step figure is a 1960s pedometer's brand name), so
+    /// what this section can honestly do is show the figures and say how many
+    /// days they came from.
+    @ViewBuilder private var weeklyMovementSection: some View {
+        let totals = model.memoized("weeklyMovement") {
+            EffortIntensityModel.movement(samples: model.samples, now: Date())
+        }
+        if !totals.isEmpty {
+            Divider()
+            InsightSection(
+                title: "How much you moved",
+                trailing: totals.first { $0.metric == .stepCount }
+                    .map { MetricValueFormatter.string($0.total, .stepCount) + " steps" },
+                caveat: .computed(.partial,
+                                  "Seven days, counted from the days that recorded anything. "
+                                    + "There is no published target for any of these three — the "
+                                    + "10,000-step figure was a pedometer's brand name in 1965 — so "
+                                    + "these are your figures against your own week, not against a bar."),
+                expansion: expansion(preview: movementPreview(totals))
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(totals) { total in
+                        movementRow(total)
+                    }
+                }
+            }
+        }
+    }
+
+    private func movementPreview(_ totals: [EffortIntensityModel.MovementTotal]) -> String {
+        totals.map {
+            "\(MetricValueFormatter.string($0.total, $0.metric)) \($0.metric.unit)"
+        }.joined(separator: " · ")
+    }
+
+    private func movementRow(_ total: EffortIntensityModel.MovementTotal) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(total.metric.displayName).font(.subheadline)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("\(MetricValueFormatter.string(total.total, total.metric)) \(total.metric.unit)")
+                    .font(.subheadline).monospacedDigit()
+                if let perDay = total.perRecordedDay {
+                    Text("\(MetricValueFormatter.string(perDay, total.metric)) \(total.metric.unit) on each of \(total.recordedDays) \(SectionCaveat.plural(total.recordedDays, "day"))")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
         }
     }
 

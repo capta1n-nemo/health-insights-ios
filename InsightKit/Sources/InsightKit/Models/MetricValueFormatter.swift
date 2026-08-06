@@ -37,6 +37,12 @@ public enum MetricValueFormatter {
              // renders 2140 rather than 2,140.
              .dietaryEnergy, .dietarySodium, .dietaryPotassium:
             return grouped(value)
+        // Kilometres and METs, where the default's `Int(rounded())` would
+        // render a 3.4 km walk as "3" and every desk day between 1.5 and 2.4
+        // METs as "2" — and the whole span of ordinary human effort is 1 to 12,
+        // so a whole number throws away most of the signal.
+        case .distanceWalkingRunning, .physicalEffort:
+            return String(format: "%.1f", value)
         // Litres, where the default's `Int(rounded())` would render every day
         // between 1.5 L and 2.4 L as "2".
         case .dietaryWater:

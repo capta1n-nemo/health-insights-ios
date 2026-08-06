@@ -50,6 +50,10 @@ public extension MetricType {
         case .dayStrain, .stepCount, .activeEnergyBurned,
              // A day with no exercise is a real day.
              .exerciseMinutes,
+             // A day at home covers no distance and climbs no stairs, and a
+             // watch worn while sitting still records effort at rest. Zero is
+             // a reading on all three.
+             .distanceWalkingRunning, .flightsClimbed, .physicalEffort,
              // Zero is midnight exactly, and negative is any evening bedtime —
              // for this metric a positivity rule would throw away every reading
              // before 00:00, which is most of them.
@@ -175,6 +179,20 @@ public extension MetricType {
         case .sleepLatencyMinutes: return 0...(12 * 60)
         case .skinTemperatureDeviation: return -15...15
         case .stepCount, .activeEnergyBurned: return nil
+        // A per-bout sample, not a day: the ceiling rejects a metres-for-
+        // kilometres unit slip (a 5 km run arriving as 5,000) while leaving
+        // room for an ultramarathon logged as one bout.
+        case .distanceWalkingRunning: return 0...300
+        // Flights, per sample. The record for stair climbing in a day is in
+        // the low thousands of floors; this rejects a unit error, nothing else.
+        case .flightsClimbed: return 0...5_000
+        // METs. Resting is 1 by definition, and the highest sustained human
+        // efforts reach roughly 23 (elite distance running). The floor is 0
+        // rather than 1 because Apple writes 0 for intervals it could not
+        // judge, and `requiresPositiveValue` deliberately lets those through —
+        // see `EffortIntensityModel`, which drops them by band rather than by
+        // sanitizer, so a zero-effort hour stays visible as data.
+        case .physicalEffort: return 0...30
         // A survival bound, not a dietary one. Recorded human intakes reach
         // well past 10,000 kcal in a day (competitive eating, ultra-endurance
         // racing), so the ceiling only rejects a unit error — a joule figure

@@ -26,9 +26,14 @@ public struct FitnessInsight: InsightModel {
     /// vitals scanner. They are among the most useful fitness signals the app
     /// holds, so they belong on this card's chart even before anything scores
     /// them.
+    /// `.distanceWalkingRunning`, `.flightsClimbed` and `.physicalEffort` join
+    /// on 2026-08-06 — backlog §B5 #34–35, both the reader's own reversals, and
+    /// both explicitly *as Fitness sections rather than cards*. All three were
+    /// being scraped into the raw pile and read by nothing.
     public var candidateMetrics: [MetricType] {
         [.vo2Max, .exerciseMinutes, .heartRateRecovery, .restingHeartRate,
-         .walkingHeartRateAverage, .dayStrain, .stepCount, .activeEnergyBurned]
+         .walkingHeartRateAverage, .dayStrain, .stepCount, .activeEnergyBurned,
+         .distanceWalkingRunning, .flightsClimbed, .physicalEffort]
     }
 
     public var requirements: [GroundingRequirement] {
@@ -108,12 +113,28 @@ public struct FitnessInsight: InsightModel {
         // term rather than level and trajectory separately, because
         // `MetricContribution` is the single statement of a metric's share and
         // two `.vo2Max` rows would break that.
+        //
+        // ⚠️ **Two inputs, one term** (2026-08-06, backlog §B5 #34). Effort
+        // intensity answers the same question as the exercise minute and
+        // answers it better — it carries the intensity, so WHO's own
+        // one-vigorous-for-two-moderate substitution can be applied — so it
+        // *supersedes* the dose rather than sitting beside it. A second WHO
+        // term would count one afternoon's walking twice. When the week has too
+        // little effort data (`EffortIntensityModel` gates on worn days), the
+        // exercise minute is still there and nothing about the card changes.
+        let effort = EffortIntensityModel.evaluate(samples: samples, now: now)
         let dose = ActivityDoseModel.evaluate(samples: samples, now: now)
         var primary: [ScoreBlend.Term] = [
             .init(metric: .vo2Max, higherIsBetter: true, score: vo2Score,
                   weight: totalWeight, detail: String(format: "%.0f", vo2))
         ]
-        if let dose {
+        if let effort {
+            primary.append(.init(
+                metric: .physicalEffort, higherIsBetter: true, score: effort.score,
+                weight: Self.doseWeight,
+                detail: String(format: "%.0f moderate-equivalent min this week",
+                               effort.moderateEquivalentMinutes)))
+        } else if let dose {
             primary.append(.init(
                 metric: .exerciseMinutes, higherIsBetter: true, score: dose.score,
                 weight: Self.doseWeight,
@@ -142,8 +163,16 @@ public struct FitnessInsight: InsightModel {
                        score: levelScore)
         ]
 
-        // The one line on this card about what the reader did *this week*.
-        if let dose {
+        // The one line on this card about what the reader did *this week*, from
+        // whichever of the two inputs is scoring it. The coverage line follows
+        // the effort figure rather than being folded into it: "392 min moderate"
+        // and "from 4 of the last 7 days" are two different claims and the
+        // second one is the caveat.
+        if let effort {
+            drivers.append(.component(EffortIntensityModel.phrase(effort),
+                                      score: effort.score))
+            drivers.append(.routine(EffortIntensityModel.coveragePhrase(effort)))
+        } else if let dose {
             drivers.append(.component(ActivityDoseModel.phrase(dose), score: dose.score))
         }
 
@@ -204,9 +233,11 @@ public struct FitnessInsight: InsightModel {
         // Exercise minutes already has its weekly line above whenever the dose
         // was judged, and a second daily figure under it would read as a
         // different quantity in the same words.
+        var alreadySaidWeekly: Set<MetricType> = []
+        if effort != nil { alreadySaidWeekly.insert(.physicalEffort) }
+        if dose != nil { alreadySaidWeekly.insert(.exerciseMinutes) }
         drivers.append(contentsOf: Self.contextDrivers(
-            samples: samples, now: now,
-            excluding: dose == nil ? [] : [.exerciseMinutes]))
+            samples: samples, now: now, excluding: alreadySaidWeekly))
 
         return InsightResult(
             id: id, title: title,
@@ -282,9 +313,20 @@ public struct FitnessInsight: InsightModel {
         (.dayStrain, nil),
         (.stepCount, true),
         (.activeEnergyBurned, true),
+        // Backlog §B5 #35. Both are near-restatements of steps — which is why
+        // they are supporting signals on an existing card and not a card of
+        // their own — but flights is the one activity figure that reads effort
+        // against gravity, and it moves independently of the other two on a
+        // day with a hill in it.
+        (.distanceWalkingRunning, true),
+        (.flightsClimbed, true),
         // Usually promoted to the primary pool by `ActivityDoseModel`;
         // this row is the fallback for a week with too few recorded days.
-        (.exerciseMinutes, true)
+        (.exerciseMinutes, true),
+        // Same relationship, one level up: promoted to the primary pool by
+        // `EffortIntensityModel` when the week has enough worn days, and here
+        // as a day-against-your-own-normal signal when it does not.
+        (.physicalEffort, true)
     ]
 
     static func contextDrivers(samples: [HealthMetricSample], now: Date,

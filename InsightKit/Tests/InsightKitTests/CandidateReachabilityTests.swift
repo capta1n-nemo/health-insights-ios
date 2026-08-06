@@ -36,7 +36,15 @@ final class CandidateReachabilityTests: XCTestCase {
         (.heartHealth, .heartRateVariabilitySDNN, [.heartRateVariabilityRMSSD]),
         (.sleep, .skinTemperature, [.skinTemperatureDeviation]),
         (.sleep, .bodyTemperature, [.skinTemperatureDeviation, .skinTemperature]),
-        (.energy, .heartRateVariabilitySDNN, [.heartRateVariabilityRMSSD])
+        (.energy, .heartRateVariabilitySDNN, [.heartRateVariabilityRMSSD]),
+        // 2026-08-06, backlog §B5 #34. Apple's exercise minute became a
+        // *fallback* the day physical effort started arriving: both answer WHO's
+        // question, only one carries the intensity, and weighting both would
+        // count one afternoon's walking twice. So its route into this card is
+        // now a fact about whether the reader's watch recorded effort that week
+        // — which is precisely what this table means, rather than a dead
+        // declaration.
+        (.fitness, .exerciseMinutes, [.physicalEffort])
     ]
 
     private func samples(now: Date, without withheld: Set<MetricType>) -> [HealthMetricSample] {

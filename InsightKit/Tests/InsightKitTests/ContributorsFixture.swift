@@ -60,7 +60,12 @@ enum ContributorsFixture {
             .dietaryProtein: 110, .dietaryCarbohydrates: 220, .dietaryFat: 70,
             .dietarySaturatedFat: 20, .dietarySugar: 60, .dietaryFibre: 26,
             .dietarySodium: 2300, .dietaryPotassium: 3200, .dietaryWater: 2.0,
-            .dietaryCaffeine: 180
+            .dietaryCaffeine: 180,
+            // Promoted 2026-08-06 (backlog §B5 #35). Consistent with the 9,000
+            // steps above rather than picked independently — a fixture whose
+            // distance and step count disagree would let a card that reads one
+            // as a proxy for the other pass.
+            .distanceWalkingRunning: 6.4, .flightsClimbed: 11
         ]
         var out: [HealthMetricSample] = []
         for i in stride(from: days - 1, through: 0, by: -1) {
@@ -71,6 +76,21 @@ enum ContributorsFixture {
                                  start: now.addingTimeInterval(-Double(i) * 86_400),
                                  source: .oura))
             }
+            // ⚠️ **Effort intensity cannot go in the loop above, and the reason
+            // is the whole point of the metric.** Every other sample here is a
+            // point reading; `EffortIntensityModel` measures *time*, from each
+            // sample's own interval, so a zero-length sample contributes no
+            // minutes and the card would score a fully-covered fixture at the
+            // sedentary floor. Two intervals a day — a working day at rest and
+            // half an hour of walking — which puts the week at 210
+            // moderate-equivalent minutes, inside the WHO band and deliberately
+            // not on either edge of it.
+            let day = now.addingTimeInterval(-Double(i) * 86_400)
+            out.append(.init(type: .physicalEffort, value: 1.4, start: day,
+                             end: day.addingTimeInterval(600 * 60), source: .oura))
+            out.append(.init(type: .physicalEffort, value: 4.4,
+                             start: day.addingTimeInterval(601 * 60),
+                             end: day.addingTimeInterval(631 * 60), source: .oura))
         }
         return out
     }

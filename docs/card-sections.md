@@ -202,7 +202,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● "How hard you worked" + "How much you moved" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ — the age comparison moved to Biological age 2026-08-06 | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
@@ -439,7 +439,7 @@ statement; the shares are what "How this is weighted" draws._
 | Energy | `weightedAverage` | **`EnergyModel.Output.terms`**, each term's magnitude over the total | resting HR; heart rate when the day is too thin to count exertion |
 | Substance Impact | `worstOffender` | `penaltyShares` — exact and linear (see above). **The dial is measured impact, never disapproval of use** (user ruling, 2026-08-02 — see "Harm reduction" below): one signal is bounded at `worstResponseShare` 0.45 of the deduction, breadth carries the other 0.55 as a mean over everything measured, thin pools are discounted by `severity`, and exposure alone is capped at 25 once ≥3 signals are measured (55 when nothing is). The comparison is **contemporaneous** — both sides from the last 90 days (`comparisonWindowDays`) — after a six-year cuff history posed as the clean baseline for a fortnight of logs | — the pool already covers every signal |
 | Heart Health | `weightedAverage` | four fixed weights, renormalised | heart-rate recovery |
-| Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's exercise dose (0.20, `ActivityDoseModel`, WHO 2020) | strain, HR recovery, walking HR, resting HR, steps, active energy — plus exercise minutes only in a week with too few recorded days to judge a dose |
+| Fitness | `weightedAverage` | VO₂max (level 0.55 + trajectory 0.25, both halves off one series) and the week's activity dose (0.20) — from **`EffortIntensityModel`** where the watch recorded enough effort, otherwise `ActivityDoseModel`. One term, two inputs, never both: they answer the same WHO question and only one carries the intensity | strain, HR recovery, walking HR, resting HR, steps, active energy, distance, flights — plus whichever of exercise minutes / physical effort did *not* win the dose term |
 | Heart Attack & Stroke Risk | `equation` | **`RiskAttribution`** — hold one factor at optimal, re-run | — the equations take no other input |
 | Blood Pressure | route-dependent — see below | | |
 | Body Composition | `weightedAverage` | **a level, a rate and a quality** (2026-08-02): body fat vs the Gallagher band **0.45**, rate of change vs the goal's band **0.30**, lean share of that change **0.25** — see "Velocity" below | lean, bone, water — *not* muscle mass, which is lean counted twice and is charted at weight 0 with its reason on the row |
@@ -593,6 +593,8 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
 | 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
 | 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
+| 6b | **How hard you worked** | Fit | open (absent when no effort data) | ● the gate, as a fact | min moderate+ | `partial` | — (seven wear-scaled bars) |
+| 6c | **How much you moved** | Fit | open (absent when nothing recorded) | ● | week's steps | `partial` | — (three totals) |
 | 6a | **Weight management** | BodyC | open (closed when empty) | ● | mg in your system | `.none` | — (the section) |
 | 6a·1 | Since you started | BodyC | nested in 6a | ● | — | `doseAttribution` | — (four figures) |
 | 6a·2 | Medication in your system | BodyC | nested in 6a | ● | mg | `.none` | `MedicationCurveChart` |

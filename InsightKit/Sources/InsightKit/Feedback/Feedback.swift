@@ -142,7 +142,14 @@ public extension InsightID {
         // blend components that were previously scored separately — so carrying
         // a predecessor's version string across would be a lie about
         // comparability, which is exactly what this field exists to prevent.
-        case .fitness: return "fitness-v1"
+        // **v2, 2026-08-06.** The dose term can now be computed from physical
+        // effort instead of Apple's exercise minute, which applies WHO's
+        // vigorous-for-moderate substitution and therefore returns a different
+        // number for the same week. The weights did not move; the input did.
+        // Carrying v1 forward would have made every score recorded before today
+        // silently non-comparable with every score after it, which is the one
+        // failure this field exists to prevent.
+        case .fitness: return "fitness-v2"
         case .sleep: return "sleep-v1"
         // v2: absorbed the vitals scan and the multi-signal early warning that
         // used to be two separate cards, which changes what the score means.

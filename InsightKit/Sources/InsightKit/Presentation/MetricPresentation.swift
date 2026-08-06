@@ -90,7 +90,14 @@ public extension MetricType {
              .neckCircumference, .shoulderWidth, .thighCircumference,
              .upperArmCircumference: return .body
         case .stepCount, .activeEnergyBurned, .exerciseMinutes, .vo2Max,
-             .dayStrain: return .activity
+             .dayStrain,
+             // All three read the same afternoon: distance and flights are
+             // near-arithmetic restatements of steps, and effort intensity is
+             // the rate the other three accrued at. `.activity` is exactly
+             // right — "on days you walked further you also took more steps"
+             // is the tautology this family exists to suppress.
+             .distanceWalkingRunning, .flightsClimbed, .physicalEffort:
+            return .activity
         // Its own family, on `.behaviour`'s precedent and for the same reason.
         // Filed under `.activity` beside active energy, "ate more on the days
         // you burned more" would be suppressed as a tautology; filed under
@@ -241,6 +248,14 @@ public extension MetricType {
         case .walkingSpeed: return 68
         case .walkingStepLength: return 69
         case .walkingDoubleSupport: return 70
+        // Appended, like every case since 30. Their usual chart is Fitness's
+        // movement overlay, where hues resolve per chart anyway — and the max
+        // was re-read here rather than taken from a plan, because three
+        // separate features wanted to append to this list at once and the
+        // second one to trust a written number would have collided.
+        case .distanceWalkingRunning: return 71
+        case .flightsClimbed: return 72
+        case .physicalEffort: return 73
         }
     }
 
@@ -333,6 +348,11 @@ public extension MetricType {
             return .fluctuatingRange
 
         case .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             // Distance and flights accrue through the day exactly as steps do.
+             // **Effort intensity is deliberately not here**: it is a rate, and
+             // a day's METs added up is a number with no unit and no meaning.
+             // It sits in `.fluctuatingRange` above with the vitals.
+             .distanceWalkingRunning, .flightsClimbed,
              // Meals through the day only mean anything added up, which is the
              // same reason active energy is here.
              .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
@@ -346,6 +366,11 @@ public extension MetricType {
             return .cumulativeTotal
 
         case .screenTimeMinutes:
+            return .fluctuatingRange
+
+        // A rate, so a range and never a total — see the note beside distance
+        // and flights above.
+        case .physicalEffort:
             return .fluctuatingRange
 
         case .bloodPressureSystolic, .bloodPressureDiastolic:
@@ -383,6 +408,12 @@ public extension MetricType {
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             .distanceWalkingRunning, .flightsClimbed,
+             // Watch-only, and on the reader's own record it lands on 14 of the
+             // last 90 days. A line bridging a fortnight of not wearing the
+             // watch would draw an effort level that was never measured, so it
+             // gets a day's grace like the other daily figures and no more.
+             .physicalEffort,
              // One figure a day, so two days apart is a gap like any other.
              .screenTimeMinutes, .dietaryEnergy,
              .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
@@ -598,7 +629,19 @@ public extension MetricType {
         // No published "normal" that means anything without a person attached.
         case .vascularAge, .bodyMass, .leanBodyMass, .muscleMass, .boneMass,
              .bodyWaterPercentage, .height, .stepCount, .activeEnergyBurned,
-             .dayStrain:
+             .dayStrain,
+             // **No band, and the temptation here is the "10,000 steps" one.**
+             // That figure came from a 1960s pedometer's brand name, and the
+             // distance and flights equivalents have no published normal
+             // either. A band drawn on any of the three would be a target this
+             // app has no evidence for. `ActivityDoseModel` scores the one
+             // activity quantity that *does* have published guidance.
+             .distanceWalkingRunning, .flightsClimbed,
+             // The MET bands are real (`EffortIntensityModel`) but they grade
+             // *what you were doing*, not whether a day's average was healthy.
+             // Shading 3–6 METs across this chart would say a day spent at a
+             // desk is out of range, which is not what the bands mean.
+             .physicalEffort:
             return nil
         // A published band exists — WHO's 150–300 min — but it is *weekly*, and
         // this chart plots daily totals. Dividing by seven would draw a daily
@@ -682,7 +725,9 @@ public extension MetricType {
             return .median
         // Partial samples through the day only mean anything added up — a
         // day's meals as much as a day's steps.
-        case .stepCount, .activeEnergyBurned, .exerciseMinutes, .dietaryEnergy,
+        case .stepCount, .activeEnergyBurned, .exerciseMinutes,
+             .distanceWalkingRunning, .flightsClimbed,
+             .dietaryEnergy,
              .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
              .dietarySodium, .dietaryPotassium, .dietaryWater,

@@ -97,6 +97,25 @@ final class HealthKitService {
             // (`ActivityDoseModel`). Removed from `otherQuantityIdentifiers`
             // below — a metric must not arrive through both routes.
             (.appleExerciseTime, .exerciseMinutes, .minute()),
+            // **Backlog §B5 #34–35, the reader's own reversal.** Distance,
+            // flights and effort intensity were scraped into the raw pile from
+            // the beginning and read by nothing. Measured on their export
+            // 2026-08-06: distance 91 of the last 90 days, flights 78, effort
+            // 14. All three are removed from `otherQuantityIdentifiers` below
+            // in the same edit — a metric arriving through both routes ingests
+            // every sample twice, which is what promoting `appleExerciseTime`
+            // had to fix.
+            //
+            // Kilometres, so the readMap does the conversion once here rather
+            // than in every reader.
+            (.distanceWalkingRunning, .distanceWalkingRunning,
+             .meterUnit(with: .kilo)),
+            (.flightsClimbed, .flightsClimbed, .count()),
+            // kcal/hr·kg *is* the MET, so this is a rename rather than a
+            // conversion. HealthKit spells the unit `kcal/hr·kg`.
+            (.physicalEffort, .physicalEffort,
+             HKUnit.kilocalorie()
+                .unitDivided(by: HKUnit.hour().unitMultiplied(by: .gramUnit(with: .kilo)))),
             // Promoted out of the raw "other data" pile: these are measurements
             // with real units and real baselines, and Vitals Check now reads
             // them.
@@ -147,10 +166,17 @@ final class HealthKitService {
     /// everything" — activity, respiratory, nutrition, environmental, etc.
     private static let otherQuantityIdentifiers: [String] = [
         // Activity & mobility
-        "HKQuantityTypeIdentifierDistanceWalkingRunning", "HKQuantityTypeIdentifierDistanceCycling",
+        //
+        // ⚠️ **Walking/running distance, flights climbed and physical effort
+        // moved to `readMap` above on 2026-08-06 (backlog §B5 #34–35).**
+        // Leaving them here as well would ingest every sample twice, once
+        // canonical and once raw, and the Data tab would list each identifier
+        // in two places. Cycling, swimming, wheelchair and snow-sports distance
+        // stay raw: the reader records none of them, and a metric with no
+        // reader is a chart nobody asked for.
+        "HKQuantityTypeIdentifierDistanceCycling",
         "HKQuantityTypeIdentifierDistanceSwimming", "HKQuantityTypeIdentifierDistanceWheelchair",
         "HKQuantityTypeIdentifierDistanceDownhillSnowSports", "HKQuantityTypeIdentifierBasalEnergyBurned",
-        "HKQuantityTypeIdentifierFlightsClimbed",
         "HKQuantityTypeIdentifierAppleStandTime", "HKQuantityTypeIdentifierAppleMoveTime",
         "HKQuantityTypeIdentifierPushCount", "HKQuantityTypeIdentifierSwimmingStrokeCount",
         // The gait triad moved to `readMap` above on 2026-08-05 — leaving it
@@ -161,7 +187,7 @@ final class HealthKitService {
         "HKQuantityTypeIdentifierRunningPower", "HKQuantityTypeIdentifierRunningStrideLength",
         "HKQuantityTypeIdentifierRunningVerticalOscillation", "HKQuantityTypeIdentifierRunningGroundContactTime",
         "HKQuantityTypeIdentifierCyclingSpeed", "HKQuantityTypeIdentifierCyclingPower",
-        "HKQuantityTypeIdentifierCyclingCadence", "HKQuantityTypeIdentifierPhysicalEffort",
+        "HKQuantityTypeIdentifierCyclingCadence",
         "HKQuantityTypeIdentifierNumberOfTimesFallen",
         // Cardio / respiratory / other vitals
         "HKQuantityTypeIdentifierForcedVitalCapacity",

@@ -100,6 +100,8 @@ the place to look.
   - `CardiovascularRiskModel` :16
 - `Insights/CircadianConsistency.swift`
   - `CircadianConsistencyModel` :29
+- `Insights/EffortIntensityModel.swift`
+  - `EffortIntensityModel` :50
 - `Insights/Energy.swift`
   - `EnergyInsight` :392
   - `EnergyModel` :29
@@ -315,7 +317,7 @@ the place to look.
   - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :718
+  - `MetricPalette` :763
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
