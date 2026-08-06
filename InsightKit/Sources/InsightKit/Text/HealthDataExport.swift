@@ -241,6 +241,22 @@ public struct HealthDataExport: Encodable, Sendable {
     /// Every logged bleeding day. The cycles themselves are **not** exported:
     /// they are derived from these by `CycleModel`, and exporting a derivation
     /// beside its inputs is how the two get to disagree in someone's archive.
+    ///
+    /// ⚠️ **The defaulted argument is the hazard, and no test here can catch
+    /// it.** `DataExportView.buildFullExport()` shipped without passing
+    /// `cycles:` at all, so a reader with logged bleeding days exported
+    /// `"cycles": []` — the *key present and silently wrong* case, which is
+    /// worse than the missing key the hand-written encoders exist to prevent,
+    /// because nothing about the file says anything was dropped. Fixed
+    /// 2026-08-06.
+    ///
+    /// `testEveryDataDomainHasAKeyThatIsActuallyInTheJSON` cannot see this:
+    /// it asserts the key is in the encoded payload, and an empty array
+    /// satisfies that. The gap is in the **caller**, and the app target has no
+    /// tests to put one in — a single `HealthInsights` native target with no
+    /// test host. So this comment is the check. **Every `= []` default on this
+    /// initialiser carries the same risk**; a new one is only safe if the
+    /// omission would be obvious in the file.
     public let cycles: [CycleDay]
     /// The merged holiday ledger — dates, reader-typed labels, and which of the
     /// two sources each period came from. **The one calendar-derived thing that

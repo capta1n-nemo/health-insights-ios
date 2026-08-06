@@ -740,8 +740,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :313
-  - `OtherDataListView` :326
+  - `FullExport` :317
+  - `OtherDataListView` :330
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :363
   - `IntegrationRow` :264

@@ -282,6 +282,10 @@ struct DataExportView: View {
                     history: model.scoreHistory(for: result.id)
                         .map { .init(date: $0.date, score: $0.score) })
             },
+            // Every logged bleeding day. The derived cycles stay out by design —
+            // see `HealthDataExport.cycles`, which also records why omitting this
+            // argument was invisible to the export's own tests.
+            cycles: model.cycleDays,
             // The merged ledger, not the raw rows — the deduplicated record is
             // the data point, and detected periods carry dates only (never an
             // event's title), which is what lets this key exist at all.
