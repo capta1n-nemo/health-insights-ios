@@ -65,7 +65,7 @@ struct OnboardingView: View {
     private var welcome: some View {
         OnboardingPanel(icon: "heart.text.square.fill", title: "Welcome") {
             VStack(spacing: 12) {
-                Text("Turn your Apple Health, Oura and Withings data into clear heart-health insights — powered by validated clinical models, running privately on your phone.")
+                Text("Turn your Apple Health, Oura and Withings data into clear heart-health insights — powered by validated clinical models, all of which run on your phone.")
                     .multilineTextAlignment(.center)
                 Text("We'll only ever ask for the real readings the models genuinely need.")
                     .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -85,7 +85,15 @@ struct OnboardingView: View {
     private var connectHealth: some View {
         OnboardingPanel(icon: "heart.fill", title: "Connect Apple Health") {
             VStack(spacing: 16) {
-                Text("Grant read access so we can use your heart rate, HRV, cardio fitness and more. Your data stays on device.")
+                // ⚠️ Was "Your data stays on device." (B8 R6). A blanket
+                // promise on the second screen of onboarding is the single
+                // most-relied-on sentence in the app, and it stopped being
+                // unconditional when two-tier sharing shipped on by default.
+                // It now says what is true — your readings are not sent —
+                // and points at the screen that states the exception, rather
+                // than making a claim the reader would have to discover was
+                // narrower than it sounded.
+                Text("Grant read access so we can use your heart rate, HRV, cardio fitness and more. Your readings are stored on this phone and are never uploaded. What can be shared to improve the models is listed in Settings ▸ Data & model improvement, and nothing is sent in this build.")
                     .multilineTextAlignment(.center)
                 if appleHealthConnected {
                     Label("Connected", systemImage: "checkmark.circle.fill")

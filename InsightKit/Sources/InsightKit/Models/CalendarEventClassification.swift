@@ -214,7 +214,8 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
     }
 }
 
-/// One event, its classification, and any correction the reader has made.
+/// One event, its classification, any correction the reader has made, **and the
+/// artifact the app judged.**
 ///
 /// **The reader's correction is stored separately from the classification, not
 /// merged into it**, and that is the whole design of the learning loop they
@@ -225,12 +226,26 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
 /// time anything ran — so the app could never tell how often it was right, and
 /// re-classifying would silently overwrite the reader. Kept apart, the app has a
 /// growing labelled set: the guess, the truth, and the gap between them.
+///
+/// ## Three layers, not two (backlog B8 R3)
+///
+/// Guess and correction alone make a **tally**: the app can say it was wrong
+/// fourteen times and nothing more, because whatever it was wrong *about* is not
+/// in the record. `artifact` is the third layer — a snapshot of the event as it
+/// stood at classification time — and it is what turns a count into a training
+/// pair. The reader asked for exactly this: *"we remember the 'AI Estimated' and
+/// 'Corrected' data points, in addition to the whole email/artifact."*
 public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable {
     public let eventID: String
     /// What the app worked out, untouched by any correction.
     public let classification: CalendarEventClassification
     /// What the reader said, where they said anything.
     public let correction: CalendarEventClassification?
+    /// **The event as it was when `classification` was made.** Optional because
+    /// rows written before B8 R3 have no snapshot and are not going to grow one
+    /// retrospectively — inventing it from today's event is precisely the
+    /// history-rewrite the snapshot exists to prevent.
+    public let artifact: CalendarEventArtifact?
     /// True where the reader looked at it and agreed. **Different from an
     /// absent correction** — "confirmed correct" is a label and "not yet looked
     /// at" is not, and treating them as one would inflate any accuracy figure
@@ -254,12 +269,56 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
 
     public init(eventID: String, classification: CalendarEventClassification,
                 correction: CalendarEventClassification? = nil,
-                isConfirmed: Bool = false, reviewedAt: Date? = nil) {
+                isConfirmed: Bool = false, reviewedAt: Date? = nil,
+                artifact: CalendarEventArtifact? = nil) {
         self.eventID = eventID
         self.classification = classification
         self.correction = correction
         self.isConfirmed = isConfirmed
         self.reviewedAt = reviewedAt
+        self.artifact = artifact
+    }
+
+    /// **Re-classification, as a rule rather than a habit.**
+    ///
+    /// Running the classifier again — a new model version, a reader identity
+    /// entered late — must replace the guess and leave everything the reader
+    /// said exactly where it was. That was true of `DataStore.recordClassification`
+    /// by construction (the write path never had the correction in hand), and it
+    /// was true only there: nothing stated it as a value-level invariant and
+    /// nothing tested it. This is the invariant, and the store now mirrors it.
+    ///
+    /// The artifact moves **with the guess**, not with the correction: the pair
+    /// (what was read, what was concluded) has to stay self-consistent or the
+    /// training example is a fiction. Passing `nil` keeps whatever snapshot is
+    /// already stored rather than erasing it, so a re-classification with no
+    /// event in hand degrades to the old two-layer record instead of losing the
+    /// third.
+    public func reclassified(as classification: CalendarEventClassification,
+                             artifact: CalendarEventArtifact? = nil) -> CalendarEventJudgement {
+        CalendarEventJudgement(eventID: eventID,
+                               classification: classification,
+                               correction: correction,
+                               isConfirmed: isConfirmed,
+                               reviewedAt: reviewedAt,
+                               artifact: artifact ?? self.artifact)
+    }
+
+    /// The reader's answer, recorded against the guess that is already stored.
+    ///
+    /// The counterpart to `reclassified`: it moves the correction and touches
+    /// neither the guess nor the artifact. ⚠️ **The snapshot is deliberately not
+    /// refreshed here** — the model judged a particular version of the event, and
+    /// re-reading it at correction time would attribute words to the model that
+    /// it may never have seen.
+    public func reviewed(correction: CalendarEventClassification?,
+                         confirmed: Bool, at date: Date) -> CalendarEventJudgement {
+        CalendarEventJudgement(eventID: eventID,
+                               classification: classification,
+                               correction: correction,
+                               isConfirmed: confirmed,
+                               reviewedAt: date,
+                               artifact: artifact)
     }
 }
 

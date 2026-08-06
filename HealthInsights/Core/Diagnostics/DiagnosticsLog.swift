@@ -12,10 +12,26 @@ import UIKit
 ///
 /// It's a `@MainActor` shared instance because every producer (providers,
 /// HealthKit service, the app model) already runs on the main actor, which keeps
-/// hooking it in a one-liner with no plumbing through initialisers. Entries and
-/// their `detail` payloads never leave the app; the one-line messages are also
-/// mirrored to the unified log (see `mirrorToUnifiedLog`) so log tooling can
-/// follow a sync without clicking through the app UI.
+/// hooking it in a one-liner with no plumbing through initialisers.
+///
+/// ## ⚠️ What leaves, precisely — and why this one is genuinely exempt
+///
+/// Backlog B8 R6 rewrote every "nothing leaves your device" claim in the app to
+/// be true under two-tier sharing. **This claim survives, and it is worth saying
+/// exactly why rather than leaving it looking overlooked:** the diagnostics log
+/// is in no sharing tier at all. `SharedRecord.Kind` has a case for a calendar
+/// correction and a case for an estimate error, and none for a log line — so no
+/// setting anywhere in Settings can cause an entry from here to be shared.
+///
+/// Two routes out of the app do exist, both of them the reader's own doing, and
+/// both predating B8:
+///
+/// - **The in-app export**, when the reader taps copy or share (`entries` and
+///   their `detail`). Deliberate, initiated by them, and the reason the log
+///   exists.
+/// - **The unified log**, which carries the one-line messages only — never
+///   `detail` — and reaches Console, `log collect` and any sysdiagnose. See
+///   `mirrorToUnifiedLog`, which argues that trade in full.
 @MainActor
 @Observable
 final class DiagnosticsLog {

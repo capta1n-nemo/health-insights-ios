@@ -105,6 +105,12 @@ final class CalendarModelTests: XCTestCase {
     /// and user aware"* so it can tell whose OOO block an event is, and the
     /// answer to "did I organise this" is yes/no/unknown — the organiser's
     /// *address* answers nothing further and stays banned below.
+    ///
+    /// `attendeeCount` joined with B8 R3, and it is the same pattern one more
+    /// time: the correction artifact wants to know how big a meeting was, and
+    /// **a count is not a guest list**. The ban that mattered — the names and
+    /// addresses of other people, in an app that holds one person's data — is
+    /// unchanged, and `attendees` is still asserted absent below.
     func testTheEventStoresNoNotesAndNoAttendees() {
         let mirror = Mirror(reflecting: event(dayOffset: 0, startHour: 9, hours: 1))
         let fields = Set(mirror.children.compactMap(\.label))
@@ -115,6 +121,6 @@ final class CalendarModelTests: XCTestCase {
         XCTAssertEqual(fields, ["id", "start", "end", "isAllDay",
                                 "timeZoneIdentifier", "calendarName", "kind",
                                 "title", "location", "hasVideoLink",
-                                "organizerIsReader"])
+                                "organizerIsReader", "attendeeCount"])
     }
 }

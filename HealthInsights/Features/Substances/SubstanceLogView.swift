@@ -3,7 +3,13 @@ import InsightKit
 
 /// Fast, private, non-judgemental logging of substances. Tapping a chip asks
 /// when, pre-filled with now; recent entries can be re-timed or removed.
-/// Everything stays on-device.
+///
+/// **Everything stays on-device, and that claim survives B8 R6 intact** — worth
+/// stating rather than leaving to look unreviewed. Substance logs are in no
+/// sharing tier: nothing in `SharedRecord.Kind` covers them, and the only two
+/// things that can be shared are a calendar correction and an estimate's error.
+/// Of everything this app holds, this is the record the reader would least want
+/// pooled, and it is not poolable.
 struct SubstanceLogView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss

@@ -503,22 +503,41 @@ final class DataStore {
             .compactMap(\.judgement)
     }
 
-    /// Store the app's own classification, **without touching a correction the
-    /// reader has already made.**
+    /// Store the app's own classification **and a snapshot of the event it
+    /// judged**, without touching a correction the reader has already made.
     ///
     /// This is the rule that makes re-classification safe: running the model
     /// again must never overwrite somebody's answer, and the only way to
     /// guarantee that is for the write path not to have the correction in hand.
+    /// The value-level statement of the same invariant is
+    /// `CalendarEventJudgement.reclassified(as:artifact:)`, which is where it is
+    /// tested.
+    ///
+    /// ⚠️ **The artifact is written here and only here** (backlog B8 R3). This
+    /// is classification time: the guess and the snapshot are written together,
+    /// so they are always each other's. `recordReview` deliberately does not
+    /// touch it — an event renamed or re-invited after it was judged must not be
+    /// able to rewrite what the model was given, or the app would hold a training
+    /// pair it never actually saw and would score its own accuracy against words
+    /// that did not exist at the time.
     func recordClassification(_ classification: CalendarEventClassification,
-                              for eventID: String) {
+                              for event: CalendarEvent, now: Date = Date()) {
         guard let data = try? JSONEncoder().encode(classification) else { return }
+        let eventID = event.id
+        let artifactData = try? JSONEncoder().encode(
+            CalendarEventArtifact(event: event, capturedAt: now))
         let descriptor = FetchDescriptor<CalendarJudgementRecord>(
             predicate: #Predicate { $0.eventID == eventID })
         if let existing = try? context.fetch(descriptor).first {
             existing.classificationData = data
+            // Moves with the guess, never with the correction — see above. A
+            // failed encode leaves the previous snapshot in place rather than
+            // clearing it: an older true artifact beats none.
+            if let artifactData { existing.artifactData = artifactData }
         } else {
             context.insert(CalendarJudgementRecord(eventID: eventID,
-                                                   classificationData: data))
+                                                   classificationData: data,
+                                                   artifactData: artifactData))
         }
         try? context.save()
     }
@@ -526,6 +545,10 @@ final class DataStore {
     /// The reader's answer. `correction == nil` with `confirmed == true` is
     /// "you got it right" — a label in its own right, and different from never
     /// having been looked at.
+    ///
+    /// ⚠️ **It writes neither the classification nor the artifact.** Both belong
+    /// to classification time; re-snapshotting the event here is the one thing
+    /// that would make the correction record lie.
     func recordReview(eventID: String, correction: CalendarEventClassification?,
                       confirmed: Bool, now: Date = Date()) {
         let descriptor = FetchDescriptor<CalendarJudgementRecord>(

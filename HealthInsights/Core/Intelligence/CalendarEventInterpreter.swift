@@ -34,6 +34,14 @@ import FoundationModels
 /// there must never be one: an event title is the most identifying string this
 /// app holds. Nothing in this file logs, exports or persists the prompt.
 ///
+/// ⚠️ **Classification is on-device; that is not the same as "the title can
+/// never leave".** Backlog B8 R5 added two-tier sharing at the reader's explicit
+/// instruction, and under `SharingTier.full` a title can go out as part of a
+/// **corrected** event's artifact — never from here, and never for an event the
+/// reader has not reviewed. Nothing is transmitted in this build. The claim this
+/// file is entitled to make is the narrow one: *reading* the event sends
+/// nothing anywhere.
+///
 /// On hardware without the model — which is most of it — `interpret` returns nil
 /// and the deterministic classification stands unchanged. That is a degraded
 /// answer, not a broken one, which is the same contract `FoundationModelSummarizer`

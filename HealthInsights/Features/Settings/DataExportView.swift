@@ -151,7 +151,12 @@ struct DataExportView: View {
             } header: {
                 Text("What's in here")
             } footer: {
-                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. Your own health data — it stays on this phone until you share it, and it never contains account details or tokens.")
+                // The claim here is still true and is deliberately kept (B8 R6):
+                // this file goes nowhere until the reader taps Share, and it is
+                // a different thing from the model-improvement tiers — those
+                // shape a small, stated payload; this is the whole record,
+                // handed over by hand.
+                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. Your own health data — nothing here goes anywhere until you share it yourself, and it never contains account details or tokens. This file is separate from Settings ▸ Data & model improvement, which is where anything shared automatically would be listed.")
             }
 
             Section {

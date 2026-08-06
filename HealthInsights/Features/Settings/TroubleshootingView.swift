@@ -39,7 +39,11 @@ struct TroubleshootingView: View {
                 }
                 .pickerStyle(.segmented)
             } footer: {
-                Text("A running record of syncs, API calls and imported data. Tap any line with a \u{201C}Details\u{201D} arrow to see the exact request, the provider's own error message, and what to do about it. Nothing here leaves your phone unless you copy it.")
+                // Still true, and kept for that reason (B8 R6): the diagnostics
+                // log is in no sharing tier at all — `SharedRecord.Kind` has no
+                // case for it — so "unless you copy it" remains the whole story
+                // here even now that corrections can be shared.
+                Text("A running record of syncs, API calls and imported data. Tap any line with a \u{201C}Details\u{201D} arrow to see the exact request, the provider's own error message, and what to do about it. Nothing here leaves your phone unless you copy it — the log is not part of what Data & model improvement can share.")
             }
 
             Section {

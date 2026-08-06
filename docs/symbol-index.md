@@ -60,6 +60,15 @@ the place to look.
 - `Feedback/NormContribution.swift`
   - `NormContribution` :47
   - `NormContributionBuilder` :150
+- `Feedback/Sharing.swift`
+  - `SharedChange` :264
+  - `SharedCorrectionConvertible` :405
+  - `SharedField` :245
+  - `SharedRecord` :289
+  - `SharedValue` :178
+  - `SharingExample` :533
+  - `SharingPreferences` :113
+  - `SharingTier` :31
 - `Ingestion/DayStamp.swift`
   - `DayStamp` :45
 - `Ingestion/FieldCatalogue.swift`
@@ -239,12 +248,14 @@ the place to look.
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
 - `Models/CalendarEvent.swift`
-  - `CalendarEvent` :44
-  - `CalendarModel` :136
+  - `CalendarEvent` :55
+  - `CalendarModel` :168
+- `Models/CalendarEventArtifact.swift`
+  - `CalendarEventArtifact` :47
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :270
+  - `CalendarClassifierAccuracy` :329
   - `CalendarEventClassification` :35
-  - `CalendarEventJudgement` :228
+  - `CalendarEventJudgement` :238
 - `Models/CalendarEventClassifier.swift`
   - `CalendarEventBucket` :389
   - `CalendarEventClassifier` :31
@@ -294,7 +305,7 @@ the place to look.
   - `RawMetricGroup` :61
   - `RawMetricSample` :15
 - `Models/ReaderIdentity.swift`
-  - `ReaderIdentity` :40
+  - `ReaderIdentity` :46
 - `Models/SampleCacheCodec.swift`
   - `SampleCacheCodec` :38
 - `Models/Sex.swift`
@@ -486,7 +497,7 @@ the place to look.
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
-  - `DiagnosticsLog` :21
+  - `DiagnosticsLog` :37
 - `Core/Documents/DocumentScanService.swift`
   - `DocumentScanService` :18
   - `ScreenTimeWeekScan` :89
@@ -498,7 +509,7 @@ the place to look.
 - `Core/Integrations/AppleHealthProvider.swift`
   - `AppleHealthProvider` :7
 - `Core/Integrations/CalendarIntegration.swift`
-  - `CalendarIntegration` :40
+  - `CalendarIntegration` :43
 - `Core/Integrations/CredentialValidator.swift`
   - `CredentialValidator` :20
 - `Core/Integrations/HealthDataAppIntents.swift`
@@ -538,7 +549,7 @@ the place to look.
 - `Core/Integrations/WithingsProvider.swift`
   - `WithingsProvider` :8
 - `Core/Intelligence/CalendarEventInterpreter.swift`
-  - `CalendarEventInterpreter` :42
+  - `CalendarEventInterpreter` :50
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Persistence/DataStore.swift`
@@ -547,21 +558,21 @@ the place to look.
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
-  - `CalendarEventRecord` :227
-  - `CalendarJudgementRecord` :327
+  - `CalendarEventRecord` :233
+  - `CalendarJudgementRecord` :349
   - `CycleDayRecord` :199
-  - `DoseLogRecord` :479
-  - `FeedbackRecord` :417
+  - `DoseLogRecord` :515
+  - `FeedbackRecord` :453
   - `GroundingRecord` :9
-  - `HolidayEntry` :295
+  - `HolidayEntry` :308
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :447
-  - `PredictionOutcomeRecord` :384
-  - `SideEffectRecord` :511
+  - `MedicationRecord` :483
+  - `PredictionOutcomeRecord` :420
+  - `SideEffectRecord` :547
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :366
+  - `SuggestionDismissalRecord` :402
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -696,12 +707,12 @@ the place to look.
   - `AddDataView` :20
   - `AddInputMenu` :159
   - `BodyTypeSheet` :302
-  - `HolidayEntrySheet` :850
+  - `HolidayEntrySheet` :856
   - `InputSheet` :217
   - `PushedInSheet` :275
   - `ReaderIdentitySheet` :729
   - `ScreenTimeEntrySheet` :381
-  - `SideEffectEntrySheet` :909
+  - `SideEffectEntrySheet` :915
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :182
@@ -747,27 +758,27 @@ the place to look.
 - `Features/Metrics/StaticAttributeCard.swift`
   - `StaticAttributeCard` :9
 - `Features/Onboarding/OnboardingView.swift`
-  - `OnboardingPanel` :249
+  - `OnboardingPanel` :257
   - `OnboardingView` :7
 - `Features/Settings/BodyScanSettingsView.swift`
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :324
-  - `OtherDataListView` :337
+  - `FullExport` :329
+  - `OtherDataListView` :342
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :367
-  - `IntegrationRow` :268
-  - `IntegrationSummaryRow` :324
+  - `DisclaimerView` :371
+  - `IntegrationRow` :272
+  - `IntegrationSummaryRow` :328
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12
 - `Features/Settings/ShotsyIntegrationView.swift`
   - `ShotsyIntegrationView` :12
 - `Features/Settings/TelemetryOutboxView.swift`
-  - `TelemetryOutboxView` :7
+  - `TelemetryOutboxView` :26
 - `Features/Settings/TroubleshootingView.swift`
   - `TroubleshootingView` :10
 - `Features/Substances/SubstanceLogView.swift`
-  - `SubstanceLogView` :7
+  - `SubstanceLogView` :13
 

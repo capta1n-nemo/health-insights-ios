@@ -295,7 +295,11 @@ final class AppModel {
                   let updated = CalendarEventClassifier.reoccasioned(
                       judgement.classification, for: event, identity: identity)
             else { continue }
-            dataStore.recordClassification(updated, for: event.id)
+            // The event goes in, not just its id: a re-classification refreshes
+            // the artifact snapshot alongside the guess, so the pair stays
+            // self-consistent (backlog B8 R3). The reader's correction is
+            // untouched either way — `recordClassification` cannot see it.
+            dataStore.recordClassification(updated, for: event)
         }
         reloadCalendar()
         recompute()
@@ -353,7 +357,7 @@ final class AppModel {
             let reading = await interpreter.interpret(event)
             let final = CalendarEventClassifier.refined(
                 base, modelContext: reading?.context, modelFormality: reading?.formality)
-            dataStore.recordClassification(final, for: event.id)
+            dataStore.recordClassification(final, for: event)
         }
         reloadCalendar()
         recompute()
@@ -1649,14 +1653,67 @@ final class AppModel {
             predicted: est.diastolic, actual: actualDiastolic, modelVersion: version, cohort: cohort))
     }
 
-    // MARK: - Feedback & model-improvement telemetry (on-device, opt-in, transmit-disabled)
+    // MARK: - Feedback, corrections & model improvement (transmit-disabled)
 
     /// Whether the user has opted in to sharing anonymised model-error metrics.
     /// Off by default. Transmission is not implemented yet regardless — this only
     /// governs whether the outbox would be eligible to send in future.
+    ///
+    /// **This is the older, narrower toggle** and it stays: it governs the
+    /// cohort-and-DP-noise `TelemetryEvent` stream, which answers *"is the model
+    /// getting better?"* and carries no values at all. `sharingPreferences`
+    /// below governs a differently shaped thing — the reader's own corrections
+    /// with the artifact behind them. Widening one to cover both is what
+    /// `docs/norms-and-telemetry.md` says not to do.
     var telemetryOptIn: Bool {
         get { UserDefaults.standard.bool(forKey: "telemetryOptIn") }
         set { UserDefaults.standard.set(newValue, forKey: "telemetryOptIn") }
+    }
+
+    /// **Two-tier sharing of corrections, both tiers on by default** — backlog
+    /// B8 R5, at the reader's explicit instruction (*"both opted in by
+    /// default"*).
+    ///
+    /// ⚠️ `UserDefaults.bool(forKey:)` answers `false` for a key nobody has
+    /// written, so reading it directly would default both tiers **off** and look
+    /// exactly like a reader who had turned them off — an error that never
+    /// complains. `object(forKey:)` is checked first for precisely that reason.
+    ///
+    /// ⚠️ **Nothing is transmitted in this build.** There is no endpoint, no
+    /// upload and no networking behind this preference; it decides the *shape*
+    /// of what would go, and the Settings screen shows that shape.
+    var sharingPreferences: SharingPreferences {
+        get {
+            let defaults = UserDefaults.standard
+            func flag(_ key: String) -> Bool {
+                defaults.object(forKey: key) as? Bool ?? true
+            }
+            return SharingPreferences(
+                isFullEnabled: flag(Self.sharingFullKey),
+                isMetadataOnlyEnabled: flag(Self.sharingMetadataKey))
+        }
+        set {
+            UserDefaults.standard.set(newValue.isFullEnabled, forKey: Self.sharingFullKey)
+            UserDefaults.standard.set(newValue.isMetadataOnlyEnabled,
+                                      forKey: Self.sharingMetadataKey)
+        }
+    }
+
+    private static let sharingFullKey = "sharing.tier.full"
+    private static let sharingMetadataKey = "sharing.tier.metadataOnly"
+
+    /// Every correction the reader has actually made, shaped by whichever tier
+    /// is in force — the exact payload that would leave the phone if a network
+    /// step existed.
+    ///
+    /// Nil tier means both switched off, and the empty array is the refusal
+    /// rather than an absence of corrections.
+    func correctionOutbox() -> [SharedRecord] {
+        guard let tier = sharingPreferences.effectiveTier else { return [] }
+        var records = calendarJudgements.compactMap { $0.sharedRecord(under: tier) }
+        records.append(contentsOf: dataStore.loadPredictionOutcomes()
+            .compactMap { $0.sharedRecord(under: tier) })
+        return records
     }
 
     /// Record a discreet "was this accurate?" tap for an insight.
