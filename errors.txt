@@ -1,0 +1,2 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Core/Intelligence/CalendarEventInterpreter.swift:2:8: error: no such module 'FoundationModels'
+** BUILD FAILED **
