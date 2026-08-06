@@ -185,6 +185,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var syntheticDataSection: some View {
         Section {
+            // Six cycles of bleeding days ride along with the vitals, and the
+            // vitals go biphasic because of them — otherwise the fifth tab can
+            // only ever be screenshot in its refusal state, which is the blind
+            // spot that shipped two invisible cards on 2026-08-03.
             Button {
                 model.seedSyntheticData(days: 120)
             } label: {

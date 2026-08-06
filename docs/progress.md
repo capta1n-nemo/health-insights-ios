@@ -107,65 +107,63 @@ section it sits in rather than by judgement:
 
 | # | Open item | Section | Gate |
 |---|---|---|---|
-| 1 | The cycle tab — all four gating decisions answered; the largest unstarted pie… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 2 | `walkingSpeed` reads 0 days in the last 90 in the simulator | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 3 | The cycle tab, slice 2 — the fertile window, the phase model, phase-aware bas… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 4 | The cycle tab is blocked on a question, not on code: the app is structurally… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 5 | Q11 notifications is deferred — no `BGTaskScheduler` anywhere, so anything bu… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 6 | Not yet device-verified: the bar measurement is the half CI cannot check | Retrospective Screen Time import | loose end |
-| 7 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
-| 8 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
-| 9 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
-| 10 | The Resting Heart Rate detail page is the cross-device defect, drawn | In progress / not yet device-verified | device |
-| 11 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
-| 12 | The nine cards on the phone | In progress / not yet device-verified | device |
-| 13 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
-| 14 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
-| 15 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
-| 16 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
-| 17 | Ultrahuman, Garmin, Fitbit | Integrations | next |
-| 18 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
-| 19 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
-| 20 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 21 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 22 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 23 | Travel drain | Three insight cards the user asked for | next |
-| 24 | Stress card | Three insight cards the user asked for | next |
-| 25 | Work impact | Three insight cards the user asked for | next |
-| 26 | The medication panel — still open | Metabolism speed — the card the user asked for | next |
-| 27 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
-| 28 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
-| 29 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 30 | Reconcile the symptom log against the hand-entered side effects | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
-| 32 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
-| 33 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
-| 34 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
-| 35 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
-| 36 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
-| 37 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
-| 38 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
-| 39 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
-| 40 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
-| 41 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
-| 42 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
-| 43 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
-| 44 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
-| 45 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
-| 46 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
-| 47 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
-| 48 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
-| 49 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
-| 50 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
-| 51 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
-| 52 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
-| 53 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 54 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 55 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 56 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 57 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 58 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 59 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
+| 1 | `walkingSpeed` reads 0 days in the last 90 in the simulator | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
+| 2 | The cycle tab is blocked on a question, not on code: the app is structurally… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
+| 3 | Q11 notifications is deferred — no `BGTaskScheduler` anywhere, so anything bu… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
+| 4 | Not yet device-verified: the bar measurement is the half CI cannot check | Retrospective Screen Time import | loose end |
+| 5 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
+| 6 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
+| 7 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
+| 8 | The Resting Heart Rate detail page is the cross-device defect, drawn | In progress / not yet device-verified | device |
+| 9 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
+| 10 | The nine cards on the phone | In progress / not yet device-verified | device |
+| 11 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
+| 12 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
+| 13 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
+| 14 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
+| 15 | Ultrahuman, Garmin, Fitbit | Integrations | next |
+| 16 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
+| 17 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
+| 18 | ECG photo/PDF import with metadata… | Unstructured data | next |
+| 19 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
+| 20 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
+| 21 | Travel drain | Three insight cards the user asked for | next |
+| 22 | Stress card | Three insight cards the user asked for | next |
+| 23 | Work impact | Three insight cards the user asked for | next |
+| 24 | The medication panel — still open | Metabolism speed — the card the user asked for | next |
+| 25 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
+| 26 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
+| 27 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
+| 28 | Reconcile the symptom log against the hand-entered side effects | Every domain of health — the direction, and what is already arriving | next |
+| 29 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
+| 30 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
+| 31 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
+| 32 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
+| 33 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
+| 34 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
+| 35 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
+| 36 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
+| 37 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
+| 38 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
+| 39 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
+| 40 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
+| 41 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
+| 42 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
+| 43 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
+| 44 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
+| 45 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
+| 46 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
+| 47 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
+| 48 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
+| 49 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
+| 50 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
+| 51 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
+| 52 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 53 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 54 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 55 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 56 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
+| 57 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
 
 <!-- ROADMAP-TABLE:END -->
 
@@ -215,8 +213,8 @@ Later in the same session, after a scouting pass over the remaining backlog:
 
 Still open from this session, all in `docs/backlog.md`:
 
-- [ ] **The cycle tab** — all four gating decisions answered; the largest
-      unstarted piece in the app.
+- [x] **The cycle tab** — all four gating decisions answered, and both slices
+      built.
 - [ ] **`walkingSpeed` reads 0 days in the last 90 in the simulator**, against a
       1,093-day figure measured on the raw export. Gait still scores, on its
       other two channels. Backlog D17.
@@ -224,10 +222,14 @@ Still open from this session, all in `docs/backlog.md`:
       tap, and cycle length as a **range with its spread** rather than an
       average. The blocking single-user question was asked and answered: she
       installs on her own phone with her own key.
-- [ ] **The cycle tab, slice 2** — the fertile window, the phase model,
-      phase-aware baselines (which are a *fix* for a cycling reader, not an
-      enhancement: the luteal pattern is what the symptom radar reads as
-      illness), and the ring's nocturnal temperature channel.
+- [x] **The cycle tab, slice 2** — the fertile window, the phase model,
+      phase-aware baselines and the ring's nocturnal temperature channel.
+      ⚠️ **The baselines are built but deliberately not wired into the symptom
+      radar**: the radar's thresholds are calibrated against its current
+      reference, so the wiring and the recalibration are one commit or neither.
+      Named TODO at `PhaseAwareBaseline.swift:29`; reasoning in `backlog.md`
+      §A3. The luteal false alarm is pinned as a test that asserts the *current*
+      behaviour and will fail when the fix lands.
 - [ ] ~~**The cycle tab is blocked on a question**~~, not on code: the app is
       structurally single-user and the tab is for the reader's wife. Three
       answers, three different builds. Backlog §A3.

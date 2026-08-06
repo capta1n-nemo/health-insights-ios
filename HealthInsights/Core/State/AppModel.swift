@@ -328,14 +328,52 @@ final class AppModel {
     /// The cycles those days form, and the range they fall in.
     var cycleSummary: CycleSummary { CycleModel.summarise(days: cycleDays) }
 
+    /// The next period, ovulation and the fertile window — **or the stated
+    /// reason there is none.** Never an optional the view has to invent an
+    /// empty state for: `CycleForecastRefusal` carries its own sentence.
+    var cycleForecast: CycleForecast { CyclePhaseModel.forecast(cycleSummary) }
+
+    /// Today's phase, when the log can support one.
+    var currentCyclePhase: CyclePhaseEstimate? {
+        CyclePhaseModel.phase(on: Date(), summary: cycleSummary)
+    }
+
+    /// Per-phase baselines for the radar's own channels.
+    ///
+    /// **A stored, reloaded property** rather than a computed one, for two
+    /// reasons. The first is `data-conventions.md`'s observation trap — a
+    /// computed read is invisible to `@Observable` and the card would not
+    /// redraw when a day is logged. The second is cost: building it reads a
+    /// year of daily series for seven metrics and places every day in a phase,
+    /// which is not something a SwiftUI `body` may do on every scroll frame.
+    ///
+    /// ⚠️ **Read by the cycle tab only.** `HealthWatchModel` and the symptom
+    /// radar deliberately do not consume it yet — see the TODO on
+    /// `PhaseAwareBaseline`, which cannot be closed without redoing the radar's
+    /// calibration.
+    private(set) var cyclePhaseProfile = PhaseAwareBaseline.Profile(baselines: [:],
+                                                                    cyclesObserved: 0)
+
     func setCycleDay(_ day: Date, flow: MenstrualFlowLevel) {
         dataStore.setCycleDay(day, flow: flow)
         cycleDays = dataStore.loadCycleDays()
+        refreshCyclePhaseProfile()
     }
 
     func clearCycleDay(_ day: Date) {
         dataStore.clearCycleDay(day)
         cycleDays = dataStore.loadCycleDays()
+        refreshCyclePhaseProfile()
+    }
+
+    /// Rebuild the per-phase baselines. Called from `recompute()` and from both
+    /// cycle mutators — the mutators do **not** go through `recompute()`, so
+    /// leaving it to that would have left the shifts card a day stale after
+    /// every tap, which is the same shape as the substance-log bug recorded in
+    /// `reloadLoggedData`.
+    private func refreshCyclePhaseProfile() {
+        cyclePhaseProfile = PhaseAwareBaseline.profile(samples: samples,
+                                                       summary: cycleSummary)
     }
 
     /// The active-compound curve for the visible window, or empty when there
@@ -742,7 +780,16 @@ final class AppModel {
     /// than a parallel path that could drift from them.
     func seedSyntheticData(days: Int) {
         let calendar = Calendar.current
-        let generated = SyntheticSeed.samples(days: days, endingOn: Date(), calendar: calendar)
+        // The cycle log first, because the vitals are shaped by it: with a log
+        // present the four phase-structured channels go biphasic, which is what
+        // gives the phase-aware shifts card something measured to render. The
+        // fifth tab is otherwise only ever screenshot in its refusal state.
+        let cycleLog = SyntheticSeed.seededCycleDays(calendar: calendar)
+        for entry in cycleLog {
+            dataStore.setCycleDay(entry.day, flow: entry.flow, calendar: calendar)
+        }
+        let generated = SyntheticSeed.samples(days: days, endingOn: Date(),
+                                              cycleDays: cycleLog, calendar: calendar)
         let byDayAndType = Dictionary(grouping: generated) { sample in
             "\(sample.type.rawValue)|\(calendar.startOfDay(for: sample.start).timeIntervalSince1970)"
         }
@@ -891,6 +938,14 @@ final class AppModel {
     func clearSyntheticData() {
         for type in MetricType.allCases {
             dataStore.deleteManualSamples(of: type, from: .shortcuts)
+        }
+        // ⚠️ The seeded cycle log too, or "clear seeded data" leaves the fifth
+        // tab still full and a later screenshot of its empty state is of a tab
+        // that is not empty. Cycle days carry no `MetricSource`, so the loop
+        // above cannot reach them — every generated day has to be named.
+        let calendar = Calendar.current
+        for entry in SyntheticSeed.seededCycleDays(calendar: calendar) {
+            dataStore.clearCycleDay(entry.day, calendar: calendar)
         }
         samples = dataStore.loadManualSamples().partitionedVitals().kept
         recompute()
@@ -1973,6 +2028,10 @@ final class AppModel {
         // Grounding and substance edits reach here without touching `samples`,
         // so the sample-set invalidation hook won't have fired.
         invalidateDerivedCaches()
+        // After `reloadLoggedData()` above has refreshed `cycleDays`, so the
+        // phase split sees the log the reader just changed rather than the one
+        // before it.
+        refreshCyclePhaseProfile()
         prewarmBreakdowns()
     }
 

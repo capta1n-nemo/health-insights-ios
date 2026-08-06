@@ -76,4 +76,92 @@ final class SyntheticSeedTests: XCTestCase {
         XCTAssertGreaterThan(bpDays, 10, "too few to ground an estimate")
         XCTAssertLessThan(bpDays, 35, "a cuff reading every day is not what this data looks like")
     }
+
+    // MARK: - The cycle log
+
+    /// The seeded log must survive `CycleModel`'s own arithmetic: the right
+    /// number of cycles, every length inside the conventional normal range, and
+    /// **a real spread** — a metronome fixture would leave the phase model's
+    /// half-the-spread ± resting entirely on its floor.
+    func testTheSeededCycleLogIsPlausibleUnderTheAppsOwnRules() throws {
+        let start = cal.startOfDay(for: TestClock.now.addingTimeInterval(-8 * 86_400))
+        let days = SyntheticSeed.cycleDays(cycles: 4, mostRecentPeriodStart: start, calendar: cal)
+        let summary = CycleModel.summarise(days: days, now: TestClock.now, calendar: cal)
+
+        XCTAssertEqual(summary.cycles.count, 4)
+        XCTAssertEqual(summary.lengths.count, 3, "the running cycle has no length")
+        for length in summary.lengths {
+            XCTAssertTrue(SyntheticSeed.plausibleCycleLengths.contains(length),
+                          "\(length)-day cycle is outside the range the generator promises")
+        }
+        for length in summary.periodLengths {
+            XCTAssertTrue(SyntheticSeed.plausiblePeriodLengths.contains(length), "\(length)")
+        }
+        XCTAssertGreaterThan(try XCTUnwrap(summary.spread), 0,
+                             "a metronome fixture exercises none of the ± arithmetic")
+        XCTAssertEqual(summary.currentDay, 9)
+    }
+
+    /// Four cycles clears the three the phase model needs, so a seeded simulator
+    /// shows the tab's *populated* state rather than its refusal — which is the
+    /// entire reason this generator exists.
+    func testFourSeededCyclesAreEnoughForTheModelToSpeak() throws {
+        let start = cal.startOfDay(for: TestClock.now.addingTimeInterval(-8 * 86_400))
+        let days = SyntheticSeed.cycleDays(cycles: 4, mostRecentPeriodStart: start, calendar: cal)
+        let summary = CycleModel.summarise(days: days, now: TestClock.now, calendar: cal)
+
+        let prediction = try XCTUnwrap(
+            CyclePhaseModel.forecast(summary, now: TestClock.now, calendar: cal).prediction)
+        XCTAssertEqual(prediction.basedOnCycles, 3)
+        XCTAssertNotNil(CyclePhaseModel.phase(on: TestClock.now, summary: summary,
+                                              now: TestClock.now, calendar: cal))
+        XCTAssertNotNil(summary.lengthRange, "the range sentence needs three lengths")
+    }
+
+    /// And the vitals go biphasic when a log is supplied — so the phase-aware
+    /// shifts card has something measured to show on a simulator, and shows a
+    /// figure that is **not** the literature prior.
+    func testTheVitalsAreBiphasicOnlyWhenACycleLogIsSeededAlongsideThem() throws {
+        let start = cal.startOfDay(for: TestClock.now.addingTimeInterval(-8 * 86_400))
+        let log = SyntheticSeed.cycleDays(cycles: 6, mostRecentPeriodStart: start, calendar: cal)
+        let summary = CycleModel.summarise(days: log, now: TestClock.now, calendar: cal)
+
+        let flat = SyntheticSeed.samples(days: 180, endingOn: TestClock.now, calendar: cal)
+        let biphasic = SyntheticSeed.samples(days: 180, endingOn: TestClock.now,
+                                             cycleDays: log, calendar: cal)
+
+        let withoutLog = PhaseAwareBaseline.profile(metrics: [.skinTemperatureDeviation],
+                                                    samples: flat, summary: summary,
+                                                    now: TestClock.now, calendar: cal)
+        let withLog = PhaseAwareBaseline.profile(metrics: [.skinTemperatureDeviation,
+                                                          .restingHeartRate],
+                                                 samples: biphasic, summary: summary,
+                                                 now: TestClock.now, calendar: cal)
+
+        let flatShift = try XCTUnwrap(withoutLog.expectedShift(metric: .skinTemperatureDeviation,
+                                                               phase: .luteal))
+        XCTAssertEqual(flatShift.delta, 0, accuracy: 0.1,
+                       "the plain seed must stay cycle-agnostic for every other caller")
+
+        let shift = try XCTUnwrap(withLog.expectedShift(metric: .skinTemperatureDeviation,
+                                                        phase: .luteal))
+        XCTAssertTrue(shift.isMeasured)
+        XCTAssertEqual(shift.delta, 0.35, accuracy: 0.08)
+
+        // Distinguishable from the textbook figure, or a screenshot cannot tell
+        // a measured card from a priored one.
+        let prior = try XCTUnwrap(PhaseAwareBaseline.literaturePriors[.restingHeartRate]?[.luteal])
+        let rhr = try XCTUnwrap(withLog.expectedShift(metric: .restingHeartRate, phase: .luteal))
+        XCTAssertNotEqual(rhr.delta, prior.delta, accuracy: 0.3)
+    }
+
+    /// Determinism, for the cycle log too — the same reason as the vitals.
+    func testTheSeededCycleLogIsDeterministic() {
+        let start = cal.startOfDay(for: TestClock.now)
+        let a = SyntheticSeed.cycleDays(cycles: 5, mostRecentPeriodStart: start, calendar: cal)
+        let b = SyntheticSeed.cycleDays(cycles: 5, mostRecentPeriodStart: start, calendar: cal)
+        XCTAssertEqual(a, b)
+        XCTAssertTrue(SyntheticSeed.cycleDays(cycles: 0, mostRecentPeriodStart: start,
+                                              calendar: cal).isEmpty)
+    }
 }

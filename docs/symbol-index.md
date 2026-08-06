@@ -11,6 +11,8 @@ the place to look.
 
 - `Baseline/Baseline.swift`
   - `Baseline` :7
+- `Baseline/PhaseAwareBaseline.swift`
+  - `PhaseAwareBaseline` :52
 - `Baseline/VitalReader.swift`
   - `VitalReader` :46
   - `VitalReading` :24
@@ -249,6 +251,14 @@ the place to look.
   - `CycleModel` :164
   - `CycleSummary` :128
   - `MenstrualFlowLevel` :42
+- `Models/CyclePhase.swift`
+  - `CycleForecast` :162
+  - `CycleForecastRefusal` :134
+  - `CyclePhase` :46
+  - `CyclePhaseEstimate` :72
+  - `CyclePhaseModel` :177
+  - `CyclePrediction` :118
+  - `FertileWindow` :96
 - `Models/GroundingInput.swift`
   - `GroundingInput` :148
   - `GroundingKind` :7
@@ -619,13 +629,13 @@ the place to look.
 - `DesignSystem/SubstanceShading.swift`
   - `SubstanceShading` :27
 - `DesignSystem/Theme.swift`
-  - `Card` :383
-  - `ConfidenceBadge` :399
+  - `Card` :393
+  - `ConfidenceBadge` :409
   - `Theme` :7
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
 - `Features/Cycle/CycleTabView.swift`
-  - `CycleTabView` :28
+  - `CycleTabView` :38
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :301
   - `LastNightCard` :151
@@ -733,9 +743,9 @@ the place to look.
   - `FullExport` :306
   - `OtherDataListView` :319
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :363
-  - `IntegrationRow` :264
-  - `IntegrationSummaryRow` :320
+  - `DisclaimerView` :367
+  - `IntegrationRow` :268
+  - `IntegrationSummaryRow` :324
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

@@ -260,13 +260,31 @@ against the code. **Four findings are worth more than the ordering it produced:*
 
    **Slice 1 shipped (`a8be5ae`)**: the fifth tab, a tappable calendar, the
    cycle in progress, and cycle length **as a range with its spread**, never as
-   an average. Slice 2 — fertile window, phase model, phase-aware baselines —
-   needs cycles to predict from, which slice 1 collects.
+   an average.
 
-   ⚠️ **Phase-aware baselines are a *fix*, not an enhancement.** A luteal phase
-   raises resting heart rate and respiratory rate and lowers HRV, which is
-   exactly the pattern `HealthWatchModel` reads as illness. The symptom radar
-   must not ship to a cycling reader without them.
+   **Slice 2 built**: `CyclePhaseModel` (phase per day with its own ±, and the
+   fertile window) and `PhaseAwareBaseline` (per-phase median/MAD and
+   `expectedShift(metric:phase:)`), plus the tab's phase line, the fertile
+   window on the calendar with softened edges, and the reader's own per-phase
+   shifts. **The uncertainty design is the substance of it**: ovulation is
+   counted *backwards* from the next predicted period because the luteal phase
+   is the fixed half (~14 days) and the follicular phase absorbs the variation,
+   and the ± is **half the reader's own observed length range** (floored at one
+   day) plus a ±2 literature constant on the luteal length — added, not
+   substituted. Below three cycles it refuses and says why; past a ±7 it
+   refuses again, because a window wider than the window is the month.
+
+   ⚠️ **Phase-aware baselines are a *fix*, not an enhancement — and the fix is
+   half-landed on purpose.** A luteal phase raises resting heart rate and
+   respiratory rate and lowers HRV, which is exactly the pattern
+   `HealthWatchModel` reads as illness. The machinery to correct it is built and
+   tested; **it is not wired in**, because the radar's thresholds are calibrated
+   against the current reference and swapping the denominator without redoing
+   that calibration leaves a card whose documented false-alarm rate describes a
+   different model. Named TODO at `PhaseAwareBaseline.swift:29`, reasoning in
+   `docs/backlog.md` §A3, and the defect itself is pinned as
+   `PhaseAwareBaselineTests.testTheLutealPatternIsWhatTheRadarCallsIllness` —
+   which asserts the *current* behaviour and will fail when the fix lands.
 2. **None of the seven needs a new `InsightID`** as scoped — so the six
    exhaustive switches are uncontended. Keep it that way: the moment the cycle
    work acquires a card, seven files come with it and one of them (`cadence`)
@@ -351,7 +369,7 @@ each ended with the reader asking where their work was):
 | §B5 #33 | **Total sound exposure** | Not started. Store the *dose*, never the level |
 | §B5 #30 | **Sleep apnoea** | Only the two HealthKit identifiers are requested, so the data is now *measurable*. **Count the rows before building anything** |
 | §B5 #37 | **Daylight, spirometry, mood, oral health, falls** | Not started, and the difficulty is unchanged: all **zero rows**, so what has to be built is the *capture*, not a card |
-| §B5 #31 | **The cycle tab's fertile window and phase model** | Slice 1 shipped. ⚠️ Phase-aware baselines are a **fix, not an enhancement** — the luteal pattern is what `HealthWatchModel` reads as illness |
+| ~~§B5 #31~~ | ✅ **The cycle tab's fertile window and phase model** | Both slices built. ⚠️ **One thing is deliberately left**: the phase-aware baselines exist and are tested but are **not wired into `HealthWatchModel`** — doing so moves the denominator of every radar z-score and its thresholds are calibrated, so the wiring and the recalibration are one commit or neither. Named TODO at `PhaseAwareBaseline.swift:29`; full reasoning in `docs/backlog.md` §A3 |
 
 **And from §A**: Q6 location feed, Q7 bloods (manual *and* OCR), Q8 supplements,
 Q13 delete-everything, Q15 ARKit body capture, and the four remaining export
