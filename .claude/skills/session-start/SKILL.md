@@ -56,16 +56,27 @@ rather than a pointer at a file.
 ## 3. State the open roadmap before doing anything
 
 ```bash
-/home/user/health-insights-ios/scripts/handover-check.sh
-grep -n '^- \[ \]' /home/user/health-insights-ios/docs/progress.md
+./scripts/handover-check.sh
+./scripts/unbuilt-asks.sh          # what the reader asked for and has NOT got
+grep -n '^- \[ \]' docs/progress.md
 ```
+
+⚠️ **`unbuilt-asks.sh` is the important one and it is new (2026-08-06).** Three
+sessions in a row — 25, 27 and 28 — ended with the reader asking *"where are all
+the things I asked for?"*, and each time the cause was identical: the session did
+good work on what it found interesting and left the reader's *named* asks
+unstarted. `docs/backlog.md` §B2 and §B5 already held that list; nobody read it
+at the start. **A rule that has failed three times is not made to hold by writing
+it more firmly**, so it is a command now. Run it, and say what it prints.
 
 The gate reports whether the previous session actually closed cleanly — a red
 answer here is the previous session's unfinished business and is worth naming
 before adding to it. The grep is the open list.
 
-**Tell the user what is open, unprompted.** They should not have to ask what is
-outstanding; they have had to, and it is in the efficiency log as a repeat.
+**Tell the user what is open, unprompted — and lead with what they asked for.**
+They should not have to ask what is outstanding; they have had to three times,
+and it is the most expensive row in the efficiency ledger. The roadmap count is
+context; `unbuilt-asks.sh` is the answer to the question they actually have.
 
 ## The rules most likely to bite, in one place
 

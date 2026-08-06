@@ -337,6 +337,28 @@ itself by saying what it is. One of the three also had to become a *subset*
 rather than an equality — a card reporting nothing under full coverage must be
 log-driven, but the converse is false.
 
+### What the reader has asked for and has NOT got — read this first next session
+
+`docs/backlog.md` §B2 and §B5 are the authority. **Six things they explicitly
+reversed a refusal on are still unbuilt**, and this list existing at the top of
+the file is the mechanical answer to a three-session repeat (sessions 25, 27, 28
+each ended with the reader asking where their work was):
+
+| | Asked for | State |
+|---|---|---|
+| §B5 #34 | **Physical-effort intensity as a Fitness section, feeding the Fitness score** | Not started. ⚠️ The score half is *new work*, not a relocation, and needs `Feedback.swift`'s `"fitness-v1"` bumped or every recorded Fitness score becomes silently non-comparable |
+| §B5 #35 | **Steps / distance / flights as Fitness sections** | Not started. Needs 3 new `MetricType`s **and their removal from `HealthKitService.otherQuantityIdentifiers`**, or every sample ingests twice |
+| §B5 #33 | **Total sound exposure** | Not started. Store the *dose*, never the level |
+| §B5 #30 | **Sleep apnoea** | Only the two HealthKit identifiers are requested, so the data is now *measurable*. **Count the rows before building anything** |
+| §B5 #37 | **Daylight, spirometry, mood, oral health, falls** | Not started, and the difficulty is unchanged: all **zero rows**, so what has to be built is the *capture*, not a card |
+| §B5 #31 | **The cycle tab's fertile window and phase model** | Slice 1 shipped. ⚠️ Phase-aware baselines are a **fix, not an enhancement** — the luteal pattern is what `HealthWatchModel` reads as illness |
+
+**And from §A**: Q6 location feed, Q7 bloods (manual *and* OCR), Q8 supplements,
+Q13 delete-everything, Q15 ARKit body capture, and the four remaining export
+fields (Q10's token half is done). **Q11 notifications is deferred by decision**,
+not forgotten: there is no `BGTaskScheduler` anywhere, the reader chose to build
+background delivery first, and that has not started.
+
 ### The next session's build list
 
 `docs/backlog.md` §0 carries the ordered list. **Shipped since this section was
