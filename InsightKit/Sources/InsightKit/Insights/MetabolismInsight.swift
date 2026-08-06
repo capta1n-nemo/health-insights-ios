@@ -294,7 +294,87 @@ public struct MetabolismInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true } + drivers.filter { $0.isNotable != true },
             unmetRequirements: balance.predictedTDEE == nil ? requirements : [],
             contributors: contributors(balance, samples: samples),
-            weighting: .equation("your own energy balance against a predicted requirement"))
+            weighting: .equation("your own energy balance against a predicted requirement"),
+            otherFactors: Self.producedFigures(balance),
+            derivedOutputs: Self.derivedOutputs(balance))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // This card's whole subject is a figure no device reports. `observedTDEE` is
+    // back-calculated from logged intake and the *slope* of the weight series —
+    // two metrics, one of them differentiated — so it is as far from a
+    // pass-through as anything in the app, and until now it lived for the length
+    // of one sentence per launch.
+    //
+    // **Refused a series, deliberately:** `intakeMean` and `activeMean`. Each is
+    // the mean of one metric over the window, which is a bare restatement under
+    // the reader's own qualifier — the Data tab already holds dietary energy and
+    // active energy, and a second name for their averages would be the exact
+    // duplication this design avoids. `deficitPerDay` and `kilogramsPerWeek` are
+    // also refused: both are `observedTDEE − intakeMean` rescaled by a constant,
+    // so they are one series drawn in three units.
+
+    static let observedKey = "observedTDEE"
+    static let predictedKey = "predictedTDEE"
+    static let speedKey = "metabolicSpeed"
+    static let basalKey = "basalRate"
+
+    static func derivedOutputs(_ balance: EnergyBalance) -> [DerivedOutput] {
+        var series: [DerivedOutput] = [
+            .init(key: observedKey, displayName: "Energy you actually burn",
+                  unit: "kcal/day", value: balance.observedTDEE,
+                  // Neither direction is the good one: a high figure is a big
+                  // engine or a thin diary, and this card spends most of its
+                  // copy saying it cannot always tell which.
+                  higherIsBetter: nil, precision: 0),
+        ]
+        if let predicted = balance.predictedTDEE {
+            series.append(.init(key: predictedKey,
+                                displayName: "What your size predicts you burn",
+                                unit: "kcal/day", value: predicted,
+                                higherIsBetter: nil, precision: 0))
+        }
+        if let speed = balance.speed {
+            series.append(.init(key: speedKey, displayName: "Metabolic speed",
+                                unit: "% of predicted", value: speed * 100,
+                                // Below prediction is the finding this card
+                                // exists for. Above it is capped at 100 by the
+                                // score curve and is usually an incomplete log,
+                                // so "higher is better" would be false above the
+                                // line — which is why the *score* holds flat
+                                // there and this direction is left unstated.
+                                higherIsBetter: nil, precision: 0))
+        }
+        if let basal = balance.basal {
+            series.append(.init(key: basalKey, displayName: "Resting energy",
+                                unit: "kcal/day", value: basal,
+                                higherIsBetter: nil, precision: 0))
+        }
+        return series
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. This card's basis is
+    /// `.equation`, and its shares are each input's own effect on the result;
+    /// the observed and predicted figures are the two *sides* of that equation
+    /// rather than terms in it, so a share for either would be the equation
+    /// explaining itself.
+    static func producedFigures(_ balance: EnergyBalance) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.metabolism, observedKey),
+                name: "Energy you actually burn",
+                detail: String(format: "%.0f kcal a day, worked back from what you logged and what your weight did over %d days. This is the card's output, not one of its inputs — the inputs are the rows above.",
+                               balance.observedTDEE, balance.windowDays))
+        ]
+        if let predicted = balance.predictedTDEE, let speed = balance.speed {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.metabolism, speedKey),
+                name: "Metabolic speed",
+                detail: String(format: "%.0f%% of predicted — %.0f against %.0f kcal a day. The ratio of the two figures the equation compares, so it has no share of its own.",
+                               speed * 100, balance.observedTDEE, predicted)))
+        }
+        return rows
     }
 
     private func deficitLine(_ balance: EnergyBalance) -> String {

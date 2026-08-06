@@ -265,8 +265,52 @@ public struct FitnessInsight: InsightModel {
                           detail: String(format: "%.0f", vo2),
                           componentScore: vo2Score, value: vo2)],
             weighting: .weightedAverage,
+            // ⚠️ **The series existed and the rows did not (2026-08-06).** These
+            // four figures have been `derivedOutputs` since the derived-series
+            // substrate shipped, so the Data tab could chart them — and they
+            // still appeared nowhere on the card itself, because only a factor
+            // reaches "What goes into this" and "How this is weighted". That is
+            // the reader's complaint in its purest form: a figure the app
+            // derives, kept, and then not used anywhere they look.
+            otherFactors: Self.producedFigures(fitnessAge: fitnessAge,
+                                               trajectory: trajectory, effort: effort),
             derivedOutputs: Self.derivedOutputs(fitnessAge: fitnessAge,
                                                 trajectory: trajectory, effort: effort))
+    }
+
+    /// The three headline figures as rows.
+    ///
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. This card's number is
+    /// VO₂max scored against a published band, blended with supporting signals;
+    /// the fitness age is that same VO₂max read off an age axis, so weighting it
+    /// would be scoring one measurement twice. The moderate-equivalent minutes
+    /// genuinely feed nothing — `ActivityDoseModel` reports them and the score
+    /// does not read them — and the row says so rather than implying otherwise
+    /// by absence.
+    static func producedFigures(fitnessAge: FitnessAgeModel.Output,
+                                trajectory: VO2Trajectory.Output?,
+                                effort: EffortIntensityModel.Output?) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.fitness, "fitnessAge"), name: "Fitness age",
+                detail: String(format: "%.0f — your VO₂max read off the age axis instead of the fitness one. Tracked, not scored: it is the same measurement as the row above, in years.",
+                               fitnessAge.fitnessAge))
+        ]
+        if let trajectory {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.fitness, "vo2NetPerYear"),
+                name: "VO₂max trend, net of ageing",
+                detail: String(format: "%+.2f mL/kg·min a year after the expected age-related decline is taken out. A slope through your readings — it says where you are heading, and the number above says where you are.",
+                               trajectory.netPerYear)))
+        }
+        if let effort {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.fitness, "moderateEquivalentMinutes"),
+                name: "Moderate-equivalent minutes this week",
+                detail: String(format: "%.0f min, with vigorous time counted double as the guidance does — charted and never scored, because the guideline threshold is about long-run health outcomes rather than about this week's VO₂max.",
+                               effort.moderateEquivalentMinutes)))
+        }
+        return rows
     }
 
     /// **What this card works out that nothing else holds.**

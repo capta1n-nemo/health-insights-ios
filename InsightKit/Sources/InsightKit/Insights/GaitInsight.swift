@@ -320,6 +320,79 @@ public struct GaitInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(out),
+            derivedOutputs: Self.derivedOutputs(out))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // Two kinds of figure here, and only one of them is obvious.
+    //
+    // **`drift` pools** — a weighted mean of five one-sided departures, the
+    // quantity the dial is a curve through. Series, weight 0.
+    //
+    // **The speed split is the more interesting one.** `stepLengthShare` comes
+    // from `ln Δspeed = ln Δlength + ln Δcadence`: it is a function of *two*
+    // metrics and is not monotone in either, so it is nothing like a rescaling
+    // of one series — the same walking speed change decomposes differently in
+    // two different months. It is also, as the card's own copy says, the one
+    // line here a reader cannot get from any other product, and until now it
+    // existed for exactly as long as it took to draw the sentence. Series.
+    //
+    // **The channels do not get one**, for the reader's stated reason: each is
+    // one metric's month against its own year. Their departures are already
+    // harvested from `MetricContribution.z` for free.
+
+    static let driftKey = "pooledDrift"
+    static let speedChangeKey = "walkingSpeedChange"
+    static let stepLengthShareKey = "stepLengthShareOfSpeedChange"
+
+    static func derivedOutputs(_ out: GaitModel.Output) -> [DerivedOutput] {
+        var series: [DerivedOutput] = [
+            .init(key: driftKey, displayName: "Gait drift, pooled",
+                  unit: "SD", value: out.drift, higherIsBetter: false, precision: 2)
+        ]
+        if let split = out.split {
+            series.append(.init(key: speedChangeKey,
+                                displayName: "Walking speed against your previous year",
+                                unit: "%", value: split.speedChange * 100,
+                                higherIsBetter: true, precision: 1))
+            // `nil` below the reportable floor rather than zero: apportioning a
+            // rounding error produces two confident numbers about nothing, and a
+            // series of them would look like a finding on a chart.
+            if let share = split.stepLengthShare {
+                series.append(.init(key: stepLengthShareKey,
+                                    displayName: "Share of that change from step length",
+                                    unit: "%", value: share * 100,
+                                    // Neither end is the good one. Losing speed
+                                    // through shorter steps and through slower
+                                    // cadence are different findings, not a
+                                    // better and a worse one.
+                                    higherIsBetter: nil, precision: 0))
+            }
+        }
+        return series
+    }
+
+    /// ⚠️ Weight 0 throughout — see `ScoreFactor.producedFigure`. The five gait
+    /// channels already divide this card's number between them.
+    static func producedFigures(_ out: GaitModel.Output) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.gait, driftKey),
+                name: "Gait drift, pooled",
+                detail: String(format: "%.2f SD toward the unwelcome direction across %d measure%@ — the weighted mean of the shares above, so it carries none of its own.",
+                               out.drift, out.channels.count,
+                               out.channels.count == 1 ? "" : "s"))
+        ]
+        if let split = out.split, let share = split.stepLengthShare {
+            rows.append(.producedFigure(
+                DerivedSeriesID(.gait, stepLengthShareKey),
+                name: "Where the speed change came from",
+                detail: String(format: "%.0f%% of it is step length, %.0f%% is rhythm — from speed = length × cadence, which makes the two shares add to the whole without anything being fitted. Read, not scored: it says *where* the change is, and the score is about *how far*.",
+                               share * 100, (1 - share) * 100)))
+        }
+        return rows
     }
 }

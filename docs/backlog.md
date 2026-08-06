@@ -506,6 +506,9 @@ so the decision is deliberate rather than inherited. See
 | D36 | **Skip-guards that can hide forever**: `SuggestionTests:254,278` use `XCTSkipUnless` on fixture drift; `ContributorDepartureTests:27–31` skip every model whose metrics aren't in GoldenDataset's five, so Fitness/BodyComp/BP have never been checked against the departure panel | Test audit #3, #4 |
 | D37 | **Assertions that cannot fail**: `NewCardTests:395` percentile 45±12 under a "just under 50" comment; `SleepQualityStagesTests:115` ±12 on a 0–100 score; `MetabolismTests:113` disjunctive assert; `CompositionVelocityTests:95` self-referential; `ScoreHistoryReplayEquivalenceTests:180–185` runs ReadinessInsight twice where a third model was intended | Test audit #7–9 |
 | D38 | **Session-start cost is dominated by `docs/activeContext.md`** — 4,135 lines of 28 sessions' narrative, read every session. `handover.md` now instructs moving superseded sections to `docs/archive/activeContext-history.md`; the first actual pruning needs a main session | Setup review finding 2 |
+| D40 | **Heart Health's one derived figure is computed in the view, so it cannot be declared.** The 2026-08-06 derived-series sweep covered all 18 registered models; seventeen are complete. Heart Health is the exception: heart-rate *recovery* — its bespoke section, and the one cardiac marker with a published fixed threshold — is evaluated by `HeartResponseModel` inside `InsightDetailView`, never reaches `InsightResult`, and therefore gets no series, no factor row and no Data-tab page. Moving the call into `HeartHealthInsight.evaluate` is the fix; it changes what the card reports, so it needs its own brief rather than being folded into a rendering pass | Named in a `MARK` comment at `HeartHealthScore.swift`'s result site so it cannot be mistaken for an omission |
+| D41 | **Work impact scores the body's difference and not the calendar's.** The card's number is a curve over how much RHR/HRV/sleep differed between busy and quiet working days; **the size of the load gap is nowhere in that arithmetic**, so a twenty-minute contrast and a five-hour one can score identically. The gap, both halves' medians and the day counts are now declared and trendable at **weight 0**, each row saying it defines the comparison rather than dividing the number — which is honest but is not what the reader asked for ("Where is that in the weighting section?"). Folding the contrast into the score is the real answer and rewrites every number this card has stored | Reasoned out at `WorkImpactModel` ▸ "What the calendar contributes"; needs a `modelVersion` bump, per the fitness-v2 precedent |
+| D42 | **"How you compare" still has no norms for anything a card derives, and cannot.** The section now *names* what it could not compare ("Nothing to compare these against") instead of omitting it silently, which was the honest half. The other half — comparing a reader against other readers of this app — is A4 (crowd-sourced norms) and is the only route to an actual centile for meeting hours or a pooled departure | Do not invent one; standing rule 1 |
 | D39 | ⚠️ **Logged bleeding days never reach the export.** The app's full export never passes `cycles:` to `HealthDataExport`, so the key is always `[]` — the Data tab shows the cycle log and "export my data" silently omits it. The exhaustive `exportKey(for:)` switch cannot catch this: it enforces that a domain *names* a key, not that the payload is populated, which is the same gap `HealthDataExportTests` was written to close for the other domains | Found in passing by the B7 agent, 2026-08-06 |
 | D40 | ⚠️ **The app announces a discovery for data it then throws away.** `AppModel.observeArrivals` records what *arrived* and runs **before** `partitionedVitals()` sanitises, so a reading outside its metric's `plausibleRange` is announced as "New since you last looked" and then dropped — the reader's single vitamin A entry does exactly this. The Data-tab row now appears regardless (fixed 2026-08-06), so the symptom is covered, but **the ledger is still recording arrivals that never became data**, which will mislead any future reader of it. Decide: observe after sanitising, or record the drop alongside the sighting so the row can say "arrived, but outside the plausible range" | Found while fixing the discovered-row bug |
 | D41 | ✅ **`load-real-export.sh` was half a no-op on any container that had run the app.** `loadCachedOther` prefers `synced_other.hirc`, and the loader deleted only `synced_samples.hisc` — so 177,000 raw rows were written to a file nothing read, and the app kept showing the previous run's catalogue. Cost a full simulator cycle to find | Fixed same session; both compact caches are deleted now |
@@ -550,3 +553,28 @@ Resting Heart Rate page cross-device defect · Body Composition after the hatch 
    thirty-six metrics used to return `nil` on the argument that explaining a
    step is condescension; the superseded reasoning is kept in that function's
    doc comment. See `docs/data-conventions.md` §4.
+10. ⚠️ **Every figure a card works out is a data source, and is used** (2026-08-06)
+    — *"the metrics we are deriving from each card, are still not being turned
+    into their own individual data sources, and used, especially in weightings.
+    E.g. in Biological age card, we created a 'Combined' score, that now should
+    be a score that gets its own data row."* And, when the first pass covered
+    only the three cards named: **"Do this for EVERY card, and make it a rule
+    for every card going forward."**
+    For every non-metric quantity a model computes it must declare **either** a
+    derived series **or**, in a comment at the site, why it is a pass-through —
+    the reader's own exception being *"unless that was just directly derived
+    from one other data point"*, which is refused precisely because it would put
+    the same number in the Data tab twice.
+    A declared figure becomes a `DerivedOutput` (trendable, its own page under
+    Data ▸ Generated insights) **and** a `ScoreFactor` with
+    `.derived(DerivedSeriesID)` (so it appears in "What goes into this" and "How
+    this is weighted", and links through to that page). Most carry weight 0 —
+    a figure summarising the rows below it cannot also take a share of them —
+    and every weight-0 row states why, which is rule 4 extended to figures a
+    card *produces* rather than reads.
+    Enforced, not remembered: `DerivedFactorIdentityTests` fails on any derived
+    weight whose id names a series the card does not produce. The three verdicts
+    and the two borderline calls are in the `add-insight` skill §5a; the section
+    behaviour is in `docs/card-sections.md`. **There is deliberately no test
+    demanding every card have one** — Readiness and Heart Health honestly do
+    not, and such a test would be answered by inventing a figure.

@@ -12,6 +12,16 @@ private struct AuxInput: Identifiable {
     let share: Double?
     /// Where a tap goes, for a grounding fact; `nil` for a derived figure.
     let groundingKind: GroundingKind?
+    /// Where a tap goes for a figure the card worked out — its page under
+    /// Data ▸ Generated insights.
+    ///
+    /// **This was `nil` for every derived row until 2026-08-06**, and the
+    /// comment on `contributorLinksCard` said so plainly: *"listed but not
+    /// linked, because there is nowhere to send a tap yet"*. There is now. A
+    /// derived factor names its series (`ScoreFactor.Source.derived`), the
+    /// series has a page, and the row that says a figure moved your number can
+    /// finally show what that figure has been doing.
+    let derivedSeries: DerivedSeriesID?
     let isModifiable: Bool
 }
 
@@ -1298,7 +1308,20 @@ struct InsightDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(weighted, id: \.self) { factor in
-                    weightRow(factor, slots: slots)
+                    // A derived share is the one row here a reader can ask a
+                    // follow-up question about — "what has that figure been
+                    // doing?" — and until 2026-08-06 the row could not answer,
+                    // because the source case carried no id. It does now.
+                    if let spec = derivedSpec(factor.derivedSeries) {
+                        NavigationLink {
+                            GeneratedSeriesDataView(spec: spec)
+                        } label: {
+                            weightRow(factor, slots: slots, linked: true)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        weightRow(factor, slots: slots)
+                    }
                 }
                 // Age and sex sit in the same list because they genuinely carry
                 // the risk card's largest share, and a reader has to be able to
@@ -1322,26 +1345,55 @@ struct InsightDetailView: View {
                                  slots: [MetricType: Int]) -> some View {
         Text("Charted, not scored")
             .font(.subheadline.weight(.semibold))
-        Text("Everything this card reads carries a share of the number above, however small — except these, and each row says why it doesn't.")
+        // Two kinds of row live here now. The original: a signal the card reads
+        // and deliberately does not score. The second, from 2026-08-06: a figure
+        // the card *produces* — a pooled departure, a combined age, the gap this
+        // whole comparison rests on. Those are not inputs at all, and a heading
+        // claiming everything below was "read" would misdescribe half of them.
+        Text("Some of these the card reads and doesn't score; some it works out from the rows above. Neither divides the number, and each row says why.")
             .font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         ForEach(factors, id: \.self) { factor in
-            HStack(alignment: .firstTextBaseline) {
-                if let metric = factor.metric {
-                    Circle().fill(Theme.metricColor(metric, slots: slots))
-                        .frame(width: 7, height: 7)
+            if let spec = derivedSpec(factor.derivedSeries) {
+                NavigationLink {
+                    GeneratedSeriesDataView(spec: spec)
+                } label: {
+                    unweightedRow(factor, slots: slots, linked: true)
                 }
-                Text(factor.name).font(.subheadline)
-                Spacer()
-                if !factor.detail.isEmpty {
-                    Text(factor.detail)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                }
+                .buttonStyle(.plain)
+            } else {
+                unweightedRow(factor, slots: slots, linked: false)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(factor.name), \(factor.detail), charted but not scored")
         }
+    }
+
+    private func unweightedRow(_ factor: ScoreFactor, slots: [MetricType: Int],
+                               linked: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            if let metric = factor.metric {
+                Circle().fill(Theme.metricColor(metric, slots: slots))
+                    .frame(width: 7, height: 7)
+            } else if factor.derivedSeries != nil {
+                // The same glyph the Data tab files these under, so a figure
+                // the app worked out looks the same wherever it appears.
+                Image(systemName: "function")
+                    .font(.system(size: 9)).foregroundStyle(.tertiary)
+            }
+            Text(factor.name).font(.subheadline)
+            Spacer()
+            if !factor.detail.isEmpty {
+                Text(factor.detail)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+            if linked {
+                Image(systemName: "chevron.right")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(factor.name), \(factor.detail), charted but not scored")
     }
 
     /// Where your three comparable numbers sit against other people your age
@@ -2062,6 +2114,22 @@ struct InsightDetailView: View {
         let drawn = standing?.standings ?? []
         let unNormed = standing?.unNormed ?? []
         let byCategory = standing?.assessedByCategory ?? []
+        // **What this section could not compare, named rather than omitted.**
+        //
+        // The reader, 2026-08-06, about the work-impact card: *"Where is that in
+        // how you compare?"* — and the answer is that nobody has published a
+        // distribution of meeting hours, or of a pooled mental-health departure,
+        // or of a simulated energy reservoir, by age and sex. That is a real
+        // answer and it was being given as silence: the section drew the two or
+        // three sensed metrics it had norms for and said nothing about the
+        // figure the card is actually *about*.
+        //
+        // The one thing that must not happen here is inventing a norm. There
+        // isn't one, this app does not make them up, and saying so out loud is
+        // the whole of what is owed.
+        let workedOut = (result.weightedFactors + result.unweightedFactors)
+            .filter { $0.derivedSeries != nil }
+            .map(\.name)
 
         return InsightSection(
             title: "How you compare",
@@ -2086,6 +2154,41 @@ struct InsightDetailView: View {
                                  hasStandings: !drawn.isEmpty || !byCategory.isEmpty)
                 }
             }
+            // Rendered on **both** branches deliberately. A card whose signals
+            // have no norms at all takes the placeholder path, and that is
+            // exactly the card most likely to be the one whose main input this
+            // section is silently skipping.
+            workedOutRows(workedOut,
+                          hasAnythingAbove: placeholder != nil || !drawn.isEmpty
+                              || !byCategory.isEmpty || !unNormed.isEmpty)
+        }
+    }
+
+    /// The figures this card worked out for itself, which nothing can be
+    /// compared against because nobody has published a distribution of them.
+    ///
+    /// Stated rather than omitted, for the same reason `unNormedRows` exists one
+    /// level up: a section that draws two rows out of nine implies the other
+    /// seven were checked. Here the gap is larger and more honest — these are
+    /// quantities this app invented for this app, and there is no population to
+    /// rank them against at all.
+    @ViewBuilder private func workedOutRows(_ names: [String],
+                                            hasAnythingAbove: Bool) -> some View {
+        if !names.isEmpty {
+            if hasAnythingAbove { Divider() }
+            Text("Nothing to compare these against")
+                .font(.caption.weight(.medium))
+            ForEach(names, id: \.self) { name in
+                HStack(spacing: 8) {
+                    Image(systemName: "function")
+                        .font(.caption2).foregroundStyle(.tertiary).frame(width: 14)
+                    Text(name).font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                }
+            }
+            Text("These are figures this app worked out from your own data — there is no published distribution of them for anyone, so there is no centile to place you in and none is invented here. They are charted against your own history instead, under Data ▸ Generated insights.")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -2224,7 +2327,8 @@ struct InsightDetailView: View {
     /// handing one to something that draws no series would put a line's colour
     /// under a row that has none.
     private func weightRow(_ factor: ScoreFactor,
-                           slots: [MetricType: Int]) -> some View {
+                           slots: [MetricType: Int],
+                           linked: Bool = false) -> some View {
         let tint = factor.metric.map { Theme.metricColor($0, slots: slots) } ?? Theme.accent
         return VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
@@ -2242,6 +2346,10 @@ struct InsightDetailView: View {
                 Text("\(Int((factor.weight * 100).rounded()))%")
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(tint)
+                if linked {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
             }
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
@@ -3000,27 +3108,52 @@ struct InsightDetailView: View {
             Text("Also feeding this — not a measured series")
                 .font(.caption.weight(.medium))
             ForEach(inputs) { input in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: input.isModifiable ? "circle.fill" : "lock.fill")
-                        .font(.system(size: 7))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 10)
-                    Text(input.name).font(.subheadline)
-                    Spacer(minLength: 6)
-                    Text(input.detail)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.trailing)
-                    if let share = input.share {
-                        Text("\(Int((share * 100).rounded()))%")
-                            .font(.caption.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(Theme.accent)
+                if let spec = derivedSpec(input.derivedSeries) {
+                    NavigationLink {
+                        GeneratedSeriesDataView(spec: spec)
+                    } label: {
+                        auxInputRow(input, linked: true)
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    auxInputRow(input, linked: false)
                 }
             }
-            Text("These carry a share of the score without being something the app charts over time. A lab value, a goal you set, or a figure the app works out — shown here so nothing that moves the number is left off this section.")
+            // ⚠️ **This sentence used to say every row here carried a share**,
+            // and from 2026-08-06 that is false: a figure the card *produces* —
+            // a pooled departure, a combined age, the gap between your busy and
+            // quiet days — belongs on this section without dividing the number,
+            // and each of those rows says so in its own words.
+            Text("Not a chart line, but part of the picture. A lab value, a goal you set, or a figure the app works out for itself — listed here so nothing behind the number is left off this section. Where a row shows a percentage it carries that share; where it doesn't, the row says why. Tap anything the app worked out to see its own history.")
                 .font(.caption2).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func auxInputRow(_ input: AuxInput, linked: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: input.derivedSeries != nil
+                  ? "function"
+                  : (input.isModifiable ? "circle.fill" : "lock.fill"))
+                .font(.system(size: input.derivedSeries != nil ? 9 : 7))
+                .foregroundStyle(.tertiary)
+                .frame(width: 10)
+            Text(input.name).font(.subheadline)
+            Spacer(minLength: 6)
+            Text(input.detail)
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+            if let share = input.share {
+                Text("\(Int((share * 100).rounded()))%")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Theme.accent)
+            }
+            if linked {
+                Image(systemName: "chevron.right")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     /// What the three parts of each legend line mean.
@@ -3073,7 +3206,9 @@ struct InsightDetailView: View {
             if case .grounding(let k) = factor.source { kind = k; coveredKinds.insert(k) }
             out.append(AuxInput(id: factor.name, name: factor.name, detail: factor.detail,
                                 share: factor.weight > 0 ? factor.weight : nil,
-                                groundingKind: kind, isModifiable: factor.isModifiable))
+                                groundingKind: kind,
+                                derivedSeries: factor.derivedSeries,
+                                isModifiable: factor.isModifiable))
         }
         // Age and sex always travel together in this app, so if either is already
         // a factor (the risk card's "Age and sex" row) don't also list the raw
@@ -3093,7 +3228,7 @@ struct InsightDetailView: View {
                 ?? "Not set"
             out.append(AuxInput(id: req.kind.rawValue, name: req.kind.displayName,
                                 detail: detail, share: nil, groundingKind: req.kind,
-                                isModifiable: true))
+                                derivedSeries: nil, isModifiable: true))
         }
         return out
     }
@@ -3338,6 +3473,9 @@ struct InsightDetailView: View {
         // sets them, which is their "history": the value and when it was
         // entered. Derived figures (a substance load) are listed but not linked,
         // because there is nowhere to send a tap yet.
+        // ⚠️ The line above described the world before 2026-08-06. A derived
+        // figure now has somewhere to send a tap — its page under
+        // Data ▸ Generated insights — and `auxHistoryRow` sends it there.
         let aux = auxiliaryInputs(result)
         if !metrics.isEmpty || !aux.isEmpty {
             let total = metrics.count + aux.count
@@ -3371,7 +3509,12 @@ struct InsightDetailView: View {
         }
     }
 
-    /// A grounding fact opens its entry sheet; a derived figure is a plain row.
+    /// A grounding fact opens its entry sheet; a derived figure opens its series.
+    ///
+    /// A derived figure the app has **not computed a day of yet** falls through
+    /// to the plain row rather than linking to an empty page — "never computed"
+    /// and "computed and empty" are different states, and the Data tab is built
+    /// to keep them apart.
     @ViewBuilder private func auxHistoryRow(_ input: AuxInput) -> some View {
         if let kind = input.groundingKind {
             Button {
@@ -3380,9 +3523,21 @@ struct InsightDetailView: View {
                 auxHistoryLabel(input, chevron: "chevron.right")
             }
             .buttonStyle(.plain)
+        } else if let spec = derivedSpec(input.derivedSeries) {
+            NavigationLink {
+                GeneratedSeriesDataView(spec: spec)
+            } label: {
+                auxHistoryLabel(input, chevron: "chevron.right")
+            }
+            .buttonStyle(.plain)
         } else {
             auxHistoryLabel(input, chevron: nil)
         }
+    }
+
+    /// The spec behind a derived factor, where the app has actually computed it.
+    private func derivedSpec(_ id: DerivedSeriesID?) -> DerivedSeriesSpec? {
+        id.flatMap { model.derivedSeries.spec($0) }
     }
 
     private func auxHistoryLabel(_ input: AuxInput, chevron: String?) -> some View {

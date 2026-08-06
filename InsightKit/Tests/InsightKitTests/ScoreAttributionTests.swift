@@ -20,9 +20,9 @@ final class ScoreAttributionTests: XCTestCase {
 
     func testFactorsNormaliseToOne() {
         let factors: [ScoreFactor] = [
-            .init(source: .derived, name: "A", weight: 2, detail: "", isModifiable: true),
-            .init(source: .derived, name: "B", weight: 1, detail: "", isModifiable: true),
-            .init(source: .derived, name: "C", weight: 0, detail: "", isModifiable: true)
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.a")), name: "A", weight: 2, detail: "", isModifiable: true),
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.b")), name: "B", weight: 1, detail: "", isModifiable: true),
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.c")), name: "C", weight: 0, detail: "", isModifiable: true)
         ]
         let out = factors.normalised
         XCTAssertEqual(out.count, 2, "a zero share is not a bar")
@@ -32,7 +32,7 @@ final class ScoreAttributionTests: XCTestCase {
 
     func testNormalisingNothingIsEmptyRatherThanADivisionByZero() {
         let allZero: [ScoreFactor] = [
-            .init(source: .derived, name: "A", weight: 0, detail: "", isModifiable: true)
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.a")), name: "A", weight: 0, detail: "", isModifiable: true)
         ]
         XCTAssertTrue(allZero.normalised.isEmpty)
     }
@@ -41,9 +41,9 @@ final class ScoreAttributionTests: XCTestCase {
     /// broken by name, so on a tie the first is not the largest.
     func testThePreviewRefusesASuperlativeOnATie() {
         let tied: [ScoreFactor] = [
-            .init(source: .derived, name: "A", weight: 0.4, detail: "", isModifiable: true),
-            .init(source: .derived, name: "B", weight: 0.4, detail: "", isModifiable: true),
-            .init(source: .derived, name: "C", weight: 0.2, detail: "", isModifiable: true)
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.a")), name: "A", weight: 0.4, detail: "", isModifiable: true),
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.b")), name: "B", weight: 0.4, detail: "", isModifiable: true),
+            .init(source: .derived(DerivedSeriesID(.fitness, "test.c")), name: "C", weight: 0.2, detail: "", isModifiable: true)
         ]
         let preview = tied.weightingPreview ?? ""
         XCTAssertFalse(preview.contains("carries the most"), preview)

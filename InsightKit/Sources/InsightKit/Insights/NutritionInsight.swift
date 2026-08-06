@@ -521,7 +521,82 @@ public struct NutritionInsight: InsightModel {
             driverLines: drivers,
             unmetRequirements: unmet(for: profile, now: now),
             contributors: out.contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(out),
+            derivedOutputs: Self.derivedOutputs(out))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // ## Refused first, because most of this card is a pass-through
+    //
+    // `means` is one average per logged metric — protein, fibre, sodium, each
+    // straight out of the log. Every one of those is the reader's stated
+    // exception, and each already carries a `componentScore` that
+    // `DerivedHarvest` keeps for free. **None of them gets a series.**
+    //
+    // `proteinPerKg`, `saturatedFatPercent` and `fatPercent` are the interesting
+    // middle case and are also refused: each is one logged metric divided by
+    // another figure the app already holds (body mass, or total energy). They
+    // are ratios rather than pools, they carry their own weighted rows already,
+    // and their sub-scores are harvested — a second name would put the same
+    // judgement in the Data tab twice.
+    //
+    // ## Kept
+    //
+    // **Micronutrient coverage pools eight things** — how many of the vitamins
+    // and minerals are met — and it is the one figure on this card no single row
+    // states. **Completeness** is kept for the reason the card leads with it:
+    // every average here describes the days that were written down, and a
+    // reader looking at a rising score needs to be able to see whether the
+    // logging rose with it.
+
+    static let coverageKey = "micronutrientsMet"
+    static let modelledKey = "micronutrientsModelled"
+    static let completenessKey = "loggingCompleteness"
+
+    static func derivedOutputs(_ out: NutritionModel.Output) -> [DerivedOutput] {
+        var series: [DerivedOutput] = [
+            .init(key: completenessKey, displayName: "Days you logged",
+                  unit: "%", value: out.completeness * 100,
+                  higherIsBetter: true, precision: 0)
+        ]
+        if let micro = out.micronutrients {
+            series.append(.init(key: coverageKey,
+                                displayName: "Micronutrient targets met",
+                                unit: "", value: Double(micro.rows.count - micro.flagged.count),
+                                higherIsBetter: true, precision: 0))
+            // ⚠️ **Modelled, and the count says so on its own row.** Most of
+            // these are estimated from energy rather than logged, and a coverage
+            // figure without its provenance beside it would be the app's own
+            // rule broken — modelled is never dressed as measured.
+            series.append(.init(key: modelledKey,
+                                displayName: "Of those, estimated rather than logged",
+                                unit: "", value: Double(micro.estimatedCount),
+                                higherIsBetter: false, precision: 0))
+        }
+        return series
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. The macronutrient rows
+    /// carry this card's shares; micronutrients are reported and never scored
+    /// (most of them are modelled from energy), and completeness is the caveat
+    /// on all of it rather than a term in it.
+    static func producedFigures(_ out: NutritionModel.Output) -> [ScoreFactor] {
+        var rows: [ScoreFactor] = [
+            .producedFigure(
+                DerivedSeriesID(.nutrition, completenessKey),
+                name: "Days you logged",
+                detail: "\(out.loggedDays) of \(NutritionModel.windowDays). Not scored — it is what every average above rests on, and scoring it would be marking your own homework on how well you marked your homework.")
+        ]
+        if let micro = out.micronutrients {
+            let met = micro.rows.count - micro.flagged.count
+            rows.append(.producedFigure(
+                DerivedSeriesID(.nutrition, coverageKey),
+                name: "Micronutrient targets met",
+                detail: "\(met) of \(micro.rows.count), \(micro.estimatedCount) of them estimated from your energy intake rather than logged — reported, never scored, because an estimate from calories is not evidence about a vitamin."))
+        }
+        return rows
     }
 
     private func headline(_ score: Double) -> String {

@@ -95,12 +95,20 @@ public struct SectionCaveat: Sendable, Equatable {
         kind: .estimated, text: MedicationResponse.caveat)
 
     /// Signals a scan looks at but does not weigh into the score.
+    /// ⚠️ **"Rows", not "signals", since 2026-08-06.** This group used to hold
+    /// only measured signals a card charts without scoring. It now also holds
+    /// the figures a card *works out* — a pooled departure, a combined age, the
+    /// gap two groups of days are split on — and calling those "signals checked
+    /// for anything unusual" would describe a scan that never ran over them.
+    /// One sentence has to be true of both, so it says what they have in common:
+    /// they are on the card and they carry no share.
     public static func unscored(signals: Int) -> SectionCaveat {
         SectionCaveat(
             kind: .partial,
-            text: "\(signals) more \(plural(signals, "signal")) "
-                + "\(signals == 1 ? "is" : "are") checked for anything unusual but "
-                + "not scored — a scan reports outliers rather than averaging them in.")
+            text: "\(signals) more \(plural(signals, "row")) "
+                + "\(signals == 1 ? "is" : "are") shown but not scored — some the "
+                + "card reads without scoring, some it works out from the rows "
+                + "above. Each says which it is.")
     }
 
     /// The body-composition history, over however many weigh-ins are in view.

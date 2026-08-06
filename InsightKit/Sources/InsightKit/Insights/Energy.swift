@@ -543,6 +543,67 @@ public struct EnergyInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [], contributors: contributors,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(output),
+            derivedOutputs: Self.derivedOutputs(output))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // **Every number on this card is simulated.** The reservoir is stepped hour
+    // by hour from sleep, overnight recovery, active energy and time above
+    // resting, with a trickle recharge and a clamp — so `morningCharge`, `level`
+    // and `spent` are functions of four metrics and a clock, and none of them is
+    // recoverable from any single series. They are the clearest case in the app
+    // of a figure that existed for one render and was thrown away.
+    //
+    // ## Refused, and why
+    //
+    // - **`sleepHours`, `activeEnergy`, `exertionHours`, `recoveryZ`** — the
+    //   model's raw inputs. Three are one metric at face value; `recoveryZ` is
+    //   one metric against its own baseline, which `MetricContribution.z`
+    //   already harvests. All four are the reader's stated exception.
+    // - **`curve`** — the hourly path. A series *within* a day, where
+    //   `DerivedSeriesStore` holds one value per day by construction. Storing
+    //   its endpoint is `level`, which is emitted; storing the shape needs a
+    //   different container and is not smuggled in under this one.
+    // - **`level` as a factor row** — it is `primaryValue` and the dial. A row
+    //   saying "the number is 62" under a card whose number is 62 is furniture.
+
+    static let morningChargeKey = "morningCharge"
+    static let spentKey = "energySpent"
+    static let levelKey = "reservoirLevel"
+
+    static func derivedOutputs(_ out: EnergyModel.Output) -> [DerivedOutput] {
+        [
+            .init(key: morningChargeKey, displayName: "What you woke up with",
+                  unit: "", value: out.morningCharge, higherIsBetter: true, precision: 0),
+            .init(key: spentKey, displayName: "Spent since waking",
+                  unit: "", value: out.spent, higherIsBetter: nil, precision: 0),
+            // The dial itself, kept because `ScoreHistory` records a card's
+            // score once a day at whatever hour the app happened to run — and
+            // this card's number is a function of the *time of day*. The two are
+            // the same figure and the derived one is the one with a stated
+            // meaning attached, so it is worth having under its own name here.
+            .init(key: levelKey, displayName: "Reservoir level",
+                  unit: "", value: out.level, higherIsBetter: true, precision: 0),
+        ]
+    }
+
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. The metric rows carry
+    /// this card's shares; these two are what the simulation produced from them.
+    static func producedFigures(_ out: EnergyModel.Output) -> [ScoreFactor] {
+        [
+            .producedFigure(
+                DerivedSeriesID(.energy, morningChargeKey),
+                name: "What you woke up with",
+                detail: String(format: "%.0f out of 100, from last night's sleep and your overnight recovery — where today started, not a share of where it is now.",
+                               out.morningCharge)),
+            .producedFigure(
+                DerivedSeriesID(.energy, spentKey),
+                name: "Spent since waking",
+                detail: String(format: "%.0f points, from your movement and your time above resting. The simulation's output rather than one of its inputs — the inputs are the rows above.",
+                               out.spent)),
+        ]
     }
 }

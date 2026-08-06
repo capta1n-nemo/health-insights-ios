@@ -171,9 +171,17 @@ final class SleepQualityStagesTests: XCTestCase {
         // out of the duration family rather than added on top.
         XCTAssertEqual(result.contributors.count, 9,
                        "a term stopped contributing — update the expected sum below deliberately")
+        // ⚠️ **`otherFactors` is in the sum since 2026-08-06** and leaving it out
+        // is now the way this assertion goes wrong. Sleep debt and night-length
+        // consistency are 12% and 8% of this score; both used to be folded into
+        // the sleep-duration row's weight, and both are now `.derived` factors
+        // carrying their own coefficients so they appear in "How this is
+        // weighted" and get a trendable series. The coefficients did not move —
+        // only which list declares them — which is exactly what this checks.
         let total = result.contributors.map(\.weight).reduce(0, +)
+            + result.otherFactors.map(\.weight).reduce(0, +)
         XCTAssertEqual(total, 1.0, accuracy: 0.001,
-                       "declared contributor weights must sum to the score's own coefficients")
+                       "declared weights — metric contributions and derived factors together — must sum to the score's own coefficients")
     }
 
     /// The sum test above is a floor, not the invariant.

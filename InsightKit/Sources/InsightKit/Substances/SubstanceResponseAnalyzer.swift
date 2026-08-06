@@ -804,8 +804,15 @@ public enum SubstanceResponseAnalyzer {
         let loadWasCapped = analysis.recentLoad
             > Self.effectiveExposure(load: analysis.recentLoad,
                                      measuredSignals: analysis.effects.count)
+        //
+        // **Verdict (a), 2026-08-06: a weighted derived input.** The decaying
+        // load is a penalty term in the *same* pool as each measured response —
+        // `penaltyShares` divides one deduction between them — so it genuinely
+        // carries a share beside them rather than summarising them, and it is
+        // the one factor on the fleet that earns `ScoreFactor.derived` with a
+        // real weight rather than `producedFigure`.
         let loadFactor = shares.last.map {
-            ScoreFactor(source: .derived, name: "Recent substance load",
+            ScoreFactor.derived(Self.recentLoadSeries, name: "Recent substance load",
                         weight: $0,
                         detail: "\(analysis.loadBand) — \(analysis.eventsInWindow) "
                             + "\(analysis.eventsInWindow == 1 ? "log" : "logs") in \(loadWindowDays) days"
@@ -818,6 +825,13 @@ public enum SubstanceResponseAnalyzer {
                                   : "")),
                         isModifiable: true)
         }
+        // The same figure as a series, so the factor's id has something to link
+        // to and "has my fortnight been getting heavier" stops being a question
+        // only this card's dial can half-answer. Emitted whether or not the
+        // response gate below opens: the load is *counted*, not inferred, so it
+        // is honest at every n — which is the same argument that keeps it as
+        // `primaryValue` in the withheld-score branch.
+        let loadOutputs = [Self.recentLoadOutput(analysis)]
 
         // **The honesty gate. The reader's standing rule, 2026-08-05: "Honest
         // version, always!"**
@@ -875,7 +889,8 @@ public enum SubstanceResponseAnalyzer {
                 unmetRequirements: [],
                 contributors: contributors,
                 weighting: .worstOffender,
-                otherFactors: loadFactor.map { [$0] } ?? [])
+                otherFactors: loadFactor.map { [$0] } ?? [],
+                derivedOutputs: loadOutputs)
         }
 
         return InsightResult(
@@ -889,7 +904,26 @@ public enum SubstanceResponseAnalyzer {
             unmetRequirements: [],
             contributors: contributors,
             weighting: .worstOffender,
-            otherFactors: loadFactor.map { [$0] } ?? [])
+            otherFactors: loadFactor.map { [$0] } ?? [],
+            derivedOutputs: loadOutputs)
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+
+    /// The decaying fortnight load, as a series.
+    ///
+    /// Keys are baked into stored ids — renaming one orphans its history — so
+    /// this pair is declared once and treated like a `modelVersion`.
+    static let recentLoadKey = "recentLoad"
+    static let recentLoadSeries = DerivedSeriesID(.substanceImpact, recentLoadKey)
+
+    static func recentLoadOutput(_ analysis: Analysis) -> DerivedOutput {
+        .init(key: recentLoadKey, displayName: "Recent substance load",
+              unit: "", value: analysis.recentLoad,
+              // Lower is less exposure. Not a judgement about the reader — the
+              // card is explicit that a heavy fortnight is a fact and not a
+              // verdict — but the direction is what a chart needs to shade.
+              higherIsBetter: false, precision: 0)
     }
 }
 

@@ -84,6 +84,36 @@ public enum MentalHealthModel {
     /// Four channels. Deliberately few: each extra one is another chance to
     /// find a pattern in noise, and three of these four are already known to
     /// move together.
+    ///
+    /// ## ⚠️ Derived-series verdict, per channel — 2026-08-06
+    ///
+    /// The reader asked for every derived figure to become a data source *"in
+    /// mental health, something like the 'moving around' score, should now have
+    /// its own data"* — and supplied the exception in the same breath:
+    /// *"unless that was just directly derived from one other data point."*
+    ///
+    /// **All four channels are that exception, and none of them gets a
+    /// `DerivedOutput`.** Every one is `(recent median − season median) ÷ season
+    /// spread` on a *single* metric — a rescaling of one series and nothing
+    /// more. Minting "Moving around" as a second series would put the reader's
+    /// step count in the Data tab twice under two names, which is exactly the
+    /// duplication the derived-series design exists to avoid.
+    ///
+    /// | Channel | Metric | Verdict |
+    /// | --- | --- | --- |
+    /// | Moving around | `stepCount` | **pass-through** — one metric, rescaled |
+    /// | When you went to bed | `sleepOnset` | **pass-through** — one metric, rescaled |
+    /// | Deliberate exercise | `exerciseMinutes` | **pass-through** — one metric, rescaled |
+    /// | Heart-rate variability | `heartRateVariabilityRMSSD` | **pass-through** — one metric, rescaled |
+    ///
+    /// They are not *lost*, which is what makes the refusal cheap: each
+    /// contribution below carries `z`, and `DerivedHarvest` turns every `z` into
+    /// a `.componentDeparture` series for free. So the fortnight-against-season
+    /// departure is already trendable per channel, under the tier that says what
+    /// it is, without a second display name competing with the metric's own.
+    ///
+    /// What *does* earn a series here is what pools them — see
+    /// `MentalHealthInsight.derivedOutputs`.
     public static let channels: [Channel] = [
         Channel(metric: .stepCount, label: "Moving around",
                 lowMoodDirection: .falls, weight: 1.0,
@@ -329,6 +359,70 @@ public struct MentalHealthInsight: InsightModel {
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
             contributors: contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            otherFactors: Self.producedFigures(out),
+            derivedOutputs: Self.derivedOutputs(out))
+    }
+
+    // MARK: - What this card works out (2026-08-06)
+    //
+    // The channels themselves are pass-throughs and are refused a series — the
+    // table on `MentalHealthModel.channels` says why, one channel at a time.
+    // These three are what the card adds to them: **a statistic no single
+    // metric holds, and the agreement between metrics that is this card's whole
+    // claim.**
+
+    static let pooledKey = "pooledDeparture"
+    static let movedKey = "channelsMoved"
+    static let readKey = "channelsRead"
+
+    static func derivedOutputs(_ out: MentalHealthModel.Output) -> [DerivedOutput] {
+        [
+            // **Pools.** A weighted mean across up to four unrelated behaviours,
+            // each normalised against its own season first — the normalisation
+            // is what makes minutes, steps and milliseconds addable at all, and
+            // the sum is a quantity none of them has on its own.
+            .init(key: pooledKey, displayName: "How far the fortnight has drifted",
+                  unit: "SD", value: out.pooled,
+                  // Positive is the low-mood direction, so lower is the
+                  // welcome one — stated as a direction on a number, never as
+                  // a verdict on the reader. This card does not have one.
+                  higherIsBetter: false, precision: 2),
+            // **Pools, differently and worth keeping separately.** The pooled
+            // mean can sit near zero with two channels far out in opposite
+            // directions; this counts how many actually moved. The headline is
+            // built from this figure, not from the mean.
+            .init(key: movedKey, displayName: "Behaviours that shifted this fortnight",
+                  unit: "", value: Double(out.moved.count),
+                  higherIsBetter: false, precision: 0),
+            // Coverage, and the reason the count above is not readable alone:
+            // two of two and two of four are different findings.
+            .init(key: readKey, displayName: "Behaviours there was enough data to read",
+                  unit: "", value: Double(out.readings.count),
+                  higherIsBetter: true, precision: 0),
+        ]
+    }
+
+    /// The two pooled figures as rows, so the card's own statistic is visible in
+    /// "What goes into this" and "How this is weighted" rather than living only
+    /// inside a headline.
+    ///
+    /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. The channels below carry
+    /// the whole of this card between them and the pooled departure is their
+    /// weighted mean, so a share for it would be those same four numbers counted
+    /// a second time.
+    static func producedFigures(_ out: MentalHealthModel.Output) -> [ScoreFactor] {
+        [
+            .producedFigure(
+                DerivedSeriesID(.mentalHealth, pooledKey),
+                name: "How far the fortnight has drifted",
+                detail: String(format: "%.2f SD %@ the low-mood pattern, pooled across the %d behaviour%@ below. It is their weighted mean, so it carries no share of its own — it is the share.",
+                               abs(out.pooled), out.pooled > 0 ? "toward" : "away from",
+                               out.readings.count, out.readings.count == 1 ? "" : "s")),
+            .producedFigure(
+                DerivedSeriesID(.mentalHealth, movedKey),
+                name: "Behaviours that shifted",
+                detail: "\(out.moved.count) of \(out.readings.count) moved far enough to be worth a sentence — counted rather than scored, because several small agreeing moves are the thing this card watches for and a mean can hide them."),
+        ]
     }
 }

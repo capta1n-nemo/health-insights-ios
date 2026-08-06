@@ -422,6 +422,60 @@ polarity handover step 11 exists to catch, and the one that keeps getting
 skipped, because a claim that something is *missing* is exactly what the work
 invalidates.
 
+### Every figure a card works out is a data source — the 2026-08-06 rule
+
+_The reader, on seeing the derived-series substrate ship without the cards using
+it:_ **"the metrics we are deriving from each card, are still not being turned
+into their own individual data sources, and used, especially in weightings. …
+The work impact card… 'What's changed' and 'what goes into this' will only still
+just show Resting Heart Rate, HRV and sleep duration…. the entire point of this
+card is to take into consideration work impact, where is that on these
+sections? Where is that in the weighting section? Where is that in how you
+compare?"** And then: **"Do this for EVERY card, and make it a rule for every
+card going forward."**
+
+**The rule, beside the weight-0 rule above and of the same kind:** a card must
+declare, for every non-metric quantity it computes, either a derived series or —
+in a comment at the site — the reason it is a pass-through.
+
+`ScoreFactor.Source.derived` carries a `DerivedSeriesID` from 2026-08-06 (it
+carried no payload before, which is why a derived row could never link
+anywhere). The three verdicts, the two borderline calls and the mechanics live
+in the `add-insight` skill, §5a. What belongs *here*, because it is about the
+sections:
+
+- **Both sections show them.** A derived factor reaches "What goes into this"
+  through `auxiliaryInputs` and "How this is weighted" through `weightedFactors`
+  / `unweightedFactors` — no per-card wiring, the same route a grounding fact
+  takes.
+- **Most of them carry weight 0, and the zero is arithmetic.** A pooled
+  departure, a combined biological age, an observed TDEE: each is a function of
+  the rows below it, so a share would count the same evidence twice. They render
+  under *charted, not scored*, and each row states why — the same rule the table
+  above enforces, extended to figures a card **produces** rather than reads. The
+  group's heading changed to admit both kinds.
+- **Three rows carry a real share**, because their coefficients really are terms
+  in the sum: Sleep's debt (12%) and night-length consistency (8%), and
+  Substance Impact's decaying load. The first two used to be folded invisibly
+  into the sleep-duration row's weight — a decision that was right about the
+  *chart* (three quantities from one series draw one line) and had quietly
+  become wrong about the *weighting section*.
+- **Every derived row is tappable** through to its page under Data ▸ Generated
+  insights, where a figure the app is not yet computing falls back to a plain
+  row rather than linking to an empty page.
+- **"How you compare" now says what it could not compare.** There is no
+  published distribution of meeting hours, or of a pooled mental-health
+  departure, by age and sex — and there is no honest way to invent one. The
+  section lists those figures under *"Nothing to compare these against"*, on
+  both the populated and the placeholder branch, because the card most likely to
+  have no norms at all is exactly the one whose main input was being skipped in
+  silence.
+
+`DerivedFactorIdentityTests` enforces the mechanical half: no `.derived` factor
+may name a series its own result does not produce. There is deliberately no test
+demanding every card have one — Readiness and Heart Health honestly have none,
+and such a test would be satisfied by inventing a figure.
+
 ### Per-insight facts behind the matrix
 
 | Insight | `cadence` | Grounding | `contributions` | Absorbed |
