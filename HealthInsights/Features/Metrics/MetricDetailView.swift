@@ -72,6 +72,15 @@ struct MetricDetailView: View {
                 default:
                     standardSections
                 }
+                // **Outside the switch, deliberately.** It sat inside
+                // `standardSections` until 2026-08-06, which meant three whole
+                // classes of page never showed it: height (a static attribute),
+                // blood pressure (the bivariate branch — it had an explanation
+                // written and rendered nowhere), and any metric whose window is
+                // empty, which is the moment "what even is this" is asked most.
+                // The reader's rule is every data entry, so it is drawn for
+                // every one of them.
+                explainerCard
             }
             .padding()
         }
@@ -110,7 +119,6 @@ struct MetricDetailView: View {
                         }
                         if breakdown.hasMultipleSources { statsCard }
                     }
-                    explainerCard
                 }
         }
     }
@@ -123,30 +131,35 @@ struct MetricDetailView: View {
     /// several of these the spread between healthy people is wider than the
     /// spread within one — see `MetricExplainer.yours`.
     ///
-    /// Absent entirely for metrics that need no explaining. A step is a step,
-    /// and explaining the self-explanatory buries the terms that genuinely
-    /// puzzle someone.
-    @ViewBuilder private var explainerCard: some View {
-        if let explanation = MetricExplainer.explanation(for: metric) {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    // **Not `.lowercased()`.** Several of these display names
-                    // are acronyms or carry internal capitals — it rendered as
-                    // "What hrv (rmssd) is" and "What vo₂max is", which reads
-                    // as a typo in a card whose whole job is to sound like a
-                    // person explaining something.
-                    Text("What \(metric.displayName) is")
-                        .font(.headline)
-                    Text(explanation.whatItIs)
-                        .font(.subheadline)
-                    if let yours = personalReading {
-                        Text(yours)
-                            .font(.subheadline.weight(.medium))
-                    }
-                    Text(explanation.soWhat)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+    /// **Never absent now.** It used to be skipped for the thirty-six metrics
+    /// `MetricExplainer` returned nil for; the reader overruled that on
+    /// 2026-08-06 — *"I want that kind of description on EVERY data entry"* —
+    /// and `explanation(for:)` is non-optional, so there is nothing left to
+    /// branch on.
+    private var explainerCard: some View {
+        let explanation = MetricExplainer.explanation(for: metric)
+        return Card {
+            VStack(alignment: .leading, spacing: 10) {
+                // **Not `.lowercased()`.** Several of these display names
+                // are acronyms or carry internal capitals — it rendered as
+                // "What hrv (rmssd) is" and "What vo₂max is", which reads
+                // as a typo in a card whose whole job is to sound like a
+                // person explaining something.
+                //
+                // The **subject's** name, not the metric's: a blood-pressure
+                // page's primary metric is systolic, and the heading read
+                // "What Systolic BP is" over prose about both numbers.
+                Text("What \(subject.displayName) is")
+                    .font(.headline)
+                Text(explanation.whatItIs)
+                    .font(.subheadline)
+                if let yours = personalReading {
+                    Text(yours)
+                        .font(.subheadline.weight(.medium))
                 }
+                Text(explanation.soWhat)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -167,8 +180,13 @@ struct MetricDetailView: View {
     /// every body evaluation, which is the exact shape that made the Insights
     /// hero laggy in 2026-08-02 (`InsightsListView.comparisonSeries`). The key
     /// carries the metric so two detail pages cannot share an answer.
+    /// **Single-metric pages only.** Blood pressure's primary metric is
+    /// systolic, so on that page this would print a bare "Yours is 122 mmHg"
+    /// under a heading about two numbers, with nothing saying which one it is.
+    /// `BloodPressureSections` reads the pair properly; this stays quiet there.
     private var personalReading: String? {
-        model.memoized("explainer.\(metric.rawValue)") {
+        guard case .single = subject else { return nil }
+        return model.memoized("explainer.\(metric.rawValue)") {
             guard let series = allData.sources.max(by: { $0.samples.count < $1.samples.count }),
                   let latest = series.samples.last else { return String?.none }
             return MetricExplainer.yours(metric, value: latest.value,

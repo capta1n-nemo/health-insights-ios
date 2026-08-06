@@ -494,3 +494,14 @@ Resting Heart Rate page cross-device defect · Body Composition after the hatch 
 6. **A fill's colour ramp follows the quantity's own axis** — the radial rule.
 7. **Push to `main`. No pull requests.**
 8. **Before writing "already arriving" about a data source, count its rows in the last 90 days.** (2026-08-05, learnt the hard way)
+9. **Every data entry carries a "what this is" description** (2026-08-06) —
+   *"I like how you added a 'What breathing disturbance index is' section, to
+   that specific data card. I want that kind of description on EVERY data entry,
+   make this a requirement everytime we add a new data type."* Enforced, not
+   remembered: `MetricExplainer.explanation(for:)` returns a **non-optional**
+   `MetricExplanation` over an exhaustive switch, so a new `MetricType` does not
+   compile without one, and `MetricExplainerTests` fails a stub, a placeholder,
+   or two halves that say the same thing. **This overturned a written rule** —
+   thirty-six metrics used to return `nil` on the argument that explaining a
+   step is condescension; the superseded reasoning is kept in that function's
+   doc comment. See `docs/data-conventions.md` §4.
