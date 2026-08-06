@@ -330,7 +330,7 @@ the place to look.
   - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :794
+  - `MetricPalette` :862
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -428,6 +428,8 @@ the place to look.
 - `Signals/Somatotype.swift`
   - `Somatotype` :15
   - `SomatotypeModel` :78
+- `Signals/SoundDose.swift`
+  - `SoundDoseModel` :44
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`

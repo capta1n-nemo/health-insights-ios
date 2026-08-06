@@ -49,6 +49,14 @@ public enum MetricFamily: String, Sendable, CaseIterable {
     /// What the reader ate. Its own family for the same reason `.behaviour` is
     /// — see `MetricType.family`.
     case nutrition
+    /// The world around the reader rather than the reader — environmental
+    /// sound today, plausibly daylight and UV when they are promoted. **Its own
+    /// family on `.behaviour`'s own precedent**: filed beside headphone sound
+    /// in one shared family, the pattern finder would suppress "louder places,
+    /// louder listening" as a tautology — and that masking relationship is
+    /// precisely the one worth surfacing, because it is the mechanism by which
+    /// a loud commute turns into a loud headphone dose.
+    case environment
 
     public var displayName: String {
         switch self {
@@ -65,6 +73,7 @@ public enum MetricFamily: String, Sendable, CaseIterable {
         case .sleep: return "Sleep"
         case .behaviour: return "Behaviour"
         case .pharmacology: return "Medication"
+        case .environment: return "Environment"
         }
     }
 }
@@ -128,6 +137,17 @@ public extension MetricType {
         // what the drug level does while the weight moves.
         case .activeMedicationLevel: return .pharmacology
         case .screenTimeMinutes: return .behaviour
+        // The world around the reader — see `.environment`'s own comment for
+        // why it is not in one "hearing" family with headphone sound below.
+        case .environmentalSoundDose: return .environment
+        // Chosen volume is what the reader *does*, exactly as screen time is,
+        // so it reuses `.behaviour` rather than earning a family. The pair that
+        // suppresses — headphone sound against screen time — deserves it: an
+        // evening of video with headphones on raises both by the same act, so
+        // "more screen time, more headphone sound" is close to arithmetic. The
+        // relationship worth keeping visible, headphone sound against the
+        // world's loudness, is cross-family and stays.
+        case .headphoneSoundDose: return .behaviour
         }
     }
 
@@ -268,6 +288,13 @@ public extension MetricType {
         // features appended since). Its usual chart is the Sleep card's own
         // nested section, where it draws alone, so the tail costs nothing.
         case .breathingDisturbanceIndex: return 74
+        // Appended, like every case since 30 — the contiguity test pins this
+        // list to 0..<count. The max was re-read from this switch rather than
+        // taken from any written plan, which is the rule the comment on 71–73
+        // records: two features appending on trust of a stale number collide.
+        // These two share no chart with anything yet, so the tail costs nothing.
+        case .environmentalSoundDose: return 75
+        case .headphoneSoundDose: return 76
         }
     }
 
@@ -356,7 +383,15 @@ public extension MetricType {
              // A level that rises after each dose and decays between them. Not
              // a total: adding up "mg still active" across a month would be a
              // number with no meaning at all.
-             .activeMedicationLevel:
+             .activeMedicationLevel,
+             // A level, never a cumulative sum — deliberately, and the reason
+             // is the arithmetic. A decibel is a logarithm: `.cumulativeTotal`
+             // would add the day's dBA figures like calories, and 70 dBA
+             // "plus" 70 dBA is 73, not 140. The energy summation these need
+             // already happened inside `SoundDoseModel`; what is left is one
+             // level per day, which varies within a personal band exactly as a
+             // vital does.
+             .environmentalSoundDose, .headphoneSoundDose:
             // Sleep belongs here, not with the daily totals: it already arrives
             // as one value per night, so summing it is a no-op, and "total hours
             // slept this month" is not a number anyone wants — "average 7.1 h,
@@ -434,6 +469,13 @@ public extension MetricType {
              // gets a day's grace like the other daily figures and no more.
              .physicalEffort,
              // One figure a day, so two days apart is a gap like any other.
+             // The sound doses sit here with the other daily figures, and the
+             // grace deliberately does not stretch further for them:
+             // environmental sound is watch-only and landed on 14 of the
+             // reader's last 90 days, so a longer join would draw weeks of
+             // exposure no sensor heard — `physicalEffort`'s own reasoning,
+             // just above.
+             .environmentalSoundDose, .headphoneSoundDose,
              .screenTimeMinutes, .dietaryEnergy,
              .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,
              .dietarySaturatedFat, .dietarySugar, .dietaryFibre,
@@ -654,6 +696,22 @@ public extension MetricType {
         // band would read as a target, and this app does not tell anyone what
         // dose to be on.
         case .activeMedicationLevel: return nil
+        // **No band, and the WHO figure was weighed before deciding — this is
+        // `.exerciseMinutes`'s refusal in a different unit.** Real published
+        // figures exist: WHO's community-noise guideline (70 dB LAeq over
+        // 24 h), WHO-ITU H.870 safe listening (80 dBA for 40 h a week), NIOSH's
+        // occupational limit (85 dBA over 8 h, 3 dB exchange rate). Every one
+        // is a *dose* — a level bound to a stated duration — and this chart's
+        // figure is a level over **the hours the sensor could hear**, a
+        // denominator none of the guidelines use and one that changes day to
+        // day. A static band cannot be simultaneously right about a day the
+        // watch heard for twenty minutes and a day it heard for twelve hours:
+        // 75 dBA over a short measured stretch can sit inside every guideline
+        // while the band shades it as trouble. The budget comparison belongs
+        // on the "Sound you took on" card (backlog §B3 #22), where the day's
+        // measured duration is in scope — the same reasoning that keeps the
+        // sex-specific nutrient bands on the Nutrition card rather than here.
+        case .environmentalSoundDose, .headphoneSoundDose: return nil
         // Age- and sex-dependent. `HeartHealthScore` already holds reference
         // tables for these and a fixed band here would contradict them.
         case .vo2Max, .bodyFatPercentage: return nil
@@ -753,6 +811,16 @@ public extension MetricType {
         // drag the whole week.
         case .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage:
+            return .median
+        // The median because the mean is wrong *arithmetically*, not merely
+        // vulnerable to outliers: a decibel is a logarithm, so the arithmetic
+        // mean of several days' dBA is neither the mean level nor the mean
+        // energy — it is a number in neither domain. The median survives,
+        // because a logarithm is monotone and the median commutes with any
+        // monotone map: the median of the dB figures IS the dB of the median
+        // energy. The one classical statistic that is correct on this scale
+        // without leaving it.
+        case .environmentalSoundDose, .headphoneSoundDose:
             return .median
         // Partial samples through the day only mean anything added up — a
         // day's meals as much as a day's steps.

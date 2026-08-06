@@ -34,25 +34,6 @@ final class DataTabSortingTests: XCTestCase {
         }
     }
 
-    /// ⚠️ **The Oura stress fields sat in "Not yet sorted"** — the bucket named
-    /// for its own failure did its job again. They are the raw material the
-    /// stress research reads (backlog N1), and they file together under one
-    /// labelled heading. The contributors matter most: the generic
-    /// `.contributors.` rule would file the resilience workings as an
-    /// *activity* score's, and `contributors.sleep_recovery` contains
-    /// `.sleep_` without being sleep detail.
-    func testOuraStressAndResilienceFileTogether() {
-        for identifier in ["oura.daily_stress.day_summary",
-                           "oura.daily_stress.stress_high",
-                           "oura.daily_stress.recovery_high",
-                           "oura.daily_resilience.level",
-                           "oura.daily_resilience.contributors.stress",
-                           "oura.daily_resilience.contributors.daytime_recovery",
-                           "oura.daily_resilience.contributors.sleep_recovery"] {
-            XCTAssertEqual(RawFieldGrouping.group(for: identifier), .stressResilience, identifier)
-        }
-    }
-
     /// **The eleven Oura contributors were eleven top-level rows**, each
     /// rendering as "Daily activity · Contributors: …" and truncating before
     /// the word that told them apart. They are one score's workings.
@@ -196,9 +177,13 @@ final class DataTabSortingTests: XCTestCase {
     /// every homeless group must genuinely have no equivalent — otherwise this
     /// silently re-splits the taxonomy the first time somebody adds a case.
     func testEveryGroupEitherHasACanonicalHomeOrHasAReasonNotTo() {
+        // `.hearing` left this list when the sound doses became canonical
+        // metrics (backlog §B5 #33): `MetricDataCategory.hearing` exists now,
+        // and the raw dBA fields file into it beside the daily figures they
+        // feed — the pre-empted version of the two-Nutrition-headings bug the
+        // test above records.
         let homeless: Set<RawFieldGrouping.Group> = [
-            .hearing, .daylight, .mind, .environment, .activityScore,
-            .stressResilience, .unsorted,
+            .daylight, .mind, .environment, .activityScore, .unsorted,
         ]
         for group in RawFieldGrouping.Group.allCases {
             XCTAssertEqual(group.canonicalCategory == nil, homeless.contains(group),

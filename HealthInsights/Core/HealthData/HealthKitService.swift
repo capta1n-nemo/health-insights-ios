@@ -205,6 +205,17 @@ final class HealthKitService {
         // Body
         "HKQuantityTypeIdentifierBodyMassIndex", "HKQuantityTypeIdentifierWaistCircumference",
         // Environment
+        //
+        // ⚠️ The two audio-exposure identifiers stay in this raw list **on
+        // purpose**, unlike the gait triad and the micronutrients above, which
+        // moved out when they were promoted. Their per-interval dBA samples
+        // never became canonical metrics — a decibel level cannot be averaged,
+        // so promoting the raw series would hand the baseline machinery
+        // arithmetic it must not do. `SoundDoseModel` reads them from this
+        // pile and derives the two daily LEQ metrics
+        // (`environmentalSoundDose`, `headphoneSoundDose`) on the ingest
+        // path; the "both routes" duplication rule doesn't bite because the
+        // raw rows and the derived days are different quantities.
         "HKQuantityTypeIdentifierUVExposure", "HKQuantityTypeIdentifierEnvironmentalAudioExposure",
         "HKQuantityTypeIdentifierHeadphoneAudioExposure", "HKQuantityTypeIdentifierEnvironmentalSoundReduction",
         "HKQuantityTypeIdentifierTimeInDaylight", "HKQuantityTypeIdentifierUnderwaterDepth",
