@@ -385,6 +385,49 @@ models and their versions; H7 is small once H5 exists. ⚠️ **Identity data
 
 ---
 
+## B8 — The review loop, the correction record, and two-tier sharing (reader, 2026-08-06)
+
+**The reader's words, recorded in full because they are the specification:**
+
+> *"In travel events and work events, when i go to confirm, i cannot un-confirm
+> in case i did want to actually change it. The same as not correct, if I just
+> select one correction metric (e.g. change from work to personal) i cannot
+> correct any of the other metrics, it just disappears.. so let me change as
+> many as needed, then confirm before i say 'corrected', and when i do confirm
+> it should stay in the list, not disappear!*
+>
+> *In terms of data, make sure for model improvement, we remember the 'AI
+> Estimated' and 'Corrected' data points, in addition to the whole
+> email/artifact, so when we feed this back for improvement, it has all the
+> context to improve the model. all of this needs to be in the export, and in
+> the improvement section we created.*
+>
+> *I understand this will contradict the 'stuff never leaves your device', maybe
+> we update that to read something like a 2-tier opt out (both opted in by
+> default). E.g. Full - is share both Full Data (e.g. FUll Calendar plus before
+> and after categories, Meta Data only - sharing just share the correction
+> metadata (e.g. Blood pressure esitmate is 13 BP above actual cuff)"*
+
+| # | Piece | State |
+|---|---|---|
+| R1 | **The review row stops being one-shot.** Today choosing one axis commits and dismisses. It must let the reader change **as many axes as they want** — context, formality, whether it was a meeting, travel, presence — and only then confirm. Nothing leaves the list on a single tap | ⬜ |
+| R2 | **Confirm is reversible, and confirmed rows stay.** An un-confirm, and a confirmed row remains visible with its state shown rather than vanishing. ⚠️ The reader's own emphasis: *"when i do confirm it should stay in the list, not disappear!"* | ⬜ |
+| R3 | **The correction record keeps all three layers**: what the model guessed, what the reader corrected it to, **and the artifact it judged** (title, location, attendees, duration — the whole event). C4 already keeps guess and correction apart, which is the hard half; the artifact snapshot is what is missing, and it is what makes a correction *trainable* rather than merely counted | ⬜ |
+| R4 | **All three reach the export and the improvement section** | ⬜ |
+| R5 | **Two-tier sharing replaces the binary toggle**, both tiers on by default, at the reader's explicit instruction. **Full** — the artifact plus the before/after categories. **Metadata only** — the correction shape without the content ("the BP estimate ran 13 mmHg above the cuff", "a work guess was corrected to personal") | ⬜ |
+| R6 | **Every claim that nothing leaves the device is rewritten to be true.** Settings ▸ Data & model improvement, `TelemetryEvent`'s doc comment, `DiagnosticsLog`'s class comment, the export's own copy. ⚠️ **A stale privacy promise is worse than no promise** — it is the one kind of copy a reader is entitled to rely on | ⬜ |
+
+⚠️ **The one thing to revisit before a second user exists.** Defaulting *Full*
+to on means full calendar text — titles, locations, attendees, the most
+identifying strings this app holds — is shared unless turned off. For one
+person who owns the app and the server, that is the reader's call and standing
+rule 0 covers it. **At rollout it is not**: consent for content of this kind is
+opt-in in most jurisdictions, and `docs/privacy-and-ip.md` already records that
+§B5's original reasons return the moment there is a second user. Recorded here
+so the decision is deliberate rather than inherited. See
+`docs/norms-and-telemetry.md` for what may be pooled and what may never be.
+
+
 ## C. Sections requested
 
 | # | Section | Where | Note |
