@@ -182,8 +182,19 @@ final class DataTabSortingTests: XCTestCase {
         // and the raw dBA fields file into it beside the daily figures they
         // feed — the pre-empted version of the two-Nutrition-headings bug the
         // test above records.
+        // `.stressResilience` (backlog D28) is homeless on purpose and stays
+        // that way: Oura's stress and resilience fields are a **vendor
+        // composite with an undisclosed formula**, so there is no
+        // `MetricDataCategory` they could file into without implying the app
+        // measures the same quantity. Backlog N1's rule for them is relay,
+        // never merge — and a canonical home would be the first half of a merge.
+        //
+        // It was lost for one commit when this file's merge conflict resolved
+        // to the sound-dose branch's copy, which predates the group. Caught by
+        // this test, which is the whole reason it is a closed set.
         let homeless: Set<RawFieldGrouping.Group> = [
-            .daylight, .mind, .environment, .activityScore, .unsorted,
+            .daylight, .mind, .environment, .activityScore, .stressResilience,
+            .unsorted,
         ]
         for group in RawFieldGrouping.Group.allCases {
             XCTAssertEqual(group.canonicalCategory == nil, homeless.contains(group),
