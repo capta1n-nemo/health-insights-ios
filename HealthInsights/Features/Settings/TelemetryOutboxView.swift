@@ -96,6 +96,8 @@ struct TelemetryOutboxView: View {
             case .gait: return "How you walked"
             case .biologicalAge: return "Biological age"
             case .mentalHealth: return "Mental health"
+            case .workImpact: return "Work impact"
+            case .travelDrain: return "Travel drain"
             }
         } ?? raw
     }

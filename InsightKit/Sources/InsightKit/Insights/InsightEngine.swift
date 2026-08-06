@@ -62,8 +62,38 @@ public struct InsightEngine: Sendable {
             // first thing on Insights. These three are the app's log-driven
             // cards — each answers a question about something the reader chose
             // to do rather than something a sensor noticed — so they group.
-            SubstanceImpactInsight()
+            SubstanceImpactInsight(),
+            // The two calendar cards, last because they are the newest and
+            // because both are bound to a source `samples` cannot carry — see
+            // `withCalendar`. Registering them is what makes them visible to
+            // score recording, replay and the comparison chart; the standing
+            // cautionary case for forgetting is `SubstanceImpactInsight`, three
+            // lines above.
+            WorkImpactInsight(),
+            TravelDrainInsight()
         ]
+    }
+
+    /// The same registry with both calendar cards bound to the reader's events.
+    ///
+    /// Idempotent, and for the same reason `withSubstanceLog` is: a caller
+    /// applies it on every recompute, so it must replace rather than append.
+    ///
+    /// ⚠️ **Two models, one call.** Binding them separately is how one of them
+    /// ends up holding an empty calendar while the other does not, and the
+    /// symptom would be a card that says "connect your calendar" beside one that
+    /// is reading it.
+    public func withCalendar(events: [CalendarEvent],
+                             judgements: [CalendarEventJudgement]) -> InsightEngine {
+        InsightEngine(models: models.map { model in
+            if model is WorkImpactInsight {
+                return WorkImpactInsight(events: events, judgements: judgements)
+            }
+            if model is TravelDrainInsight {
+                return TravelDrainInsight(events: events)
+            }
+            return model
+        })
     }
 
     /// The same registry with the substance model bound to a log.

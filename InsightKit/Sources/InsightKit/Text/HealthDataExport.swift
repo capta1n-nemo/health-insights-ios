@@ -246,6 +246,13 @@ public struct HealthDataExport: Encodable, Sendable {
         case .symptoms: return "symptoms"
         case .bodyScans: return "bodyScans"
         case .derivedScores: return "derivedScores"
+        // ⚠️ **Deliberately shares the "unmodelled" key and emits nothing.**
+        // A calendar event carries a title and a location — the most
+        // identifying strings this app holds — and the reader's own condition on
+        // the export was that it must not carry credentials. The same reasoning
+        // applies here with more force: an export is a file that leaves the
+        // device. The events stay on the phone.
+        case .calendarEvents: return "unmodelled"
         case .cycles: return "cycles"
         case .unmodelled: return "unmodelled"
         }

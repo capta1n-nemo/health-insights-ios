@@ -87,6 +87,11 @@ the place to look.
   - `BloodPressureInsight` :645
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
+- `Insights/CalendarInsights.swift`
+  - `TravelDrainInsight` :331
+  - `TravelDrainModel` :181
+  - `WorkImpactInsight` :266
+  - `WorkImpactModel` :21
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11
 - `Insights/CardiovascularRiskInsight.swift`
@@ -125,14 +130,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :150
-  - `InsightCadence` :108
-  - `InsightConfidence` :142
-  - `InsightDriver` :178
+  - `GroundingRequirement` :164
+  - `InsightCadence` :122
+  - `InsightConfidence` :156
+  - `InsightDriver` :192
   - `InsightID` :15
-  - `InsightModel` :405
-  - `InsightResult` :195
-  - `RequirementStatus` :166
+  - `InsightModel` :419
+  - `InsightResult` :209
+  - `RequirementStatus` :180
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -296,7 +301,7 @@ the place to look.
   - `InputGroup` :238
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :61
+  - `InsightPalette` :63
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -498,6 +503,8 @@ the place to look.
   - `WhoopProvider` :6
 - `Core/Integrations/WithingsProvider.swift`
   - `WithingsProvider` :8
+- `Core/Intelligence/CalendarEventInterpreter.swift`
+  - `CalendarEventInterpreter` :35
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Persistence/DataStore.swift`
@@ -506,18 +513,20 @@ the place to look.
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
+  - `CalendarEventRecord` :227
+  - `CalendarJudgementRecord` :280
   - `CycleDayRecord` :199
-  - `DoseLogRecord` :335
-  - `FeedbackRecord` :273
+  - `DoseLogRecord` :432
+  - `FeedbackRecord` :370
   - `GroundingRecord` :9
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :303
-  - `PredictionOutcomeRecord` :240
-  - `SideEffectRecord` :367
+  - `MedicationRecord` :400
+  - `PredictionOutcomeRecord` :337
+  - `SideEffectRecord` :464
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :222
+  - `SuggestionDismissalRecord` :319
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -611,7 +620,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :761
+  - `OtherDataDetailView` :795
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`

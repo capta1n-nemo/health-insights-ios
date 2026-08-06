@@ -384,6 +384,8 @@ struct InsightCard: View {
         // Deliberately not a brain, a cloud or a rain symbol: this card
         // reports behaviour and refuses to illustrate a mood it cannot see.
         case .mentalHealth: return "person.crop.circle"
+        case .workImpact: return "briefcase"
+        case .travelDrain: return "airplane"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

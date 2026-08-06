@@ -89,7 +89,11 @@ final class CandidateReachabilityTests: XCTestCase {
         // Full coverage, then one scenario per shadowing rule.
         let scenarios: [Set<MetricType>] = [[]] + Self.shadowed.map { Set($0.shadowedBy) }
 
-        for model in models(now: now) {
+        // ⚠️ **A card whose input is not in `samples` cannot be judged by a
+        // samples-only fixture.** Derived from the rule rather than listed by
+        // name — see `InsightModel.readsOnlySamples`, which exists because two
+        // new cards of exactly this shape broke three guards at once.
+        for model in models(now: now) where model.readsOnlySamples {
             var seen: Set<MetricType> = []
             for withheld in scenarios {
                 seen.formUnion(contributors(of: model, now: now, without: withheld))

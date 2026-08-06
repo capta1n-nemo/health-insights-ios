@@ -156,7 +156,10 @@ final class CalendarIntegration: HealthIntegration {
     /// the honest shape even though it means this one integration is not purely
     /// described by the protocol.
     func sync() async throws -> SyncedData {
-        _ = try fetchEvents()
+        // The events are pulled and stored by `AppModel.syncCalendar()`, which
+        // also classifies them — this only stamps the sync so the Settings row
+        // can say when it last ran. Fetching here as well would read the store
+        // twice per sync for nothing.
         defaults.set(Date(), forKey: Self.lastSyncKey)
         return SyncedData()
     }

@@ -100,6 +100,20 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// **this card never reassures.** Its top band means four numbers have not
     /// moved, and says so in those words.
     case mentalHealth
+    /// **What your busier working days cost you** — backlog #16.
+    ///
+    /// ⚠️ Its whole legitimacy rests on one design choice: it compares working
+    /// days with working days. A busy-versus-quiet comparison that included
+    /// weekends would mostly be measuring the weekend.
+    case workImpact
+    /// **What crossing time zones costs you** — backlog #15, the card the reader
+    /// asked after by name.
+    ///
+    /// The app records no location and no time zone on any health reading, so a
+    /// calendar entry is the only thing on the phone that knows the reader
+    /// moved. That is why this card needed the calendar integration before it
+    /// could exist at all.
+    case travelDrain
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer
@@ -405,6 +419,23 @@ public struct InsightResult: Sendable, Equatable {
 public protocol InsightModel: Sendable {
     var id: InsightID { get }
     var title: String { get }
+    /// **Whether everything this card reads arrives in `samples`.**
+    ///
+    /// Most cards do, and it is why a fixture of samples can judge them: hand
+    /// them full coverage and every declared metric must come back as a
+    /// contributor. Three cards do not — the substance log, the symptom tags and
+    /// the calendar are construction state, bound by `withSubstanceLog`,
+    /// `withSymptoms` and `withCalendar` — and a samples-only fixture leaves them
+    /// with nothing to report through no fault of their own.
+    ///
+    /// ⚠️ **This exists so the guards can be derived rather than listed.** Three
+    /// of them (`ContributorsTests`, `CandidateReachabilityTests`,
+    /// `ScoreAttributionTests`) carried a hard-coded `[.substanceImpact]`, and
+    /// two calendar cards of exactly the same shape broke all three at once.
+    /// `activeContext.md`'s own rule applies: when a guard is a closed set, its
+    /// members must come from the rule, not from what the build happens to do.
+    /// Now a fourth log-driven card exempts itself by saying what it is.
+    var readsOnlySamples: Bool { get }
     /// Everything this insight might ask the user for.
     var requirements: [GroundingRequirement] { get }
     /// Every metric this insight can read, whether or not there is data for it
@@ -440,6 +471,9 @@ public protocol InsightModel: Sendable {
 }
 
 public extension InsightModel {
+    /// Most cards read only samples.
+    var readsOnlySamples: Bool { true }
+
     /// Most insights read measurements only.
     func evaluate(samples: [HealthMetricSample], events: [VitalEvent],
                   profile: UserHealthProfile, now: Date) -> InsightResult {

@@ -153,6 +153,10 @@ struct DataTabView: View {
             // it and is the least likely of the five to be searched for.
             guard !model.cycleDays.isEmpty else { return false }
             return matches(domain.title, "period", "cycle", "menstrual", "bleeding")
+        case .calendarEvents:
+            guard !model.calendarEvents.isEmpty else { return false }
+            return matches(domain.title, "calendar", "meeting", "work", "travel",
+                           "event", "personal")
                 || model.symptoms.contains { matches($0.type.title) }
         case .bodyScans:
             guard !model.bodyScans.isEmpty else { return false }
@@ -287,6 +291,35 @@ struct DataTabView: View {
         }
     }
 
+    /// The three categories the reader named, as three labelled groups under
+    /// one heading — see `DataDomain.calendarEvents` for why it is one domain.
+    @ViewBuilder private var calendarSection: some View {
+        let buckets = model.calendarBuckets
+        if !model.calendarEvents.isEmpty {
+            Section {
+                ForEach(CalendarEventBucket.allCases) { bucket in
+                    if let events = buckets[bucket], !events.isEmpty {
+                        HStack {
+                            Text(bucket.title)
+                            Spacer()
+                            Text("\(events.count)")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
+                let reviewed = model.calendarAccuracy
+                Text(reviewed.rate.map {
+                    String(format: "%d events · you have reviewed %d, and it was right %.0f%% of the time",
+                           model.calendarEvents.count, reviewed.reviewed, $0 * 100)
+                } ?? "\(model.calendarEvents.count) events · \(reviewed.reviewed) reviewed so far")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text(DataDomain.calendarEvents.title)
+            }
+        }
+    }
+
     @ViewBuilder private func section(for domain: DataDomain) -> some View {
         switch domain {
         case .metrics: metricSections
@@ -297,6 +330,7 @@ struct DataTabView: View {
         case .symptoms: symptomSection
         case .bodyScans: bodyScanSection
         case .derivedScores: derivedScoreSection
+        case .calendarEvents: calendarSection
         case .cycles: cycleSection
         case .unmodelled: otherDataSection
         }

@@ -120,7 +120,166 @@ struct InsightDetailView: View {
         // screen — the cost of reading a `default:` instead of the card.
         case .readiness:
             EmptyView()
+        // Backlog §B6 C8, the reader's own words: *"I want to have a section in
+        // both cards that shows the list of items from your calendar, and the
+        // relevant details for each item, with an opportunity to correct them or
+        // confirm, which the model can learn from."* One implementation, filtered
+        // per card — two copies of a review list is two places for the
+        // correction path to diverge.
+        case .workImpact:
+            calendarReviewSection(buckets: [.work], title: "Your work events")
+        case .travelDrain:
+            calendarReviewSection(buckets: [.travel], title: "Your travel events")
         }
+    }
+
+    // MARK: - The calendar review list
+
+    /// **Every event the card read, what the app decided, and a way to say it
+    /// got it wrong.**
+    ///
+    /// The correction is the point. It is stored beside the guess rather than
+    /// over it (`CalendarEventJudgement`), so the app accumulates a labelled set
+    /// and can state how often it was right — which is the figure at the top of
+    /// this section and the one the whole loop exists to move.
+    @ViewBuilder private func calendarReviewSection(buckets: Set<CalendarEventBucket>,
+                                                    title: String) -> some View {
+        let rows = model.calendarReview.filter {
+            buckets.contains(CalendarEventBucket($0.judgement.effective))
+        }
+        if !rows.isEmpty {
+            let accuracy = model.calendarAccuracy
+            InsightSection(
+                title: title,
+                trailing: accuracy.rate.map { String(format: "%.0f%% right so far", $0 * 100) },
+                caveat: .computed(.estimated,
+                                  "Everything here was worked out on your device — the rules for "
+                                    + "what can be read exactly, and the on-device model for the "
+                                    + "two that are judgement calls. Nothing about your calendar "
+                                    + "leaves the phone."),
+                expansion: expansion(preview: "\(rows.count) events")
+            ) {
+                if accuracy.rate == nil {
+                    Text("Confirm or correct a few and this will start telling you how often it gets them right. It needs \(CalendarEventClassifier.minimumReviewedForAccuracy) before that figure means anything.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(rows.prefix(40), id: \.event.id) { row in
+                    calendarReviewRow(row.event, judgement: row.judgement)
+                }
+                if rows.count > 40 {
+                    Text("Showing the 40 most recent of \(rows.count).")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    private func calendarReviewRow(_ event: CalendarEvent,
+                                   judgement: CalendarEventJudgement) -> some View {
+        let effective = judgement.effective
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(event.title.isEmpty ? "Untitled" : event.title)
+                    .font(.subheadline).lineLimit(1)
+                Spacer()
+                Text(String(format: "%.1f h", effective.hours))
+                    .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Text(event.start.formatted(date: .abbreviated, time: .shortened))
+                .font(.caption2).foregroundStyle(.tertiary)
+            // The six axes, as chips. `Decider` is what distinguishes a fact
+            // from a guess, and the reader should be able to see which is which
+            // before deciding whether to argue with it.
+            HStack(spacing: 4) {
+                reviewChip(effective.context.title,
+                           decided: effective.decider(for: CalendarEventClassification.contextKey))
+                reviewChip(effective.occasion.title,
+                           decided: effective.decider(for: CalendarEventClassification.occasionKey))
+                reviewChip(effective.presence.title, decided: .fact)
+                reviewChip(effective.formality.title,
+                           decided: effective.decider(for: CalendarEventClassification.formalityKey))
+                if effective.isMarathon {
+                    reviewChip("Marathon", decided: .fact)
+                }
+            }
+            if judgement.isConfirmed || judgement.correction != nil {
+                Label(judgement.correction != nil ? "You corrected this" : "You confirmed this",
+                      systemImage: "checkmark.circle.fill")
+                    .font(.caption2).foregroundStyle(Theme.good)
+            } else {
+                HStack(spacing: 10) {
+                    Button("That's right") {
+                        model.reviewCalendarEvent(event.id, correction: nil, confirmed: true)
+                    }
+                    Menu("Not quite") {
+                        // Correcting the two axes that are judgement calls.
+                        // Presence and duration are facts read off the event and
+                        // are not offered — there is nothing to disagree with.
+                        Menu("It was…") {
+                            ForEach(CalendarEventClassification.Context.allCases) { option in
+                                Button(option.title) {
+                                    correctCalendar(event.id, judgement: judgement,
+                                                    context: option)
+                                }
+                            }
+                        }
+                        Menu("It was a…") {
+                            ForEach(CalendarEventClassification.Occasion.allCases) { option in
+                                Button(option.title) {
+                                    correctCalendar(event.id, judgement: judgement,
+                                                    occasion: option)
+                                }
+                            }
+                        }
+                        Menu("The tone was…") {
+                            ForEach(CalendarEventClassification.Formality.allCases) { option in
+                                Button(option.title) {
+                                    correctCalendar(event.id, judgement: judgement,
+                                                    formality: option)
+                                }
+                            }
+                        }
+                    }
+                }
+                .font(.caption).buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    /// One axis changed, the rest kept — and the whole thing recorded as a
+    /// **reader** decision so nothing later overwrites it.
+    private func correctCalendar(_ eventID: String, judgement: CalendarEventJudgement,
+                                 context: CalendarEventClassification.Context? = nil,
+                                 occasion: CalendarEventClassification.Occasion? = nil,
+                                 formality: CalendarEventClassification.Formality? = nil) {
+        let base = judgement.effective
+        var deciders = base.deciders
+        if context != nil { deciders[CalendarEventClassification.contextKey] = .reader }
+        if occasion != nil { deciders[CalendarEventClassification.occasionKey] = .reader }
+        if formality != nil { deciders[CalendarEventClassification.formalityKey] = .reader }
+        let corrected = CalendarEventClassification(
+            context: context ?? base.context,
+            occasion: occasion ?? base.occasion,
+            presence: base.presence,
+            formality: formality ?? base.formality,
+            hours: base.hours,
+            deciders: deciders)
+        model.reviewCalendarEvent(eventID, correction: corrected, confirmed: false)
+    }
+
+    private func reviewChip(_ text: String,
+                            decided: CalendarEventClassification.Decider) -> some View {
+        Text(text)
+            .font(.caption2)
+            // A fact and a guess must not look the same. The filled chip is
+            // something the event stated; the outlined one is the app's opinion.
+            .foregroundStyle(decided == .fact ? Theme.accent : .secondary)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background {
+                Capsule().fill(Color.secondary.opacity(decided == .fact ? 0.18 : 0.08))
+            }
     }
 
     /// The window every timeframe-driven section reads, **pinned above the tab

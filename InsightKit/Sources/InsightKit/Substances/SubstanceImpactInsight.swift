@@ -32,6 +32,8 @@ public struct SubstanceImpactInsight: InsightModel {
     /// None. This insight is built entirely from sensed data plus the user's own
     /// log; there is no fact it needs anyone to type in.
     public var requirements: [GroundingRequirement] { [] }
+    /// The log is construction state, not `samples`.
+    public var readsOnlySamples: Bool { false }
 
     /// The log itself. Without this override the derived default would return
     /// nothing — `requirements` is empty — and the one card whose whole input is

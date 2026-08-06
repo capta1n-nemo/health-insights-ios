@@ -211,6 +211,103 @@ final class CycleDayRecord {
     }
 }
 
+/// **One calendar event, stored.** Backlog §B6 C7 — the keystone the rest of the
+/// calendar brief was blocked on.
+///
+/// Stored rather than re-fetched on every launch for two reasons, and the second
+/// is the one that matters: EventKit is only readable while permission holds, and
+/// **a judgement the reader made about an event has to outlive the event's
+/// availability**. If they correct "Client review" to personal and then revoke
+/// calendar access, the correction must not become an orphan pointing at nothing.
+///
+/// ⚠️ **Content on this row never leaves the device.** `title` and `location` are
+/// here because the reader asked for the events to be classified; they are
+/// excluded from the export by name — see `HealthDataExport`.
+@Model
+final class CalendarEventRecord {
+    @Attribute(.unique) var eventID: String
+    var start: Date
+    var end: Date
+    var isAllDay: Bool
+    var timeZoneIdentifier: String?
+    var calendarName: String
+    var kindRaw: String
+    var title: String
+    var location: String?
+    var hasVideoLink: Bool
+
+    init(event: CalendarEvent) {
+        eventID = event.id
+        start = event.start
+        end = event.end
+        isAllDay = event.isAllDay
+        timeZoneIdentifier = event.timeZoneIdentifier
+        calendarName = event.calendarName
+        kindRaw = event.kind.rawValue
+        title = event.title
+        location = event.location
+        hasVideoLink = event.hasVideoLink
+    }
+
+    func update(from event: CalendarEvent) {
+        start = event.start
+        end = event.end
+        isAllDay = event.isAllDay
+        timeZoneIdentifier = event.timeZoneIdentifier
+        calendarName = event.calendarName
+        kindRaw = event.kind.rawValue
+        title = event.title
+        location = event.location
+        hasVideoLink = event.hasVideoLink
+    }
+
+    var event: CalendarEvent? {
+        guard let kind = CalendarEvent.Kind(rawValue: kindRaw) else { return nil }
+        return CalendarEvent(id: eventID, start: start, end: end, isAllDay: isAllDay,
+                             timeZoneIdentifier: timeZoneIdentifier,
+                             calendarName: calendarName, kind: kind,
+                             title: title, location: location,
+                             hasVideoLink: hasVideoLink)
+    }
+}
+
+/// **What the app decided about an event, and what the reader said back.**
+///
+/// The two are stored as separate blobs on purpose — see `CalendarEventJudgement`
+/// for the argument. Merged, the app could never measure how often it was right
+/// and re-classifying would silently overwrite the reader.
+@Model
+final class CalendarJudgementRecord {
+    @Attribute(.unique) var eventID: String
+    /// JSON of the app's own classification.
+    var classificationData: Data
+    /// JSON of the reader's correction, when they made one.
+    var correctionData: Data?
+    var isConfirmed: Bool
+    var reviewedAt: Date?
+
+    init(eventID: String, classificationData: Data, correctionData: Data? = nil,
+         isConfirmed: Bool = false, reviewedAt: Date? = nil) {
+        self.eventID = eventID
+        self.classificationData = classificationData
+        self.correctionData = correctionData
+        self.isConfirmed = isConfirmed
+        self.reviewedAt = reviewedAt
+    }
+
+    var judgement: CalendarEventJudgement? {
+        let decoder = JSONDecoder()
+        guard let classification = try? decoder.decode(
+            CalendarEventClassification.self, from: classificationData) else { return nil }
+        let correction = correctionData.flatMap {
+            try? decoder.decode(CalendarEventClassification.self, from: $0)
+        }
+        return CalendarEventJudgement(eventID: eventID, classification: classification,
+                                      correction: correction, isConfirmed: isConfirmed,
+                                      reviewedAt: reviewedAt)
+    }
+}
+
 /// A suggestion the user has waved away, and when.
 ///
 /// Only the id and the instant are stored. The suggestion's own text is

@@ -76,6 +76,17 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// Backlog #31. See `CycleLog.swift` for who this is for and why the app
     /// stays single-user.
     case cycles
+    /// **Calendar events**, grouped into the categories the reader named:
+    /// Work, Personal, Travel.
+    ///
+    /// ⚠️ **One domain rather than three**, and the reader's own sentence is why:
+    /// *"this will become a new data source, like Work Events, Personal Events,
+    /// Travel Events"* — one source, with those categories. It is also the
+    /// honest modelling: a domain is a *shape*, and a work event and a personal
+    /// event are the same shape with a different classification. The Data tab
+    /// renders them as three labelled groups, so they read as separate sources
+    /// without pretending to be separate shapes.
+    case calendarEvents
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
 
@@ -93,6 +104,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .bodyScans: return "Body measurements"
         case .derivedScores: return "Scores & estimates"
         case .cycles: return "Cycles"
+        case .calendarEvents: return "Calendar"
         case .unmodelled: return "Other data"
         }
     }
@@ -116,6 +128,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every measurement you've taken, how it was taken, and whether two of them can be compared."
         case .derivedScores:
             return "What the app worked out from everything above — each card's score, and the clinical estimates behind them."
+        case .calendarEvents:
+            return "Your events, sorted into work, personal and travel — what each one was, who decided that, and whether you have agreed with it."
         case .cycles:
             return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
         case .unmodelled:

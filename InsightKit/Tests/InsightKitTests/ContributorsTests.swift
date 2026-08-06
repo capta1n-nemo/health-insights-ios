@@ -61,7 +61,18 @@ final class ContributorsTests: XCTestCase {
         // Substance Impact reports one contributor per *measured effect of a
         // logged event*, and this fixture logs none — so it has genuinely
         // nothing to report rather than having forgotten to report it.
-        XCTAssertEqual(Set(silent), [.substanceImpact],
+        // ⚠️ **Derived, and a SUBSET rather than an equality.** This was
+        // `== [.substanceImpact]` and two new cards of exactly the same shape
+        // broke it.
+        //
+        // The rule is one-directional and the earlier equality hid that: a card
+        // reporting nothing under full coverage **must** be one whose input is
+        // not in `samples` — but the converse is false. The symptom radar is
+        // log-driven *and* reads vitals, so it reports plenty. Asserting
+        // equality would demand that every log-driven card report nothing, which
+        // is a different and untrue claim.
+        let logDriven = Set(InsightEngine().models.filter { !$0.readsOnlySamples }.map(\.id))
+        XCTAssertTrue(Set(silent).isSubset(of: logDriven),
                        "insights reporting no contributors: \(silent)")
     }
 

@@ -157,6 +157,8 @@ public extension InsightID {
         case .gait: return "gait-v1"
         case .biologicalAge: return "biological-age-v1"
         case .mentalHealth: return "mental-health-v1"
+        case .workImpact: return "work-impact-v1"
+        case .travelDrain: return "travel-drain-v1"
         }
     }
 }

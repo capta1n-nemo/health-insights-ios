@@ -46,6 +46,8 @@ public extension InsightID {
         case .gait: return 13
         case .biologicalAge: return 14
         case .mentalHealth: return 15
+        case .workImpact: return 16
+        case .travelDrain: return 17
         }
     }
 }

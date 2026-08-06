@@ -336,6 +336,12 @@ public extension InsightID {
         // one.
         case .mentalHealth:
             return false
+        // **On the web.** Both are 0–100 scores of the same kind as their
+        // neighbours, and neither is a detector nor a composite of other spokes:
+        // they read a source — the calendar — that nothing else on the chart
+        // reads at all.
+        case .workImpact, .travelDrain:
+            return true
         case .symptomRadar:
             return false
         }
@@ -357,6 +363,8 @@ public extension InsightID {
         case .gait: return "Walking"
         case .biologicalAge: return "Age"
         case .mentalHealth: return "Mind"
+        case .workImpact: return "Work"
+        case .travelDrain: return "Travel"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

@@ -17,7 +17,8 @@ final class DataStore {
                              MedicationRecord.self, DoseLogRecord.self,
                              SideEffectRecord.self, BodyScanRecord.self,
                              // ⚠️ A @Model not listed here silently never persists.
-                             CycleDayRecord.self])
+                             CycleDayRecord.self,
+                             CalendarEventRecord.self, CalendarJudgementRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -465,6 +466,88 @@ final class DataStore {
     }
 
     // MARK: - Substance events
+
+    // MARK: - Calendar
+
+    func loadCalendarEvents() -> [CalendarEvent] {
+        let descriptor = FetchDescriptor<CalendarEventRecord>(
+            sortBy: [SortDescriptor(\.start, order: .forward)])
+        return ((try? context.fetch(descriptor)) ?? []).compactMap(\.event)
+    }
+
+    /// Upsert a fetched batch.
+    ///
+    /// ⚠️ **Events are updated and never deleted here.** A meeting removed from
+    /// the calendar still *happened*, and the cards read history — deleting it
+    /// would silently rewrite last month's workload every time somebody tidied
+    /// their diary. Removing them is `forgetCalendar()`, which is deliberate.
+    func mergeCalendarEvents(_ events: [CalendarEvent]) {
+        guard !events.isEmpty else { return }
+        let existing = Dictionary(
+            ((try? context.fetch(FetchDescriptor<CalendarEventRecord>())) ?? [])
+                .map { ($0.eventID, $0) },
+            uniquingKeysWith: { first, _ in first })
+        for event in events {
+            if let record = existing[event.id] {
+                record.update(from: event)
+            } else {
+                context.insert(CalendarEventRecord(event: event))
+            }
+        }
+        try? context.save()
+    }
+
+    func loadCalendarJudgements() -> [CalendarEventJudgement] {
+        ((try? context.fetch(FetchDescriptor<CalendarJudgementRecord>())) ?? [])
+            .compactMap(\.judgement)
+    }
+
+    /// Store the app's own classification, **without touching a correction the
+    /// reader has already made.**
+    ///
+    /// This is the rule that makes re-classification safe: running the model
+    /// again must never overwrite somebody's answer, and the only way to
+    /// guarantee that is for the write path not to have the correction in hand.
+    func recordClassification(_ classification: CalendarEventClassification,
+                              for eventID: String) {
+        guard let data = try? JSONEncoder().encode(classification) else { return }
+        let descriptor = FetchDescriptor<CalendarJudgementRecord>(
+            predicate: #Predicate { $0.eventID == eventID })
+        if let existing = try? context.fetch(descriptor).first {
+            existing.classificationData = data
+        } else {
+            context.insert(CalendarJudgementRecord(eventID: eventID,
+                                                   classificationData: data))
+        }
+        try? context.save()
+    }
+
+    /// The reader's answer. `correction == nil` with `confirmed == true` is
+    /// "you got it right" — a label in its own right, and different from never
+    /// having been looked at.
+    func recordReview(eventID: String, correction: CalendarEventClassification?,
+                      confirmed: Bool, now: Date = Date()) {
+        let descriptor = FetchDescriptor<CalendarJudgementRecord>(
+            predicate: #Predicate { $0.eventID == eventID })
+        guard let record = try? context.fetch(descriptor).first else { return }
+        record.correctionData = correction.flatMap { try? JSONEncoder().encode($0) }
+        record.isConfirmed = confirmed
+        record.reviewedAt = now
+        try? context.save()
+    }
+
+    /// Disconnecting the calendar forgets everything it brought — including the
+    /// reader's corrections, because a correction about an event the app can no
+    /// longer see is not something it should keep.
+    func forgetCalendar() {
+        for record in (try? context.fetch(FetchDescriptor<CalendarEventRecord>())) ?? [] {
+            context.delete(record)
+        }
+        for record in (try? context.fetch(FetchDescriptor<CalendarJudgementRecord>())) ?? [] {
+            context.delete(record)
+        }
+        try? context.save()
+    }
 
     // MARK: - Cycle log
 

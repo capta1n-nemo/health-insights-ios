@@ -1028,6 +1028,8 @@ public struct SymptomRadarInsight: InsightModel {
     /// Built entirely from sensed signals against the reader's own history —
     /// nothing to ask the profile for.
     public var requirements: [GroundingRequirement] { [] }
+    /// The log is construction state, not `samples`.
+    public var readsOnlySamples: Bool { false }
     public var candidateMetrics: [MetricType] { HealthWatchModel.watchedMetrics }
     /// The tags arrive from Apple Health rather than an in-app sheet, so the
     /// route views and guides instead of opening one — see `.symptomLog`.

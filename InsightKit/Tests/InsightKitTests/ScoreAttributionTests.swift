@@ -843,7 +843,9 @@ final class ScoreAttributionTests: XCTestCase {
                                                   now: attributionNow)
         // Cards that legitimately cannot score from sensed data alone: their
         // input is a log the fixture does not carry.
-        let logDriven: Set<InsightID> = [.substanceImpact, .symptomRadar]
+        // Derived from the rule rather than listed — see
+        // `InsightModel.readsOnlySamples`.
+        let logDriven = Set(InsightEngine().models.filter { !$0.readsOnlySamples }.map(\.id))
         let silent = results.filter { $0.score == nil && !logDriven.contains($0.id) }
         XCTAssertTrue(silent.isEmpty,
                       "these cards are skipped by every sweep in this file: \(silent.map(\.id))")

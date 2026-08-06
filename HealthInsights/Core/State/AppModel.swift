@@ -233,6 +233,84 @@ final class AppModel {
         // log was left out once and the import reported "16 substances" while
         // the card still read "Log to see effects" — see activeContext.
         cycleDays = dataStore.loadCycleDays()
+        calendarEvents = dataStore.loadCalendarEvents()
+        calendarJudgements = dataStore.loadCalendarJudgements()
+    }
+
+    // MARK: - Calendar
+
+    /// Stored, reloaded properties — never computed reads from the store, which
+    /// are invisible to observation (`data-conventions.md`).
+    private(set) var calendarEvents: [CalendarEvent] = []
+    private(set) var calendarJudgements: [CalendarEventJudgement] = []
+
+    private let interpreter = CalendarEventInterpreter()
+
+    /// Every event with whatever the app and the reader between them concluded,
+    /// newest first.
+    var calendarReview: [(event: CalendarEvent, judgement: CalendarEventJudgement)] {
+        let byID = Dictionary(uniqueKeysWithValues: calendarJudgements.map { ($0.eventID, $0) })
+        return calendarEvents.reversed().compactMap { event in
+            byID[event.id].map { (event, $0) }
+        }
+    }
+
+    var calendarAccuracy: CalendarClassifierAccuracy {
+        CalendarClassifierAccuracy.measure(calendarJudgements)
+    }
+
+    var calendarBuckets: [CalendarEventBucket: [CalendarEvent]] {
+        CalendarEventClassifier.bucket(calendarJudgements, events: calendarEvents)
+    }
+
+    /// Pull from EventKit, store, and classify anything not yet judged.
+    ///
+    /// ⚠️ **Only unjudged events are classified.** Re-running over everything
+    /// would spend the on-device model on events the reader has already
+    /// corrected — and while `recordClassification` cannot overwrite a
+    /// correction, doing the work to throw it away is how a launch gets slow for
+    /// no benefit.
+    func syncCalendar() async {
+        guard let integration = registry.integration(withID: "calendar")
+                as? CalendarIntegration,
+              let fetched = try? integration.fetchEvents() else { return }
+        dataStore.mergeCalendarEvents(fetched)
+
+        let judged = Set(dataStore.loadCalendarJudgements().map(\.eventID))
+        for event in fetched where !judged.contains(event.id) {
+            let base = CalendarEventClassifier.classify(event)
+            // The on-device model settles the two interpretive axes where it is
+            // available; `refined` refuses to let it touch anything else.
+            let reading = await interpreter.interpret(event)
+            let final = CalendarEventClassifier.refined(
+                base, modelContext: reading?.context, modelFormality: reading?.formality)
+            dataStore.recordClassification(final, for: event.id)
+        }
+        reloadCalendar()
+        recompute()
+    }
+
+    func reloadCalendar() {
+        calendarEvents = dataStore.loadCalendarEvents()
+        calendarJudgements = dataStore.loadCalendarJudgements()
+    }
+
+    /// The reader's answer on one event.
+    func reviewCalendarEvent(_ eventID: String,
+                             correction: CalendarEventClassification?,
+                             confirmed: Bool) {
+        dataStore.recordReview(eventID: eventID, correction: correction,
+                               confirmed: confirmed)
+        reloadCalendar()
+        // Both cards read `loadHours`, which a correction changes, so they have
+        // to be recomputed rather than left showing the old shape.
+        recompute()
+    }
+
+    func forgetCalendar() {
+        dataStore.forgetCalendar()
+        reloadCalendar()
+        recompute()
     }
 
     // MARK: - Cycle log
@@ -1237,6 +1315,7 @@ final class AppModel {
         let manual = dataStore.loadManualSamples()
         let store = dataStore
         let engineNow = engine.withSubstanceLog(substanceEvents)
+            .withCalendar(events: calendarEvents, judgements: calendarJudgements)
         let profileNow = profile
         // The schedule is read here — a `Sendable` value, never the `@Model`
         // record — because the symptoms it is bound beside only exist once the
@@ -1642,6 +1721,11 @@ final class AppModel {
 
         let manual = dataStore.loadManualSamples()
         let synced = await registry.syncAllConnected()
+        // The calendar is pulled here rather than inside `syncAllConnected`,
+        // because its output is not `SyncedData` — a meeting is not a sample,
+        // and pretending otherwise would put events in the vitals layer. See
+        // `CalendarIntegration.sync`.
+        await syncCalendar()
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
             switch integration.status {
@@ -1871,6 +1955,8 @@ final class AppModel {
         // the schedule the radar sees is the one the reader sees.
         engine = engine.withSubstanceLog(substanceEvents)
             .withSymptoms(symptoms, medication: activeMedication?.schedule)
+            // Both calendar cards, in one call — see `withCalendar`.
+            .withCalendar(events: calendarEvents, judgements: calendarJudgements)
         results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
         recordScores(results)
         // Grounding and substance edits reach here without touching `samples`,
@@ -2283,6 +2369,10 @@ final class AppModel {
 
     func disconnect(_ integration: any HealthIntegration) async {
         await integration.disconnect()
+        // Disconnecting the calendar forgets what it brought, including the
+        // reader's corrections — a correction about an event the app can no
+        // longer see is not something it should keep.
+        if integration.id == "calendar" { forgetCalendar() }
         integrationStatuses[integration.id] = integration.status
         UserDefaults.standard.removeObject(forKey: "lastError.\(integration.id)")
         dataStore.setIntegration(id: integration.id, connected: false, lastSync: nil)

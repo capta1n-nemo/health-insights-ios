@@ -218,8 +218,8 @@ about her record in a doc, a commit message, or on screen.
 
 | # | Card | Blocker |
 |---|---|---|
-| 15 | **Travel drain** | ◐ **Unblocked but not built.** The calendar integration now exists and `CalendarModel.timeZoneChanges` is the travel signal, tested. What remains: persist the events, then the card. ⚠️ Still true that **the app captures no HealthKit metadata**, so a calendar event's own time zone is the only handle on where a reading was taken |
-| 16 | **Work impact** | ◐ **Unblocked but not built.** `CalendarModel.committedHours` and `busiestDay` are the input, tested. Needs the events persisted, then the card |
+| 15 ✅ | **Travel drain** | **Shipped.** ⚠️ Unverified with real data — The calendar integration now exists and `CalendarModel.timeZoneChanges` is the travel signal, tested. What remains: persist the events, then the card. ⚠️ Still true that **the app captures no HealthKit metadata**, so a calendar event's own time zone is the only handle on where a reading was taken |
+| 16 ✅ | **Work impact** | **Shipped.** ⚠️ Unverified with real data — `CalendarModel.committedHours` and `busiestDay` are the input, tested. Needs the events persisted, then the card |
 | 17 ◐ | **Cycle tracking — a whole fifth tab** | ✅ The tab exists and logs. Four decisions answered plus Q25. ⚠️ **Zero rows is still true of the reader's export and says nothing about hers** |
 | 18 | **Stress Tracking "like Oura"** | Possibly already Sustained Load — see Q24 |
 
@@ -306,14 +306,19 @@ extends.** Recorded in full because it is the specification:
 | C3 ✅ | **`loadHours`** — an hour of formal client meeting in a room is not an hour of blocked focus time, and a reminder costs nothing. This is what a card's score reads | Shipped |
 | C4 ✅ | **The learning loop's data shape** — `CalendarEventJudgement` keeps the guess and the reader's correction **apart**, so accuracy is measurable and re-classifying cannot overwrite the reader. `CalendarClassifierAccuracy` refuses a figure below 10 reviews | Shipped |
 | C5 ✅ | **The buckets** — `CalendarEventBucket`: Work / Personal / Travel / Other, derived not stored, travel outranking the calendar it was booked in | Shipped |
-| C6 ⬜ | **The on-device model call.** `FoundationModelSummarizer` shows the pattern (`SystemLanguageModel.availability`, `LanguageModelSession`, graceful fallback). It may only move **context** and **formality** — `CalendarEventClassifier.refined` enforces that and is tested. ⚠️ Prompt must never leave the device | **Next** |
-| C7 ⬜ | **Persisting events and judgements.** Nothing survives a launch today. A `@Model` per event and per judgement, registered in `DataStore`'s schema (an unregistered `@Model` silently never persists) | **Next, and C6 is useless without it** |
-| C8 ⬜ | **The review section, in both cards** — the list with its details and confirm/correct controls | Blocked on C7 |
-| C9 ⬜ | **The buckets as `DataDomain` cases** — Work Events, Personal Events, Travel Events in the Data tab | Blocked on C7 |
-| C10 ⬜ | **Travel drain (#15) and work impact (#16) themselves** | Blocked on C7 |
+| C6 ✅ | **The on-device model call.** `FoundationModelSummarizer` shows the pattern (`SystemLanguageModel.availability`, `LanguageModelSession`, graceful fallback). It may only move **context** and **formality** — `CalendarEventClassifier.refined` enforces that and is tested. ⚠️ Prompt must never leave the device | Shipped |
+| C7 ✅ | **Persisting events and judgements.** Nothing survives a launch today. A `@Model` per event and per judgement, registered in `DataStore`'s schema (an unregistered `@Model` silently never persists) | Shipped |
+| C8 ✅ | **The review section, in both cards** — the list with its details and confirm/correct controls | Shipped |
+| C9 ✅ | **The buckets as `DataDomain` cases** — Work Events, Personal Events, Travel Events in the Data tab | Shipped |
+| C10 ✅ | **Travel drain (#15) and work impact (#16) themselves** | Shipped |
 
-⚠️ **C7 is the keystone.** Every remaining row is blocked on it, and it is the
-cheapest of them.
+✅ **All ten rows shipped 2026-08-06.** What remains is not in this table:
+**nothing has been seen with real calendar data in it.** Every card and section
+was verified in its *empty* state on the simulator, which is the state that
+matters most (two cards shipped invisible on 2026-08-03) — but the populated
+state, the classifier's accuracy on real titles, and whether the on-device model
+is even available on the reader's phone are all unverified. ⚠️ **The reader's
+own export has no calendar in it at all**, so this needs the phone.
 
 ---
 
