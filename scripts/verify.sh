@@ -772,6 +772,29 @@ if [ "${1:-}" = "--tests" ]; then
     fi
 fi
 
+# --- FoundationModels must be canImport-guarded ---
+#
+# CI's runner SDK does not carry FoundationModels, so a bare `import
+# FoundationModels` is a red build the local gate cannot see. That is exactly
+# what happened on 2026-08-06 and it is a category, not an instance: the whole
+# point of that module is that it may be absent.
+bare_fm=$(git ls-files '*.swift' | while read -r f; do
+  # ⚠️ **The line BEFORE the import, not "does the file mention canImport".**
+  # The first version of this check asked whether the file contained the string
+  # anywhere — and this very file guards two call sites with it, so a bare
+  # import at the top sailed through. A canary caught it; a lint nobody canaries
+  # is a lint nobody has tested.
+  awk -v file="$f" '
+    /^import FoundationModels/ && prev !~ /^#if canImport\(FoundationModels\)/ { print file; exit }
+    { prev = $0 }
+  ' "$f"
+done)
+if [ -n "$bare_fm" ]; then
+  echo "FoundationModels imported without a canImport guard on the line above — CI has no such module:"
+  echo "$bare_fm"
+  fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     printf '\n\033[32mClean.\033[0m\n'
 else

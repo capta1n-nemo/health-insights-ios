@@ -504,7 +504,7 @@ the place to look.
 - `Core/Integrations/WithingsProvider.swift`
   - `WithingsProvider` :8
 - `Core/Intelligence/CalendarEventInterpreter.swift`
-  - `CalendarEventInterpreter` :35
+  - `CalendarEventInterpreter` :42
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Persistence/DataStore.swift`

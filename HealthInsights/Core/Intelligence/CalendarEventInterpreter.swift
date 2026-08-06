@@ -1,6 +1,13 @@
 import Foundation
-import FoundationModels
 import InsightKit
+// ⚠️ **Guarded, exactly as `FoundationModelSummarizer` guards it.** CI's runner
+// SDK has no `FoundationModels`, so a bare import is a red build — and it was:
+// this file cost this session its only red CI. The whole point of the module is
+// that it may be absent, so importing it unconditionally contradicts the
+// design as well as breaking the gate.
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// **The AI half of reading a calendar** — backlog §B6 C6.
 ///
@@ -54,12 +61,14 @@ final class CalendarEventInterpreter {
         """
 
     private var isAvailable: Bool {
+        #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
             case .available: return true
             default: return false
             }
         }
+        #endif
         return false
     }
 
@@ -68,6 +77,7 @@ final class CalendarEventInterpreter {
     func interpret(_ event: CalendarEvent) async -> Reading? {
         let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isAvailable, !title.isEmpty else { return nil }
+        #if canImport(FoundationModels)
         guard #available(iOS 26.0, *) else { return nil }
 
         // Only the title and the calendar's name are sent. Not the location,
@@ -77,6 +87,9 @@ final class CalendarEventInterpreter {
         let session = LanguageModelSession(instructions: Self.instructions)
         guard let response = try? await session.respond(to: prompt) else { return nil }
         return Self.parse(response.content)
+        #else
+        return nil
+        #endif
     }
 
     /// Parsed strictly. **An unparseable reply yields nil rather than a
