@@ -18,7 +18,7 @@ public enum RawFieldGrouping {
     public enum Group: String, Sendable, CaseIterable, Comparable {
         case nutrition, hearing, daylight, respiratory, mobility, mind
         case movement, heartEvents, bodyMeasurements, environment
-        case activityScore, sleepDetail, unsorted
+        case activityScore, sleepDetail, stressResilience, unsorted
 
         public var title: String {
             switch self {
@@ -34,6 +34,10 @@ public enum RawFieldGrouping {
             case .environment: return "Environment"
             case .activityScore: return "Activity score components"
             case .sleepDetail: return "Sleep detail"
+            // "(Oura)" in the heading because these are a vendor's own composite
+            // numbers relayed, not this app's — the same honesty rule that dashes
+            // an inferred line on a chart.
+            case .stressResilience: return "Stress & resilience (Oura)"
             case .unsorted: return "Not yet sorted"
             }
         }
@@ -78,6 +82,10 @@ public enum RawFieldGrouping {
             // different kind of thing from a reading, and burying them among
             // real measurements is what made the flat list unreadable.
             case .activityScore: return nil
+            // The stress research's raw material (backlog N1), kept together
+            // and labelled: the app models no stress metric yet, so a section
+            // of its own is the honest answer until one exists.
+            case .stressResilience: return nil
             // Named for its own failure, so a long one gets fixed rather than
             // tolerated. Never folded into a real section — that would hide it.
             case .unsorted: return nil
@@ -142,6 +150,16 @@ public enum RawFieldGrouping {
             return group
         }
         let lower = identifier.lowercased()
+        // Oura's stress and resilience fields are one subject — the raw
+        // material the stress research reads (backlog N1) — and they file
+        // together. ⚠️ **Before the two generic rules below**, both of which
+        // would otherwise claim pieces of it: `daily_resilience.contributors.*`
+        // are the workings of the *resilience* level, not of an activity score,
+        // and `contributors.sleep_recovery` contains `.sleep_` without being
+        // sleep detail.
+        if lower.hasPrefix("oura.daily_stress") || lower.hasPrefix("oura.daily_resilience") {
+            return .stressResilience
+        }
         if lower.contains(".contributors.") { return .activityScore }
         if lower.hasPrefix("oura.sleep") || lower.contains(".sleep_") { return .sleepDetail }
         if lower.hasPrefix("oura.daily_activity") { return .activityScore }

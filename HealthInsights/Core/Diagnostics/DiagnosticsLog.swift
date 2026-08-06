@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -11,8 +12,10 @@ import UIKit
 ///
 /// It's a `@MainActor` shared instance because every producer (providers,
 /// HealthKit service, the app model) already runs on the main actor, which keeps
-/// hooking it in a one-liner with no plumbing through initialisers. Nothing here
-/// ever leaves the device.
+/// hooking it in a one-liner with no plumbing through initialisers. Entries and
+/// their `detail` payloads never leave the app; the one-line messages are also
+/// mirrored to the unified log (see `mirrorToUnifiedLog`) so log tooling can
+/// follow a sync without clicking through the app UI.
 @MainActor
 @Observable
 final class DiagnosticsLog {
@@ -58,6 +61,55 @@ final class DiagnosticsLog {
                              status: status, detail: detail?.nilIfBlank),
                        at: 0)
         if entries.count > limit { entries.removeLast(entries.count - limit) }
+        mirrorToUnifiedLog(category, message, status)
+    }
+
+    // MARK: - The unified-log mirror
+
+    /// One `os.Logger` per category, created on first use. The subsystem is the
+    /// app's own bundle id, so `log stream --predicate 'subsystem == "…"'` (or
+    /// `xcrun simctl spawn booted log stream …`) follows a whole sync live.
+    private var unifiedLoggers: [String: Logger] = [:]
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.jasonsalway.healthinsights"
+
+    private func unifiedLogger(for category: String) -> Logger {
+        if let logger = unifiedLoggers[category] { return logger }
+        let logger = Logger(subsystem: Self.subsystem, category: category)
+        unifiedLoggers[category] = logger
+        return logger
+    }
+
+    /// Mirror the one-line message — never the `detail` — to the unified log.
+    ///
+    /// This exists because the in-memory log is invisible to `xcrun simctl` and
+    /// Console: debugging a sync meant clicking through Settings ▸
+    /// Troubleshooting on every run. Unconditional rather than DEBUG-gated, so
+    /// a device build can be watched too — and privacy-safe on three counts:
+    ///
+    /// - **`detail` is deliberately excluded.** It is where server error
+    ///   bodies, called URLs and per-metric breakdowns live, which can carry
+    ///   health values — and anything handed to os_log leaves the app sandbox
+    ///   (Console, `log collect`, a sysdiagnose attached to a bug report).
+    ///   The in-app export keeps the details; the mirror never sees them.
+    /// - **The message is an interpolated value**, so os_log's default
+    ///   redaction applies to it off-debugger — callers do embed counts and
+    ///   figures in messages.
+    /// - **The status arrives as a static literal per branch** (a literal is
+    ///   public by default), so a redacted stream still shows which category
+    ///   said ok / fail / null and when — which is most of what a remote
+    ///   debugging session needs.
+    ///
+    /// `fail` maps to `.error` and everything else to `.info`, so error-only
+    /// filtering in the tooling surfaces exactly the red rows the
+    /// Troubleshooting view would.
+    private func mirrorToUnifiedLog(_ category: String, _ message: String, _ status: Status) {
+        let logger = unifiedLogger(for: category)
+        switch status {
+        case .fail: logger.error("fail: \(message)")
+        case .ok: logger.info("ok: \(message)")
+        case .null: logger.info("null: \(message)")
+        case .info: logger.info("info: \(message)")
+        }
     }
 
     func ok(_ category: String, _ message: String, detail: String? = nil) {

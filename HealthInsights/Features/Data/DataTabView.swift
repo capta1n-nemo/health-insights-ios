@@ -705,15 +705,14 @@ struct DataTabView: View {
         // `latestReal`, not `latest`: a provider placeholder of exactly 0 is not
         // a reading, and this row printed one beside a min of 35.19.
         guard let latest = group.latestReal else { return nil }
+        // What a value is allowed to claim is decided (and tested) in
+        // InsightKit — `rowValue` decodes or silences recording-detail codes
+        // and renders the Oura stress durations as time; `rowText` summarises
+        // coded series and reads state words as words.
         guard let number = latest.numericValue else {
-            // A long coded string — Oura's per-30-second hypnogram, say — is not
-            // a value and printing 400 characters of it truncated tells nobody
-            // anything.
-            let text = latest.formattedValue
-            return RawFieldPresentation.isCodedSeries(text)
-                ? RawFieldPresentation.codedSeriesSummary(text) : text
+            return RawFieldPresentation.rowText(latest.formattedValue, identifier: group.id)
         }
-        return RawFieldPresentation.formatted(number, unit: latest.unit)
+        return RawFieldPresentation.rowValue(number, unit: latest.unit, identifier: group.id)
     }
 
     // MARK: - What changed
