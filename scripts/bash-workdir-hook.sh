@@ -36,6 +36,25 @@ input=$(cat)
 cmd=$(jq -r '.tool_input.command // empty' <<<"$input")
 [ -z "$cmd" ] && exit 0
 
+# A worktree-isolated agent must be anchored to ITS OWN worktree, not the main
+# repo. Found 2026-08-06, expensively: for an agent under
+# `.claude/worktrees/<name>`, `CLAUDE_PROJECT_DIR` still names the main repo
+# root, so this hook sent every relative path to the main working copy (six
+# other branches live there) — and the harness's worktree guard refused every
+# `git` command outright, because the rewrite reads as git targeting a tree
+# outside the agent's isolation. The hook payload's own `cwd` is the agent's
+# session directory; when it sits under the project's worktrees directory,
+# anchor to that worktree's root instead. The `%%/*` strip means a shell that
+# has drifted *deeper inside* the worktree still re-anchors at its root, which
+# is the same guarantee the main session gets.
+cwd=$(jq -r '.cwd // empty' <<<"$input")
+case "$cwd" in
+  "$root/.claude/worktrees/"?*)
+    rest="${cwd#"$root/.claude/worktrees/"}"
+    root="$root/.claude/worktrees/${rest%%/*}"
+    ;;
+esac
+
 # Already anchored — leave it alone so the rewrite is idempotent.
 case "$cmd" in
   "cd $root"* | "cd \"$root\""*) exit 0 ;;

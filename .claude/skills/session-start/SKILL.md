@@ -80,9 +80,12 @@ context; `unbuilt-asks.sh` is the answer to the question they actually have.
 
 ## The rules most likely to bite, in one place
 
-- **Absolute paths in every shell call.** The working directory does not
-  reliably persist between `Bash` calls, and a relative path that lands
-  elsewhere costs a whole round trip. This has bitten in consecutive sessions.
+- **Relative paths resolve from the repo root — the harness holds this, not
+  you.** A `PreToolUse` hook (`scripts/bash-workdir-hook.sh`) anchors every
+  shell call there, whatever the previous call did; before it existed, cwd
+  drift cost round trips in six consecutive sessions. Absolute paths remain
+  good practice. A **worktree-isolated agent** is anchored to its own worktree
+  root, not the main repo — see the hook's header.
 - **`./scripts/verify.sh --tests` is the gate before every push.** Mid-change,
   `--tests <pattern>` runs only the matching suites and says it is not the gate.
 - **Push to `main`.** No pull requests — `deploy.yml` fires only on a push to

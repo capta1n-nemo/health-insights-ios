@@ -154,8 +154,8 @@ fi
 #
 # This used to be a bespoke check on `iconName` alone, written when that switch
 # carried a `default:` and so failed silently with somebody else's glyph. It no
-# longer has one — four of the five InsightID switches are exhaustive now — and
-# a hand-picked check on one of them is exactly the shape that let a
+# longer has one — every InsightID switch except `cadence` is exhaustive now —
+# and a hand-picked check on one of them is exactly the shape that let a
 # `Suggestion.Basis` switch break CI. The generic pass covers all of them.
 insight_names=$(awk '/^public enum InsightID/,/^}/' \
     InsightKit/Sources/InsightKit/Insights/Insight.swift 2>/dev/null \

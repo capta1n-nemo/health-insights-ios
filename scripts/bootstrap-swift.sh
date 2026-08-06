@@ -4,7 +4,7 @@
 #
 # WHY THIS EXISTS
 #
-# InsightKit is a platform-free Swift package — 330 tests of clinical maths,
+# InsightKit is a platform-free Swift package — a full suite of clinical maths,
 # baselines, scoring and parsers — but agent sandboxes ship no Swift, so every
 # logic error had to be found by pushing and waiting ~2 minutes for CI. A single
 # bad fixture then cost a full commit/push/wait/fix cycle, and each CI status
@@ -12,8 +12,9 @@
 #
 # Two Darwin-only Foundation APIs used to make the package unbuildable on Linux
 # (`Measurement.formatted` and `CFBooleanGetTypeID`). Both are now behind
-# `#if canImport(Darwin)`, so the whole suite runs here. Verified: 330/330 pass
-# on Swift 6.0.3 / Ubuntu 24.04.
+# `#if canImport(Darwin)`, so the whole suite runs here — verified on Swift
+# 6.0.3 / Ubuntu 24.04. (No test count here on purpose: the one this header
+# used to carry went stale within a session.)
 #
 # USAGE
 #

@@ -1,6 +1,6 @@
 ---
 name: add-insight
-description: Add a new InsightModel and its InsightID correctly. Use when creating a new health insight card. An InsightID feeds five switches across two targets, and two registrations that fail silently rather than at compile time.
+description: Add a new InsightModel and its InsightID correctly. Use when creating a new health insight card. An InsightID feeds the switches tabled inside, across two targets, and two registrations that fail silently rather than at compile time.
 ---
 
 # Adding an insight
@@ -10,7 +10,7 @@ InsightID switches"*, body: *"CI caught it… I only updated the engine and
 cadence, so the build broke."* This skill is that commit, turned into a list.
 
 `docs/activeContext.md` summarises this; **the table below is the authority.**
-Four of the five break the build. Only `cadence` fails silently, by putting the
+All but one break the build. Only `cadence` fails silently, by putting the
 card on the wrong tab.
 
 ## 1. The `InsightID` case
@@ -19,7 +19,7 @@ card on the wrong tab.
 persisted (`InsightScoreRecord`, feedback, telemetry), so **renaming an existing
 case orphans stored history**. Choose the name once.
 
-## 2. Six switches, two targets
+## 2. The switches, two targets
 
 | File | Symbol | Exhaustive? |
 | --- | --- | --- |
@@ -159,7 +159,7 @@ wrong differently: raw `series.last` is one minute of one afternoon, and
 read. `ScoreAttributionTests` asserts that a card with a score states its
 `weighting`, that its shares sum to 1, and that any row with no share says why.
 
-## 6. Scoring: a band table is a curve, not a staircase
+## 8. Scoring: a band table is a curve, not a staircase
 
 **Every line here was a shipped defect, found by a sweep on 2026-08-02 that
 turned up seven of them across 17 models.** The full ranking, including the
