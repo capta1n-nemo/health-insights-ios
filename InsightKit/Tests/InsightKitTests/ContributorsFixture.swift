@@ -38,6 +38,12 @@ enum ContributorsFixture {
             .height: 1.83, .stepCount: 9000, .activeEnergyBurned: 520,
             .sleepDurationHours: 7.4, .bodyTemperature: 36.6,
             .skinTemperature: 33.8, .skinTemperatureDeviation: 0.1,
+            // Charted by Sleep at weight 0 (backlog #30/S9). Here for the same
+            // reason the medication level and calories are: a declared
+            // candidate has to be reachable as a contributor on this fixture,
+            // or `CandidateReachabilityTests` calls the declaration dead.
+            // A single-digit index value, deliberately not round.
+            .breathingDisturbanceIndex: 5.7,
             // The vitals promoted out of the raw layer. Present here so
             // "full coverage" stays literally true — without them Vitals Check
             // correctly charts only what it measured, and the equality checks

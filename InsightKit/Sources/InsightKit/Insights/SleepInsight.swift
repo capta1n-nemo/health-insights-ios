@@ -31,11 +31,17 @@ public struct SleepInsight: InsightModel {
     /// and Oura report absolutes too and nothing was reading them — a night's
     /// absolute skin temperature is the same evidence in a different unit, and
     /// on a device that reports only the absolute it was the whole signal.
+    ///
+    /// The breathing-disturbance index (backlog #30/S9) is declared because it
+    /// is *reported* — as a weight-0 contribution in `evaluate`, tracked and
+    /// never scored, since Oura publishes no validated curve for it. A
+    /// declaration alone would fail `CandidateReachabilityTests`; a report
+    /// alone would fail `ContributorCandidateTests`. Both, or neither.
     public var candidateMetrics: [MetricType] {
         [.sleepDurationHours, .sleepOnset, .sleepEfficiency, .sleepDeepMinutes,
          .sleepRemMinutes, .sleepLatencyMinutes, .oxygenSaturation,
-         .respiratoryRate, .skinTemperatureDeviation, .skinTemperature,
-         .bodyTemperature]
+         .respiratoryRate, .breathingDisturbanceIndex,
+         .skinTemperatureDeviation, .skinTemperature, .bodyTemperature]
     }
 
     /// The share of a night the published figures put deep and REM sleep at,
@@ -401,6 +407,23 @@ public struct SleepInsight: InsightModel {
                                       weight: Weight.temperature, detail: tempSignal.detail,
                                       componentScore: tempScore, value: tempSignal.value,
                                       baseline: tempSignal.baseline))
+        }
+        // Oura's breathing-disturbance index: tracked, never scored — the
+        // `trackedNotScored` shape Body Composition uses for muscle mass and
+        // the medication level. Oura publishes no validated curve from index
+        // to harm, so any weight would be an invented judgement about a
+        // proprietary scale (backlog #30/S9: trend it, never diagnose from
+        // it). Weight 0 still charts it in "What goes into this" and gives it
+        // a "How far from your normal" row, without moving the score by a
+        // point. `higherIsBetter: false` is the one directional fact the
+        // index's own definition states: calmer breathing sits lower.
+        if let breathing = VitalReader.reading(.breathingDisturbanceIndex,
+                                               from: samples, now: now) {
+            contributors.append(.init(
+                metric: .breathingDisturbanceIndex, higherIsBetter: false, weight: 0,
+                detail: String(format: "index %.1f — tracked, not scored: no published "
+                               + "scale says what a level means, so the card trends it "
+                               + "against your own nights", breathing.value)))
         }
 
         // A stale night can't buy high confidence however long the history is.

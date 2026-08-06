@@ -160,6 +160,16 @@ public struct PromotionRuleSet: Sendable {
             // stays separate enough to disagree.
             PromotionRule(match: .identifier("oura.daily_cardiovascular_age.vascular_age"),
                           metric: .vascularAge, sourceID: MetricSource.oura.id),
+            // Oura's nightly breathing-disturbance index, from the daily_spo2
+            // collection the typed SpO₂ parser reads its percentage from — the
+            // index itself only ever reached the raw catalogue (107 nights on
+            // the reader's export, 2026-08-06). Promoted for backlog #30/S9:
+            // charted and trended on the Sleep card, never scored, because
+            // Oura publishes no validated curve for it. No scale or offset —
+            // the index is kept on Oura's own scale, since there is no
+            // canonical unit to convert a proprietary composite into.
+            PromotionRule(match: .identifier("oura.daily_spo2.breathing_disturbance_index"),
+                          metric: .breathingDisturbanceIndex, sourceID: MetricSource.oura.id),
             // Withings measure types not covered by the canonical parser but
             // meaning a vital we already model.
             PromotionRule(match: .identifier("withings.measure.12"),
@@ -181,6 +191,10 @@ public struct PromotionRuleSet: Sendable {
             "average_breath": .respiratoryRate,
             "breath_average": .respiratoryRate,
             "respiratory_rate": .respiratoryRate,
+            // A proposal only, beyond the Oura rule above: another provider's
+            // "breathing disturbance index" may be on a different scale, so a
+            // human decides before it merges into Oura's series.
+            "breathing_disturbance_index": .breathingDisturbanceIndex,
             "spo2": .oxygenSaturation,
             "spo2_percentage": .oxygenSaturation,
             "oxygen_saturation": .oxygenSaturation,

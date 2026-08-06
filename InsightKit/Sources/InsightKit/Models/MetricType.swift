@@ -149,6 +149,25 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case sleepEfficiency           // % of time in bed actually asleep
     case sleepDeepMinutes          // minutes of deep (slow-wave) sleep
     case sleepRemMinutes           // minutes of REM sleep
+    /// How uneven the night's breathing was — Oura's nightly
+    /// breathing-disturbance index, composed by the ring from overnight SpO₂
+    /// dips and the movement that goes with interrupted breaths.
+    ///
+    /// **An index on Oura's own scale — not an event count, and not an AHI.**
+    /// The clinical thresholds that exist (AHI 5/15/30 events per hour) grade a
+    /// sleep study's apnoea–hypopnoea index, a different quantity from a ring's
+    /// proprietary composite, so no published band applies here and
+    /// `referenceRange` is nil with the argument written at the switch.
+    /// Nothing scores it either (backlog #30/S9): trending it against the
+    /// reader's own nights is honest; asserting what a level *means* would be
+    /// an apnoea claim, which is a diagnosis and not a trend.
+    ///
+    /// Promoted from `oura.daily_spo2.breathing_disturbance_index` (107 nights
+    /// on the reader's export, 2026-08-06). Apple's
+    /// `AppleSleepingBreathingDisturbances` is requested from HealthKit too and
+    /// still lands raw — it had 0 rows when this was built, so wiring it
+    /// waits for data to exist.
+    case breathingDisturbanceIndex // index, Oura's own scale — higher = more disturbed
     /// Minutes from getting into bed to falling asleep. Emitted by the typed
     /// Oura parser only for real nights — the generic pipeline must not feed
     /// this, because the sleep endpoint's nap and rest segments carry a
@@ -279,6 +298,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .sleepDeepMinutes: return "Deep Sleep"
         case .sleepRemMinutes: return "REM Sleep"
         case .sleepLatencyMinutes: return "Sleep Latency"
+        // "Index" is in the name on purpose: "Breathing Disturbances: 8" reads
+        // as eight events, and the value is a composite on Oura's own scale.
+        case .breathingDisturbanceIndex: return "Breathing Disturbance Index"
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
@@ -349,6 +371,9 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .sleepOnset: return ""
         case .sleepEfficiency: return "%"
         case .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes: return "min"
+        // Empty, like day strain: the value is its own proprietary scale, and
+        // any unit suffix would claim it is a count or a rate, which it isn't.
+        case .breathingDisturbanceIndex: return ""
         case .screenTimeMinutes: return "min"
         case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
         case .bloodGlucose: return "mmol/L"

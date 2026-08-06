@@ -895,6 +895,9 @@ struct InsightDetailView: View {
 
             Divider()
             sleepOnsetSection
+
+            Divider()
+            sleepBreathingSection
         }
     }
 
@@ -969,6 +972,69 @@ struct InsightDetailView: View {
         case .temperature: return "thermometer.medium"
         case .eveningExertion: return "figure.run"
         case .screenTime: return "iphone"
+        }
+    }
+
+    /// "Breathing during sleep" — Oura's nightly breathing-disturbance index,
+    /// trended against the reader's own nights and never scored (backlog
+    /// #30/S9: the refusal was the *apnoea card*; the trend was always fine).
+    /// The index has no published clinical scale, so this section draws the
+    /// reader's own series, places the latest night inside their own recent
+    /// range, and says plainly what the number is not: an apnoea test.
+    ///
+    /// A separate `@ViewBuilder` member rather than more lines in
+    /// `sleepNightCard`, deliberately — `card-map.sh` reads section titles
+    /// from a 4000-character window per member and `sleepNightCard` was
+    /// already 3,124 characters (activeContext finding 3: the check fails
+    /// open, so keeping members small is the real defence).
+    @ViewBuilder private var sleepBreathingSection: some View {
+        let breakdown = model.breakdown(.breathingDisturbanceIndex)
+        NestedInsightSection(
+            title: "Breathing during sleep",
+            trailing: breakdown.mostRecent.map { sample in
+                let value = MetricValueFormatter.string(sample.value, .breathingDisturbanceIndex)
+                let isRecent = Date().timeIntervalSince(sample.start) < 36 * 3600
+                return isRecent ? "\(value) last night" : "\(value) last recorded night"
+            },
+            caveat: .computed(.estimated,
+                              "Oura's own index of how uneven your breathing was "
+                              + "overnight, derived from blood oxygen and movement. "
+                              + "No published scale says what a given level means, so "
+                              + "this app trends it against your own nights and never "
+                              + "scores it — and it is not an apnoea test: only a "
+                              + "sleep study can answer that question.")
+        ) {
+            if breakdown.dateSpan != nil {
+                if let sentence = breathingPersonalSentence {
+                    Text(sentence)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                MultiSourceChart(breakdown: breakdown,
+                                 window: window(spanning: breakdown.dateSpan))
+            } else {
+                emptySection(SectionPlaceholder.needsInput(
+                    subject: "The night's breathing",
+                    what: "a wearable that reports a breathing-disturbance "
+                        + "index — Oura's ring does",
+                    remedy: "connect Oura under Settings"))
+            }
+        }
+    }
+
+    /// The latest night inside the reader's own recent spread — the same
+    /// `MetricExplainer.yours` sentence the metric detail page builds, over the
+    /// last 90 nights of the densest source. One instrument, not a pool, for
+    /// the reason `MetricDetailView.personalReading` documents; memoized for
+    /// the reason it is too.
+    private var breathingPersonalSentence: String? {
+        model.memoized("explainer.breathingDisturbanceIndex.sleepCard") {
+            let breakdown = model.breakdown(.breathingDisturbanceIndex)
+            guard let series = breakdown.sources.max(by: { $0.samples.count < $1.samples.count }),
+                  let latest = series.samples.last else { return String?.none }
+            return MetricExplainer.yours(.breathingDisturbanceIndex,
+                                         value: latest.value,
+                                         history: series.samples.suffix(90).map(\.value))
         }
     }
 
