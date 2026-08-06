@@ -197,6 +197,10 @@ public struct HealthDataExport: Encodable, Sendable {
     public let profile: UserHealthProfile
     /// What each card computed from all of the above.
     public let derivedScores: [DerivedScore]
+    /// Every logged bleeding day. The cycles themselves are **not** exported:
+    /// they are derived from these by `CycleModel`, and exporting a derivation
+    /// beside its inputs is how the two get to disagree in someone's archive.
+    public let cycles: [CycleDay]
 
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
@@ -205,7 +209,9 @@ public struct HealthDataExport: Encodable, Sendable {
                 sideEffects: [SideEffect], symptoms: [SymptomEvent] = [],
                 bodyScans: [BodyScan] = [],
                 profile: UserHealthProfile,
-                derivedScores: [DerivedScore]) {
+                derivedScores: [DerivedScore],
+                cycles: [CycleDay] = []) {
+        self.cycles = cycles
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.build = build
@@ -240,6 +246,7 @@ public struct HealthDataExport: Encodable, Sendable {
         case .symptoms: return "symptoms"
         case .bodyScans: return "bodyScans"
         case .derivedScores: return "derivedScores"
+        case .cycles: return "cycles"
         case .unmodelled: return "unmodelled"
         }
     }
@@ -261,7 +268,7 @@ public struct HealthDataExport: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
-        case bodyScans, profile, derivedScores
+        case bodyScans, profile, derivedScores, cycles
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -285,5 +292,6 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(bodyScans, forKey: .bodyScans)
         try c.encode(profile, forKey: .profile)
         try c.encode(derivedScores, forKey: .derivedScores)
+        try c.encode(cycles, forKey: .cycles)
     }
 }

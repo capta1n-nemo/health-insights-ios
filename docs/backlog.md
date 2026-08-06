@@ -134,13 +134,37 @@ rather than deleted.
 | Q8 | Supplements: worth the one-time capture? | Reader: *"Yes? From where?"* — **the reader enters them**, by label scan or by typing, because no wearable or health store carries a supplement stack. Then summed **ingredient by ingredient** against published upper limits, which is the part nobody ships. NIH DSLD (200,000+ labels, free API) supplies the ingredient lists |
 | Q9 | Mental health: build the computes-nothing Mind section? | **No — build a real card.** *"I want a mental health card. Figure it out, creative licence + data science."* See §B5 #27, reversed |
 | Q10 ◐ | Export gaps | **Tokens done (`964c03e`): `OAuthTokens` is no longer `Codable`, so a token cannot be a stored property of any `Encodable` type — a compile error rather than a convention.** The four missing fields are still to build. **Build them. Do not include tokens.** Connection state, suggestion dismissals, the feedback ledger and prediction outcomes are exported; credentials must be **structurally impossible** to serialise, not merely omitted |
-| Q11 | Notifications — none exist anywhere | **Build them.** Named by the reader: **symptoms**, and **when a card changes majorly**. Plus *"any other major things you think we should notify on"* — creative authority granted, so: a flagged radar episode opening or closing, a grounding fact going stale (a cuff reading the BP estimate now needs), a body-scan cadence due, and a connector that has stopped syncing |
+| Q11 | Notifications — none exist anywhere | ⚠️ **Sequenced, 2026-08-06.** There is no `BGTaskScheduler`, no `BackgroundTasks` import and no `UIBackgroundModes` in the repo, so anything built today fires **only in the foreground** — a radar flag at 3am could not reach anyone. **Reader's decision: build the background delivery first, then notifications on top.** A symptom-radar alert that only fires when you happen to open the app is not the feature that was asked for. **Build them.** Named by the reader: **symptoms**, and **when a card changes majorly**. Plus *"any other major things you think we should notify on"* — creative authority granted, so: a flagged radar episode opening or closing, a grounding fact going stale (a cuff reading the BP estimate now needs), a body-scan cadence due, and a connector that has stopped syncing |
 | Q12 | Write-back to Apple Health | **Wanted, but not yet. Roadmap.** Do not build this session |
 | Q13 | Delete-everything path | **Yes** |
 | Q14 | Does the app stop launching when the free-team profile expires? | Reader: **"No?"** — reported as not observed. ⚠️ Treated as *unconfirmed*, not as settled: a free-team profile is documented as 7 days, the app has never gone that long without a deploy, so nobody has actually tested the case. Left as a watch item, not as work |
 | Q15 | Body scanner ARKit capture priority | **Yes** — build it |
 
 ### A3 — Cycle tracking: all four answered, so all ten items are unblocked
+
+⚠️ **Q25, asked and answered 2026-08-06 — the fifth decision, and it was blocking
+every line of code.** A scouting pass found the app is *structurally*
+single-user: `ProviderCredentialStore` keys on `providerID` alone,
+`IntegrationRecord.integrationID` is `@Attribute(.unique)` (one Oura account per
+install), and `deploy.yml` reaches exactly one iPhone. The tab is for someone
+else's body.
+
+**Decision: she installs the app on her own phone, with her own Oura key.** The
+cycle tab is therefore a *feature of a single-user app*, not a second-profile
+concept — which is the cheapest of the three answers by a wide margin, keeps her
+ring's temperature and HRV in scope (the whole reason this beats Flo), and means
+nothing about the profile, the baselines or the cards has to change.
+
+**What that rules out, and it must not be quietly re-opened:** no second
+profile, no per-person baselines, no "whose data is this" on any sample. If a
+future session finds itself adding a person dimension, that is a different
+decision and needs asking again.
+
+⚠️ **And it changes what the data claims mean.** Every zero-row and coverage
+figure in this file — `MenstrualFlow` 0, `SexualActivity` 0,
+`basalBodyTemperature` 136 — is measured against **the reader's** export.
+Nothing here says anything about *her* ring. Do not write "already arriving"
+about her record in a doc, a commit message, or on screen.
 
 | # | Question | ✅ Decision |
 |---|---|---|

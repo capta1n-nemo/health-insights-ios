@@ -229,6 +229,31 @@ final class AppModel {
         allMedications = dataStore.loadAllMedications()
         sideEffects = dataStore.loadSideEffects()
         bodyScans = dataStore.bodyScans()
+        // ⚠️ Every SwiftData-backed log must be reloaded *here*. The substance
+        // log was left out once and the import reported "16 substances" while
+        // the card still read "Log to see effects" — see activeContext.
+        cycleDays = dataStore.loadCycleDays()
+    }
+
+    // MARK: - Cycle log
+
+    /// Every logged bleeding day. **A stored, reloaded property** — never a
+    /// computed read from the store, which is invisible to observation and is
+    /// the "toggle that doesn't move when tapped" trap `data-conventions.md`
+    /// records.
+    private(set) var cycleDays: [CycleDay] = []
+
+    /// The cycles those days form, and the range they fall in.
+    var cycleSummary: CycleSummary { CycleModel.summarise(days: cycleDays) }
+
+    func setCycleDay(_ day: Date, flow: MenstrualFlowLevel) {
+        dataStore.setCycleDay(day, flow: flow)
+        cycleDays = dataStore.loadCycleDays()
+    }
+
+    func clearCycleDay(_ day: Date) {
+        dataStore.clearCycleDay(day)
+        cycleDays = dataStore.loadCycleDays()
     }
 
     /// The active-compound curve for the visible window, or empty when there

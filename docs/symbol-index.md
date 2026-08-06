@@ -213,6 +213,12 @@ the place to look.
   - `WhoopResponseParser` :9
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
+- `Models/CycleLog.swift`
+  - `Cycle` :98
+  - `CycleDay` :81
+  - `CycleModel` :164
+  - `CycleSummary` :128
+  - `MenstrualFlowLevel` :42
 - `Models/GroundingInput.swift`
   - `GroundingInput` :148
   - `GroundingKind` :7
@@ -427,7 +433,7 @@ the place to look.
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
-  - `SyncActivityPill` :75
+  - `SyncActivityPill` :83
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
@@ -488,17 +494,18 @@ the place to look.
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
-  - `DoseLogRecord` :308
-  - `FeedbackRecord` :246
+  - `CycleDayRecord` :199
+  - `DoseLogRecord` :335
+  - `FeedbackRecord` :273
   - `GroundingRecord` :9
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :276
-  - `PredictionOutcomeRecord` :213
-  - `SideEffectRecord` :340
+  - `MedicationRecord` :303
+  - `PredictionOutcomeRecord` :240
+  - `SideEffectRecord` :367
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :195
+  - `SuggestionDismissalRecord` :222
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -579,6 +586,8 @@ the place to look.
   - `Theme` :7
 - `DesignSystem/VitalDepartureStrip.swift`
   - `VitalDepartureStrip` :32
+- `Features/Cycle/CycleTabView.swift`
+  - `CycleTabView` :28
 - `Features/Dashboard/DashboardView.swift`
   - `InsightCard` :301
   - `LastNightCard` :151
@@ -590,7 +599,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :725
+  - `OtherDataDetailView` :761
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`

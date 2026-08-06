@@ -148,6 +148,11 @@ struct DataTabView: View {
             // section Symptoms.
             guard !model.symptoms.isEmpty else { return false }
             return matches(domain.title, "symptom", "unwell", "sick")
+        case .cycles:
+            // The words a reader actually types. "Cycles" is what the app calls
+            // it and is the least likely of the five to be searched for.
+            guard !model.cycleDays.isEmpty else { return false }
+            return matches(domain.title, "period", "cycle", "menstrual", "bleeding")
                 || model.symptoms.contains { matches($0.type.title) }
         case .bodyScans:
             guard !model.bodyScans.isEmpty else { return false }
@@ -252,6 +257,36 @@ struct DataTabView: View {
     /// A `switch` rather than a list of views: adding a `DataDomain` case
     /// without a section here is a compile error, which is the whole mechanism
     /// keeping this screen honest.
+    /// The cycle log, as data rather than as a calendar.
+    ///
+    /// The tab draws it to be tapped; this draws it to be *read*, which is the
+    /// Data tab's whole job — every kind of data the app holds, listed, newest
+    /// first, with nothing derived.
+    @ViewBuilder private var cycleSection: some View {
+        let summary = model.cycleSummary
+        if !model.cycleDays.isEmpty {
+            Section {
+                VStack(alignment: .leading, spacing: 3) {
+                    if let latest = model.cycleDays.last {
+                        HStack {
+                            Text(latest.day.formatted(date: .abbreviated, time: .omitted))
+                            Spacer()
+                            Text(latest.flow.title).foregroundStyle(.secondary)
+                        }
+                    }
+                    // The range, never a single length — the rule `CycleLog`
+                    // is built around, restated wherever cycles are shown.
+                    Text(summary.lengthRange.map {
+                        "\(model.cycleDays.count) days logged · cycles \($0.lowerBound)–\($0.upperBound) days"
+                    } ?? "\(model.cycleDays.count) day\(model.cycleDays.count == 1 ? "" : "s") logged")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text(DataDomain.cycles.title)
+            }
+        }
+    }
+
     @ViewBuilder private func section(for domain: DataDomain) -> some View {
         switch domain {
         case .metrics: metricSections
@@ -262,6 +297,7 @@ struct DataTabView: View {
         case .symptoms: symptomSection
         case .bodyScans: bodyScanSection
         case .derivedScores: derivedScoreSection
+        case .cycles: cycleSection
         case .unmodelled: otherDataSection
         }
     }

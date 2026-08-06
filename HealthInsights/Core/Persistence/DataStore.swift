@@ -15,7 +15,9 @@ final class DataStore {
                              PredictionOutcomeRecord.self, FeedbackRecord.self,
                              InsightScoreRecord.self, SuggestionDismissalRecord.self,
                              MedicationRecord.self, DoseLogRecord.self,
-                             SideEffectRecord.self, BodyScanRecord.self])
+                             SideEffectRecord.self, BodyScanRecord.self,
+                             // ⚠️ A @Model not listed here silently never persists.
+                             CycleDayRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -463,6 +465,43 @@ final class DataStore {
     }
 
     // MARK: - Substance events
+
+    // MARK: - Cycle log
+
+    /// Every logged bleeding day, oldest first.
+    func loadCycleDays() -> [CycleDay] {
+        let descriptor = FetchDescriptor<CycleDayRecord>(
+            sortBy: [SortDescriptor(\.day, order: .forward)])
+        return ((try? context.fetch(descriptor)) ?? []).compactMap(\.cycleDay)
+    }
+
+    /// Record or update one day.
+    ///
+    /// **Upsert on the day, never append.** `CycleDayRecord.day` is unique, so
+    /// tapping the same square twice changes the flow rather than producing two
+    /// rows for one date — and every length in `CycleModel` is computed from the
+    /// gaps between days, so a duplicated date would be a silent corruption of
+    /// the arithmetic rather than a visible duplicate.
+    func setCycleDay(_ day: Date, flow: MenstrualFlowLevel, calendar: Calendar = .current) {
+        let key = calendar.startOfDay(for: day)
+        let descriptor = FetchDescriptor<CycleDayRecord>(
+            predicate: #Predicate { $0.day == key })
+        if let existing = try? context.fetch(descriptor).first {
+            existing.flowRaw = flow.rawValue
+        } else {
+            context.insert(CycleDayRecord(day: key, flowRaw: flow.rawValue))
+        }
+        try? context.save()
+    }
+
+    /// Remove a logged day — the reader tapped it off.
+    func clearCycleDay(_ day: Date, calendar: Calendar = .current) {
+        let key = calendar.startOfDay(for: day)
+        let descriptor = FetchDescriptor<CycleDayRecord>(
+            predicate: #Predicate { $0.day == key })
+        for record in (try? context.fetch(descriptor)) ?? [] { context.delete(record) }
+        try? context.save()
+    }
 
     func loadSubstanceEvents() -> [SubstanceEvent] {
         let descriptor = FetchDescriptor<SubstanceEventRecord>(

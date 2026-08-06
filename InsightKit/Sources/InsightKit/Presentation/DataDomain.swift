@@ -65,6 +65,17 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// their own domain rather than mixed in with `metrics` precisely because
     /// they are modelled: nothing on the phone sensed them.
     case derivedScores
+    /// **The menstrual cycle log** — bleeding days, and the cycles they form.
+    ///
+    /// Its own domain and not a `MetricType`, for the reason the file header
+    /// gives: a metric is one measured series, and a cycle is a *shape*. A
+    /// bleeding day carries a flow level rather than a quantity, cycles are
+    /// derived from the gaps between groups of them, and the interesting figure
+    /// is a range of lengths — none of which a metric row can express.
+    ///
+    /// Backlog #31. See `CycleLog.swift` for who this is for and why the app
+    /// stays single-user.
+    case cycles
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
 
@@ -81,6 +92,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .symptoms: return "Symptoms"
         case .bodyScans: return "Body measurements"
         case .derivedScores: return "Scores & estimates"
+        case .cycles: return "Cycles"
         case .unmodelled: return "Other data"
         }
     }
@@ -104,6 +116,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every measurement you've taken, how it was taken, and whether two of them can be compared."
         case .derivedScores:
             return "What the app worked out from everything above — each card's score, and the clinical estimates behind them."
+        case .cycles:
+            return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         }

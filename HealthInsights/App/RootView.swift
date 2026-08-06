@@ -23,6 +23,14 @@ struct RootView: View {
                 DataTabView()
                     .tabItem { Label("Data", systemImage: "waveform.path.ecg") }
 
+                // **The fifth tab** (backlog #31, 2026-08-06). Fourth rather
+                // than last, because it is a *log* — it belongs beside Data in
+                // the progression the tab order already encodes (now, what it
+                // means, everything underneath), and Settings stays where a
+                // reader's thumb expects it.
+                CycleTabView()
+                    .tabItem { Label("Cycle", systemImage: "drop.fill") }
+
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
             }

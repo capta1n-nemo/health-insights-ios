@@ -184,6 +184,33 @@ final class SubstanceEventRecord {
     }
 }
 
+/// **One logged bleeding day.**
+///
+/// Backlog #31. One row per day rather than one row per period, and the reason
+/// is the same one `CycleModel` groups on: a period is *derived* from
+/// consecutive days, so storing periods would mean storing a derivation, and a
+/// reader correcting one day in the middle would have to be re-derived into a
+/// shape the store already committed to.
+///
+/// `day` is unique, so re-logging a day updates its flow rather than producing
+/// two rows for one date — which is the only sane behaviour when the reader taps
+/// the same square twice, and it is enforced here rather than in the view.
+@Model
+final class CycleDayRecord {
+    @Attribute(.unique) var day: Date
+    var flowRaw: String
+
+    init(day: Date, flowRaw: String) {
+        self.day = day
+        self.flowRaw = flowRaw
+    }
+
+    var cycleDay: CycleDay? {
+        guard let flow = MenstrualFlowLevel(rawValue: flowRaw) else { return nil }
+        return CycleDay(day: day, flow: flow)
+    }
+}
+
 /// A suggestion the user has waved away, and when.
 ///
 /// Only the id and the instant are stored. The suggestion's own text is
