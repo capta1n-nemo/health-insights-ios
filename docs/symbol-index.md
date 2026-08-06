@@ -57,6 +57,9 @@ the place to look.
   - `PredictionOutcome` :29
   - `Telemetry` :75
   - `TelemetryEvent` :61
+- `Feedback/NormContribution.swift`
+  - `NormContribution` :47
+  - `NormContributionBuilder` :150
 - `Ingestion/DayStamp.swift`
   - `DayStamp` :45
 - `Ingestion/FieldCatalogue.swift`
@@ -466,7 +469,7 @@ the place to look.
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/HealthDataExport.swift`
-  - `HealthDataExport` :21
+  - `HealthDataExport` :41
 - `Text/ModelInternalsExport.swift`
   - `ModelInternalsExport` :25
 - `Text/PlainText.swift`
@@ -750,8 +753,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :317
-  - `OtherDataListView` :330
+  - `FullExport` :324
+  - `OtherDataListView` :337
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :367
   - `IntegrationRow` :268

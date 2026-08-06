@@ -39,6 +39,50 @@ about me", and that claim only holds if it is complete.
 not series at all, which is exactly why they kept falling out of a screen built
 around series.
 
+### And it must reach the EXPORT, not only the Data tab
+
+**The reader's core tenet, 2026-08-06:**
+
+> *"for things that have no research, we are going to do the research and find
+> the 'norms' ourselves… we need to build this into the export mechanism, all
+> the data points so when we combine it all at a server-level later, we can
+> build these baselines and norms and global trends."*
+
+The Data tab is how the reader *sees* their data. **The export is the only route
+from a phone to a server-side pool**, and for most of what this app derives no
+published norm exists — the app is being built to measure one. So a domain that
+reaches the tab and not the file is a quantity that can never become a norm.
+
+Four steps, and the last two are the ones that get skipped:
+
+4. `HealthDataExport.exportKey(for:)` is exhaustive, so the new domain will not
+   compile until it names a key. **Naming an existing key is a decision, not a
+   shortcut** — `calendarEvents` deliberately names `unmodelled` and emits
+   nothing, because event titles are the most identifying strings this app
+   holds, and the comment there says so.
+5. **Add the field to `HealthDataExport` and pass it at the construction site**
+   — `DataExportView.buildFullExport()`. A key can exist and be empty: backlog
+   D39 was a defaulted `cycles:` argument the app never passed, so every logged
+   bleeding day exported as `[]` with nothing in the file saying so.
+6. **Extend `HealthDataExportTests.fullyPopulated()`** so the new domain has
+   real data in the fixture. That test decodes the payload and fails on an empty
+   key; leaving your domain out of the fixture is how it passes vacuously.
+
+⚠️ **"It is recomputable from the other keys" is not a reason to leave something
+out.** Recomputability is a property of the device that still holds the raw
+data; a pool has the file and nothing else. That argument was used once, to keep
+derived series out, and was reversed the same day —
+`HealthDataExport.exportKey(for: .generatedInsights)` keeps the superseded
+reasoning.
+
+`scripts/verify.sh` reads the parameter labels off `HealthDataExport.init` and
+fails when the app target does not pass one, which is the half no test can see.
+Background: `docs/norms-and-telemetry.md`.
+
+⚠️ **The export is the *personal* file and stays faithful.** The coarsened,
+cohort-stratified, no-free-text thing a pool would receive is `NormContribution`
+— summaries, never dated series — and **nothing in this build sends anything.**
+
 ### The bug this keeps catching
 
 `summary.sideEffects = parsed.sideEffects.count` — a count assigned straight

@@ -292,7 +292,14 @@ struct DataExportView: View {
             holidays: model.holidayLedger.periods.map {
                 HealthDataExport.Holiday(firstDay: $0.firstDay, lastDay: $0.lastDay,
                                          label: $0.label, source: $0.source.rawValue)
-            })
+            },
+            // Every figure the app worked out, day by day. These used to be
+            // left out as "a cache that replays from samples" — true on this
+            // phone, false of a pooled server-side dataset, which is the only
+            // place the norms the reader wants can be built. See
+            // `HealthDataExport.exportKey(for:)`, which keeps the superseded
+            // reasoning, and `docs/norms-and-telemetry.md`.
+            generatedInsights: HealthDataExport.derivedSeries(from: model.derivedSeries))
         Task {
             // Detached: the JSON encode runs to tens of megabytes, and it used
             // to run synchronously on the main thread behind a button that

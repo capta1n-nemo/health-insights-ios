@@ -87,7 +87,14 @@ public enum Telemetry {
         return -scale * (x < 0 ? -1.0 : 1.0) * log(1 - 2 * abs(x))
     }
 
-    private static func weekBucket(_ date: Date) -> Int {
+    /// Whole weeks since 1970 — the app's one coarse-time convention.
+    ///
+    /// Public because `NormContribution` buckets by exactly this and a second
+    /// definition of "which week" is how two payloads about the same seven days
+    /// end up unpoolable. It is the *only* thing norm telemetry inherits from
+    /// accuracy telemetry; the shapes are otherwise deliberately different, and
+    /// `docs/norms-and-telemetry.md` says why.
+    public static func weekBucket(_ date: Date) -> Int {
         Int(date.timeIntervalSince1970 / (7 * 24 * 3600))
     }
 

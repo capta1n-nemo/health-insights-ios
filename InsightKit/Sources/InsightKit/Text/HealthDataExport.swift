@@ -18,11 +18,32 @@ import Foundation
 ///
 /// The user's rule, 2026-08-02: *"make sure they include all data from all new
 /// connectors — ones I have now and in future."*
+///
+/// ## And a second reason, added 2026-08-06: this file is how a norm gets built
+///
+/// The reader's tenet: *"we need to build this into the export mechanism, all
+/// the data points so when we combine it all at a server-level later, we can
+/// build these baselines and norms and global trends."* For most of what this
+/// app derives there is **no published norm**, and the app is being built to
+/// measure one.
+///
+/// That changes the test for whether something belongs here. **"It is
+/// recomputable" is not a reason to leave a quantity out**: recomputability is
+/// a property of the device that still holds the raw data, and a server-side
+/// pool will have this file and nothing else. `docs/norms-and-telemetry.md`
+/// holds the reasoning, and `exportKey(for: .generatedInsights)` records the
+/// call it reversed.
+///
+/// ⚠️ **This is the personal export and it stays faithful.** The coarsened,
+/// cohort-stratified, no-free-text thing a pool would actually receive is a
+/// different type — `NormContribution` — and nothing in this build sends
+/// either.
 public struct HealthDataExport: Encodable, Sendable {
 
     /// Bumped when a field is added or renamed, so an export can be read
-    /// against the shape it was written with. 3 added `holidays`.
-    public static let schemaVersion = 3
+    /// against the shape it was written with. 3 added `holidays`;
+    /// 4 added `generatedInsights`.
+    public static let schemaVersion = 4
 
     public struct Medication: Encodable, Sendable {
         public struct Dose: Encodable, Sendable {
@@ -202,6 +223,72 @@ public struct HealthDataExport: Encodable, Sendable {
         }
     }
 
+    /// **One derived series, whole** — its spec and every dated value the app
+    /// has worked out for it.
+    ///
+    /// Flat rather than a spec/points pair, so a reader of the file never has
+    /// to join two arrays to find out what a number means. The spec fields are
+    /// `DerivedSeriesSpec`'s, in its own vocabulary: `kind` is a
+    /// `DerivedSeriesKind` raw value and `producedBy` is an `InsightID` raw
+    /// value, so the file says which card owns the figure without anyone
+    /// parsing the id.
+    public struct DerivedSeries: Encodable, Sendable {
+        public struct Point: Encodable, Sendable {
+            /// Start of the day the value belongs to, as `DerivedPoint` stores it.
+            public let day: Date
+            public let value: Double
+            public init(day: Date, value: Double) {
+                self.day = day
+                self.value = value
+            }
+        }
+        public let id: String
+        public let displayName: String
+        /// Empty where the value carries its own — `DerivedSeriesSpec.unit`'s
+        /// convention, kept rather than turned into a null.
+        public let unit: String
+        /// `modelOutput` / `componentScore` / `componentDeparture`.
+        public let kind: String
+        public let producedBy: String
+        public let higherIsBetter: Bool?
+        public let precision: Int
+        /// Oldest first, the shape `DerivedSeriesStore.series(_:)` returns.
+        public let points: [Point]
+
+        public init(id: String, displayName: String, unit: String, kind: String,
+                    producedBy: String, higherIsBetter: Bool?, precision: Int,
+                    points: [Point]) {
+            self.id = id
+            self.displayName = displayName
+            self.unit = unit
+            self.kind = kind
+            self.producedBy = producedBy
+            self.higherIsBetter = higherIsBetter
+            self.precision = precision
+            self.points = points
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops a nil `higherIsBetter`, and "neither direction
+        /// is the good one" — which is the honest answer for a departure in SD
+        /// — must not read as "the exporter forgot to say".
+        enum CodingKeys: String, CodingKey {
+            case id, displayName, unit, kind, producedBy, higherIsBetter, precision, points
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encode(displayName, forKey: .displayName)
+            try c.encode(unit, forKey: .unit)
+            try c.encode(kind, forKey: .kind)
+            try c.encode(producedBy, forKey: .producedBy)
+            try c.encode(higherIsBetter, forKey: .higherIsBetter)
+            try c.encode(precision, forKey: .precision)
+            try c.encode(points, forKey: .points)
+        }
+    }
+
     public let schemaVersion: Int
     public let generatedAt: Date
     public let build: String
@@ -254,15 +341,37 @@ public struct HealthDataExport: Encodable, Sendable {
     /// it asserts the key is in the encoded payload, and an empty array
     /// satisfies that. The gap is in the **caller**, and the app target has no
     /// tests to put one in — a single `HealthInsights` native target with no
-    /// test host. So this comment is the check. **Every `= []` default on this
-    /// initialiser carries the same risk**; a new one is only safe if the
-    /// omission would be obvious in the file.
+    /// test host.
+    ///
+    /// **This is no longer only a comment.** Two checks now hold the category
+    /// that `= []` opens, because a comment is not a check:
+    ///
+    /// - `HealthDataExportTests.testEveryDataDomainsKeyIsPopulatedOnAFullyPopulatedExport`
+    ///   decodes the payload and insists every domain's key carries something
+    ///   on a fixture that holds one of everything — closing the
+    ///   key-present-but-empty half inside InsightKit.
+    /// - `scripts/verify.sh` reads the parameter labels off this initialiser
+    ///   and fails if `DataExportView.buildFullExport()` does not pass every
+    ///   one of them — closing the caller half, which no test can reach.
     public let cycles: [CycleDay]
     /// The merged holiday ledger — dates, reader-typed labels, and which of the
     /// two sources each period came from. **The one calendar-derived thing that
     /// exports**, and it can only do so because detection strips titles; see
     /// `Holiday`.
     public let holidays: [Holiday]
+    /// **Every figure the app has derived, day by day** — the fitness ages, the
+    /// weekly doses, and each contributor's own 0–100 and departure in SD.
+    ///
+    /// ⚠️ **This reverses a call made earlier the same day, deliberately.** See
+    /// `exportKey(for:)` below, which records the superseded reasoning in full:
+    /// these were left out because they replay from `samples`, and that is true
+    /// on a phone and false of a server-side pool, which is the only place a
+    /// norm can be built. `docs/norms-and-telemetry.md` is the authority.
+    ///
+    /// Still derived and still never dressed as measured — they are in their
+    /// own key, with `kind` and `producedBy` on every one, exactly as
+    /// `derivedScores` is separate from `samples`.
+    public let generatedInsights: [DerivedSeries]
 
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
@@ -273,9 +382,11 @@ public struct HealthDataExport: Encodable, Sendable {
                 profile: UserHealthProfile,
                 derivedScores: [DerivedScore],
                 cycles: [CycleDay] = [],
-                holidays: [Holiday] = []) {
+                holidays: [Holiday] = [],
+                generatedInsights: [DerivedSeries] = []) {
         self.cycles = cycles
         self.holidays = holidays
+        self.generatedInsights = generatedInsights
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.build = build
@@ -322,12 +433,50 @@ public struct HealthDataExport: Encodable, Sendable {
         // unlike the events above, because the ledger holds no titles.
         case .holidays: return "holidays"
         case .unmodelled: return "unmodelled"
-        // Derived series are recomputed from `samples` by replaying the models
-        // — persisting them would export a cache, and an import would then
-        // carry figures a newer model no longer stands behind. The samples key
-        // *is* their data; the figures come back on the first launch after an
-        // import, the same way score history does.
-        case .generatedInsights: return "samples"
+        // ⚠️ **Reversed 2026-08-06, hours after it was written.** The
+        // superseded reasoning, kept verbatim because it is sound about the
+        // job it was reasoning about:
+        //
+        //   "Derived series are recomputed from `samples` by replaying the
+        //   models — persisting them would export a cache, and an import would
+        //   then carry figures a newer model no longer stands behind. The
+        //   samples key *is* their data; the figures come back on the first
+        //   launch after an import, the same way score history does."
+        //
+        // That is correct for a **personal** export — restore, inspect, hand
+        // back to a session — and wrong for the reader's stated purpose. Their
+        // tenet, 2026-08-06: *"we need to build this into the export mechanism,
+        // all the data points so when we combine it all at a server-level
+        // later, we can build these baselines and norms and global trends."*
+        //
+        // Recomputability is a property of **the device that still has the raw
+        // data**. A server-side pool has the file and nothing else, so a series
+        // omitted here is a series that can never become a norm — and the
+        // derived figures are precisely the ones with no published norm, which
+        // makes them the ones most worth pooling. See
+        // `docs/norms-and-telemetry.md`.
+        case .generatedInsights: return "generatedInsights"
+        }
+    }
+
+    /// Every derived series the store holds, in export shape.
+    ///
+    /// Lives here rather than in the app target so the mapping is tested: the
+    /// app target has no test host, and the one line it now writes —
+    /// `generatedInsights: HealthDataExport.derivedSeries(from: model.derivedSeries)`
+    /// — has nowhere to go wrong.
+    public static func derivedSeries(from store: DerivedSeriesStore) -> [DerivedSeries] {
+        store.seriesIDs.compactMap { id in
+            guard let spec = store.spec(id) else { return nil }
+            return DerivedSeries(
+                id: id.rawValue,
+                displayName: spec.displayName,
+                unit: spec.unit,
+                kind: spec.kind.rawValue,
+                producedBy: spec.producedBy.rawValue,
+                higherIsBetter: spec.higherIsBetter,
+                precision: spec.precision,
+                points: store.series(id).map { .init(day: $0.day, value: $0.value) })
         }
     }
 
@@ -348,7 +497,7 @@ public struct HealthDataExport: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
-        case bodyScans, profile, derivedScores, cycles, holidays
+        case bodyScans, profile, derivedScores, cycles, holidays, generatedInsights
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -374,5 +523,6 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(derivedScores, forKey: .derivedScores)
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
+        try c.encode(generatedInsights, forKey: .generatedInsights)
     }
 }

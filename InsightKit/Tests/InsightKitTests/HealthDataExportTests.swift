@@ -123,6 +123,121 @@ final class HealthDataExportTests: XCTestCase {
         }
     }
 
+    // MARK: - Populated, not merely present
+
+    /// Everything the app can hold, all at once — the fixture the check below
+    /// needs, because "the key is in the JSON" is satisfied by `[]`.
+    private func fullyPopulated() -> HealthDataExport {
+        let now = TestClock.now
+        var profile = UserHealthProfile()
+        profile.set(.init(kind: .totalCholesterol, value: 5.1, recordedAt: now))
+
+        var store = DerivedSeriesStore()
+        let spec = DerivedSeriesSpec(id: DerivedSeriesID(.fitness, "fitnessAge"),
+                                     displayName: "Fitness age", unit: "years",
+                                     producedBy: .fitness, kind: .modelOutput,
+                                     higherIsBetter: false, precision: 1)
+        store.record(spec, value: 33.5, on: now)
+        store.record(spec, value: 33.2, on: now.addingTimeInterval(-86_400))
+
+        return HealthDataExport(
+            generatedAt: now, build: "test",
+            samples: [.init(type: .bodyMass, value: 80, start: now, source: .withings)],
+            unmodelled: [.init(identifier: "oura.x", displayName: "X", value: 1.0,
+                               unit: "", start: now, source: .oura)],
+            substances: [.init(substance: .alcohol, timestamp: now)],
+            medication: .init(compound: "tirzepatide", brandName: "Mounjaro", startedOn: now,
+                              doses: [.init(takenAt: now, milligrams: 12.5,
+                                            injectionSite: "Left Thigh",
+                                            isInferred: false, confirmedAt: nil)]),
+            previousMedication: [.init(compound: "semaglutide", brandName: "Ozempic",
+                                       startedOn: now.addingTimeInterval(-365 * 86_400),
+                                       doses: [])],
+            sideEffects: [.init(name: "Nausea", severity: 3, date: now)],
+            symptoms: [.init(type: .headache, severity: .moderate, date: now,
+                             source: .appleHealth)],
+            bodyScans: [.init(id: UUID(), capturedAt: now, mode: .tape, parserVersion: 1,
+                              measurements: BodyMeasurements([.init(site: .waist,
+                                                                    centimetres: 88)]),
+                              conditions: ScanConditions(clothing: .formFitting),
+                              retainedAssets: [])],
+            profile: profile,
+            derivedScores: [.init(card: "cardiovascularRisk", title: "Heart Attack & Stroke Risk",
+                                  score: 72, primaryValue: 4.2, headline: "4.2%",
+                                  confidence: "moderate", history: [.init(date: now, score: 72)])],
+            cycles: [CycleDay(day: now, flow: .medium)],
+            holidays: [.init(firstDay: now, lastDay: now.addingTimeInterval(6 * 86_400),
+                             label: "Leave", source: "entered")],
+            generatedInsights: HealthDataExport.derivedSeries(from: store))
+    }
+
+    /// **The check the D39 defect asked for.** `testEveryDataDomainHasAKeyThat
+    /// IsActuallyInTheJSON` proves a domain *names* a key that exists; an empty
+    /// array satisfies it, which is how logged bleeding days exported as `[]`
+    /// for a day without a single test noticing. This one decodes the payload
+    /// and insists the key carries something on a phone that holds everything.
+    ///
+    /// ⚠️ **It cannot speak for `calendarEvents`**, which deliberately shares
+    /// the `unmodelled` key and emits nothing — event titles are the most
+    /// identifying strings this app holds. The calendar reaches the file through
+    /// `holidays` (dates only) and through `generatedInsights` (the quantities
+    /// its cards derive), and both of those *are* checked here.
+    ///
+    /// ⚠️ **It still cannot see the caller.** The gap D39 lived in is a
+    /// defaulted argument the app target forgot to pass, and the app target has
+    /// no test host. `scripts/verify.sh` holds that half.
+    func testEveryDataDomainsKeyIsPopulatedOnAFullyPopulatedExport() throws {
+        let object = try JSONSerialization.jsonObject(with: fullyPopulated().json())
+        let payload = try XCTUnwrap(object as? [String: Any])
+
+        for domain in DataDomain.allCases {
+            let key = HealthDataExport.exportKey(for: domain)
+            let value = try XCTUnwrap(payload[key], "\(domain.rawValue) names missing key \"\(key)\"")
+            if let array = value as? [Any] {
+                XCTAssertFalse(array.isEmpty,
+                               "\(domain.rawValue) exports \"\(key)\": [] on a phone that holds "
+                                   + "one of everything — the key is present and the data is not")
+            } else if let dictionary = value as? [String: Any] {
+                XCTAssertFalse(dictionary.isEmpty, "\(domain.rawValue) exports an empty \"\(key)\"")
+            } else {
+                XCTAssertFalse(value is NSNull, "\(domain.rawValue) exports \"\(key)\": null")
+            }
+        }
+    }
+
+    /// **Derived series export.** They used to map to `samples` on the argument
+    /// that they replay from it — true on the phone that still has the raw data,
+    /// false of a server-side pool, which is the only place the reader's norms
+    /// can be built. `docs/norms-and-telemetry.md`.
+    func testGeneratedInsightsCarryTheirSpecAndEveryDatedValue() throws {
+        let json = try XCTUnwrap(String(data: fullyPopulated().json(), encoding: .utf8))
+        XCTAssertEqual(HealthDataExport.exportKey(for: .generatedInsights), "generatedInsights",
+                       "derived series are back to sharing the samples key — see the reversal note")
+        XCTAssertTrue(json.contains("\"generatedInsights\""))
+        XCTAssertTrue(json.contains("fitness.fitnessAge"), "the series id is what makes it poolable")
+        XCTAssertTrue(json.contains("\"modelOutput\""), "the kind says it is derived, not measured")
+        XCTAssertTrue(json.contains("33.5"), "the values did not travel")
+        XCTAssertTrue(json.contains("33.2"), "only the latest value travelled — a series is its history")
+    }
+
+    /// A derived series with no direction — a departure in SD, where neither way
+    /// is the good one — must say so rather than lose the field.
+    func testANilHigherIsBetterIsWrittenAsNull() throws {
+        var store = DerivedSeriesStore()
+        store.record(DerivedSeriesSpec(id: DerivedSeriesID(.fitness, "vo2.departure"),
+                                       displayName: "VO2 — from your normal", unit: "SD",
+                                       producedBy: .fitness, kind: .componentDeparture,
+                                       higherIsBetter: nil, precision: 2),
+                     value: -0.4, on: TestClock.now)
+        let export = HealthDataExport(
+            generatedAt: TestClock.now, build: "test", samples: [], unmodelled: [],
+            substances: [], medication: nil, sideEffects: [],
+            profile: UserHealthProfile(), derivedScores: [],
+            generatedInsights: HealthDataExport.derivedSeries(from: store))
+        let json = try XCTUnwrap(String(data: export.json(), encoding: .utf8))
+        XCTAssertTrue(json.contains("\"higherIsBetter\""))
+    }
+
     /// The distinctions that matter downstream must survive the round trip: an
     /// inferred dose is not a logged one, and a derived score is not a
     /// measurement.
