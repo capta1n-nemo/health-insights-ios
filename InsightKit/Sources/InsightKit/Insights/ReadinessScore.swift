@@ -25,6 +25,15 @@ public enum ReadinessScore {
         public let metric: MetricType
         /// nil where neither direction is "better" (temperature deviation).
         public let higherIsBetter: Bool?
+        /// The reading `score` was computed from, in the metric's own unit, and
+        /// what it was judged against — filled at the one place each component
+        /// is built, so the decomposition (backlog #38) shows the arithmetic
+        /// rather than only its result. `baseline`/`z` stay nil for components
+        /// judged against a published target rather than the reader's own
+        /// history (sleep's 7.5 h band), because that is a different claim.
+        public let value: Double?
+        public let baseline: Double?
+        public let z: Double?
     }
 
     public struct Output: Sendable, Equatable {
@@ -39,7 +48,12 @@ public enum ReadinessScore {
             guard total > 0 else { return [] }
             return components.map {
                 MetricContribution(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
-                                   weight: $0.weight / total, detail: $0.detail)
+                                   weight: $0.weight / total, detail: $0.detail,
+                                   // Every component owns a real 0–100 — the
+                                   // score *is* their weighted mean — so the
+                                   // decomposition's counterfactual is exact.
+                                   componentScore: $0.score, value: $0.value,
+                                   baseline: $0.baseline, z: $0.z)
             }
         }
     }
@@ -111,7 +125,8 @@ public enum ReadinessScore {
             comps.append(.init(name: "HRV vs your baseline",
                                score: zScoreToScore(z, polarity: 1),
                                weight: 0.40, detail: String(format: "%.0f ms", hrv.value),
-                               metric: hrvMetric, higherIsBetter: true))
+                               metric: hrvMetric, higherIsBetter: true,
+                               value: hrv.value, baseline: hrv.baseline, z: z))
         }
 
         // Resting HR — lower than baseline is better.
@@ -119,15 +134,19 @@ public enum ReadinessScore {
             comps.append(.init(name: "Resting HR vs your baseline",
                                score: zScoreToScore(z, polarity: -1),
                                weight: 0.25, detail: String(format: "%.0f bpm", rhr.value),
-                               metric: .restingHeartRate, higherIsBetter: false))
+                               metric: .restingHeartRate, higherIsBetter: false,
+                               value: rhr.value, baseline: rhr.baseline, z: z))
         }
 
         // Sleep — vs a 7.5 h target (6 h ≈ 55, 8 h ≈ 90).
         if let sleep = fresh(.sleepDurationHours) {
             let s = clamp((sleep.value - 4) / (8.0 - 4) * 100)
+            // No baseline/z: this component is judged against the published
+            // target above, not against the reader's own nights.
             comps.append(.init(name: "Sleep", score: s, weight: 0.20,
                                detail: String(format: "%.1f h", sleep.value),
-                               metric: .sleepDurationHours, higherIsBetter: true))
+                               metric: .sleepDurationHours, higherIsBetter: true,
+                               value: sleep.value, baseline: nil, z: nil))
         }
 
         // Skin-temp deviation — being near baseline is good; a spike (fever /
@@ -137,16 +156,21 @@ public enum ReadinessScore {
         // a signed offset presented as an absolute temperature.
         if let temp = fresh(.skinTemperatureDeviation) {
             let penalty = min(70, abs(temp.value) * 60)
+            // The deviation *is* the metric's value, and the score judges it
+            // against zero directly — no baseline/z, because the reading's own
+            // windowed baseline played no part in the arithmetic above.
             comps.append(.init(name: "Skin temp vs your baseline", score: clamp(92 - penalty),
                                weight: 0.10, detail: String(format: "%+.1f °C", temp.value),
-                               metric: .skinTemperatureDeviation, higherIsBetter: nil))
+                               metric: .skinTemperatureDeviation, higherIsBetter: nil,
+                               value: temp.value, baseline: nil, z: nil))
         }
 
         // Respiratory rate — a rise above baseline is an early strain/illness sign.
         if let resp = fresh(.respiratoryRate), let z = resp.zScore {
             comps.append(.init(name: "Respiratory rate", score: zScoreToScore(z, polarity: -1),
                                weight: 0.05, detail: String(format: "%.0f br/min", resp.value),
-                               metric: .respiratoryRate, higherIsBetter: false))
+                               metric: .respiratoryRate, higherIsBetter: false,
+                               value: resp.value, baseline: resp.baseline, z: z))
         }
 
         // Overnight blood oxygen — a drop below your own normal accompanies
@@ -159,7 +183,14 @@ public enum ReadinessScore {
                                score: oxygenComponent(value: spo2.value, z: spo2.zScore),
                                weight: 0.05,
                                detail: String(format: "%.0f%%", spo2.value),
-                               metric: .oxygenSaturation, higherIsBetter: true))
+                               metric: .oxygenSaturation, higherIsBetter: true,
+                               value: spo2.value,
+                               // The baseline is only reported when the z path
+                               // was actually taken — with no z the component
+                               // fell back to the published curve, and quoting
+                               // a baseline it ignored would be false.
+                               baseline: spo2.zScore != nil ? spo2.baseline : nil,
+                               z: spo2.zScore))
         }
 
         guard !comps.isEmpty else { return nil }
@@ -314,12 +345,27 @@ public struct ReadinessInsight: InsightModel {
                     score: reading.normality, weight: 1,
                     detail: MetricValueFormatter.string(reading.value, reading.metric)
                         + " · \(reading.note)",
-                    isPublishedScale: false)
+                    isPublishedScale: false,
+                    // The scan judged exactly these three numbers to produce
+                    // `normality`, so the decomposition can show its working.
+                    value: reading.value, baseline: reading.baseline,
+                    z: reading.zScore)
             }
         let blend = ScoreBlend.blend(
             primary: base.contributors.map {
+                // The real sub-score, not the 0 this used to feed. The blend's
+                // own score is still discarded below — `base.contributors`
+                // carries renormalised shares, so re-averaging would double-
+                // renormalise — but the blend's *contributions* are what the
+                // card reports, and a placeholder 0 came out of them as
+                // "componentScore: 0", telling the reader every readiness
+                // component had scored rock bottom. `?? 0` with `scoreIsOwn`
+                // keeps a nil from being laundered into a real-looking zero.
                 ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
-                                score: 0, weight: $0.weight, detail: $0.detail)
+                                score: $0.componentScore ?? 0, weight: $0.weight,
+                                detail: $0.detail,
+                                value: $0.value, baseline: $0.baseline, z: $0.z,
+                                scoreIsOwn: $0.componentScore != nil)
             },
             supporting: supporting)
         let contributors = blend?.contributions ?? base.contributors

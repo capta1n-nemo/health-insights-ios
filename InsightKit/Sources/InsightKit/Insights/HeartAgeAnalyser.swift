@@ -160,18 +160,24 @@ public struct HeartAgeAnalyser {
     /// computed from — the chart and the headline disagreeing about the same
     /// measurement, silently.
     static func contributors(_ analysis: HeartAgeAnalyser.Analysis) -> [MetricContribution] {
+        // `value` mirrors the figure each detail prints, so the decomposition
+        // and the row cannot quote different numbers. No componentScore on any
+        // of them: these feed equations and age solves, which own no 0–100.
         var out: [MetricContribution] = []
         if let systolic = analysis.systolicUsed {
             out.append(.init(metric: .bloodPressureSystolic, higherIsBetter: false, weight: 0,
-                             detail: "\(Int(systolic.rounded())) mmHg"))
+                             detail: "\(Int(systolic.rounded())) mmHg",
+                             value: systolic))
         }
         if let fitness = analysis.fitness {
             out.append(.init(metric: .vo2Max, higherIsBetter: true, weight: 0,
-                             detail: String(format: "%.0f", fitness.vo2)))
+                             detail: String(format: "%.0f", fitness.vo2),
+                             value: fitness.vo2))
         }
         if let vascular = analysis.vascularAgeUsed {
             out.append(.init(metric: .vascularAge, higherIsBetter: false, weight: 0,
-                             detail: String(format: "%.0f years", vascular)))
+                             detail: String(format: "%.0f years", vascular),
+                             value: vascular))
         }
         return out
     }

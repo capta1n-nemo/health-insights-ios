@@ -89,10 +89,19 @@ public enum ScoreBlend {
         public let value: Double?
         public let baseline: Double?
         public let z: Double?
+        /// False where `score` is a **placeholder the caller fed in so the
+        /// blend could still weight**, not this component's own 0–100 — Energy
+        /// passes its reservoir level into every term because the blend's score
+        /// is discarded there, and emitting that as a `componentScore` told the
+        /// reader every input had scored identically. When false the blend
+        /// emits nil instead, which is `MetricContribution`'s word for "this
+        /// model has not been taught to say".
+        public let scoreIsOwn: Bool
 
         public init(metric: MetricType, higherIsBetter: Bool?, score: Double,
                     weight: Double, detail: String, isPublishedScale: Bool = true,
-                    value: Double? = nil, baseline: Double? = nil, z: Double? = nil) {
+                    value: Double? = nil, baseline: Double? = nil, z: Double? = nil,
+                    scoreIsOwn: Bool = true) {
             self.metric = metric
             self.higherIsBetter = higherIsBetter
             self.score = score
@@ -102,6 +111,7 @@ public enum ScoreBlend {
             self.value = value
             self.baseline = baseline
             self.z = z
+            self.scoreIsOwn = scoreIsOwn
         }
     }
 
@@ -149,7 +159,11 @@ public enum ScoreBlend {
         let contributions = weighted.map { term, weight in
             MetricContribution(metric: term.metric, higherIsBetter: term.higherIsBetter,
                                weight: weight, detail: term.detail,
-                               componentScore: term.score, value: term.value,
+                               // Only a score the term genuinely owns survives —
+                               // a placeholder presented as a sub-score would be
+                               // worse than the nil that says "not taught to say".
+                               componentScore: term.scoreIsOwn ? term.score : nil,
+                               value: term.value,
                                baseline: term.baseline, z: term.z)
         }
         return (score, contributions)
@@ -198,6 +212,13 @@ public enum ScoreBlend {
                     detail: MetricValueFormatter.string(reading.value, reading.metric)
                         + " — tracked, not scored: needs \(VitalSignsCheck.minimumBaselineDays) "
                         + "recent days of history before it can be judged against your normal",
-                    isPublishedScale: false)
+                    isPublishedScale: false,
+                    // The reading is real even while it cannot be judged, so
+                    // the decomposition can still print it beside the why-row.
+                    value: reading.value,
+                    // `scoreIsOwn: false`: the 0 above is the weight-0 row's
+                    // placeholder, not a verdict — this signal was *not* scored,
+                    // and a componentScore of 0 would say it scored terribly.
+                    scoreIsOwn: false)
     }
 }

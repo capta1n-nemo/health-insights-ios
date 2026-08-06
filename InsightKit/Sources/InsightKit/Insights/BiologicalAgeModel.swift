@@ -934,7 +934,14 @@ public struct BiologicalAgeInsight: InsightModel {
                     marker.metric, at: marker.ageEquivalent,
                     sex: profile.sex ?? .male) ?? 0) < 0,
                 weight: marker.weight,
-                detail: text))
+                detail: text,
+                // **No componentScore, deliberately.** A marker's own answer
+                // is an *age equivalent*, not a 0–100 — squeezing it into one
+                // would invent the very calibration this card refuses. No
+                // baseline/z either: markers are read against published age
+                // norms, never the reader's own history. The observed reading
+                // is the one number each marker genuinely holds.
+                value: marker.observed))
         }
 
         // Everything the card declared and did not use, at weight 0, each
@@ -947,7 +954,11 @@ public struct BiologicalAgeInsight: InsightModel {
             let text = "\(skipped.label)\(value) — \(skipped.sentence)"
             drivers.append(.routine(text))
             contributions.append(MetricContribution(
-                metric: skipped.metric, higherIsBetter: nil, weight: 0, detail: text))
+                metric: skipped.metric, higherIsBetter: nil, weight: 0, detail: text,
+                // The observed reading where there was one — a skipped marker
+                // usually has a value and a reason, and the row already prints
+                // both; nil where the marker had nothing to read at all.
+                value: skipped.observed))
         }
         drivers.append(.routine("Each marker is inverted through its own published age norm and they are combined by how precisely each one can pin an age — a marker whose curve is nearly flat is nearly ignored, automatically. There is no fitted parameter anywhere in this."))
         drivers.append(.routine("Your real age is deliberately left out of the arithmetic. Including it — which is what the published method does, and what every commercial version does — would pull the answer toward your birthday and make it look far more precise than it is."))

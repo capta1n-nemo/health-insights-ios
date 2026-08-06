@@ -313,21 +313,30 @@ public struct MetabolismInsight: InsightModel {
     /// mean nothing. Same shape as Cardiovascular Risk's rows.
     private func contributors(_ balance: EnergyBalance,
                               samples: [HealthMetricSample]) -> [MetricContribution] {
+        // `value` is filled where the equation's own figure is a reading in the
+        // metric's unit; `componentScore` never is, because an equation's terms
+        // have no 0–100 of their own — which is the whole point of these rows.
+        // The body-mass row stays value-less: its figure is a *rate* (kg a
+        // week), not a weight, and the detail already says it in words.
         var out: [MetricContribution] = [
             MetricContribution(metric: .dietaryEnergy, higherIsBetter: nil, weight: 0,
-                               detail: String(format: "%.0f kcal a day logged — one of the two terms this card solves; it has no share of the answer because it is not averaged into it", balance.intakeMean)),
+                               detail: String(format: "%.0f kcal a day logged — one of the two terms this card solves; it has no share of the answer because it is not averaged into it", balance.intakeMean),
+                               value: balance.intakeMean),
             MetricContribution(metric: .bodyMass, higherIsBetter: nil, weight: 0,
                                detail: String(format: "moving %.2f kg a week — the other term; what your weight actually did is what makes this a measurement rather than an estimate", balance.kilogramsPerWeek)),
             MetricContribution(metric: .activeEnergyBurned, higherIsBetter: nil, weight: 0,
-                               detail: String(format: "%.0f kcal a day — measured movement, which goes into the *prediction* this is compared against rather than into the observation", balance.activeMean))
+                               detail: String(format: "%.0f kcal a day — measured movement, which goes into the *prediction* this is compared against rather than into the observation", balance.activeMean),
+                               value: balance.activeMean)
         ]
         if let lean = samples.latestValue(.leanBodyMass) {
             out.append(MetricContribution(metric: .leanBodyMass, higherIsBetter: nil, weight: 0,
-                                          detail: String(format: "%.1f kg — chooses the resting-rate equation (Katch-McArdle), and is the reason it needs no age or sex", lean)))
+                                          detail: String(format: "%.1f kg — chooses the resting-rate equation (Katch-McArdle), and is the reason it needs no age or sex", lean),
+                                          value: lean))
         }
         if let level = samples.latestValue(.activeMedicationLevel) {
             out.append(MetricContribution(metric: .activeMedicationLevel, higherIsBetter: nil, weight: 0,
-                                          detail: String(format: "%.2f mg active — charted here because the question is which of your two numbers it moved. The evidence is that these drugs work on intake; nothing established says they raise expenditure", level)))
+                                          detail: String(format: "%.2f mg active — charted here because the question is which of your two numbers it moved. The evidence is that these drugs work on intake; nothing established says they raise expenditure", level),
+                                          value: level))
         }
         return out
     }

@@ -161,4 +161,110 @@ final class ScoreDecompositionTests: XCTestCase {
         XCTAssertEqual(term.baseline, 55)
         XCTAssertEqual(term.z, 1.4)
     }
+
+    // MARK: - The models, on the full-coverage fixture (2026-08-06 sweep)
+
+    /// ⚠️ **Every weighted row of every weighted-average card reports its own
+    /// 0–100.** These six declare `.weightedAverage`, so their counterfactual
+    /// is exact — and a weighted row without a sub-score on one of them is a
+    /// model that computed the number and threw it away, which is precisely the
+    /// defect the decomposition fields were added to end. The fixture default
+    /// is the full 130 days on purpose: the guard on `score` *fails* rather
+    /// than skips, because a skipped card is how Sustained Load and Gait once
+    /// sat unchecked under the very sweep meant to prove them.
+    func testEveryWeightedAverageCardReportsASubScoreOnEveryWeightedRow() {
+        let now = Date()
+        let samples = ContributorsFixture.fullCoverage(now: now)
+        let profile = ContributorsFixture.profile(now: now)
+        let models: [any InsightModel] = [
+            ReadinessInsight(), SleepInsight(), HeartHealthInsight(),
+            FitnessInsight(), BodyCompositionInsight(), NutritionInsight(),
+        ]
+        for model in models {
+            let result = model.evaluate(samples: samples, profile: profile, now: now)
+            XCTAssertNotNil(result.score,
+                            "\(result.title) did not score on the full fixture — the assertions below never ran")
+            let weighted = result.contributors.weighted
+            XCTAssertFalse(weighted.isEmpty,
+                           "\(result.title) scored with no weighted contributors to decompose")
+            for row in weighted {
+                XCTAssertNotNil(row.componentScore,
+                                "\(result.title)'s \(row.metric.displayName) carries "
+                                    + "\(Int((row.weight * 100).rounded()))% and reports no sub-score")
+            }
+        }
+    }
+
+    /// The three window-against-your-own-season models score through a curve
+    /// over a *pooled* departure, so no channel owns a 0–100 and a
+    /// componentScore there would license counterfactual arithmetic the curve
+    /// cannot honour. What each channel genuinely holds — the recent window,
+    /// the reference it was judged against, and the departure between them —
+    /// must all be present instead.
+    func testTheBaselineWindowModelsShowTheirWorkingAndDeclineASubScore() {
+        let now = Date()
+        let samples = ContributorsFixture.fullCoverage(now: now)
+        let profile = ContributorsFixture.profile(now: now)
+        let models: [any InsightModel] = [
+            SustainedLoadInsight(), GaitInsight(), MentalHealthInsight(),
+        ]
+        for model in models {
+            let result = model.evaluate(samples: samples, profile: profile, now: now)
+            XCTAssertNotNil(result.score,
+                            "\(result.title) did not score on the full fixture")
+            let weighted = result.contributors.weighted
+            XCTAssertFalse(weighted.isEmpty,
+                           "\(result.title) scored with no weighted contributors")
+            for row in weighted {
+                XCTAssertNil(row.componentScore,
+                             "\(result.title)'s \(row.metric.displayName) claims a per-channel 0–100 its pooled curve cannot support")
+                XCTAssertNotNil(row.value,
+                                "\(result.title)'s \(row.metric.displayName) hides its recent window")
+                XCTAssertNotNil(row.baseline,
+                                "\(result.title)'s \(row.metric.displayName) hides what it was judged against")
+                XCTAssertNotNil(row.z,
+                                "\(result.title)'s \(row.metric.displayName) hides its departure")
+            }
+        }
+    }
+
+    /// ⚠️ Energy feeds its reservoir level into every blend term because the
+    /// blend's score is discarded there — and before `scoreIsOwn` that level
+    /// came out of the blend as every term's `componentScore`, telling the
+    /// reader each input had scored exactly what the card did. The reservoir
+    /// terms must report **nil**, the honest "this model has not been taught
+    /// to say".
+    func testEnergysReservoirLevelNeverPosesAsATermsOwnScore() {
+        let now = Date()
+        let result = EnergyInsight().evaluate(
+            samples: ContributorsFixture.fullCoverage(now: now),
+            profile: ContributorsFixture.profile(now: now), now: now)
+        // The two terms the fixture is guaranteed to charge and drain through.
+        for metric in [MetricType.sleepDurationHours, .activeEnergyBurned] {
+            let row = result.contributors.first { $0.metric == metric }
+            XCTAssertNotNil(row, "Energy lost its \(metric.displayName) term on the full fixture")
+            XCTAssertNil(row?.componentScore,
+                         "Energy's \(metric.displayName) reports the whole reservoir level as its own sub-score")
+        }
+    }
+
+    /// A biological-age marker's own answer is an *age equivalent*, not a
+    /// 0–100 — squeezing one into `componentScore` would invent the very
+    /// calibration the card refuses. The observed reading, though, is the one
+    /// number every marker genuinely holds, and each weighted row must show it.
+    func testBiologicalAgeMarkersCarryTheirReadingAndNoInventedSubScore() {
+        let now = Date()
+        let result = BiologicalAgeInsight().evaluate(
+            samples: ContributorsFixture.fullCoverage(now: now),
+            profile: ContributorsFixture.profile(now: now), now: now)
+        let weighted = result.contributors.weighted
+        XCTAssertFalse(weighted.isEmpty,
+                       "Biological age found no markers on the full fixture")
+        for row in weighted {
+            XCTAssertNil(row.componentScore,
+                         "\(row.metric.displayName) claims a 0–100 where the marker's own answer is an age")
+            XCTAssertNotNil(row.value,
+                            "\(row.metric.displayName) hides the reading its age equivalent came from")
+        }
+    }
 }

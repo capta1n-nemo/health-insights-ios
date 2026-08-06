@@ -186,7 +186,18 @@ public enum MentalHealthModel {
                 metric: reading.channel.metric,
                 higherIsBetter: reading.channel.lowMoodDirection == .falls,
                 weight: reading.channel.weight / totalWeight,
-                detail: sentence(reading))
+                detail: sentence(reading),
+                // **No componentScore, deliberately** — the score is a curve
+                // over the pooled departure, not a weighted mean of per-channel
+                // 0–100s, so a sub-score here would license a counterfactual
+                // the arithmetic cannot honour. The fortnight, the season and
+                // the departure between them are what each channel truly has.
+                value: reading.recent, baseline: reading.reference,
+                // `towardLowMood` is signed toward the low-mood pattern; the
+                // field wants the departure as the metric is measured, so
+                // un-flip the channels where low mood shows as a *fall*.
+                z: reading.channel.lowMoodDirection == .falls
+                    ? -reading.towardLowMood : reading.towardLowMood)
         }
 
         return Output(readings: readings, score: score(pooled: pooled),

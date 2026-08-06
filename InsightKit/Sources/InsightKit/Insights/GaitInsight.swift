@@ -285,12 +285,22 @@ public struct GaitInsight: InsightModel {
                               MetricValueFormatter.string(channel.recent, channel.metric),
                               MetricValueFormatter.string(channel.reference, channel.metric))
             drivers.append(InsightDriver(text: text, isNotable: channel.adverseZ >= 0.5))
+            let higherIsBetter = GaitModel.watched
+                .first { $0.metric == channel.metric }!.higherIsBetter
             contributions.append(MetricContribution(
                 metric: channel.metric,
-                higherIsBetter: GaitModel.watched
-                    .first { $0.metric == channel.metric }!.higherIsBetter,
+                higherIsBetter: higherIsBetter,
                 weight: channel.weight / total,
-                detail: text))
+                detail: text,
+                // **No componentScore, deliberately** — the score is a curve
+                // over the pooled drift, so no channel owns a 0–100 that the
+                // counterfactual arithmetic would be exact for. The month, the
+                // year and the departure are what the model genuinely holds.
+                value: channel.recent, baseline: channel.reference,
+                // `adverseZ` is signed toward the unwelcome direction; the
+                // field wants the departure as the metric is measured, so
+                // un-flip the channels where *falling* is adverse.
+                z: higherIsBetter ? -channel.adverseZ : channel.adverseZ))
         }
 
         // **The caveat is the card.** Without it this reads as a statement about
