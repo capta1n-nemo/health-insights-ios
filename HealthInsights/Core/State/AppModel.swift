@@ -1353,6 +1353,17 @@ final class AppModel {
         samples = loaded.samples
         engine = loaded.engine
         results = loaded.results
+        // Today's derived figures, from the evaluation that just ran. The
+        // launch path evaluates here rather than through `refreshInsights`, so
+        // recording only there left the store empty until the first refresh —
+        // measured on the simulator: the Data tab's Generated-insights row was
+        // absent on a cold launch with 237k samples loaded.
+        for result in loaded.results {
+            derivedSeries.record(result, on: Date())
+        }
+        DiagnosticsLog.shared.info(
+            "Derived",
+            "\(derivedSeries.seriesIDs.count) series, \(derivedSeries.pointCount) points recorded from \(loaded.results.count) results")
 
         // After the samples are in, so the first-run seed sees the whole
         // catalogue rather than an empty one and announces nothing.
@@ -1963,16 +1974,23 @@ final class AppModel {
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
         results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
         recordScores(results)
+        // Grounding and substance edits reach here without touching `samples`,
+        // so the sample-set invalidation hook won't have fired.
+        invalidateDerivedCaches()
         // Today's derived figures, from the evaluation that just ran — the
         // backfilled history arrives from the score replays as each finishes.
         // Same store either way, and `record` is last-write-wins per day, so
         // the live value simply supersedes the replayed one for today.
+        //
+        // ⚠️ **After the invalidation, not before.** `invalidateDerivedCaches`
+        // resets the derived store along with the score histories, and the
+        // first version of this loop sat above that call — every sync recorded
+        // eighteen results and wiped them a line later. Found on the simulator:
+        // "Refresh complete — 18 insights" in the diagnostics log while the
+        // Data tab's Generated-insights row stayed absent.
         for result in results {
             derivedSeries.record(result, on: Date())
         }
-        // Grounding and substance edits reach here without touching `samples`,
-        // so the sample-set invalidation hook won't have fired.
-        invalidateDerivedCaches()
         prewarmBreakdowns()
     }
 
