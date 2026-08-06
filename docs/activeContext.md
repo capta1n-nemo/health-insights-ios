@@ -306,6 +306,36 @@ interesting and left the reader's *named* asks for later. `docs/backlog.md` §B2
 is the list of cards asked for and not built — **read it at the start of a
 session, not the end.**
 
+### ⚠️ The calendar brief is the next session's whole first half
+
+The reader's message of 2026-08-06 is a feature, not a tweak, and it is recorded
+verbatim in `docs/backlog.md` §B6 with ten numbered rows. Five shipped; five are
+open and **four of them are blocked on one**:
+
+**C7 — persist the events and the judgements.** Nothing survives a launch today.
+A `@Model` per event and per judgement, registered in `DataStore`'s schema (an
+unregistered `@Model` silently never persists — the cycle log has the pattern).
+It is the cheapest of the open rows and the on-device model call, the review UI,
+the Data-tab domains and both requested cards are all waiting on it.
+
+**Two design points already settled and enforced, not to be re-litigated:**
+
+1. **The model may only move context and formality.** Duration, presence and a
+   context the calendar's own name settled are facts;
+   `CalendarEventClassifier.refined` refuses to let the model overrule them and
+   a test holds it. A language model overruling a fact its own source stated is
+   the failure the rules/model split exists to prevent.
+2. **A correction is stored beside the guess, never merged into it.** Merged,
+   accuracy is unmeasurable and re-classifying silently overwrites the reader.
+   `CalendarEventJudgement` keeps both; `CalendarClassifierAccuracy` refuses a
+   figure below ten reviews.
+
+⚠️ **And the privacy rule changed shape rather than going away.** The reader
+asked for the content to be read, so titles and locations are stored — on
+device, never exported. **Notes and attendees are still not kept**, and the test
+that used to assert "no title" now asserts that. If a future session finds
+itself adding either, that is a decision to take out loud.
+
 ### The next session's build list
 
 `docs/backlog.md` §0 carries the ordered list. **Shipped since this section was
