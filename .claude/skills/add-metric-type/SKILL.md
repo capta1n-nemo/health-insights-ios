@@ -36,6 +36,7 @@ nine, which is the stale-count failure this repo keeps logging.)
 | `MetricPresentation.swift` ▸ `maxValidInterval` | Longest gap a chart line may bridge |
 | `MetricPresentation.swift` ▸ `referenceRange` | The published normal band, or `nil` — see below |
 | `MetricDataCategory.swift` ▸ `dataCategory` | **Which Data-tab group it appears in** — see "Graceful population" |
+| `Presentation/MetricExplainer.swift` ▸ `explanation(for:)` | **What it is and so what, in prose. Required — see below** |
 | `Signals/MetricSanitizer.swift` ▸ `requiresPositiveValue` | Whether zero is a real reading |
 
 Safe (they have `default:` or are derived): `bucketStatistic`, `inSentence`,
@@ -44,6 +45,46 @@ Safe (they have `default:` or are derived): `bucketStatistic`, `inSentence`,
 ⚠️ `MetricValueFormatter` has a `default:` that renders `Int(value.rounded())`,
 so omitting a new metric compiles cleanly and silently prints 33.6 °C as "34".
 Not compiler-enforced; do it anyway.
+
+### `explanation(for:)` is REQUIRED, and there is no opt-out
+
+**The reader's rule, 2026-08-06, verbatim:** *"I like how you added a 'What
+breathing disturbance index is' section, to that specific data card. I want that
+kind of description on EVERY data entry, make this a requirement everytime we add
+a new data type."*
+
+`MetricExplainer.explanation(for:)` returns a **non-optional**
+`MetricExplanation`, so **the compiler will not build your new metric until you
+have written it one.** It used to return an optional and thirty-six metrics
+answered `nil`; that argument ("a step is a step") was overruled, and the
+superseded reasoning is kept in the function's own doc comment.
+
+Two fields, and they answer different questions:
+
+- **`whatItIs`** — what the number physically is, and how it was obtained.
+  Name the sensor or the fact that a human typed it. Do not open with the
+  metric's own display name; `testADefinitionNeverRestatesItsOwnName` fails on
+  a glossary tautology.
+- **`soWhat`** — why it moves, and what a change means. The part a reader cannot
+  get from the name. Never advice.
+
+⚠️ **"This one is obvious" means you have not found its trap yet.** Every one of
+the thirty-six had a real misconception attached: what an accelerometer actually
+counts as a step and why watch and phone disagree; that the ten-thousand figure
+is a 1960s pedometer's brand name; that weight swings two kilograms in a day on
+water; that no two devices' sleep-stage splits are comparable; that every
+dietary total is a sum of what was **logged**, so a gap is a missed entry and not
+a fast. Find the equivalent for yours.
+
+House rules the tests enforce: about two sentences per field, plain second
+person, **no Markdown** (`Text` prints the asterisks verbatim — this reached the
+screen once), the two halves must differ, and no placeholder wording.
+`MetricExplainerTests` holds all of it — non-optional stops `nil`, not emptiness
+or a stub.
+
+It renders in `MetricDetailView.explainerCard`, which is drawn **outside** the
+presentation switch, so a static attribute, a bivariate pair and a metric with
+no data in the window all show it.
 
 ### `referenceRange` is usually `nil`, and that is the honest answer
 
@@ -129,6 +170,8 @@ what the type exists to stop happening again.
 
 ## 5. Tests that will move
 
+- `MetricExplainerTests` — runs over `MetricType.allCases`, so a thin or
+  placeholder explanation fails here rather than reaching the screen
 - `MetricColourSlotTests` — contiguity and per-chart hue distinctness
 - Any coverage fixture in `VitalSignsTests` that enumerates metrics
 - `ContributorsTests` if you touched an insight's candidates

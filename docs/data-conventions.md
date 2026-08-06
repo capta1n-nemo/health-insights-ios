@@ -6,8 +6,10 @@ minimum convention of how those subpages are built, and if there are graphs the
 rules need to be followed… so i don't need to keep reprompting and checking for
 this every time."* (user, 2026-08-02)
 
-So the conventions are enforced, not described. Three of them, each with the
-mechanism that holds it.
+So the conventions are enforced, not described. Each numbered section below is
+one convention and the mechanism that holds it. (No count in this sentence on
+purpose — it said "three" while the file held four, which is the stale-count
+failure this repo keeps logging.)
 
 ## 1. Every kind of data appears in the Data tab
 
@@ -65,7 +67,50 @@ its chart is a plain line by design.
 catches a raw chart in a data page; it does not check that a shared component
 obeys the encoding rules, and only the skill (and the device) can.
 
-## 4. A new source populates every card, by rule not by memory
+## 4. Every data entry says what it is — no exceptions
+
+**The reader's rule, 2026-08-06, verbatim:** *"I like how you added a 'What
+breathing disturbance index is' section, to that specific data card. I want that
+kind of description on EVERY data entry, make this a requirement everytime we
+add a new data type."*
+
+Every `MetricType` carries a `MetricExplanation` — two fields, roughly two
+sentences each:
+
+- **`whatItIs`** — what the number physically is and how it was obtained. Name
+  the sensor, or say plainly that a human typed it in.
+- **`soWhat`** — why it moves and what a change means. The half a reader cannot
+  get from the name. Never advice.
+
+**Enforcement, in two layers.** `MetricExplainer.explanation(for:)` returns a
+**non-optional** `MetricExplanation` over an exhaustive switch, so a new metric
+does not compile until somebody writes it one — there is no `nil` to fall
+through. The type system cannot check that what they wrote is worth reading, so
+`MetricExplainerTests` runs the whole of `MetricType.allCases` and fails on an
+empty or stub field, on placeholder wording, on the two halves being the same
+sentence, on Markdown (a `Text` prints the asterisks), and on a definition that
+opens with the metric's own name.
+
+**It used to be optional and it is not any more.** Thirty-six metrics returned
+`nil` under an argument that explaining a step to somebody is condescension.
+That reasoning is kept — superseded, not deleted — in the function's own doc
+comment, along with why it was wrong on the merits as well as overruled: every
+"obvious" metric turned out to have a real trap in it. What a phone counts as a
+step and why the watch disagrees. That a weight moves two kilograms inside a day
+on water alone. That no two devices' sleep-stage splits are comparable. That
+every dietary figure is a sum of what was **logged**, so a gap is a missed entry
+and not a fast. If a new metric seems to have nothing worth saying, that is a
+sign of not having looked, not a licence to skip it.
+
+**Where it renders:** `MetricDetailView.explainerCard`, drawn **outside** the
+presentation switch since 2026-08-06 — inside it, three classes of page never
+showed it (a static attribute like height, the blood-pressure pair, and any
+metric whose visible window is empty, which is exactly when the question gets
+asked). Raw unmodelled fields have no `MetricType` and open
+`OtherDataDetailView`, which shows no explainer section at all rather than an
+empty one.
+
+## 5. A new source populates every card, by rule not by memory
 
 The cross-card audit found a card's inputs scattered inconsistently across its
 sections. The lesson, as a set of enforced rules so *"a new source gracefully

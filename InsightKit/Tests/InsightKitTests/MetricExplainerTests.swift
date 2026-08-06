@@ -6,23 +6,66 @@ import XCTest
 /// so what.
 final class MetricExplainerTests: XCTestCase {
 
+    /// **Every metric, no exceptions** — the reader's rule of 2026-08-06:
+    /// *"I want that kind of description on EVERY data entry, make this a
+    /// requirement everytime we add a new data type."*
+    ///
+    /// The non-optional return type already makes a missing explanation a
+    /// compile error. This is the half the type system cannot hold: that what
+    /// somebody wrote to satisfy the compiler actually says something.
+    func testEveryMetricSaysSomethingInBothHalves() {
+        for metric in MetricType.allCases {
+            let e = MetricExplainer.explanation(for: metric)
+            XCTAssertFalse(e.whatItIs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                           "\(metric) has an empty definition")
+            XCTAssertFalse(e.soWhat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                           "\(metric) has an empty so-what")
+            XCTAssertGreaterThan(e.whatItIs.count, 40, "\(metric)'s definition is a stub")
+            XCTAssertGreaterThan(e.soWhat.count, 40, "\(metric)'s so-what is a stub")
+        }
+    }
+
+    /// **A stub long enough to pass the length check is the obvious way round
+    /// it**, and the one a hurried session would reach for. Both fields are
+    /// searched for the phrases a placeholder is written in.
+    func testNoExplanationIsAPlaceholder() {
+        let tells = ["tbd", "todo", "fixme", "xxx", "lorem ipsum", "placeholder",
+                     "coming soon", "to be written", "no description",
+                     "self-explanatory", "needs no explanation", "explanation here",
+                     "write me", "description of "]
+        for metric in MetricType.allCases {
+            let e = MetricExplainer.explanation(for: metric)
+            for text in [e.whatItIs, e.soWhat] {
+                let lowered = text.lowercased()
+                for tell in tells {
+                    XCTAssertFalse(lowered.contains(tell),
+                                   "\(metric) carries placeholder text (\"\(tell)\"): \(text)")
+                }
+            }
+        }
+    }
+
+    /// **The two halves must answer different questions.** A definition
+    /// repeated into the so-what passes every length and placeholder check
+    /// while telling the reader nothing twice.
+    func testTheTwoHalvesAreNotTheSameSentence() {
+        for metric in MetricType.allCases {
+            let e = MetricExplainer.explanation(for: metric)
+            XCTAssertNotEqual(e.whatItIs, e.soWhat,
+                              "\(metric) says the same thing in both halves")
+        }
+    }
+
     /// Every term the reader named by hand must be covered. This is the list
-    /// from their own message, not a sample of it.
+    /// from their own message, not a sample of it. It predates the rule that
+    /// every metric is covered and is kept because it names the specific words
+    /// that prompted the whole type.
     func testEveryTermTheReaderNamedIsExplained() {
         for metric in [MetricType.heartRateVariabilityRMSSD, .heartRateVariabilitySDNN,
                        .vo2Max, .oxygenSaturation, .sleepEfficiency,
                        .sleepLatencyMinutes, .vascularAge] {
-            XCTAssertNotNil(MetricExplainer.explanation(for: metric),
-                            "\(metric) was named by the reader and has no explanation")
-        }
-    }
-
-    /// An explanation that exists must actually say something in both halves.
-    func testNoExplanationIsHalfWritten() {
-        for metric in MetricType.allCases {
-            guard let e = MetricExplainer.explanation(for: metric) else { continue }
-            XCTAssertGreaterThan(e.whatItIs.count, 40, "\(metric)'s definition is a stub")
-            XCTAssertGreaterThan(e.soWhat.count, 40, "\(metric)'s so-what is a stub")
+            XCTAssertGreaterThan(MetricExplainer.explanation(for: metric).whatItIs.count, 40,
+                                 "\(metric) was named by the reader and has no explanation")
         }
     }
 
@@ -36,7 +79,7 @@ final class MetricExplainerTests: XCTestCase {
     /// the habit leaks.
     func testNoExplanationCarriesMarkdown() {
         for metric in MetricType.allCases {
-            guard let e = MetricExplainer.explanation(for: metric) else { continue }
+            let e = MetricExplainer.explanation(for: metric)
             for text in [e.whatItIs, e.soWhat] {
                 // Single asterisks too — a `**`-only check let `*shape*` through
                 // in the energy explainer minutes after this test was written.
@@ -53,7 +96,7 @@ final class MetricExplainerTests: XCTestCase {
     /// complaining about.
     func testADefinitionNeverRestatesItsOwnName() {
         for metric in MetricType.allCases {
-            guard let e = MetricExplainer.explanation(for: metric) else { continue }
+            let e = MetricExplainer.explanation(for: metric)
             let name = metric.displayName.lowercased()
             XCTAssertFalse(e.whatItIs.lowercased().hasPrefix(name),
                            "\(metric) defines itself with its own name: \(e.whatItIs)")
@@ -134,12 +177,25 @@ final class MetricExplainerTests: XCTestCase {
                       "the rank disagrees with Baseline.percentile on tied data: \(text)")
     }
 
-    /// Self-explanatory metrics are deliberately silent, and that has to stay a
-    /// decision rather than drift into "we never got round to it".
-    func testTheSelfExplanatoryAreDeliberatelySilent() {
+    /// **This test used to assert the opposite**, and keeping the inversion
+    /// visible is the point.
+    ///
+    /// It was `testTheSelfExplanatoryAreDeliberatelySilent`, and it pinned
+    /// steps, weight, water and sleep duration to `nil` on the argument that
+    /// explaining a step is condescension. The reader overruled that on
+    /// 2026-08-06. These four are named again here because they are the exact
+    /// metrics the old rule protected: if a future session reaches for
+    /// "obviously this one needs nothing", it is one of these, and the trap in
+    /// each is written into the explanation itself — what an accelerometer
+    /// counts as a step, why a weight moves two kilograms on water, that a
+    /// water total is a log and not an intake.
+    func testTheOnesOnceCalledSelfExplanatoryAreExplained() {
         for metric in [MetricType.stepCount, .bodyMass, .dietaryWater, .sleepDurationHours] {
-            XCTAssertNil(MetricExplainer.explanation(for: metric),
-                         "\(metric) gained an explanation nobody needs")
+            let e = MetricExplainer.explanation(for: metric)
+            XCTAssertGreaterThan(e.whatItIs.count, 40,
+                                 "\(metric) fell back to the overruled silence rule")
+            XCTAssertGreaterThan(e.soWhat.count, 40,
+                                 "\(metric) fell back to the overruled silence rule")
         }
     }
 }
