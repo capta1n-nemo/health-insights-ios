@@ -203,14 +203,14 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ — the age comparison moved to Biological age 2026-08-06 | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Nutrition | Insights | ● | ● | ● | ● | ◐ "Vitamins and minerals" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Four cards

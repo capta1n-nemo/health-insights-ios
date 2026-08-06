@@ -2256,11 +2256,20 @@ struct InsightDetailView: View {
         switch insightID {
         case .bodyComposition:
             MedicationSection(window: window(spanning: nil))
-        // Roadmap #18. A second, genuinely different question about this card's
-        // own subject — *how old does each thing think you are* sits beside
-        // *what is your risk*, and neither is the other. The same slot, and the
-        // same reasoning, as Body Composition's medication half.
-        case .cardiovascularRisk:
+        // ⚠️ **Moved off the risk card 2026-08-06, at the reader's instruction.**
+        // It sat there because heart age was the app's *first* age estimate and
+        // the risk equations are what produce it — the section grew where its
+        // arithmetic lived rather than where its subject is. Once the app had a
+        // Biological age card, "how old does each thing think you are" was a
+        // section about ages living on a card about risk, and a reader looking
+        // for it had no reason to open the risk card.
+        //
+        // It pairs with `biologicalAgeMarkersCard` above it and the two ask
+        // different questions of the same axis: **the marker strip is what each
+        // of *your measurements* says, and this is what each *product* says.**
+        // Their copy has to keep saying so, because two strips of years on one
+        // card would otherwise read as the same picture twice.
+        case .biologicalAge:
             ageComparisonSection
         default:
             EmptyView()
@@ -2286,6 +2295,13 @@ struct InsightDetailView: View {
                 caveat: .none
             ) {
                 VStack(alignment: .leading, spacing: Theme.spacing) {
+                    // Says outright which question this answers, because the
+                    // section directly above it draws years on an axis too.
+                    // Without this line the reader sees the same picture twice
+                    // and has to work out the difference themselves.
+                    Text("The section above is what each of *your measurements* says. This is what each *product* says — this app's two other age models, and every device that publishes one.")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     // **The chart, above the rows** — the reader's request,
                     // 2026-08-06. Four numbers in a column make the reader do
                     // the comparison; one axis does it for them, and the
