@@ -250,6 +250,16 @@ enum Theme {
     /// dark mode.
     static let cardScrim = adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
 
+    /// The fertile window on the cycle calendar — a violet.
+    ///
+    /// **Deliberately not `Theme.good`, and the reason is not aesthetic.** The
+    /// good/bad axis is the score bands' axis, and putting a score green on
+    /// fertile days would say the app has an opinion about whether being
+    /// fertile is good. It has none; the window is information. Violet is also
+    /// far enough from `Theme.warn`'s amber — which the same grid uses for flow
+    /// — that the two never read as strengths of one quantity.
+    static let cycleFertile = adaptive(light: 0x7B5EC7, dark: 0x9C82E0)
+
     /// The colour a band is *drawn* in, inside a bar or a chart.
     static func compositionColour(_ kind: BodyCompositionSplit.Band.Kind) -> Color {
         switch kind {

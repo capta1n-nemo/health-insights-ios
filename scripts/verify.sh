@@ -464,6 +464,27 @@ if [ -n "$unshaded" ]; then
     fail=1
 fi
 
+# --- The fertile window says it is not contraception ------------------------
+#
+# A fertile window presented as a way to *avoid* pregnancy is a regulated
+# medical claim — it is what makes Natural Cycles a cleared device and a period
+# tracker not one. This app makes no such claim, and the screen has to say so
+# where it cannot be missed.
+#
+# The rule is mechanical rather than editorial: any view that renders a
+# `FertileWindow` must also render `CyclePhaseModel.notContraceptionNotice`,
+# which is a constant in InsightKit with a test on its wording. A redesign can
+# move the caption; it cannot drop it and still pass.
+fertileviews=$(grep -rlE 'fertileWindow|FertileWindow' HealthInsights --include=*.swift 2>/dev/null || true)
+missingnotice=""
+for f in $fertileviews; do
+    grep -q 'notContraceptionNotice' "$f" || missingnotice="$missingnotice $(basename "$f")"
+done
+if [ -n "$missingnotice" ]; then
+    note "A view draws the fertile window without CyclePhaseModel.notContraceptionNotice on screen. The sentence is not optional and not a disclosure:$missingnotice"
+    fail=1
+fi
+
 # --- Nothing may clear this script's own verdict ---------------------------
 #
 # On 2026-08-02 `verify.sh --tests` exited 0 on a tree that plain `verify.sh`
