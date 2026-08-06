@@ -21,6 +21,15 @@ struct DataTabView: View {
     /// something missing — and it had no way to add it.
     @State private var activeInput: InputKind?
 
+    /// The row a "what changed" tap just jumped to, flashed briefly so the
+    /// reader can see *which* one they landed on. See `jump(to:proxy:)`.
+    @State private var highlighted: String?
+
+    /// The flash fades and the scroll is animated — both are motion, and both
+    /// are dropped when the reader has asked for less of it. The landing still
+    /// happens; it just arrives rather than travels.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// Identified by its title, not by a fresh `UUID()`.
     ///
     /// Searching rebuilds these groups on every keystroke, and a `UUID()`
@@ -56,12 +65,77 @@ struct DataTabView: View {
         // Keyed off the cached summaries rather than remapping every sample.
         let present = model.vitalsSummaries
         let extras = rawFieldsByCategory
+        let discovered = discoveredMetrics.subtracting(metricsShadowedByRawRow)
         return Self.categories.compactMap { category, metrics in
-            let available = metrics.filter { present[$0] != nil }
+            // **Sighted counts, not just stored.** A metric the app has met is
+            // listed in its home group whether or not it is holding a reading
+            // right now; `row(for:)` says which of the two it is.
+            //
+            // In canonical order, mixed in with the rest rather than swept to
+            // the bottom of the section: the reader is being sent here by a tap
+            // on "New since you last looked", and a row that moves depending on
+            // whether today's sync happened to carry a value is a row they have
+            // to hunt for twice.
+            let available = metrics.filter { present[$0] != nil || discovered.contains($0) }
             guard !available.isEmpty || !(extras[category] ?? []).isEmpty else { return nil }
             return MetricGroup(title: category.rawValue, metrics: available,
                                category: category)
         }
+    }
+
+    // MARK: - Discovered, with or without data
+
+    /// **Every metric the app has ever *seen*, whether or not it holds one now.**
+    ///
+    /// The reader's rule, extended from cards to data — *"every card should
+    /// show, even if it hasn't got data yet"* (2026-08-05) — restated for this
+    /// screen on 2026-08-06: *"when a new data field is discovered, create a
+    /// data section for it every time, even if we do not yet have data."*
+    ///
+    /// ⚠️ **Vitamin A is why.** It was promoted from a raw field to a
+    /// `MetricType` on 2026-08-05, so on the next sync it arrived under a
+    /// ledger key the app had never seen (`dietaryVitaminA` rather than
+    /// `HKQuantityTypeIdentifierDietaryVitaminA`) and was announced under "New
+    /// since you last looked". The reader's single vitamin A reading is then
+    /// dropped by `MetricSanitizer` as implausible — it is far outside the
+    /// metric's `plausibleRange` — so no sample survives into
+    /// `vitalsSummaries`, and the old `present[$0] != nil` filter left the
+    /// metric with **no row anywhere in the app**. Announced and then
+    /// unfindable is worse than never mentioned.
+    ///
+    /// The ledger speaks three vocabularies (see `typeName(_:)`), so both the
+    /// canonical raw value and the native HealthKit identifier are resolved —
+    /// through `HealthKitService`'s own read table, which is the mapping
+    /// ingestion uses, so this cannot disagree with it. A provider's dotted
+    /// path is deliberately not resolved here: those are raw fields, they have
+    /// rows of their own already, and promoting one to a canonical metric is a
+    /// `PromotionRules` decision rather than a naming one.
+    private var discoveredMetrics: Set<MetricType> {
+        let native = HealthKitService.canonicalMetricByNativeIdentifier
+        var out: Set<MetricType> = []
+        for identifier in model.sightingLedger.sightings.keys {
+            if let metric = MetricType(rawValue: identifier) ?? native[identifier] {
+                out.insert(metric)
+            }
+        }
+        return out
+    }
+
+    /// Metrics whose subject is **already on this screen as a raw field**, and
+    /// which must therefore not also get a discovered row.
+    ///
+    /// A reader who has never had vitamin A promoted still has
+    /// `HKQuantityTypeIdentifierDietaryVitaminA` in the catalogue, filed under
+    /// Nutrition by `rawFieldsByCategory`. Adding a canonical "Vitamin A —
+    /// discovered, nothing stored" row beside it would put two rows for one
+    /// quantity in one section, and the quieter of the two would be lying: the
+    /// app *is* holding a reading, in the row directly above.
+    ///
+    /// Computed over the whole catalogue rather than the filtered one, so a
+    /// search cannot reveal the duplicate that an unsearched list hides.
+    private var metricsShadowedByRawRow: Set<MetricType> {
+        let native = HealthKitService.canonicalMetricByNativeIdentifier
+        return Set(model.otherDataGroups.compactMap { native[$0.id] })
     }
 
     private var otherGroups: [RawMetricGroup] { model.otherDataGroups }
@@ -239,29 +313,50 @@ struct DataTabView: View {
                     // without one is the branch above.
                     ContentUnavailableView.search(text: trimmed)
                 } else {
-                    List {
-                        // Above the catalogue, because it answers a different
-                        // question — "what changed" rather than "what have you
-                        // got" — and because a reader who opens this tab after a
-                        // new connector wants that first. Not a `DataDomain`:
-                        // it is a view *of* the domains rather than one of them,
-                        // and giving it a case would put it in the search
-                        // vocabulary, where it makes no sense.
-                        whatChangedSection
-                        // **Exhaustive over `DataDomain`, and that is the
-                        // point.** This screen is the app's answer to "what do
-                        // you know about me", and it kept quietly failing to be
-                        // complete because each section was hand-written and
-                        // completeness relied on somebody remembering. A new
-                        // kind of data now fails to compile here until it has a
-                        // section. See `DataDomain`.
-                        //
-                        // Filtered by the search, but still walked in
-                        // `DataDomain` order: search narrows this screen, it
-                        // never reorders it, so a section stays where the
-                        // reader last saw it.
-                        ForEach(visible) { domain in
-                            section(for: domain)
+                    // **The reader's ask, 2026-08-06:** *"when we discover a new
+                    // field, if i click on it, scroll me down to it in the data
+                    // section so i can see where it is"*. The proxy is the only
+                    // way to do that, and it has to wrap the `List` itself.
+                    ScrollViewReader { proxy in
+                        List {
+                            // Above the catalogue, because it answers a different
+                            // question — "what changed" rather than "what have you
+                            // got" — and because a reader who opens this tab after a
+                            // new connector wants that first. Not a `DataDomain`:
+                            // it is a view *of* the domains rather than one of them,
+                            // and giving it a case would put it in the search
+                            // vocabulary, where it makes no sense.
+                            whatChangedSection(proxy)
+                            // **Exhaustive over `DataDomain`, and that is the
+                            // point.** This screen is the app's answer to "what do
+                            // you know about me", and it kept quietly failing to be
+                            // complete because each section was hand-written and
+                            // completeness relied on somebody remembering. A new
+                            // kind of data now fails to compile here until it has a
+                            // section. See `DataDomain`.
+                            //
+                            // Filtered by the search, but still walked in
+                            // `DataDomain` order: search narrows this screen, it
+                            // never reorders it, so a section stays where the
+                            // reader last saw it.
+                            ForEach(visible) { domain in
+                                section(for: domain)
+                            }
+                        }
+                        // The flash decays on its own — a highlight that stayed
+                        // would become a selection, which is a different claim
+                        // about the row. Keyed on the id so a second jump
+                        // cancels the first one's countdown rather than having
+                        // it clear the new highlight early.
+                        .task(id: highlighted) {
+                            guard highlighted != nil else { return }
+                            try? await Task.sleep(for: .seconds(1.6))
+                            guard !Task.isCancelled else { return }
+                            if reduceMotion {
+                                highlighted = nil
+                            } else {
+                                withAnimation(.easeOut(duration: 0.9)) { highlighted = nil }
+                            }
                         }
                     }
                 }
@@ -474,6 +569,12 @@ struct DataTabView: View {
                     } label: {
                         row(for: metric)
                     }
+                    // The scroll target for a "what changed" tap. Explicit
+                    // rather than the `ForEach` identity, because the two lists
+                    // above index by *ledger identifier* and only a stated id
+                    // can be resolved from one — see `rowID(forSighted:)`.
+                    .id(Self.rowID(metric: metric))
+                    .listRowBackground(highlightBackground(Self.rowID(metric: metric)))
                 }
                 ForEach(extras[group.category] ?? []) { field in
                     rawFieldRow(field, titles: titles)
@@ -747,6 +848,10 @@ struct DataTabView: View {
                 }
             }
         }
+        // Stated here rather than at the two call sites, so a raw field is the
+        // same scroll target wherever it happens to be filed.
+        .id(Self.rowID(rawField: field.id))
+        .listRowBackground(highlightBackground(Self.rowID(rawField: field.id)))
     }
 
     /// The newest reading, in a unit a reader can read.
@@ -792,25 +897,156 @@ struct DataTabView: View {
         return model.otherDataGroups.first { $0.id == identifier }?.displayName ?? identifier
     }
 
-    @ViewBuilder private var whatChangedSection: some View {
+    // MARK: - Row identity, and jumping to one
+
+    /// The id a metric's row carries, and the id a raw field's row carries.
+    ///
+    /// **They must not collide, which is why both are prefixed.** A metric's
+    /// raw value and a provider's field path are both bare strings from the
+    /// same ledger, and a single namespace would have one silently scroll to
+    /// the other the first time the two ever agreed.
+    private static func rowID(metric: MetricType) -> String { "metric:\(metric.rawValue)" }
+    private static func rowID(rawField identifier: String) -> String { "raw:\(identifier)" }
+
+    /// Every row id currently on screen.
+    ///
+    /// Built from the **unfiltered** lists: a jump clears the search first, so
+    /// the question being asked is "will this row exist once I have", not "does
+    /// it exist under the current query".
+    private var renderedRowIDs: Set<String> {
+        var ids = Set(groups.flatMap(\.metrics).map(Self.rowID(metric:)))
+        ids.formUnion(model.otherDataGroups.map { Self.rowID(rawField: $0.id) })
+        return ids
+    }
+
+    /// The row that represents a ledger identifier, or `nil` if none does.
+    ///
+    /// Resolved in the same three-way shape as `typeName(_:)` — canonical raw
+    /// value, native HealthKit identifier, provider path — and canonical first,
+    /// because a subject that has both a metric row and a raw row is the metric.
+    ///
+    /// ⚠️ **`nil` means do nothing at all.** Change A should make this
+    /// unreachable for anything in "New since you last looked" — a sighted type
+    /// now always has a row — but a ledger written by an older build can hold
+    /// an identifier that no longer resolves to anything, and scrolling to
+    /// *approximately* the right place would leave the reader believing a row
+    /// they are looking at is the one they tapped.
+    private func rowID(forSighted identifier: String, rendered: Set<String>) -> String? {
+        if let metric = MetricType(rawValue: identifier)
+            ?? HealthKitService.canonicalMetricByNativeIdentifier[identifier] {
+            let id = Self.rowID(metric: metric)
+            if rendered.contains(id) { return id }
+        }
+        let raw = Self.rowID(rawField: identifier)
+        return rendered.contains(raw) ? raw : nil
+    }
+
+    /// Scroll the list to a row and flash it.
+    ///
+    /// The flash is the half that is easy to leave out and the half the reader
+    /// actually asked for — *"scroll me down to it in the data section so i can
+    /// see where it is"*. A scroll on its own lands them in a section of forty
+    /// near-identical rows with no indication of which one moved them there.
+    private func jump(to id: String, proxy: ScrollViewProxy) {
+        // A live search filters rows out, and `scrollTo` on a row that is not
+        // in the list does nothing. Unreachable today — the section this is
+        // called from hides itself under a query — and kept because that is a
+        // property of the *caller*, not of this function.
+        if !trimmed.isEmpty { query = "" }
+        if reduceMotion {
+            proxy.scrollTo(id, anchor: .center)
+        } else {
+            withAnimation { proxy.scrollTo(id, anchor: .center) }
+        }
+        // ⚠️ **The flash is set after the scroll, not with it, and that is a
+        // fix rather than a flourish.** Measured on the simulator: a target
+        // already on screen flashed correctly, and one forty rows down never
+        // did. A `List` does not realise a row until it is nearly visible, so
+        // setting the highlight in the same state update means the cell for the
+        // destination is built *during* the scroll — and it arrives showing the
+        // state as it was before the tap. Letting the scroll land first means
+        // the row is on screen when the value changes, which is the case that
+        // was already working.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            highlighted = id
+        }
+    }
+
+    /// The flash itself: a wash of the accent over the ordinary row colour.
+    ///
+    /// **The system background is restated rather than left to `nil`.** The
+    /// obvious form — `listRowBackground(highlighted == id ? colour : nil)` —
+    /// swaps between "no view" and "a view", and there is nothing for SwiftUI
+    /// to interpolate across that, so the decay would step rather than fade.
+    /// One view whose *opacity* changes animates properly, and restating
+    /// `secondarySystemGroupedBackground` underneath keeps an unhighlighted row
+    /// looking exactly like the ones around it — checked on the simulator
+    /// against the untouched sections above and below.
+    private func highlightBackground(_ id: String) -> some View {
+        ZStack {
+            Color(.secondarySystemGroupedBackground)
+            Theme.accent.opacity(highlighted == id ? 0.28 : 0)
+        }
+    }
+
+    /// One "what changed" row.
+    ///
+    /// A `Button` **only when there is somewhere to go** — the alternative is a
+    /// row that looks tappable and does nothing, which is a worse answer than
+    /// an obviously inert one. Both lists use this: they are visually identical
+    /// rows about the same kind of thing, and making only one of them respond
+    /// to a tap would read as a bug.
+    @ViewBuilder private func changedRow(_ identifier: String, icon: String,
+                                         rendered: Set<String>,
+                                         proxy: ScrollViewProxy) -> some View {
+        if let target = rowID(forSighted: identifier, rendered: rendered) {
+            Button {
+                jump(to: target, proxy: proxy)
+            } label: {
+                HStack {
+                    Label(typeName(identifier), systemImage: icon)
+                    Spacer()
+                    // Says what the tap does before it is tapped. Down, because
+                    // this section is pinned above the whole catalogue, so the
+                    // row being pointed at is always below.
+                    Image(systemName: "arrow.down")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
+            // Without this a `Button` in a `List` tints its whole label, and the
+            // row stops looking like the rows either side of it.
+            .buttonStyle(.plain)
+        } else {
+            Label(typeName(identifier), systemImage: icon)
+        }
+    }
+
+    @ViewBuilder private func whatChangedSection(_ proxy: ScrollViewProxy) -> some View {
         // Search hides this: it answers "what changed", and a query is a
         // question about something else.
         if trimmed.isEmpty {
+            // Once for the whole section rather than once per row: resolving a
+            // target walks every group and every raw field, and this list can
+            // hold dozens of rows the week a connector is added.
+            let rendered = renderedRowIDs
             if !newlyArrived.isEmpty {
                 Section {
                     ForEach(newlyArrived, id: \.self) { identifier in
-                        Label(typeName(identifier), systemImage: "sparkles")
+                        changedRow(identifier, icon: "sparkles",
+                                   rendered: rendered, proxy: proxy)
                     }
                 } header: {
                     Text("New since you last looked")
                 } footer: {
-                    Text("Data types this app had never received before — a new connector, a new device, or one that only just started sending them. This is when the app first *saw* each one, not when the readings were taken, so a connector backfilling two years of history doesn't fill this list.")
+                    Text("Data types this app had never received before — a new connector, a new device, or one that only just started sending them. Tap one to jump to where it lives below. This is when the app first *saw* each one, not when the readings were taken, so a connector backfilling two years of history doesn't fill this list.")
                 }
             }
             if !stoppedArriving.isEmpty {
                 Section {
                     ForEach(stoppedArriving, id: \.self) { identifier in
-                        Label(typeName(identifier), systemImage: "pause.circle")
+                        changedRow(identifier, icon: "pause.circle",
+                                   rendered: rendered, proxy: proxy)
                             .foregroundStyle(.secondary)
                     }
                 } header: {
@@ -867,8 +1103,22 @@ struct DataTabView: View {
                     Text("· \(summary.sourceCount) sources")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
+            } else {
+                // **Says what is true, in the slot where a value would be.**
+                // Not "0", not "—": the app has met this measurement and is
+                // holding none of it, and those are different states. The row
+                // still opens `MetricDetailView`, which explains what the
+                // metric is and carries its own empty state — so this is a
+                // definition and an invitation rather than a dead end. See
+                // `discoveredMetrics`.
+                Text("Discovered · nothing stored")
+                    .font(.caption).foregroundStyle(.tertiary)
             }
         }
+        // Quieter than a row with a reading behind it, on the same reasoning
+        // that dims the raw fields: both are real, and neither is the thing a
+        // reader scanning this section is looking for first.
+        .foregroundStyle(summary == nil ? .secondary : .primary)
     }
 
     /// A short "how old is this" label, omitted entirely for today's readings.

@@ -23,9 +23,35 @@ final class HealthKitService {
         #endif
     }
 
+    /// **Which canonical metric a native HealthKit identifier becomes.**
+    ///
+    /// Derived from `readMap` itself rather than written out again, because a
+    /// second copy of this table is a copy that drifts — and the reader is the
+    /// one who would find out. It exists for the Data tab: `TypeSightingLedger`
+    /// records an identifier in whatever vocabulary it arrived in, so the same
+    /// subject can sit in the ledger under `HKQuantityTypeIdentifierDietary…`
+    /// from before it was promoted and under `dietaryVitaminA` from after, and
+    /// a screen asking "have I ever seen this?" has to be able to join the two.
+    ///
+    /// Empty on a platform without HealthKit — the app target only ships to
+    /// iOS, but this file compiles anywhere and the callers must not need a
+    /// `#if` of their own.
+    static let canonicalMetricByNativeIdentifier: [String: MetricType] = {
+        #if canImport(HealthKit)
+        return Dictionary(readMap.map { ($0.0.rawValue, $0.1) }) { first, _ in first }
+        #else
+        return [:]
+        #endif
+    }()
+
     #if canImport(HealthKit)
     /// The quantity types we read, paired with their canonical metric + unit.
-    private var readMap: [(HKQuantityTypeIdentifier, MetricType, HKUnit)] {
+    ///
+    /// `static`, so the reverse mapping above can be built from it without an
+    /// instance — and so it is stated exactly once. Computed rather than
+    /// stored: `HKUnit` is a non-`Sendable` class, and a stored static of one
+    /// is global mutable state as far as Swift 6 is concerned.
+    private static var readMap: [(HKQuantityTypeIdentifier, MetricType, HKUnit)] {
         [
             (.heartRate, .heartRate, HKUnit.count().unitDivided(by: .minute())),
             (.restingHeartRate, .restingHeartRate, HKUnit.count().unitDivided(by: .minute())),
@@ -268,7 +294,7 @@ final class HealthKitService {
 
     private var readTypes: Set<HKObjectType> {
         var types = Set<HKObjectType>()
-        for (id, _, _) in readMap {
+        for (id, _, _) in Self.readMap {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.insert(t) }
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(sleep) }
@@ -361,7 +387,7 @@ final class HealthKitService {
         #if canImport(HealthKit)
         guard isAvailable else { return SyncedData() }
         var result = SyncedData()
-        for (id, metric, unit) in readMap {
+        for (id, metric, unit) in Self.readMap {
             guard let qType = HKQuantityType.quantityType(forIdentifier: id) else { continue }
             result.samples += await fetchQuantity(qType, metric: metric, unit: unit,
                                                   start: lookbackStart(for: metric))

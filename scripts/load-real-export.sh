@@ -16,12 +16,14 @@
 #
 # ## Why no app code was needed
 #
-# `DataStore.loadCachedSamples` still reads a **legacy plain-JSON** cache
-# (`synced_samples.json`) for builds predating the compact `HISC` format, and
-# `loadCachedOther` reads plain JSON always. The export's `samples` array is
+# `DataStore.loadCachedSamples` and `loadCachedOther` both still read a **legacy
+# plain-JSON** cache (`synced_samples.json`, `synced_other.json`) for builds
+# predating the compact `HISC`/`HIRC` formats. The export's `samples` array is
 # already exactly `[HealthMetricSample]` and `unmodelled` is exactly
 # `[RawMetricSample]`, so this is a file copy — not a converter, not a debug
-# hook, and nothing shipped changes shape to accommodate it.
+# hook, and nothing shipped changes shape to accommodate it. Both compact caches
+# are deleted below, or the app reads those instead and this writes nothing that
+# is ever read.
 #
 # ⚠️ **The file never enters the repo.** It is one person's health record and
 # this repository is public — see `docs/privacy-and-ip.md`. It is read from
@@ -105,13 +107,23 @@ with open(os.path.join(support, "synced_samples.json"), "w") as f:
 with open(os.path.join(support, "synced_other.json"), "w") as f:
     json.dump(other, f)
 
-# The compact cache wins over the legacy one when both exist, so it has to go.
-# The name is `DataStore.compactCacheURL`'s — checked, not guessed: the first
-# version of this script invented "synced_samples_compact.bin", removed nothing,
-# and the app went on reading its old data while reporting a successful load.
-compact = os.path.join(support, "synced_samples.hisc")
-if os.path.exists(compact):
-    os.remove(compact)
+# The compact caches win over the legacy ones when both exist, so they have to
+# go. The names are `DataStore.compactCacheURL`'s and `compactOtherCacheURL`'s —
+# checked, not guessed: the first version of this script invented
+# "synced_samples_compact.bin", removed nothing, and the app went on reading its
+# old data while reporting a successful load.
+#
+# ⚠️ **`synced_other.hirc` was missing from this list until 2026-08-06**, and it
+# cost a whole simulator cycle to find. The raw cache gained a compact format
+# after this script was written, `loadCachedOther` prefers it exactly as
+# `loadCachedSamples` does, and so on any container that had run the app once
+# the raw half of this loader was a silent no-op — it wrote 177,000 rows into a
+# file nothing then read, and the app opened showing the catalogue from the
+# previous run. A loader that half-works is worse than one that fails.
+for name in ("synced_samples.hisc", "synced_other.hirc"):
+    compact = os.path.join(support, name)
+    if os.path.exists(compact):
+        os.remove(compact)
 
 # **Everything else that lives in SwiftData, for the same reason.**
 #
