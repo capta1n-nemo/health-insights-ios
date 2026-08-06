@@ -255,6 +255,12 @@ public struct HealthDataExport: Encodable, Sendable {
         case .calendarEvents: return "unmodelled"
         case .cycles: return "cycles"
         case .unmodelled: return "unmodelled"
+        // Derived series are recomputed from `samples` by replaying the models
+        // — persisting them would export a cache, and an import would then
+        // carry figures a newer model no longer stands behind. The samples key
+        // *is* their data; the figures come back on the first launch after an
+        // import, the same way score history does.
+        case .generatedInsights: return "samples"
         }
     }
 

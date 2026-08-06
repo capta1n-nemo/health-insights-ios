@@ -300,6 +300,22 @@ public struct InsightResult: Sendable, Equatable {
     /// would put two 100%s on one card.
     public let otherFactors: [ScoreFactor]
 
+    /// **Figures this card worked out that are worth keeping as series.**
+    ///
+    /// Added 2026-08-06 at the reader's instruction — see `DerivedSeries`. A
+    /// fitness age, an observed TDEE, this week's moderate-equivalent minutes:
+    /// each was computed on every launch, rendered as one sentence, and thrown
+    /// away, so nothing could trend it and no other card could read it.
+    ///
+    /// Declared here rather than in a central registry for the reason
+    /// `contributors` is: **the scoring code emits it where the figure is
+    /// computed**, so a model that stops producing a figure stops producing the
+    /// series, with no second edit anywhere to forget.
+    ///
+    /// The per-component tier needs nothing from a model — it is harvested from
+    /// `contributors`, which already carry `componentScore` and `z`.
+    public let derivedOutputs: [DerivedOutput]
+
     /// Every input carrying a share, metric-backed or not, heaviest first.
     ///
     /// The single thing the weighting section draws. Building it here rather
@@ -338,16 +354,28 @@ public struct InsightResult: Sendable, Equatable {
     /// rather than at the call site is what keeps the ordering invariant — the
     /// card preview shows `drivers.first`, so a routine line arriving after a
     /// notable one must not be able to reach the front.
+    /// ⚠️ **This rebuilds the value field by field, and that shape has already
+    /// lost a field once** — `ReadinessInsight.evaluate` did the same thing and
+    /// dropped `invitesInput`, so a card set the flag and the wrapper threw it
+    /// away (2026-08-05). This copy was silently dropping `subheadline` for the
+    /// same reason; both it and `derivedOutputs` are forwarded now.
+    ///
+    /// If a field is added to `InsightResult`, it must be added here. There is
+    /// no compiler check, because every parameter after `explanation` has a
+    /// default — which is exactly why the warning is written out rather than
+    /// assumed.
     public func appending(driverLines extra: [InsightDriver]) -> InsightResult {
         let all = driverLines + extra
         return InsightResult(
             id: id, title: title, primaryValue: primaryValue, headline: headline,
+            subheadline: subheadline,
             score: score, confidence: confidence, explanation: explanation,
             driverLines: all.filter { $0.isNotable == true }
                 + all.filter { $0.isNotable != true },
             unmetRequirements: unmetRequirements, contributors: contributors,
             weighting: weighting, otherFactors: otherFactors,
-            isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput)
+            isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput,
+            derivedOutputs: derivedOutputs)
     }
 
     /// For insights that don't distinguish notable lines from routine ones.
@@ -366,7 +394,8 @@ public struct InsightResult: Sendable, Equatable {
         weighting: ScoreWeighting = .unstated,
         otherFactors: [ScoreFactor] = [],
         isAwaitingTodaysData: Bool = false,
-        invitesInput: Bool = false
+        invitesInput: Bool = false,
+        derivedOutputs: [DerivedOutput] = []
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
                   subheadline: subheadline,
@@ -374,7 +403,8 @@ public struct InsightResult: Sendable, Equatable {
                   driverLines: drivers.map { InsightDriver(text: $0) },
                   unmetRequirements: unmetRequirements, contributors: contributors,
                   weighting: weighting, otherFactors: otherFactors,
-                  isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput)
+                  isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput,
+                  derivedOutputs: derivedOutputs)
     }
 
     public init(
@@ -392,8 +422,10 @@ public struct InsightResult: Sendable, Equatable {
         weighting: ScoreWeighting = .unstated,
         otherFactors: [ScoreFactor] = [],
         isAwaitingTodaysData: Bool = false,
-        invitesInput: Bool = false
+        invitesInput: Bool = false,
+        derivedOutputs: [DerivedOutput] = []
     ) {
+        self.derivedOutputs = derivedOutputs
         self.invitesInput = invitesInput
         self.subheadline = subheadline
         self.id = id
@@ -455,6 +487,14 @@ public protocol InsightModel: Sendable {
     /// dispatch statically — every model would silently get the default and the
     /// two overrides below would never run.
     var contributions: [ContributionRoute] { get }
+    /// **Derived series this model reads as inputs.** Empty for every model
+    /// today, and the declaration is load-bearing when it is not: the engine
+    /// hands a model a store `filtered(to:)` this list, so an undeclared read
+    /// comes back empty rather than working silently, and
+    /// `DerivedDependencies` computes the card-to-card graph — cycles, orphans,
+    /// the standing report — from these lists alone. See `DerivedDependencies`
+    /// for the three safeguards and `DerivedSafetyTests` for their enforcement.
+    var derivedInputs: [DerivedSeriesID] { get }
     /// Compute the result from current data. Never throws — degrades gracefully
     /// to a low-confidence / not-yet-available result and reports what's missing.
     func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile, now: Date) -> InsightResult
@@ -473,6 +513,9 @@ public protocol InsightModel: Sendable {
 public extension InsightModel {
     /// Most cards read only samples.
     var readsOnlySamples: Bool { true }
+
+    /// Most models read no derived series.
+    var derivedInputs: [DerivedSeriesID] { [] }
 
     /// Most insights read measurements only.
     func evaluate(samples: [HealthMetricSample], events: [VitalEvent],

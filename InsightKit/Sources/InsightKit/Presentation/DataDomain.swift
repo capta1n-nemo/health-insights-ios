@@ -89,6 +89,20 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     case calendarEvents
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
+    /// **Every figure the app has derived, kept as a day-by-day series** — the
+    /// reader's instruction, 2026-08-06: *"for any insight we derive, it is
+    /// turned into a data source… and it has its own data source tracking in
+    /// the data tab."*
+    ///
+    /// Distinct from `derivedScores`, and the difference is the shape: that
+    /// domain is *today's* card scores and clinical estimates, one value each;
+    /// this one is the **series** behind and beneath them — the fitness age
+    /// every day for ninety days, each contributor's own 0–100, each departure
+    /// in SD. One collapses to a number, the other trends.
+    ///
+    /// Rendered as one row opening a sub-page, at the reader's own request —
+    /// the component tier alone is dozens of series and would flood the tab.
+    case generatedInsights
 
     public var id: String { rawValue }
 
@@ -106,6 +120,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .cycles: return "Cycles"
         case .calendarEvents: return "Calendar"
         case .unmodelled: return "Other data"
+        case .generatedInsights: return "Generated insights"
         }
     }
 
@@ -134,6 +149,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
+        case .generatedInsights:
+            return "Every figure the app has worked out, kept day by day — the ages, the doses, and each signal's own score and departure behind every card. Computed, never measured."
         }
     }
 }

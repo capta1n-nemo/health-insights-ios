@@ -71,6 +71,10 @@ final class AppModel {
         bloodPressureCache = nil
         scoreHistories.removeAll()
         scoreHistoryTasks.removeAll()
+        // The derived series were computed from the samples that just changed,
+        // so they go the way the score histories do — rebuilt by the next
+        // replay rather than left describing data that no longer exists.
+        derivedSeries = DerivedSeriesStore()
         // The queue holds requests for data that has just been superseded, so
         // it goes with them. Anything still wanted is asked for again on the
         // next render — which is the same contract `scoreHistories` has always
@@ -1959,6 +1963,13 @@ final class AppModel {
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
         results = engine.evaluateAll(samples: samples, events: vitalEvents, profile: profile)
         recordScores(results)
+        // Today's derived figures, from the evaluation that just ran — the
+        // backfilled history arrives from the score replays as each finishes.
+        // Same store either way, and `record` is last-write-wins per day, so
+        // the live value simply supersedes the replayed one for today.
+        for result in results {
+            derivedSeries.record(result, on: Date())
+        }
         // Grounding and substance edits reach here without touching `samples`,
         // so the sample-set invalidation hook won't have fired.
         invalidateDerivedCaches()
@@ -2039,6 +2050,22 @@ final class AppModel {
     /// — so publishing the result is what makes the chart appear, and there is
     /// no mid-render mutation to guard against.
     private(set) var scoreHistories: [InsightID: [ScorePoint]] = [:]
+
+    /// **Every figure the app has derived, day by day** — the reader's
+    /// instruction, 2026-08-06. See `DerivedSeries` in InsightKit.
+    ///
+    /// Filled from two directions and one rule reconciles them: the live
+    /// evaluation records *today* each time it runs, and each card's score
+    /// replay harvests its *history* through `ScoreHistory.replay(observing:)`
+    /// as it completes — so the backfill costs nothing the score charts were
+    /// not already paying. `record` is last-write-wins per day, which makes
+    /// both paths idempotent however often either runs.
+    ///
+    /// In memory only, like `scoreHistories`, and recomputed the same way: the
+    /// models are pure functions of the samples, so persisting their output
+    /// would be caching something the replay reconstructs anyway — and a model
+    /// improvement would leave stale figures behind.
+    private(set) var derivedSeries = DerivedSeriesStore()
     /// Replays already in flight, so a view that re-renders while one is running
     /// doesn't start a second.
     @ObservationIgnored private var scoreHistoryTasks: Set<InsightID> = []
@@ -2132,15 +2159,23 @@ final class AppModel {
             // chart it fills is already on screen and already correct without
             // it. Whoever is scrolling *is* waiting, and should win the CPU.
             Task.detached(priority: .utility) {
+                // The derived harvest rides the replay the chart already pays
+                // for — one observer call per evaluated day, no second sweep.
+                var harvested = DerivedSeriesStore()
                 let replayed = ScoreHistory.replay(model: model, samples: samples,
                                                    events: events,
-                                                   profile: profile, days: days)
+                                                   profile: profile, days: days,
+                                                   observing: { day, result in
+                                                       harvested.record(result, on: day)
+                                                   })
                 let merged = ScoreHistory.merging(replayed: replayed, stored: stored)
+                let derived = harvested
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.scoreHistoryTasks.remove(id)
                     if self.scoreHistoryGeneration == generation {
                         self.scoreHistories[id] = merged
+                        self.derivedSeries.merge(derived)
                     }
                     // Whatever the generation, a slot just freed up.
                     self.drainScoreHistoryQueue(days: days)

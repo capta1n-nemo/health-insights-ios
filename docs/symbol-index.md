@@ -24,6 +24,19 @@ the place to look.
   - `MeshRingSpec` :392
   - `MonotoneCubicCurve` :225
   - `RingProvenance` :82
+- `Derived/DerivedDependencies.swift`
+  - `DerivedDependencies` :47
+  - `DerivedFeedbackAudit` :173
+- `Derived/DerivedSeries.swift`
+  - `DerivedHarvest` :164
+  - `DerivedOutput` :137
+  - `DerivedPoint` :116
+  - `DerivedSeriesID` :48
+  - `DerivedSeriesKind` :72
+  - `DerivedSeriesSpec` :85
+- `Derived/DerivedSeriesStore.swift`
+  - `DerivedBackfill` :137
+  - `DerivedSeriesStore` :9
 - `Documents/LabReportParser.swift`
   - `LabReportParser` :12
 - `Documents/ScreenTimeChartGeometry.swift`
@@ -137,7 +150,7 @@ the place to look.
   - `InsightConfidence` :156
   - `InsightDriver` :192
   - `InsightID` :15
-  - `InsightModel` :419
+  - `InsightModel` :451
   - `InsightResult` :209
   - `RequirementStatus` :180
 - `Insights/InsightEngine.swift`
@@ -188,7 +201,7 @@ the place to look.
 - `Insights/ScoreHistory.swift`
   - `ScoreHistory` :38
   - `ScorePoint` :4
-  - `ScoreTrend` :214
+  - `ScoreTrend` :227
 - `Insights/ScoreWeighting.swift`
   - `ScoreFactor` :152
   - `ScoreWeighting` :31
@@ -542,6 +555,8 @@ the place to look.
   - `BodyMeshView` :35
 - `DesignSystem/BodySilhouetteView.swift`
   - `BodySilhouetteView` :28
+- `DesignSystem/DerivedSeriesChart.swift`
+  - `DerivedSeriesChart` :20
 - `DesignSystem/EnergyCurveChart.swift`
   - `EnergyCurveChart` :31
 - `DesignSystem/FitnessProjectionChart.swift`
@@ -622,7 +637,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :795
+  - `OtherDataDetailView` :836
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :35
 - `Features/Data/DomainDataViews.swift`
@@ -631,6 +646,10 @@ the place to look.
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
   - `SymptomDataView` :229
+- `Features/Data/GeneratedInsightsDataView.swift`
+  - `GeneratedCardDataView` :57
+  - `GeneratedInsightsDataView` :11
+  - `GeneratedSeriesDataView` :129
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`

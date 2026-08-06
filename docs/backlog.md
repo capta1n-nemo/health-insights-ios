@@ -320,6 +320,45 @@ state, the classifier's accuracy on real titles, and whether the on-device model
 is even available on the reader's phone are all unverified. ⚠️ **The reader's
 own export has no calendar in it at all**, so this needs the phone.
 
+## B7 — Calendar identity & holidays (reader, 2026-08-06, second brief)
+
+**The reader's own words, recorded in full because they are the specification:**
+
+> *"on the work and travel events, i need to be able to handle cases such as
+> someone just putting an 'OOO' or 'out of office' block in my calendar,
+> sometimes its mine, sometimes its not. Also this just made me realised.. I
+> should be able to see holidays (e.g. my calendar blocks that are holidays).
+> It should also be email aware, and user aware.. maybe I can input my name to
+> give context to the events (e.g. did i organise the meeting, or did i just
+> attend) and if it is something like a 'John smith on holiday - OOO' It can
+> see if that is me, or someone else. I could also be asked input my emails,
+> as input data, like my work email … and personal emails …, which will again
+> give even more context to those meetings and travel. I should also be able
+> to input holidays that are planned manually.. e.g. in the work impact, the
+> travel impact, the stress, the mental health.. knowing you have, or have not
+> been on a holiday is a very good data point (we should of course make sure
+> it has a data tab, where I can track holidays). And one recommendation could
+> be, if i'm stressed, my health is bad.. maybe I should be recommended to
+> take some leave, take a long weekend.. and it could even look at my calendar
+> and predict when is a good time since it knows my calendar!!"*
+
+| # | Piece | State |
+|---|---|---|
+| H1 | **Identity inputs** — the reader's name, work email(s), personal email(s), as `InputKind`s (⚠️ load `add-data-or-input`: four surfaces, three checks). What they buy: organiser-vs-attendee on every event, and whose OOO a block is | ⬜ Not started |
+| H2 | **OOO / out-of-office handling** — an "OOO" block is *someone's absence*, not a meeting. Whose it is decides everything: **mine** → a holiday/leave signal; **someone else's** → near-zero load, possibly *reduced* load (fewer meetings that week). Needs H1 to answer "mine?" — without identity, an OOO block must classify as ambiguous, never as work | ⬜ Not started |
+| H3 | **Holiday detection from the calendar** — all-day/multi-day blocks reading as leave ("annual leave", "holiday", "vacation", "PTO", "OOO" when mine). A new classification outcome, not a new bucket bolted on: it feeds H5's ledger | ⬜ Not started |
+| H4 | **Manual holiday input** — planned leave entered by hand, past and future. Its own `InputKind` + a **Holidays `DataDomain`** (reader: *"make sure it has a data tab, where I can track holidays"*) | ⬜ Not started |
+| H5 | **One holiday ledger, two sources** — detected (H3) and entered (H4) merge into one dated record of leave, deduplicated, correctable. This is the data point the cards read | ⬜ Not started |
+| H6 | **Cards read the ledger** — work impact, travel drain, stress load, mental health each get "you have / have not had leave recently" as an input. ⚠️ Each card that scores it needs its `modelVersion` bumped, per the fitness-v2 precedent | ⬜ Not started |
+| H7 | **The leave recommendation** — "stressed + degraded health + no leave in N months → suggest a long weekend", and **predict a good window from the calendar** (quiet weeks, no marathon days, adjacent to weekends/public holidays). Goes through `Suggestions`/`SuggestionEngine`, ranked below grounding gaps like everything else | ⬜ Not started |
+
+**Sequencing note:** H1 unblocks H2; H3+H4 unblock H5; H5 unblocks H6; H7
+reads H5 and H6's inputs. H1–H4 are one session's work; H6 touches four scoring
+models and their versions; H7 is small once H5 exists. ⚠️ **Identity data
+(name, emails) is personal data in a public repo's docs — record the *shape*
+(`work email`, `personal email`), never the reader's actual addresses, per
+`docs/privacy-and-ip.md`.**
+
 ---
 
 ## C. Sections requested

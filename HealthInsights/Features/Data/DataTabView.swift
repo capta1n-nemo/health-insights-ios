@@ -168,6 +168,16 @@ struct DataTabView: View {
                     || model.results.contains { matches($0.title) })
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
+        case .generatedInsights:
+            // Searchable by the section's own words and by any series' display
+            // name, so "fitness age" finds it without the reader knowing the
+            // app files that under Generated insights.
+            guard model.derivedSeries.pointCount > 0 else { return false }
+            return matches(domain.title, "generated", "derived", "computed",
+                           "insight", "trend")
+                || model.derivedSeries.seriesIDs.contains {
+                    model.derivedSeries.spec($0).map { matches($0.displayName) } ?? false
+                }
         }
     }
 
@@ -333,6 +343,37 @@ struct DataTabView: View {
         case .calendarEvents: calendarSection
         case .cycles: cycleSection
         case .unmodelled: otherDataSection
+        case .generatedInsights: generatedInsightsSection
+        }
+    }
+
+    /// One row, opening the sub-page — the reader's own shape for it, 2026-08-06:
+    /// *"maybe we can put them all into a sub menu, so it doesn't blow out that
+    /// page… Maybe in a 'Generated Insights' sub menu at the bottom."* The
+    /// component tier alone is dozens of series, so the row carries a count and
+    /// the page carries the list.
+    @ViewBuilder private var generatedInsightsSection: some View {
+        if model.derivedSeries.pointCount > 0 {
+            Section {
+                NavigationLink {
+                    GeneratedInsightsDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Derived figures, day by day")
+                            Spacer()
+                            Text("\(model.derivedSeries.seriesIDs.count)")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text("Computed by this app, never measured")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.generatedInsights.title)
+            } footer: {
+                Text(DataDomain.generatedInsights.summary)
+            }
         }
     }
 

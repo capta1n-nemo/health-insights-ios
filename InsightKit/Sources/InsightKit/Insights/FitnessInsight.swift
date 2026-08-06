@@ -254,7 +254,51 @@ public struct FitnessInsight: InsightModel {
             contributors: blend?.contributions
                 ?? [.init(metric: .vo2Max, higherIsBetter: true, weight: 1,
                           detail: String(format: "%.0f", vo2))],
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            derivedOutputs: Self.derivedOutputs(fitnessAge: fitnessAge,
+                                                trajectory: trajectory, effort: effort))
+    }
+
+    /// **What this card works out that nothing else holds.**
+    ///
+    /// Three figures that existed only as sentences until 2026-08-06: the
+    /// fitness age (recomputed every launch and remembered nowhere, so "is my
+    /// fitness age improving" could only be answered by re-deriving it), the
+    /// ageing-adjusted trajectory, and the week's moderate-equivalent minutes.
+    ///
+    /// The keys are stable identifiers baked into stored history — renaming one
+    /// orphans its series, so they are treated like `modelVersion` and not
+    /// edited for tidiness.
+    static func derivedOutputs(fitnessAge: FitnessAgeModel.Output,
+                               trajectory: VO2Trajectory.Output?,
+                               effort: EffortIntensityModel.Output?) -> [DerivedOutput] {
+        var out: [DerivedOutput] = [
+            .init(key: "fitnessAge", displayName: "Fitness age", unit: "years",
+                  value: fitnessAge.fitnessAge, higherIsBetter: false, precision: 0)
+        ]
+        if let trajectory {
+            out.append(.init(key: "vo2NetPerYear",
+                             displayName: "VO₂max trend, net of ageing",
+                             unit: "mL/kg·min a year", value: trajectory.netPerYear,
+                             higherIsBetter: true, precision: 2))
+        }
+        if let effort {
+            out.append(.init(key: "moderateEquivalentMinutes",
+                             displayName: "Moderate-equivalent minutes this week",
+                             unit: "min", value: effort.moderateEquivalentMinutes,
+                             higherIsBetter: true, precision: 0))
+            // A share, not a dose — and the one figure on this card that says
+            // anything about *how hard* rather than *how much*. `nil` where
+            // there was no active time to take a share of, which is why this is
+            // conditional rather than defaulted to zero.
+            if let share = effort.vigorousShare {
+                out.append(.init(key: "vigorousShare",
+                                 displayName: "Share of active time at vigorous effort",
+                                 unit: "%", value: share * 100,
+                                 higherIsBetter: true, precision: 0))
+            }
+        }
+        return out
     }
 
     // MARK: - Contributions

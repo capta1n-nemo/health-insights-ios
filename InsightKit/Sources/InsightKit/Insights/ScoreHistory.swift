@@ -41,13 +41,25 @@ public enum ScoreHistory {
     /// than plotted: a "score" resting on one signal is noise with a number on it.
     public static let minimumContributors = 2
 
+    /// - Parameter observing: called with **every day the model was actually
+    ///   evaluated**, before the score filters below drop any of them.
+    ///
+    ///   The placement is the point. `DerivedBackfill` needs the days a model
+    ///   produced *something*, and a model can produce a fitness age on a day
+    ///   whose score is nil or rests on one signal — filtering those out here
+    ///   would make a derived series quietly sparser than the figures it was
+    ///   harvested from, for a reason that has nothing to do with it.
+    ///
+    ///   Defaulted to nil, so this changes nothing for the seventeen existing
+    ///   callers and costs them one optional check per replayed day.
     public static func replay(model: any InsightModel,
                               samples: [HealthMetricSample],
                               events: [VitalEvent] = [],
                               profile: UserHealthProfile,
                               days: Int = 90,
                               calendar: Calendar = .current,
-                              now: Date = Date()) -> [ScorePoint] {
+                              now: Date = Date(),
+                              observing: ((Date, InsightResult) -> Void)? = nil) -> [ScorePoint] {
         guard days > 0 else { return [] }
 
         // Pre-filter to what this model can actually read. This is what makes
@@ -137,6 +149,7 @@ public enum ScoreHistory {
             let result = model.evaluate(samples: visible,
                                         events: visibleEvents,
                                         profile: profile, now: asOf)
+            observing?(dayStart, result)
             guard let score = result.score else { continue }
 
             // Having the data isn't the same as having *used* it: readiness needs
