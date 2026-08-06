@@ -60,7 +60,7 @@ final class ContributionRouteTests: XCTestCase {
                                    "\(model.id) offers an empty grounding route")
                 case .bloodPressureReadings, .substanceLog, .fileImport,
                      .medication, .bodyType, .bodyMeasurements, .screenTime,
-                     .symptomLog:
+                     .symptomLog, .readerIdentity:
                     continue
                 }
             }
@@ -75,8 +75,11 @@ final class ContributionRouteTests: XCTestCase {
     /// answer "is it tech time?".
     func testModelsWithoutRequirementsOfferNothingUnlessTheyOverride() {
         // `.symptomRadar` joined 2026-08-04: no grounding facts, but it offers
-        // the symptom-tag route it grades itself against.
-        let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar]
+        // the symptom-tag route it grades itself against. `.workImpact` joined
+        // with B7 H1: no grounding facts, but it offers the identity route that
+        // decides whose OOO block a working day contains.
+        let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar,
+                                          .workImpact]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,
@@ -112,6 +115,17 @@ final class ContributionRouteTests: XCTestCase {
         XCTAssertTrue(radarModel.requirements.isEmpty)
         XCTAssertEqual(radarModel.contributions, [.symptomLog])
         XCTAssertEqual(ContributionRoute.symptomLog.inputKinds, [])
+    }
+
+    /// Work impact offers identity (B7 H1) — the input that decides whose OOO
+    /// block a working day contains. Travel drain deliberately does not: its
+    /// model reads time-zone changes and no classifications, and a card
+    /// offering an input its model ignores would be claiming a sensitivity it
+    /// does not have.
+    func testWorkImpactOffersIdentityAndTravelDrainDoesNot() {
+        XCTAssertEqual(model(.workImpact).contributions, [.readerIdentity])
+        XCTAssertTrue(model(.travelDrain).contributions.isEmpty)
+        XCTAssertEqual(ContributionRoute.readerIdentity.inputKinds, [.readerIdentity])
     }
 
     // MARK: - Dispatch

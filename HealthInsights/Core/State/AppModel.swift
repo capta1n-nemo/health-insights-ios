@@ -239,6 +239,7 @@ final class AppModel {
         cycleDays = dataStore.loadCycleDays()
         calendarEvents = dataStore.loadCalendarEvents()
         calendarJudgements = dataStore.loadCalendarJudgements()
+        holidayEntries = dataStore.loadHolidayEntries()
     }
 
     // MARK: - Calendar
@@ -264,7 +265,69 @@ final class AppModel {
     }
 
     var calendarBuckets: [CalendarEventBucket: [CalendarEvent]] {
-        CalendarEventClassifier.bucket(calendarJudgements, events: calendarEvents)
+        CalendarEventClassifier.bucket(calendarJudgements, events: calendarEvents,
+                                       identity: readerIdentity)
+    }
+
+    // MARK: - Reader identity (B7 H1)
+
+    /// Who the reader is, to their calendar. Loaded in `init` beside the
+    /// profile — one small JSON read — and stored so every surface that shows
+    /// standing ("Name & emails" rows, the Work impact route) observes it.
+    private(set) var readerIdentity = ReaderIdentity()
+
+    /// Persist the identity and re-read the one axis it informs.
+    ///
+    /// ⚠️ **Occasion only, and corrections survive by construction.** Entering
+    /// a name retroactively resolves every OOO-shaped block already classified
+    /// — an "Annual leave" filed as ambiguous last week is the reader's leave
+    /// now — but the stored classifications may carry model-decided context,
+    /// and the reader's own corrections live beside the guesses. So this walks
+    /// the judgements through `CalendarEventClassifier.reoccasioned`, which
+    /// moves the occasion, preserves everything else, and skips the write when
+    /// nothing changed. No on-device model call: identity is a rules input.
+    func saveReaderIdentity(_ identity: ReaderIdentity) {
+        dataStore.saveReaderIdentity(identity)
+        readerIdentity = identity
+        let byID = Dictionary(uniqueKeysWithValues: calendarEvents.map { ($0.id, $0) })
+        for judgement in dataStore.loadCalendarJudgements() {
+            guard let event = byID[judgement.eventID],
+                  let updated = CalendarEventClassifier.reoccasioned(
+                      judgement.classification, for: event, identity: identity)
+            else { continue }
+            dataStore.recordClassification(updated, for: event.id)
+        }
+        reloadCalendar()
+        recompute()
+    }
+
+    // MARK: - Holidays (B7 H4/H5)
+
+    /// Hand-entered leave, newest first. Stored and observed, per the
+    /// convention every SwiftData-backed log follows (`data-conventions.md`) —
+    /// a computed read off the store is invisible to observation.
+    private(set) var holidayEntries: [HolidayEntry] = []
+
+    /// The one record of leave — detected blocks and entered periods, merged
+    /// and deduplicated. This is what the Data tab shows, what the export
+    /// carries, and what H6 will hand the cards. Derived rather than stored,
+    /// so a correction on a calendar event moves it with no migration.
+    var holidayLedger: HolidayLedger {
+        HolidayLedger(
+            detected: HolidayLedger.detected(events: calendarEvents,
+                                             judgements: calendarJudgements),
+            entered: holidayEntries.compactMap(\.period))
+    }
+
+    /// Record one period of leave, past or planned.
+    func logHoliday(firstDay: Date, lastDay: Date, label: String?) {
+        dataStore.logHoliday(firstDay: firstDay, lastDay: lastDay, label: label)
+        recompute()
+    }
+
+    func deleteHoliday(_ entry: HolidayEntry) {
+        dataStore.deleteHolidayEntry(entry)
+        recompute()
     }
 
     /// Pull from EventKit, store, and classify anything not yet judged.
@@ -273,16 +336,18 @@ final class AppModel {
     /// would spend the on-device model on events the reader has already
     /// corrected — and while `recordClassification` cannot overwrite a
     /// correction, doing the work to throw it away is how a launch gets slow for
-    /// no benefit.
+    /// no benefit. (Identity *changes* re-read stored occasions separately and
+    /// cheaply — see `saveReaderIdentity`.)
     func syncCalendar() async {
         guard let integration = registry.integration(withID: "calendar")
                 as? CalendarIntegration,
-              let fetched = try? integration.fetchEvents() else { return }
+              let fetched = try? integration.fetchEvents(identity: readerIdentity)
+        else { return }
         dataStore.mergeCalendarEvents(fetched)
 
         let judged = Set(dataStore.loadCalendarJudgements().map(\.eventID))
         for event in fetched where !judged.contains(event.id) {
-            let base = CalendarEventClassifier.classify(event)
+            let base = CalendarEventClassifier.classify(event, identity: readerIdentity)
             // The on-device model settles the two interpretive axes where it is
             // available; `refined` refuses to let it touch anything else.
             let reading = await interpreter.interpret(event)
@@ -457,6 +522,16 @@ final class AppModel {
                 hasBeenUsed = !bodyScans.isEmpty
             case .screenTime:
                 hasBeenUsed = !samples.samples(of: .screenTimeMinutes).isEmpty
+            // Saying anything — a name or one email — is using it. It never
+            // prompts (`.offeredOnly`), so this is only ever read as "stop
+            // suggesting"; demanding completeness here would change nothing.
+            case .readerIdentity:
+                hasBeenUsed = readerIdentity.isConfigured
+            // Entered leave only, deliberately: a *detected* holiday is the
+            // calendar's doing, and the question this answers is whether the
+            // reader has ever tried the input.
+            case .holiday:
+                hasBeenUsed = !holidayEntries.isEmpty
             }
             if hasBeenUsed { used.insert(kind) }
         }
@@ -1282,6 +1357,9 @@ final class AppModel {
         self.engine = engine
         self.summarizer = summarizer
         self.profile = dataStore.loadProfile()
+        // Beside the profile, and for the same reason: one small file read,
+        // and the classifier needs it before the first calendar sync.
+        self.readerIdentity = dataStore.loadReaderIdentity()
         seedIntegrationStatuses()
         // Small SwiftData reads only. `hydrate()` does the rest, off the main
         // actor and after the first frame — see the note on it.

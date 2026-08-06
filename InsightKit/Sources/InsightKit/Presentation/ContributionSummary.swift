@@ -282,6 +282,37 @@ public struct ContributionSummary: Sendable, Equatable {
                 : nil)
     }
 
+    /// The reader's name and emails — `ReaderIdentity`, B7 H1.
+    ///
+    /// "Grounded" is having said anything at all: a name alone answers the
+    /// name-in-title question, emails alone answer the organiser one, and
+    /// demanding both would nag for a completeness the classifier does not
+    /// need. `name` is the reader's own and renders only on their device — the
+    /// figure is the one place it appears outside the entry sheet.
+    public static func readerIdentity(name: String?, emails: Int) -> ContributionSummary {
+        let hasName = !(name ?? "").isEmpty
+        let configured = hasName || emails > 0
+        return ContributionSummary(
+            isGrounded: configured,
+            figure: {
+                if let name, hasName { return name }
+                return emails > 0
+                    ? "\(emails) \(SectionCaveat.plural(emails, "email"))" : "Not set"
+            }(),
+            guidance: configured
+                ? "The calendar reads events against who you are: an OOO block "
+                    + "that names you — or that you organised — counts as your "
+                    + "leave, and anyone else's is never counted as a meeting. "
+                    + "Stays on this phone; never exported."
+                : "Your name and emails let the calendar tell whose OOO block "
+                    + "an event is — yours feeds your leave record, a "
+                    + "colleague's stops counting as a meeting. Stays on this "
+                    + "phone; never exported.",
+            progress: nil,
+            addLabel: configured ? "Update name & emails" : "Add your name & emails",
+            detailLabel: nil)
+    }
+
     /// Standing profile facts: one target, one count.
     public static func facts(set: Int, of total: Int) -> ContributionSummary {
         let complete = total > 0 && set >= total

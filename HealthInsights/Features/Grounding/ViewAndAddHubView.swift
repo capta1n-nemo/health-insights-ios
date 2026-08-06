@@ -112,6 +112,7 @@ struct ViewAndAddHubView: View {
         case .bodyType: bodyTypeSection(status)
         case .screenTime: screenTimeSection(status)
         case .symptomLog: symptomSection(status)
+        case .readerIdentity: readerIdentitySection(status)
         }
     }
 
@@ -222,6 +223,14 @@ struct ViewAndAddHubView: View {
                         .font(.caption.weight(.medium))
                 }
             })
+    }
+
+    // MARK: - Reader identity
+
+    /// `ReaderIdentitySheet` is the whole route — one conversation, one sheet,
+    /// same shape as screen time.
+    private func readerIdentitySection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(status, addAction: { activeInput = .readerIdentity })
     }
 
     // MARK: - Grounding facts

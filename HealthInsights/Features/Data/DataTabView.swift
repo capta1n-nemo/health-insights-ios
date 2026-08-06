@@ -158,6 +158,13 @@ struct DataTabView: View {
             return matches(domain.title, "calendar", "meeting", "work", "travel",
                            "event", "personal")
                 || model.symptoms.contains { matches($0.type.title) }
+        case .holidays:
+            // The words a reader reaches for, plus any label they typed — the
+            // one part of the ledger in their own vocabulary.
+            guard !model.holidayLedger.periods.isEmpty else { return false }
+            return matches(domain.title, "holiday", "leave", "vacation",
+                           "time off", "pto", "break")
+                || model.holidayLedger.periods.contains { matches($0.label ?? "") }
         case .bodyScans:
             guard !model.bodyScans.isEmpty else { return false }
             return matches(domain.title, "body", "measurement", "scan", "waist",
@@ -330,6 +337,47 @@ struct DataTabView: View {
         }
     }
 
+    /// The reader's leave — the merged holiday ledger (B7 H5), one row into
+    /// its data page. The reader's instruction: *"make sure it has a data tab,
+    /// where I can track holidays."*
+    @ViewBuilder private var holidaysSection: some View {
+        let ledger = model.holidayLedger
+        if let latest = ledger.periods.last {
+            Section {
+                NavigationLink {
+                    HolidaysDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(latest.label ?? (latest.source == .detected
+                                                  ? "From your calendar" : "Leave"))
+                            Spacer()
+                            Text("\(ledger.periods.count) \(ledger.periods.count == 1 ? "period" : "periods")")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text(holidayStanding(ledger))
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.holidays.title)
+            } footer: {
+                Text(DataDomain.holidays.summary)
+            }
+        }
+    }
+
+    /// One phrase for where the reader stands on leave. The three states are
+    /// genuinely different answers and each earns its own words — a ledger of
+    /// only *booked* leave must not read as recent recovery.
+    private func holidayStanding(_ ledger: HolidayLedger) -> String {
+        switch ledger.daysSinceLastLeave(asOf: Date()) {
+        case 0: return "On leave now"
+        case .some(let days): return "Last leave ended \(days) \(days == 1 ? "day" : "days") ago"
+        case nil: return "None taken yet — only booked ahead"
+        }
+    }
+
     @ViewBuilder private func section(for domain: DataDomain) -> some View {
         switch domain {
         case .metrics: metricSections
@@ -341,6 +389,7 @@ struct DataTabView: View {
         case .bodyScans: bodyScanSection
         case .derivedScores: derivedScoreSection
         case .calendarEvents: calendarSection
+        case .holidays: holidaysSection
         case .cycles: cycleSection
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection

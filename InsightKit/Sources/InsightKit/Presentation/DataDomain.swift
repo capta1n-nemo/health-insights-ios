@@ -87,6 +87,18 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// renders them as three labelled groups, so they read as separate sources
     /// without pretending to be separate shapes.
     case calendarEvents
+    /// **The reader's leave** — the holiday ledger (backlog B7 H5), merged from
+    /// two sources: blocks the calendar classifier read as the reader's own
+    /// leave, and holidays entered by hand. The reader's instruction verbatim:
+    /// *"we should of course make sure it has a data tab, where I can track
+    /// holidays."*
+    ///
+    /// Its own domain rather than a view of `calendarEvents`, because the shape
+    /// is different: an event is one calendar row, a holiday is a dated *period*
+    /// that may exist in no calendar at all — planned leave is entered before
+    /// any block exists — and the deduplicated merge is precisely what neither
+    /// source shows on its own.
+    case holidays
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -119,6 +131,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .derivedScores: return "Scores & estimates"
         case .cycles: return "Cycles"
         case .calendarEvents: return "Calendar"
+        case .holidays: return "Holidays"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -147,6 +160,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Your events, sorted into work, personal and travel — what each one was, who decided that, and whether you have agreed with it."
         case .cycles:
             return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
+        case .holidays:
+            return "Your leave, in one record — holidays found in your calendar and ones you entered yourself, deduplicated, with how long since you last had any."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

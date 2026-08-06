@@ -15,13 +15,21 @@ final class CalendarClassifierTests: XCTestCase {
                        calendarName: String = "Calendar",
                        location: String? = nil, link: Bool = false,
                        allDay: Bool = false,
-                       kind: CalendarEvent.Kind? = nil) -> CalendarEvent {
+                       kind: CalendarEvent.Kind? = nil,
+                       organizerIsReader: Bool? = nil) -> CalendarEvent {
         CalendarEvent(id: title, start: now, end: now.addingTimeInterval(hours * 3600),
                       isAllDay: allDay, timeZoneIdentifier: "Europe/London",
                       calendarName: calendarName,
                       kind: kind ?? (allDay ? .allDay : .timed),
-                      title: title, location: location, hasVideoLink: link)
+                      title: title, location: location, hasVideoLink: link,
+                      organizerIsReader: organizerIsReader)
     }
+
+    /// ⚠️ An obviously fake identity, per `docs/privacy-and-ip.md` — no real
+    /// name or address ever appears in a fixture.
+    private let me = ReaderIdentity(name: "Alex Reader",
+                                    workEmails: ["a.reader@example.com"],
+                                    personalEmails: ["alex@example.org"])
 
     // MARK: - The facts, which are not judgement calls
 
@@ -176,5 +184,136 @@ final class CalendarClassifierTests: XCTestCase {
         let flight = CalendarEventClassifier.classify(
             event("Flight to Singapore", calendarName: "Work"))
         XCTAssertEqual(CalendarEventBucket(flight), .travel)
+    }
+
+    // MARK: - Whose absence is this (B7 H2)
+
+    /// The reader's brief, verbatim: *"someone just putting an 'OOO' or 'out of
+    /// office' block in my calendar, sometimes its mine, sometimes its not"* —
+    /// and *"'John smith on holiday - OOO' It can see if that is me, or someone
+    /// else."* A name match makes it the reader's leave.
+    func testAnOOOBlockNamingTheReaderIsTheirLeave() {
+        let mine = CalendarEventClassifier.classify(
+            event("Alex Reader on holiday - OOO", allDay: true), identity: me)
+        XCTAssertEqual(mine.occasion, .leave)
+        XCTAssertEqual(mine.loadHours, 0, "leave is never meeting load")
+    }
+
+    /// A name that is not the reader's makes it someone else's absence — never
+    /// a meeting, zero load, and out of the work bucket even in a work
+    /// calendar.
+    func testAnOOOBlockNamingSomeoneElseIsNeverAWorkMeeting() {
+        let theirs = CalendarEventClassifier.classify(
+            event("Sam OOO", hours: 8, calendarName: "Work"), identity: me)
+        XCTAssertEqual(theirs.occasion, .absence)
+        XCTAssertEqual(theirs.loadHours, 0)
+        XCTAssertNotEqual(CalendarEventBucket(theirs), .work,
+                          "a colleague's absence counted as the reader's work day")
+    }
+
+    /// ⚠️ **Without identity, ownership cannot be claimed** — an absence marker
+    /// classifies as ambiguous absence, and the one hard rule is that it never
+    /// classifies as a work meeting.
+    func testAnOOOBlockWithNoIdentityIsAmbiguousNeverAMeeting() {
+        for title in ["OOO", "Out of office", "Annual leave"] {
+            let classified = CalendarEventClassifier.classify(
+                event(title, hours: 8, calendarName: "Work"))
+            XCTAssertEqual(classified.occasion, .absence, "\(title) without identity")
+            XCTAssertEqual(classified.loadHours, 0)
+            XCTAssertNotEqual(CalendarEventBucket(classified), .work)
+        }
+    }
+
+    /// With identity set, an *unnamed* leave marker is the reader's own — other
+    /// people's absences arrive named ("Sam OOO") or organised by them, and a
+    /// destination is not a person.
+    func testAnUnnamedLeaveBlockIsTheReadersOwnOnceIdentityExists() {
+        for title in ["OOO", "Annual leave", "Vacation", "PTO",
+                      "Holiday to Sydney"] {
+            XCTAssertEqual(CalendarEventClassifier.classify(
+                event(title, allDay: true), identity: me).occasion, .leave,
+                           "\(title) was not read as the reader's leave")
+        }
+    }
+
+    /// The organiser fact settles ownership when the title says nothing — and
+    /// it is recorded as a fact, because it was read off the event rather than
+    /// judged.
+    func testTheOrganiserFactSettlesAnUnnamedOOO() {
+        let mine = CalendarEventClassifier.classify(
+            event("OOO", organizerIsReader: true), identity: me)
+        XCTAssertEqual(mine.occasion, .leave)
+        XCTAssertEqual(mine.decider(for: CalendarEventClassification.occasionKey), .fact)
+
+        let theirs = CalendarEventClassifier.classify(
+            event("OOO", organizerIsReader: false), identity: me)
+        XCTAssertEqual(theirs.occasion, .absence)
+    }
+
+    // MARK: - The vocabulary edges the brief demands judgement on
+
+    /// **"Holiday party" is a party.** A leave word beside a gathering word is
+    /// an event the reader attends, not an absence — the edge named in the
+    /// brief, tested so the veto cannot quietly regress.
+    func testAHolidayPartyIsNotLeave() {
+        for title in ["Holiday party", "Holiday drinks", "Leaving party"] {
+            let classified = CalendarEventClassifier.classify(event(title), identity: me)
+            XCTAssertNotEqual(classified.occasion, .leave, "\(title) filed as leave")
+            XCTAssertNotEqual(classified.occasion, .absence, "\(title) filed as absence")
+        }
+    }
+
+    /// Word boundaries, not substrings: "Ann" must not be found inside
+    /// "Annual", and a title merely *containing* leave letters is not leave.
+    func testLeaveVocabularyMatchesWholeWordsOnly() {
+        // "Bookkeeping review" contains no leave word as a word; "Leavers'
+        // drinks" has a leave-ish stem and a gathering word.
+        XCTAssertNotEqual(CalendarEventClassifier.classify(
+            event("Bookkeeping review"), identity: me).occasion, .leave)
+        XCTAssertNotEqual(CalendarEventClassifier.classify(
+            event("Leavers drinks"), identity: me).occasion, .leave)
+    }
+
+    /// Bare "leave" doubles as a verb, and a departure is travel: "Leave for
+    /// airport" belongs to the travel rule, not the holiday ledger.
+    func testLeaveForAirportIsTravelNotAHoliday() {
+        let departure = CalendarEventClassifier.classify(
+            event("Leave for airport"), identity: me)
+        XCTAssertEqual(departure.occasion, .travel)
+    }
+
+    /// A multi-day "Annual leave" block used to fall to the travel rule, which
+    /// claims every multi-day non-reminder. The absence reading now runs first
+    /// — this is the H3 shape, the block the ledger detects.
+    func testAMultiDayAnnualLeaveBlockIsLeaveNotTravel() {
+        let block = CalendarEventClassifier.classify(
+            event("Annual leave", allDay: true, kind: .multiDay), identity: me)
+        XCTAssertEqual(block.occasion, .leave)
+        // And the reader's own leave is their life, not their job — whatever
+        // calendar it was booked in.
+        XCTAssertEqual(CalendarEventBucket(block), .personal)
+    }
+
+    // MARK: - Identity arriving later (H1 unblocks H2 retroactively)
+
+    /// Entering a name re-reads the occasion of stored guesses and touches
+    /// nothing else — a model-decided context must survive, or re-classifying
+    /// would silently demote the better decision.
+    func testReoccasionedMovesOnlyTheOccasionAndPreservesTheModelContext() {
+        let stored = CalendarEventClassifier.refined(
+            CalendarEventClassifier.classify(event("Annual leave", allDay: true)),
+            modelContext: .personal, modelFormality: nil)
+        XCTAssertEqual(stored.occasion, .absence, "no identity yet: ambiguous")
+
+        let updated = CalendarEventClassifier.reoccasioned(
+            stored, for: event("Annual leave", allDay: true), identity: me)
+        XCTAssertEqual(updated?.occasion, .leave)
+        XCTAssertEqual(updated?.context, .personal, "the model's context was demoted")
+        XCTAssertEqual(updated?.decider(for: CalendarEventClassification.contextKey),
+                       .model)
+
+        // No change — no write. The caller skips the store round trip.
+        XCTAssertNil(CalendarEventClassifier.reoccasioned(
+            updated!, for: event("Annual leave", allDay: true), identity: me))
     }
 }

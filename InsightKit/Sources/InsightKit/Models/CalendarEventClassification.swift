@@ -80,6 +80,20 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
         case blockedTime
         /// A flight, a drive, a trip. The reader's travel placeholders.
         case travel
+        /// **The reader's own leave** — their OOO block, their "Annual leave",
+        /// their holiday. B7 H2/H3: this is the outcome that feeds the holiday
+        /// ledger, and it exists as a classification rather than a bucket
+        /// because whose absence a block records decides everything about it.
+        case leave
+        /// **Someone's absence, not established as the reader's** — a
+        /// colleague's OOO, or an absence marker no identity can resolve.
+        /// One case for both readings on purpose: they behave identically
+        /// everywhere downstream (never a meeting, never load, never the
+        /// ledger), and the boundary that matters — mine or not mine — is
+        /// exactly the boundary between this case and `.leave`. The review
+        /// sheet offers both, so "that's actually mine" is a one-tap
+        /// correction that reaches the ledger.
+        case absence
         public var id: String { rawValue }
         public var title: String {
             switch self {
@@ -87,6 +101,8 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
             case .reminder: return "Reminder"
             case .blockedTime: return "Blocked time"
             case .travel: return "Travel"
+            case .leave: return "Your leave"
+            case .absence: return "Someone away"
             }
         }
     }
@@ -176,6 +192,12 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
     public var loadHours: Double {
         switch occasion {
         case .reminder: return 0
+        // An absence is not a commitment, whoever it belongs to. The reader's
+        // own leave feeds the *holiday ledger*, never the meeting load; a
+        // colleague's OOO is if anything a lighter week — the backlog notes
+        // "possibly reduced load", which is H6's call to make when the cards
+        // read the ledger, and zero is the honest floor until then.
+        case .leave, .absence: return 0
         case .travel: return hours
         case .blockedTime: return hours * 0.5
         case .meeting:

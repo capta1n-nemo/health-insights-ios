@@ -176,8 +176,30 @@ final class CalendarIntegration: HealthIntegration {
         return videoHosts.contains { text.contains($0) }
     }
 
+    /// Whether the event's organiser is the reader — the fact, derived here and
+    /// kept; the address, read here and dropped. The same discipline as the
+    /// video link below, applied to B7 H2's question ("did I organise this?").
+    ///
+    /// Three states, in evidence order:
+    /// - no organiser at all → nil (the shape of a self-created event — that is
+    ///   *unknown*, and the classifier treats it as such);
+    /// - EventKit's own `isCurrentUser` → true (the calendar account holder);
+    /// - otherwise the organiser's `mailto:` URL against the reader's stated
+    ///   emails (H1) — which is exactly what those emails were entered to
+    ///   answer, and catches the account the phone does not know is theirs.
+    private static func organizerIsReader(_ event: EKEvent,
+                                          identity: ReaderIdentity?) -> Bool? {
+        guard let organizer = event.organizer else { return nil }
+        if organizer.isCurrentUser { return true }
+        return identity?.matches(organizer: organizer.url.absoluteString) == true
+    }
+
     /// The events themselves, for whatever stores them.
-    func fetchEvents(now: Date = Date()) throws -> [CalendarEvent] {
+    ///
+    /// `identity` (B7 H1) is consulted only to derive the organiser boolean —
+    /// nothing of it is stored on the event.
+    func fetchEvents(now: Date = Date(),
+                     identity: ReaderIdentity? = nil) throws -> [CalendarEvent] {
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
         let calendar = Calendar.current
         guard let from = calendar.date(byAdding: .day, value: -Self.lookbackDays, to: now),
@@ -213,7 +235,8 @@ final class CalendarIntegration: HealthIntegration {
                 // same reason — this is the only place they are touched.
                 hasVideoLink: Self.mentionsVideoCall(event.location)
                     || Self.mentionsVideoCall(event.url?.absoluteString)
-                    || Self.mentionsVideoCall(event.notes))
+                    || Self.mentionsVideoCall(event.notes),
+                organizerIsReader: Self.organizerIsReader(event, identity: identity))
         }
     }
 }

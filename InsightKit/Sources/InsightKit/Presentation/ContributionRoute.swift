@@ -67,6 +67,15 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// only by knowing about it is one the reader will never supply.
     case symptomLog
 
+    /// The reader's name and emails — `ReaderIdentity`, backlog B7 H1.
+    ///
+    /// On the Work impact card, because identity is what decides whose OOO
+    /// block a working day contains: without it an absence marker classifies
+    /// as ambiguous and is merely *excluded* from the load, and with it the
+    /// reader's own leave becomes visible to the holiday ledger. The card
+    /// whose numbers that moves is where the reader will go looking.
+    case readerIdentity
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
@@ -93,6 +102,7 @@ public extension ContributionRoute {
         case .bodyType: return [.bodyType]
         case .bodyMeasurements: return [.bodyMeasurements]
         case .screenTime: return [.screenTime]
+        case .readerIdentity: return [.readerIdentity]
         // Captured in Apple Health, not by an in-app sheet — no `InputKind`
         // exists or is added. The every-input-surface rule governs inputs the
         // *app* takes; this one it only receives.

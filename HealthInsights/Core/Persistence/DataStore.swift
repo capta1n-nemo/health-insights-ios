@@ -18,7 +18,8 @@ final class DataStore {
                              SideEffectRecord.self, BodyScanRecord.self,
                              // ⚠️ A @Model not listed here silently never persists.
                              CycleDayRecord.self,
-                             CalendarEventRecord.self, CalendarJudgementRecord.self])
+                             CalendarEventRecord.self, CalendarJudgementRecord.self,
+                             HolidayEntry.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -547,6 +548,67 @@ final class DataStore {
             context.delete(record)
         }
         try? context.save()
+    }
+
+    // MARK: - Holidays (B7 H4)
+
+    /// Every hand-entered period of leave, newest first.
+    func loadHolidayEntries() -> [HolidayEntry] {
+        let descriptor = FetchDescriptor<HolidayEntry>(
+            sortBy: [SortDescriptor(\.firstDay, order: .reverse)])
+        return (try? context.fetch(descriptor)) ?? []
+    }
+
+    /// Record one period of leave, past or planned.
+    ///
+    /// An **append, not an upsert** — like `logSideEffect`, and for the same
+    /// reason: a hand-entered record has no upstream identity to be a duplicate
+    /// of. `HolidayLedger` deduplicates on read, so entering the same week
+    /// twice costs a redundant row, never a double-counted holiday.
+    ///
+    /// Days are stored at start-of-day and in order, whatever the pickers held
+    /// — leave is a whole-day quantity, and a stored 14:30 would make every
+    /// later same-day comparison (the ledger's merge, the data page's delete
+    /// matching) quietly false.
+    func logHoliday(firstDay: Date, lastDay: Date, label: String?,
+                    calendar: Calendar = .current) {
+        let first = calendar.startOfDay(for: min(firstDay, lastDay))
+        let last = calendar.startOfDay(for: max(firstDay, lastDay))
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        context.insert(HolidayEntry(firstDay: first, lastDay: last,
+                                    label: (trimmed?.isEmpty ?? true) ? nil : trimmed))
+        try? context.save()
+    }
+
+    func deleteHolidayEntry(_ entry: HolidayEntry) {
+        context.delete(entry)
+        try? context.save()
+    }
+
+    // MARK: - Reader identity (B7 H1)
+
+    /// A JSON file rather than SwiftData, like the summary and the field
+    /// catalogue: one small value, replaced whole, queried never.
+    ///
+    /// ⚠️ It lives in Application Support and **nothing reads it but the
+    /// classifier** — a name and emails identify the reader outright, and the
+    /// export deliberately has no key for them (`HealthDataExport`).
+    private var readerIdentityURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory,
+                                                 in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? URL.temporaryDirectory
+        return base.appendingPathComponent("reader_identity.json")
+    }
+
+    func loadReaderIdentity() -> ReaderIdentity {
+        guard let data = try? Data(contentsOf: readerIdentityURL) else { return ReaderIdentity() }
+        return (try? JSONDecoder().decode(ReaderIdentity.self, from: data)) ?? ReaderIdentity()
+    }
+
+    func saveReaderIdentity(_ identity: ReaderIdentity) {
+        guard let data = try? JSONEncoder().encode(identity) else { return }
+        try? data.write(to: readerIdentityURL, options: .atomic)
     }
 
     // MARK: - Cycle log

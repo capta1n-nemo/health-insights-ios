@@ -21,8 +21,8 @@ import Foundation
 public struct HealthDataExport: Encodable, Sendable {
 
     /// Bumped when a field is added or renamed, so an export can be read
-    /// against the shape it was written with.
-    public static let schemaVersion = 2
+    /// against the shape it was written with. 3 added `holidays`.
+    public static let schemaVersion = 3
 
     public struct Medication: Encodable, Sendable {
         public struct Dose: Encodable, Sendable {
@@ -104,6 +104,47 @@ public struct HealthDataExport: Encodable, Sendable {
             self.name = name
             self.severity = severity
             self.date = date
+        }
+    }
+
+    /// One period of the reader's leave, from the merged holiday ledger —
+    /// backlog B7 H5. Reader-entered data, so it genuinely exports.
+    ///
+    /// ⚠️ **A detected period's label is nil by construction** — detection
+    /// (`HolidayLedger.detected`) never carries an event's title, because
+    /// titles are the one thing the export must not hold (see
+    /// `exportKey(for: .calendarEvents)`). The dates are the data point;
+    /// `label` is only ever the reader's own typed words.
+    public struct Holiday: Encodable, Sendable {
+        /// First and last day off, both inclusive — `HolidayLedger.Period`'s
+        /// own convention, kept so the file round-trips without an off-by-one.
+        public let firstDay: Date
+        public let lastDay: Date
+        public let label: String?
+        /// `"detected"` or `"entered"`, so whoever reads the file can tell the
+        /// calendar's suggestion from the reader's statement.
+        public let source: String
+
+        public init(firstDay: Date, lastDay: Date, label: String?, source: String) {
+            self.firstDay = firstDay
+            self.lastDay = lastDay
+            self.label = label
+            self.source = source
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops a nil `label`, and "no label" must be
+        /// distinguishable from "the exporter forgot labels".
+        enum CodingKeys: String, CodingKey {
+            case firstDay, lastDay, label, source
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(firstDay, forKey: .firstDay)
+            try c.encode(lastDay, forKey: .lastDay)
+            try c.encode(label, forKey: .label)
+            try c.encode(source, forKey: .source)
         }
     }
 
@@ -201,6 +242,11 @@ public struct HealthDataExport: Encodable, Sendable {
     /// they are derived from these by `CycleModel`, and exporting a derivation
     /// beside its inputs is how the two get to disagree in someone's archive.
     public let cycles: [CycleDay]
+    /// The merged holiday ledger — dates, reader-typed labels, and which of the
+    /// two sources each period came from. **The one calendar-derived thing that
+    /// exports**, and it can only do so because detection strips titles; see
+    /// `Holiday`.
+    public let holidays: [Holiday]
 
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
@@ -210,8 +256,10 @@ public struct HealthDataExport: Encodable, Sendable {
                 bodyScans: [BodyScan] = [],
                 profile: UserHealthProfile,
                 derivedScores: [DerivedScore],
-                cycles: [CycleDay] = []) {
+                cycles: [CycleDay] = [],
+                holidays: [Holiday] = []) {
         self.cycles = cycles
+        self.holidays = holidays
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.build = build
@@ -254,6 +302,9 @@ public struct HealthDataExport: Encodable, Sendable {
         // device. The events stay on the phone.
         case .calendarEvents: return "unmodelled"
         case .cycles: return "cycles"
+        // Reader-entered (and date-only detected) leave genuinely exports —
+        // unlike the events above, because the ledger holds no titles.
+        case .holidays: return "holidays"
         case .unmodelled: return "unmodelled"
         // Derived series are recomputed from `samples` by replaying the models
         // — persisting them would export a cache, and an import would then
@@ -281,7 +332,7 @@ public struct HealthDataExport: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
-        case bodyScans, profile, derivedScores, cycles
+        case bodyScans, profile, derivedScores, cycles, holidays
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -306,5 +357,6 @@ public struct HealthDataExport: Encodable, Sendable {
         try c.encode(profile, forKey: .profile)
         try c.encode(derivedScores, forKey: .derivedScores)
         try c.encode(cycles, forKey: .cycles)
+        try c.encode(holidays, forKey: .holidays)
     }
 }

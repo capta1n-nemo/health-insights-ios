@@ -108,7 +108,26 @@ struct CardDataView: View {
         case .bodyType: bodyTypeSection
         case .screenTime: screenTimeSection
         case .symptomLog: symptomSection
+        case .readerIdentity: readerIdentitySection
         case .groundingFacts(let kinds): factsSection(kinds)
+        }
+    }
+
+    /// Identity's standing, read-only — where the reader is on it, not the
+    /// values. The name renders (it is their own device); the emails show as a
+    /// count, because a data browser needs "how many", not the addresses.
+    @ViewBuilder private var readerIdentitySection: some View {
+        if model.readerIdentity.isConfigured {
+            Section("Name & emails") {
+                HStack {
+                    Text(model.readerIdentity.name ?? "No name set")
+                    Spacer()
+                    let emails = model.readerIdentity.allEmails.count
+                    Text(emails == 0 ? "no emails"
+                         : "\(emails) email\(emails == 1 ? "" : "s")")
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

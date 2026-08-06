@@ -235,6 +235,10 @@ final class CalendarEventRecord {
     var title: String
     var location: String?
     var hasVideoLink: Bool
+    /// The organiser *fact*, never the organiser's address — see
+    /// `CalendarEvent.organizerIsReader`. Optional, so rows written before B7
+    /// H2 read back as "unknown" rather than as a claim nobody derived.
+    var organizerIsReader: Bool?
 
     init(event: CalendarEvent) {
         eventID = event.id
@@ -247,6 +251,7 @@ final class CalendarEventRecord {
         title = event.title
         location = event.location
         hasVideoLink = event.hasVideoLink
+        organizerIsReader = event.organizerIsReader
     }
 
     func update(from event: CalendarEvent) {
@@ -259,6 +264,7 @@ final class CalendarEventRecord {
         title = event.title
         location = event.location
         hasVideoLink = event.hasVideoLink
+        organizerIsReader = event.organizerIsReader
     }
 
     var event: CalendarEvent? {
@@ -267,7 +273,48 @@ final class CalendarEventRecord {
                              timeZoneIdentifier: timeZoneIdentifier,
                              calendarName: calendarName, kind: kind,
                              title: title, location: location,
-                             hasVideoLink: hasVideoLink)
+                             hasVideoLink: hasVideoLink,
+                             organizerIsReader: organizerIsReader)
+    }
+}
+
+/// **One period of leave the reader entered by hand** — backlog B7 H4:
+/// *"I should also be able to input holidays that are planned manually.. e.g.
+/// … knowing you have, or have not been on a holiday is a very good data
+/// point."* Past or future — planned leave is the point of entering it.
+///
+/// Stored as its own rows rather than as calendar events, because a holiday
+/// may exist in no calendar at all — and merged with the detected ones by
+/// `HolidayLedger`, which is what the cards will read (H6, not wired yet).
+///
+/// `sourceRaw` carries `HolidayLedger.Period.Source` so a future confirmation
+/// flow ("keep this detected holiday even if the calendar disconnects") can
+/// persist detected periods without a schema change; today every stored row
+/// is `entered`.
+@Model
+final class HolidayEntry {
+    /// First and last day off, both inclusive — `HolidayLedger.Period`'s
+    /// convention, normalised on the way in by `period`'s round trip.
+    var firstDay: Date
+    var lastDay: Date
+    /// The reader's own words — "Coast trip". Optional; dates are the data.
+    var label: String?
+    var sourceRaw: String
+
+    init(firstDay: Date, lastDay: Date, label: String? = nil,
+         sourceRaw: String = HolidayLedger.Period.Source.entered.rawValue) {
+        self.firstDay = firstDay
+        self.lastDay = lastDay
+        self.label = label
+        self.sourceRaw = sourceRaw
+    }
+
+    /// Nil only for a row whose source string no longer decodes — skipped, not
+    /// fatal, the same posture every other record takes.
+    var period: HolidayLedger.Period? {
+        guard let source = HolidayLedger.Period.Source(rawValue: sourceRaw) else { return nil }
+        return HolidayLedger.Period(firstDay: firstDay, lastDay: lastDay,
+                                    label: label, source: source)
     }
 }
 

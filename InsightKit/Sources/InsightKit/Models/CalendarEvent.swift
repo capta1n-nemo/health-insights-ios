@@ -74,6 +74,18 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     /// from the location, URL and notes, so the *fact* of a link is kept and the
     /// link itself is not.
     public let hasVideoLink: Bool
+    /// Whether the event's organiser is the reader — derived in the app target
+    /// from EventKit's own `isCurrentUser` and from `ReaderIdentity`'s email
+    /// list, so the *fact* is kept and the organiser's address is not. The same
+    /// shape as `hasVideoLink`, for the same reason: the question ("did I
+    /// organise this, or just attend?" — the reader, B7 H1) is a boolean, and
+    /// the address behind it is one more identifying string not to hold.
+    ///
+    /// `nil` means the event carries no organiser at all — the shape of an
+    /// event the reader created in their own calendar — which is *unknown*,
+    /// not "not the reader". `CalendarEventClassifier` treats the three states
+    /// differently and says why.
+    public let organizerIsReader: Bool?
 
     /// A coarse shape, decided by the app rather than by the event's words.
     public enum Kind: String, Sendable, Codable, CaseIterable {
@@ -96,7 +108,7 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
     public init(id: String, start: Date, end: Date, isAllDay: Bool,
                 timeZoneIdentifier: String?, calendarName: String, kind: Kind,
                 title: String = "", location: String? = nil,
-                hasVideoLink: Bool = false) {
+                hasVideoLink: Bool = false, organizerIsReader: Bool? = nil) {
         self.id = id
         self.start = start
         self.end = end
@@ -107,6 +119,7 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Hashable, Codabl
         self.title = title
         self.location = location
         self.hasVideoLink = hasVideoLink
+        self.organizerIsReader = organizerIsReader
     }
 
     public var durationHours: Double {

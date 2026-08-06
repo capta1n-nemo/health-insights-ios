@@ -15,6 +15,7 @@ import Foundation
 /// | Presence (in person / remote) | ✅ exact | a field is present or it is not |
 /// | Occasion — travel | ✅ mostly | the reader's own placeholders are formulaic |
 /// | Occasion — reminder vs meeting | ✅ mostly | all-day with no place and no link is not a meeting |
+/// | Occasion — whose absence (OOO) | ✅ with identity | name/organiser match; ambiguous is never a meeting |
 /// | Work vs personal | ◐ calendar name first | the model settles an ambiguous title |
 /// | Formality / sentiment | ◐ keywords | genuinely interpretive; the model is better |
 ///
@@ -77,16 +78,144 @@ public enum CalendarEventClassifier {
     ]
     static let workCalendarNames = ["work", "office", "business"]
 
+    // MARK: The leave vocabulary — word-boundary matched, unlike everything above
+    //
+    // B7 H2. These are matched as *whole words and phrases*, not substrings,
+    // because the stakes are different: a substance word misread costs one
+    // event's formality, but "leave" found inside "Leavers' drinks" would file
+    // a party into the holiday ledger. Normalisation (below) lower-cases and
+    // turns every non-alphanumeric into a space, so "out-of-office", "Out of
+    // Office" and "OOO!" all match.
+
+    /// Absence markers — the workplace convention for *a person being away*.
+    /// Kept apart from `leaveVocabulary` because an OOO that carries extra
+    /// words usually carries the absent person's **name** ("Sarah OOO"),
+    /// which is evidence about ownership the destination-shaped words below
+    /// do not give ("Holiday to Sydney" names a place, not a person).
+    static let absenceMarkers = ["ooo", "out of office"]
+    /// Leave in the reader's own words: "annual leave", "vacation", "PTO",
+    /// "holiday". These usually mark the *reader's* time off and often carry a
+    /// destination. Bare "leave" is deliberately **not** here — it is the one
+    /// word of the brief's vocabulary that doubles as a verb ("Leave for
+    /// airport"), so it gets its own weaker rung below.
+    static let leaveVocabulary = [
+        "annual leave", "on leave", "vacation", "pto", "holiday", "holidays",
+    ]
+    /// Words that make a leave-vocabulary title an *event* rather than an
+    /// absence — the edge the reader's brief demands judgement on: "Holiday
+    /// party" is a party. A veto list rather than cleverness, because these
+    /// words are doing one job: they say people are gathering.
+    static let eventfulWords = [
+        "party", "parties", "dinner", "drinks", "lunch", "brunch", "breakfast",
+        "concert", "market", "sale", "shopping", "festival", "fair", "gala",
+        "quiz", "celebration", "gift", "gifts", "card", "cards",
+    ]
+    /// Connective tissue that appears *inside* leave phrases and their
+    /// grammar. Used only by the who-is-named check: a token outside this set,
+    /// the leave vocabulary and the reader's own name is treated as naming
+    /// somebody (or something) else.
+    static let leaveConnectors: Set<String> = [
+        "on", "of", "out", "office", "the", "a", "an", "is", "am", "away",
+        "day", "days", "today", "until", "till", "from", "to", "back", "off",
+        "for", "in", "at",
+    ]
+
     private static func matches(_ text: String, _ words: [String]) -> Bool {
         let lower = text.lowercased()
         return words.contains { lower.contains($0) }
+    }
+
+    /// The whole title as space-separated word tokens, padded, so a phrase
+    /// wrapped in spaces can only match on word boundaries.
+    private static func normalized(_ text: String) -> String {
+        " " + ReaderIdentity.words(in: text).joined(separator: " ") + " "
+    }
+
+    private static func containsPhrase(_ text: String, _ phrases: [String]) -> Bool {
+        let padded = normalized(text)
+        return phrases.contains { padded.contains(" \($0) ") }
+    }
+
+    // MARK: - Whose absence is this (H2)
+
+    /// Reads a title as an absence, or refuses to.
+    ///
+    /// Returns `.leave` (the reader's own — feeds H3/H5), `.absence` (someone
+    /// else's, or unresolvable), or nil (not an absence at all). The decision
+    /// ladder, most reliable evidence first:
+    ///
+    /// 1. **No leave vocabulary, or an eventful word** → not an absence.
+    ///    "Holiday party" has a leave word *and* a gathering word, and the
+    ///    gathering word wins — it is a thing the reader attends.
+    /// 2. **The title names the reader** (`ReaderIdentity.isMe`) → their leave.
+    ///    "John Smith on holiday — OOO" is mine when I am John Smith.
+    /// 3. **The organiser fact** (`organizerIsReader`, derived on-device from
+    ///    EventKit) → mine when true, someone else's when false.
+    /// 4. **No identity configured** → ambiguous, and ambiguous is `.absence`:
+    ///    the one hard rule from the brief is that an unowned OOO block is
+    ///    *never* a work meeting, and without identity "mine" cannot be said.
+    /// 5. **An absence marker with unexplained words** → someone else's.
+    ///    "Sarah OOO" carries a token that is not vocabulary, not grammar and
+    ///    not the reader — in practice, the absent colleague's name.
+    /// 6. **Otherwise** → the reader's own. A bare "OOO", "Annual leave" or
+    ///    "Holiday to Sydney" in the reader's own calendar is theirs: other
+    ///    people's absences arrive named (rule 5) or organised by them (rule
+    ///    3), and a destination is not a person. The known residual — "<name>
+    ///    annual leave" for a name the identity does not hold — misfiles as
+    ///    the reader's, and the review sheet is the backstop: correcting
+    ///    `.leave` to `.absence` is one tap and is never overwritten.
+    static func absenceOccasion(for event: CalendarEvent,
+                                identity: ReaderIdentity?)
+        -> (occasion: CalendarEventClassification.Occasion,
+            decider: CalendarEventClassification.Decider)? {
+        let title = event.title
+        let isMarked = containsPhrase(title, absenceMarkers)
+        let saysLeave = containsPhrase(title, leaveVocabulary)
+        // Bare "leave" is the weakest rung: a verb as often as a noun. It only
+        // counts when nothing about the title reads as a departure — "Leave
+        // for airport" belongs to the travel rule, not the holiday ledger.
+        let bareLeave = containsPhrase(title, ["leave"])
+            && !matches(title, travelWords)
+        guard isMarked || saysLeave || bareLeave else { return nil }
+        guard !containsPhrase(title, eventfulWords) else { return nil }
+
+        // An unconfigured identity is no identity — a blank name must not turn
+        // every unnamed OOO into "not mine".
+        let identity = identity?.isConfigured == true ? identity : nil
+
+        if let identity, identity.isMe(title) { return (.leave, .rules) }
+        if let organised = event.organizerIsReader {
+            // Read off the event, not judged — the one rung that is a fact.
+            return (organised ? .leave : .absence, .fact)
+        }
+        guard let identity else { return (.absence, .rules) }
+
+        if isMarked {
+            let known = Set(absenceMarkers.flatMap { $0.split(separator: " ").map(String.init) })
+                .union(leaveVocabulary.flatMap { $0.split(separator: " ").map(String.init) })
+                .union(leaveConnectors)
+                .union(ReaderIdentity.words(in: identity.name ?? ""))
+            let unexplained = ReaderIdentity.words(in: title).contains { token in
+                token.count > 1 && !token.allSatisfy(\.isNumber) && !known.contains(token)
+            }
+            if unexplained { return (.absence, .rules) }
+        }
+        return (.leave, .rules)
     }
 
     // MARK: - Classify
 
     /// Everything the rules can decide. The model refines `context` and
     /// `formality` afterwards where it is available and confident.
-    public static func classify(_ event: CalendarEvent) -> CalendarEventClassification {
+    ///
+    /// `identity` is who the reader said they are (B7 H1), consulted for one
+    /// question only: **whose absence an OOO-shaped block records.** Optional
+    /// with a nil default because every axis but that one is decidable without
+    /// it — and because a classifier that demanded identity before reading a
+    /// calendar would block the whole feature on a Settings screen.
+    public static func classify(_ event: CalendarEvent,
+                                identity: ReaderIdentity? = nil)
+        -> CalendarEventClassification {
         let title = event.title
         var deciders: [String: CalendarEventClassification.Decider] = [:]
 
@@ -102,11 +231,18 @@ public enum CalendarEventClassifier {
 
         // MARK: occasion
         //
-        // Travel first: a multi-day all-day event called "Sydney" is a trip, and
-        // the reader said they use placeholders exactly like that. Checked ahead
-        // of `reminder` because "flight" beats every other reading of a title.
+        // Absence first — before travel, deliberately. The old travel rule
+        // claims every multi-day block that isn't a reminder, and a multi-day
+        // "Annual leave" *is* travel-shaped; but the reader's brief is explicit
+        // that an OOO-shaped block is someone's absence before it is anything
+        // else, and only the absence reading can answer "whose". Travel words
+        // in a leave title ("Leave for airport") lose here too, and that is the
+        // acceptable cost of never counting a holiday as a commute.
         let occasion: CalendarEventClassification.Occasion
-        if matches(title, travelWords) || (event.kind == .multiDay && !matches(title, reminderWords)) {
+        if let absence = absenceOccasion(for: event, identity: identity) {
+            occasion = absence.occasion
+            deciders[CalendarEventClassification.occasionKey] = absence.decider
+        } else if matches(title, travelWords) || (event.kind == .multiDay && !matches(title, reminderWords)) {
             occasion = .travel
             deciders[CalendarEventClassification.occasionKey] = .rules
         } else if matches(title, reminderWords)
@@ -197,17 +333,52 @@ public enum CalendarEventClassifier {
             formality: formality, hours: base.hours, deciders: deciders)
     }
 
+    /// Re-read one stored guess against a changed identity, touching **only the
+    /// occasion**.
+    ///
+    /// When the reader enters their name or emails (H1), every OOO-shaped block
+    /// already classified deserves a second look — an "Annual leave" the app
+    /// filed as travel last week is their leave now that it can say so. But the
+    /// stored classification may carry a context or formality the on-device
+    /// *model* decided, and re-running the plain rules over everything would
+    /// silently demote those. So this moves the one axis identity informs and
+    /// preserves every other axis and its decider. Returns nil when the
+    /// occasion would not change, so callers can skip the write.
+    ///
+    /// Corrections are untouched by construction: this produces a
+    /// *classification*, and `CalendarEventJudgement` keeps the reader's
+    /// correction beside it, always winning.
+    public static func reoccasioned(_ stored: CalendarEventClassification,
+                                    for event: CalendarEvent,
+                                    identity: ReaderIdentity?)
+        -> CalendarEventClassification? {
+        let fresh = classify(event, identity: identity)
+        guard fresh.occasion != stored.occasion else { return nil }
+        var deciders = stored.deciders
+        deciders[CalendarEventClassification.occasionKey] =
+            fresh.decider(for: CalendarEventClassification.occasionKey)
+        return CalendarEventClassification(
+            context: stored.context, occasion: fresh.occasion,
+            presence: stored.presence, formality: stored.formality,
+            hours: stored.hours, deciders: deciders)
+    }
+
     // MARK: - What the cards read
 
     /// The three data sources the reader named — *"Work Events, Personal Events,
     /// Travel Events"* — derived rather than stored, so a correction changes
     /// which bucket an event is in with no migration.
+    ///
+    /// `identity` reaches the classify fallback for events not yet judged, so a
+    /// colleague's OOO cannot land in the work bucket while its judgement is
+    /// still being written.
     public static func bucket(_ judgements: [CalendarEventJudgement],
-                              events: [CalendarEvent]) -> [CalendarEventBucket: [CalendarEvent]] {
+                              events: [CalendarEvent],
+                              identity: ReaderIdentity? = nil) -> [CalendarEventBucket: [CalendarEvent]] {
         let byID = Dictionary(uniqueKeysWithValues: judgements.map { ($0.eventID, $0.effective) })
         var out: [CalendarEventBucket: [CalendarEvent]] = [:]
         for event in events {
-            let classification = byID[event.id] ?? classify(event)
+            let classification = byID[event.id] ?? classify(event, identity: identity)
             out[CalendarEventBucket(classification), default: []].append(event)
         }
         return out
@@ -231,8 +402,22 @@ public enum CalendarEventBucket: String, Sendable, CaseIterable, Identifiable, H
     /// **Travel outranks work and personal**, because a flight booked in a work
     /// calendar is still travel — and travel is the axis one of the two
     /// requested cards is entirely about.
+    ///
+    /// **An absence outranks the calendar it sits in**, for the same reason
+    /// (B7 H2): a holiday booked in a work calendar is still the reader's own
+    /// life, so `.leave` files as personal — the brief's one hard rule is that
+    /// it must never count as work. `.absence` files as other, because whose
+    /// it is was precisely what could not be established, and either named
+    /// bucket would be a claim nobody made. Deliberately *not* new bucket
+    /// cases — the backlog: "a new classification outcome, not a new bucket
+    /// bolted on".
     public init(_ classification: CalendarEventClassification) {
-        if classification.occasion == .travel { self = .travel; return }
+        switch classification.occasion {
+        case .travel: self = .travel; return
+        case .leave: self = .personal; return
+        case .absence: self = .other; return
+        case .meeting, .reminder, .blockedTime: break
+        }
         switch classification.context {
         case .work: self = .work
         case .personal: self = .personal

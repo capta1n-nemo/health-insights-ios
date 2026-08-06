@@ -156,6 +156,10 @@ struct ContributionRouteStatus {
             summary = .symptoms(
                 tagged: model.symptoms.filter(\.severity.isPresent).count,
                 recordedAbsences: model.symptoms.filter { !$0.severity.isPresent }.count)
+        case .readerIdentity:
+            title = "Name & emails"
+            summary = .readerIdentity(name: model.readerIdentity.name,
+                                      emails: model.readerIdentity.allEmails.count)
         }
     }
 }

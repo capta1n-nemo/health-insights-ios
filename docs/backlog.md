@@ -439,6 +439,7 @@ models and their versions; H7 is small once H5 exists. ⚠️ **Identity data
 | D36 | **Skip-guards that can hide forever**: `SuggestionTests:254,278` use `XCTSkipUnless` on fixture drift; `ContributorDepartureTests:27–31` skip every model whose metrics aren't in GoldenDataset's five, so Fitness/BodyComp/BP have never been checked against the departure panel | Test audit #3, #4 |
 | D37 | **Assertions that cannot fail**: `NewCardTests:395` percentile 45±12 under a "just under 50" comment; `SleepQualityStagesTests:115` ±12 on a 0–100 score; `MetabolismTests:113` disjunctive assert; `CompositionVelocityTests:95` self-referential; `ScoreHistoryReplayEquivalenceTests:180–185` runs ReadinessInsight twice where a third model was intended | Test audit #7–9 |
 | D38 | **Session-start cost is dominated by `docs/activeContext.md`** — 4,135 lines of 28 sessions' narrative, read every session. `handover.md` now instructs moving superseded sections to `docs/archive/activeContext-history.md`; the first actual pruning needs a main session | Setup review finding 2 |
+| D39 | ⚠️ **Logged bleeding days never reach the export.** The app's full export never passes `cycles:` to `HealthDataExport`, so the key is always `[]` — the Data tab shows the cycle log and "export my data" silently omits it. The exhaustive `exportKey(for:)` switch cannot catch this: it enforces that a domain *names* a key, not that the payload is populated, which is the same gap `HealthDataExportTests` was written to close for the other domains | Found in passing by the B7 agent, 2026-08-06 |
 
 ---
 

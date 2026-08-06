@@ -281,6 +281,13 @@ struct DataExportView: View {
                     confidence: result.confidence.rawValue,
                     history: model.scoreHistory(for: result.id)
                         .map { .init(date: $0.date, score: $0.score) })
+            },
+            // The merged ledger, not the raw rows — the deduplicated record is
+            // the data point, and detected periods carry dates only (never an
+            // event's title), which is what lets this key exist at all.
+            holidays: model.holidayLedger.periods.map {
+                HealthDataExport.Holiday(firstDay: $0.firstDay, lastDay: $0.lastDay,
+                                         label: $0.label, source: $0.source.rawValue)
             })
         Task {
             // Detached: the JSON encode runs to tens of megabytes, and it used
