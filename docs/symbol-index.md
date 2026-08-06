@@ -213,6 +213,9 @@ the place to look.
   - `WhoopResponseParser` :9
 - `Integrations/WithingsResponseParser.swift`
   - `WithingsResponseParser` :11
+- `Models/CalendarEvent.swift`
+  - `CalendarEvent` :30
+  - `CalendarModel` :91
 - `Models/CycleLog.swift`
   - `Cycle` :98
   - `CycleDay` :81
@@ -448,6 +451,8 @@ the place to look.
   - `HealthKitService` :12
 - `Core/Integrations/AppleHealthProvider.swift`
   - `AppleHealthProvider` :7
+- `Core/Integrations/CalendarIntegration.swift`
+  - `CalendarIntegration` :35
 - `Core/Integrations/CredentialValidator.swift`
   - `CredentialValidator` :20
 - `Core/Integrations/HealthDataAppIntents.swift`

@@ -218,8 +218,8 @@ about her record in a doc, a commit message, or on screen.
 
 | # | Card | Blocker |
 |---|---|---|
-| 15 | **Travel drain** | No event source. **The app captures no HealthKit metadata at all**, so there is no timezone on any sample. The original plan assumed this was free; it is not |
-| 16 | **Work impact** | Needs a calendar. **Your new instruction to build a calendar integration unblocks this and #15** |
+| 15 | **Travel drain** | ◐ **Unblocked but not built.** The calendar integration now exists and `CalendarModel.timeZoneChanges` is the travel signal, tested. What remains: persist the events, then the card. ⚠️ Still true that **the app captures no HealthKit metadata**, so a calendar event's own time zone is the only handle on where a reading was taken |
+| 16 | **Work impact** | ◐ **Unblocked but not built.** `CalendarModel.committedHours` and `busiestDay` are the input, tested. Needs the events persisted, then the card |
 | 17 ◐ | **Cycle tracking — a whole fifth tab** | ✅ The tab exists and logs. Four decisions answered plus Q25. ⚠️ **Zero rows is still true of the reader's export and says nothing about hers** |
 | 18 | **Stress Tracking "like Oura"** | Possibly already Sustained Load — see Q24 |
 
@@ -302,7 +302,7 @@ shipping them honest rather than reckless.
 
 | # | Integration | State |
 |---|---|---|
-| I1 | **Calendar — sync one or many Apple calendars, and unsync, under Integrations like the others** | ⚠️ **NEW, your instruction. Nothing exists — zero `EventKit` imports.** Unblocks #15 and #16 |
+| I1 ◐ | **Calendar — sync one or many Apple calendars, and unsync, under Integrations like the others** | ✅ **Shipped `pending`**: `CalendarIntegration` in the registry, permission prompt, connect/disconnect, per-calendar selection persisted, and `CalendarEvent`/`CalendarModel` in InsightKit with committed hours, time-zone changes and busiest day — all testable on Linux. ⚠️ **Events are fetched but not yet STORED**: nothing persists them between launches and no card reads them. That is the remaining half, and it is what #15 and #16 need |
 | I2 | Hume Band direct API | Flows in via Apple Health only |
 | I3 | Ultrahuman | Nothing |
 | I4 | Garmin | Nothing |

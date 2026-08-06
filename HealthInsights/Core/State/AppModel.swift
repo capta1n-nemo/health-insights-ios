@@ -1365,6 +1365,11 @@ final class AppModel {
             // The reader's own automation, collecting what iOS won't hand an
             // app directly. See `ShortcutsIntegration`.
             ShortcutsIntegration(),
+            // On-device permission rather than OAuth, and listed here for the
+            // same reason Shotsy is: "where does my data come from" has one
+            // answer. It is the only blocker on two requested cards — travel
+            // drain and work impact. See `CalendarIntegration`.
+            CalendarIntegration(),
             WithingsProvider(credentials: credentials, webFlow: webFlow)
         ])
         return AppModel(dataStore: dataStore, healthService: healthService,
