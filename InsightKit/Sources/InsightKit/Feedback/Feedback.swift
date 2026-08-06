@@ -171,7 +171,22 @@ public extension InsightID {
         case .gait: return "gait-v1"
         case .biologicalAge: return "biological-age-v1"
         case .mentalHealth: return "mental-health-v1"
-        case .workImpact: return "work-impact-v1"
+        // **v2, 2026-08-06 — backlog D41.** The number was a curve over how much
+        // the body differed between busy and quiet working days, and the
+        // calendar load that decides which day lands in which half was nowhere
+        // in it. It now blends **exposure** (how heavy the reader's work
+        // actually was, against their own range) with **response** (the same
+        // body comparison as before), and the response's share moves with the
+        // contrast. Every score recorded under v1 measures a different quantity
+        // and is not comparable with one recorded after — which is the one
+        // failure this field exists to prevent. The `fitness-v2` precedent.
+        case .workImpact: return "work-impact-v2"
+        // ⚠️ **Deliberately still v1.** D41 rewrote work impact and stopped
+        // there: travel drain's equivalent figure is a count of two-to-four
+        // time-zone changes, which is not a distribution to score against and
+        // not established as travel at all. Its arithmetic is untouched, so its
+        // stored scores stay comparable. Reasoned out at
+        // `TravelDrainModel`'s "What the calendar contributes here".
         case .travelDrain: return "travel-drain-v1"
         }
     }

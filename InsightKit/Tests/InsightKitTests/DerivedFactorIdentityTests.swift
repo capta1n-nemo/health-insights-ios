@@ -154,32 +154,42 @@ final class DerivedFactorIdentityTests: XCTestCase {
                        accuracy: 1e-9)
     }
 
-    /// ⚠️ **The calendar quantities carry weight 0, and that is the honest
-    /// answer rather than an oversight.**
+    /// ⚠️ **The calendar quantities carry a real share, and the zeros are gone.**
     ///
-    /// This card's number is a curve over how much the *body* differed between
-    /// two groups of days; the load gap decides which day lands in which group
-    /// and is nowhere in that arithmetic. Two readers with a twenty-minute gap
-    /// and a five-hour gap can score identically. Giving the gap a share would
-    /// be a proportion nobody computed, printed under a sentence promising the
-    /// shares account for the number — which is the failure this app's whole
-    /// weighting design exists to prevent.
+    /// This test asserted the opposite until 2026-08-06, and the reasoning was
+    /// sound about the card as it then stood: the number was a curve over how
+    /// much the *body* differed between two groups of days, and the load gap
+    /// decided which day landed in which group without entering that arithmetic
+    /// anywhere. A share would have been a proportion nobody computed.
     ///
-    /// Folding the gap into the score is a real option and a separate brief: it
-    /// changes every number this card has ever stored.
-    func testTheCalendarQuantitiesAreNotDressedUpAsShares() {
+    /// The reader overruled the card rather than the reasoning — *"I want all
+    /// inputs to carry at least some weight, thats the entire point. If i have
+    /// had 10 meetings in a day, how would that not leave me impacted and
+    /// drained?"* — so the arithmetic changed, `work-impact-v2` marks every
+    /// stored score as non-comparable, and the calendar now divides the number
+    /// with the body. Backlog D41.
+    func testTheCalendarQuantitiesCarryRealShares() {
         let fixture = WorkFixture()
         let result = WorkImpactInsight(events: fixture.events, judgements: [])
             .evaluate(samples: fixture.samples, profile: UserHealthProfile(),
                       now: fixture.now)
 
-        for row in result.weightedFactors where row.derivedSeries != nil {
-            XCTFail("\(row.name) claims \(row.weight) of a number its arithmetic "
-                    + "does not enter")
+        let calendarRows = result.weightedFactors.filter { $0.derivedSeries != nil }
+        XCTAssertFalse(calendarRows.isEmpty,
+                       "the calendar is back to charted-not-scored: \(result.weightedFactors.map(\.name))")
+        for row in calendarRows {
+            XCTAssertGreaterThan(row.weight, 0, "\(row.name)")
         }
-        // And the shares that *are* drawn still account for the whole number.
+        // Nothing calendar-shaped is left in the unweighted group either — that
+        // is the state the reader objected to.
+        XCTAssertTrue(result.unweightedFactors.allSatisfy { $0.derivedSeries == nil },
+                      "\(result.unweightedFactors.map(\.name)) still carry no share")
+        // And the shares still account for the whole number.
         XCTAssertEqual(result.weightedFactors.reduce(0) { $0 + $1.weight }, 1,
                        accuracy: 1e-9)
+        // Both halves are genuinely present: the body has not been squeezed out
+        // by the change that gave the calendar its share.
+        XCTAssertFalse(result.weightedFactors.filter { $0.metric != nil }.isEmpty)
     }
 
     // MARK: - Mental health: the pass-throughs stay out

@@ -194,6 +194,95 @@ public enum ScoreBlend {
                     value: reading.value, baseline: reading.baseline, z: reading.zScore)
     }
 
+    // MARK: - Blending a measured signal with a figure the card worked out
+    //
+    // ⚠️ **`Term` is keyed by `MetricType`, and that is a real design choice
+    // rather than an oversight**: it is what lets one contribution feed the
+    // overlay chart, its legend and the weighting section without any of them
+    // re-deriving it. The cost is that a card whose number genuinely divides
+    // between a *measured* signal and a *computed* one had nowhere to say so,
+    // and did the two-step arithmetic by hand instead — which is two more
+    // places for the shares to stop summing to one, the exact claim
+    // "How this is weighted" makes on screen.
+    //
+    // Work impact is the case that forced it (backlog D41, 2026-08-06). Its
+    // number now divides between how much work there was — a figure read off
+    // the calendar, not a metric — and how much the body differed, which is
+    // three metrics. Both halves are shares of one number.
+
+    /// One weighted input that is **not** a metric: a figure the card worked
+    /// out, named by the series it keeps.
+    ///
+    /// The `id` is mandatory for the reason `ScoreFactor.Source.derived`'s is —
+    /// a row saying "the gap between your busy and quiet days — 21%" that
+    /// nothing can trend is a link to an empty page, and
+    /// `DerivedFactorIdentityTests` fails the build on one.
+    public struct FactorTerm: Sendable, Equatable {
+        public let id: DerivedSeriesID
+        public let name: String
+        /// This input's own 0–100, before its weight is applied.
+        public let score: Double
+        /// Its weight **within the factor group**; `blend` renormalises.
+        public let weight: Double
+        public let detail: String
+        public let isModifiable: Bool
+
+        public init(id: DerivedSeriesID, name: String, score: Double,
+                    weight: Double, detail: String, isModifiable: Bool = true) {
+            self.id = id
+            self.name = name
+            self.score = score
+            self.weight = weight
+            self.detail = detail
+            self.isModifiable = isModifiable
+        }
+    }
+
+    /// Metric terms and non-metric factors blended as shares of **one** number.
+    ///
+    /// `metricShare` is what the metric group carries between them; the factors
+    /// carry the rest. Weights inside each group are relative and renormalised,
+    /// so a caller states proportions and never totals — and the two lists that
+    /// come back carry *absolute* shares that sum to 1 across both, which is
+    /// what `InsightResult.weightedFactors` needs so a card does not draw two
+    /// 100%s.
+    ///
+    /// Whichever group is empty hands its share to the other, so this can never
+    /// silently score a card on nothing. `nil` when both are empty.
+    public static func blend(metrics: [Term], factors: [FactorTerm],
+                             metricShare: Double)
+        -> (score: Double, contributions: [MetricContribution], factors: [ScoreFactor])? {
+        let metricTotal = metrics.reduce(0) { $0 + $1.weight }
+        let factorTotal = factors.reduce(0) { $0 + $1.weight }
+        guard metricTotal > 0 || factorTotal > 0 else { return nil }
+        let share = metricTotal > 0
+            ? (factorTotal > 0 ? Swift.max(0, Swift.min(1, metricShare)) : 1)
+            : 0
+
+        let contributions = metrics.map { term in
+            MetricContribution(
+                metric: term.metric, higherIsBetter: term.higherIsBetter,
+                weight: metricTotal > 0 ? term.weight / metricTotal * share : 0,
+                detail: term.detail,
+                // Same rule as the two-group blend: a placeholder presented as
+                // a sub-score is worse than the nil that says "not taught to
+                // say".
+                componentScore: term.scoreIsOwn ? term.score : nil,
+                value: term.value, baseline: term.baseline, z: term.z)
+        }
+        let emitted = factors.map { factor in
+            ScoreFactor.derived(factor.id, name: factor.name,
+                                weight: factorTotal > 0
+                                    ? factor.weight / factorTotal * (1 - share) : 0,
+                                detail: factor.detail,
+                                isModifiable: factor.isModifiable)
+        }
+
+        let score = zip(metrics, contributions).reduce(0) { $0 + $1.0.score * $1.1.weight }
+            + zip(factors, emitted).reduce(0) { $0 + $1.0.score * $1.1.weight }
+        return (score, contributions, emitted)
+    }
+
     /// A supporting term with a share, or a weight-0 row that says why not —
     /// never a silent drop.
     ///

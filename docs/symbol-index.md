@@ -115,10 +115,10 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :504
-  - `TravelDrainModel` :286
-  - `WorkImpactInsight` :423
-  - `WorkImpactModel` :21
+  - `TravelDrainInsight` :859
+  - `TravelDrainModel` :620
+  - `WorkImpactInsight` :776
+  - `WorkImpactModel` :40
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11
 - `Insights/CardiovascularRiskInsight.swift`
