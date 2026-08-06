@@ -216,6 +216,35 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     /// question, "is it tech time?".
     case screenTimeMinutes         // min/day — entered by the reader
 
+    /// The day's sound exposure as an equivalent continuous level (LEQ), one
+    /// figure per day, in dBA — **computed by `SoundDoseModel` from the raw
+    /// audio-exposure samples, never read from a provider directly.**
+    ///
+    /// **The reader's rule (backlog §B5 #33): store the dose, never the level.**
+    /// A decibel is a logarithm, so levels cannot be summed or averaged
+    /// arithmetically — the mean of a quiet afternoon and one loud minute is a
+    /// number no ear experienced. The model converts each raw sample to sound
+    /// intensity, weights it by its own duration, sums the energy, and takes
+    /// the log again: the steady level that would have carried the same energy
+    /// as everything the sensor actually heard that day.
+    ///
+    /// **Two metrics, never one figure.** Environmental exposure is watch-only
+    /// and thin — measured on the reader's export 2026-08-06: 5,480 rows but
+    /// 14 of the last 90 days — while headphone exposure covers 56 of 90.
+    /// Summing them would invent the quiet hours on every day the watch was in
+    /// a drawer, which is the exact reason the original refusal gave. They stay
+    /// separate, each honest about what its own sensor could hear.
+    ///
+    /// Every sample carries `MetricSource.calculated`, on
+    /// `activeMedicationLevel`'s precedent: no screen that names a source may
+    /// present a computed daily figure as a device reading. **Nothing reads
+    /// these into a score yet — they are Vitals-tab / Data-tab series only**
+    /// until the "Sound you took on" card (backlog §B3 #22) exists to weigh
+    /// the dose against the WHO/NIOSH budget with the day's measured hours in
+    /// scope.
+    case environmentalSoundDose    // dBA — day's LEQ over the hours the watch could hear
+    case headphoneSoundDose        // dBA — day's LEQ over the time audio was playing
+
     /// Human-readable label for UI.
     public var displayName: String {
         switch self {
@@ -301,6 +330,12 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         // the model is a whole-body compartment, not a plasma assay.
         case .activeMedicationLevel: return "Medication In Your System"
         case .screenTimeMinutes: return "Screen Time"
+        // "Dose" on purpose, in both — the reader's own word for the rule that
+        // created these ("store the dose, never the level"), and the word that
+        // says a day's figure is accumulated exposure rather than a loudness
+        // reading somebody could compare with a sound-meter app.
+        case .environmentalSoundDose: return "Environmental Sound Dose"
+        case .headphoneSoundDose: return "Headphone Sound Dose"
         }
     }
 
@@ -360,6 +395,10 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .walkingStepLength: return "cm"
         case .activeMedicationLevel: return "mg"
         case .heartRateRecovery: return "bpm"
+        // A-weighted decibels — the weighting matters and is in the unit on
+        // purpose: it is what both HealthKit identifiers deliver, and it is the
+        // scale every published exposure guideline (WHO, NIOSH) is written in.
+        case .environmentalSoundDose, .headphoneSoundDose: return "dBA"
         }
     }
 

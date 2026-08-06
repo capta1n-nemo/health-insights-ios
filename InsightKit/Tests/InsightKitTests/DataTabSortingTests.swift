@@ -177,8 +177,13 @@ final class DataTabSortingTests: XCTestCase {
     /// every homeless group must genuinely have no equivalent — otherwise this
     /// silently re-splits the taxonomy the first time somebody adds a case.
     func testEveryGroupEitherHasACanonicalHomeOrHasAReasonNotTo() {
+        // `.hearing` left this list when the sound doses became canonical
+        // metrics (backlog §B5 #33): `MetricDataCategory.hearing` exists now,
+        // and the raw dBA fields file into it beside the daily figures they
+        // feed — the pre-empted version of the two-Nutrition-headings bug the
+        // test above records.
         let homeless: Set<RawFieldGrouping.Group> = [
-            .hearing, .daylight, .mind, .environment, .activityScore, .unsorted,
+            .daylight, .mind, .environment, .activityScore, .unsorted,
         ]
         for group in RawFieldGrouping.Group.allCases {
             XCTAssertEqual(group.canonicalCategory == nil, homeless.contains(group),

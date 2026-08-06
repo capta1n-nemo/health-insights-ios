@@ -1336,7 +1336,15 @@ final class AppModel {
             let cached = store.loadCachedSamples()
             let other = store.loadCachedOther()
             let merged = (manual + cached).sanitizedVitals()
-            let samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+            // Two derivations on the ingest path, same shape: raw or partial
+            // provider data in, canonical calculated samples out, both
+            // idempotent. The sound doses read the raw audio-exposure pile
+            // (`other`) because their inputs were never canonical metrics —
+            // dBA levels cannot be averaged, so only the derived daily LEQ
+            // earns a `MetricType` (see `SoundDoseModel`).
+            let samples = SoundDoseModel.withSoundDose(
+                TemperatureReconstructor.withReconstructedTemperature(merged),
+                raw: other)
             let events = VitalEventReader.events(from: other)
             // The radar is bound to the tags promoted from the catalogue this
             // task just loaded — binding `engineNow` on the main actor would
@@ -1783,7 +1791,14 @@ final class AppModel {
         // trended and charted. Deliberately not body temperature: these are skin
         // readings, and labelling them as core is what had Vitals Check judging
         // them against fever and hypothermia bounds.
-        samples = TemperatureReconstructor.withReconstructedTemperature(merged)
+        //
+        // Then the daily sound doses from the raw audio-exposure samples that
+        // arrived in `otherSamples` just above — same shape of derivation,
+        // same idempotence (both strip-or-replace rather than append), so the
+        // ingest path may run any number of times without stacking either.
+        samples = SoundDoseModel.withSoundDose(
+            TemperatureReconstructor.withReconstructedTemperature(merged),
+            raw: otherSamples)
         logMetricCounts(diag)
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()

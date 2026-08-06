@@ -69,10 +69,17 @@ public enum RawFieldGrouping {
             case .mobility, .movement: return .activity
             case .bodyMeasurements: return .body
             case .sleepDetail: return .sleepRecovery
+            // The daily sound doses are canonical metrics now
+            // (`environmentalSoundDose`, `headphoneSoundDose`), so the raw dBA
+            // fields they are computed from file into the same "Hearing"
+            // section rather than opening a second heading with the same name
+            // — the two-taxonomies bug described above, pre-empted this time
+            // instead of reported by the reader.
+            case .hearing: return .hearing
             // No canonical equivalent: the app models none of these yet, so a
             // section of their own is the honest answer rather than filing them
             // under something they are not.
-            case .hearing, .daylight, .mind, .environment: return nil
+            case .daylight, .mind, .environment: return nil
             // Deliberately its own section even though it *could* fold into
             // Activity: eleven fields that are one score's workings are a
             // different kind of thing from a reading, and burying them among

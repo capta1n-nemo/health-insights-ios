@@ -202,6 +202,20 @@ public enum MetricExplainer {
                 whatItIs: "How hard your body was working, in METs — multiples of what you burn sitting still. Sitting is 1, a gentle walk about 3, a brisk one about 5, and running roughly 8 and up. Your watch estimates it from movement and heart rate.",
                 soWhat: "Steps and distance say how much you moved; this says how hard. Ten thousand slow steps and an hour of hills are the same on a step counter and very different here, and it is the intensity that most of the health evidence is actually about.")
 
+        // A dose expressed as a level genuinely needs explaining — "your day
+        // was 68 dBA" reads as a loudness reading, and it is not one. Two
+        // separate arms rather than one shared, because what each sensor could
+        // and could not hear is the honest half of each explanation and it
+        // differs between them.
+        case .environmentalSoundDose:
+            return MetricExplanation(
+                whatItIs: "How loud the world around you was, folded into one steady level for the day — the constant loudness that would have carried the same sound energy to your ears as the real mix of quiet stretches and loud moments your watch heard.",
+                soWhat: "Hearing wears by accumulated dose rather than by single loud moments, which is why the day is summed by energy instead of averaged. The watch can only count the hours it was worn — a quiet-looking day can simply be a day it spent on the charger, so the run of days says more than any one figure.")
+        case .headphoneSoundDose:
+            return MetricExplanation(
+                whatItIs: "Everything your headphones played in a day, folded into one steady level — the constant volume that would have carried the same sound energy as the real mix of quiet podcasts and loud songs.",
+                soWhat: "Headphone sound goes straight into the ear, so it is the one exposure you set yourself. Loudness accumulates as energy, not as numbers on a dial — a short very loud stretch can outweigh hours of moderate listening, and that imbalance is exactly what this way of summing a day is built to catch.")
+
         // MARK: No explanation needed, and that is a decision
         //
         // A step is a step, a kilogram is a kilogram, and a glass of water does

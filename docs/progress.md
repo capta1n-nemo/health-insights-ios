@@ -1850,6 +1850,12 @@ plumbing. Ordered by how much is already arriving.
       quiet hours; and the exposure *events* are effectively absent (40 days
       ever, 0 in the last 90, the headphone event fired once in 2023). Frame it
       as the headphone dose, and state the hours it could not see.
+      ◐ **The substrate shipped 2026-08-06 (backlog §B5 #33):**
+      `environmentalSoundDose` and `headphoneSoundDose` are canonical daily
+      metrics now — each the day's equal-energy LEQ over its own sensor's
+      measured hours, derived by `SoundDoseModel` from the raw dBA samples on
+      the ingest path, `MetricSource.calculated`, Data tab ▸ Hearing, never
+      summed. Nothing scores them yet; **what remains here is the card.**
 - [ ] ~~**Daylight and UV.**~~ **Zero rows.** `TimeInDaylight` and `UVExposure`
       are not among the 158 identifiers at all. The circadian argument still
       holds and is still good, but this is a data-collection problem — find out

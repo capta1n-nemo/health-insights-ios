@@ -45,7 +45,14 @@ public extension MetricType {
              .dietaryMonounsaturatedFat, .dietaryPolyunsaturatedFat,
              .dietaryCholesterol, .dietaryCalcium, .dietaryIron,
              .dietaryMagnesium, .dietaryZinc, .dietaryVitaminC,
-             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12:
+             .dietaryVitaminA, .dietaryVitaminD, .dietaryVitaminB12,
+             // 0 dBA is the threshold of hearing — a level neither a wrist
+             // microphone nor a headphone output measurement can genuinely
+             // report, and one `SoundDoseModel` cannot produce from real
+             // samples (it emits nothing for a day with no samples rather
+             // than a zero). A zero here is a placeholder, exactly as a
+             // 0 bpm heart rate is.
+             .environmentalSoundDose, .headphoneSoundDose:
             return true
         case .dayStrain, .stepCount, .activeEnergyBurned,
              // A day with no exercise is a real day.
@@ -234,6 +241,15 @@ public extension MetricType {
         case .dietaryVitaminB12: return 0.1...50_000
         // A single sample is an accrual interval, and a day holds 1,440 minutes.
         case .exerciseMinutes: return 0...1440
+        // Survival limits on the decibel scale, wide on both ends. Below
+        // 10 dBA is quieter than any room a consumer microphone can resolve —
+        // an anechoic-chamber figure, so from these sensors it is an artefact.
+        // Above 140 dBA is instant-injury territory (a jet at takeoff
+        // distance) that no *day-long equivalent level* can honestly reach:
+        // a true LEQ of 140 would mean the whole measured day was spent at
+        // it. Real loud days — concerts, power tools — land in the 80s and
+        // 90s and must stay inside the band, and they do, five-fold over.
+        case .environmentalSoundDose, .headphoneSoundDose: return 10...140
         }
     }
 }

@@ -26,6 +26,15 @@ public enum MetricDataCategory: String, Sendable, CaseIterable {
     /// was burned are different questions, and a reader looking for what they
     /// ate should not have to find it under exercise.
     case nutrition = "Nutrition"
+    /// Sound exposure — the two daily dose figures, plus the raw audio fields
+    /// `RawFieldGrouping.Group.hearing` files beside them. "Hearing" rather
+    /// than "Sound" because it is the word Apple Health uses for the same
+    /// section, so it is the heading the reader has already learnt to look
+    /// under. Before the doses existed this section lived only on the raw side
+    /// (`canonicalCategory: nil`); promoting the metrics without moving the raw
+    /// fields in with them would have made two "Hearing" headings — the exact
+    /// two-taxonomies bug the nutrition section already paid for.
+    case hearing = "Hearing"
     /// Not in the grouped metric list because it has its own Data-tab section:
     /// blood pressure is a paired reading (its own domain), and the modelled
     /// medication level lives in the medication domain. Kept as an explicit case
@@ -80,6 +89,12 @@ public extension MetricType {
             return .activity
         case .bloodPressureSystolic, .bloodPressureDiastolic, .activeMedicationLevel:
             return .ownDomain
+        // Not `.activity` and not `.sleepRecovery`: hearing is its own subject,
+        // Apple Health gives it its own section, and the raw dBA fields these
+        // are computed from already group under a "Hearing" heading — the dose
+        // belongs beside its own ingredients.
+        case .environmentalSoundDose, .headphoneSoundDose:
+            return .hearing
         }
     }
 

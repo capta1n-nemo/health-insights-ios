@@ -66,6 +66,12 @@ public enum MetricValueFormatter {
         // length by a centimetre or two.
         case .walkingDoubleSupport, .walkingStepLength:
             return String(format: "%.1f", value)
+        // One decimal, because the scale is logarithmic: 3 dB is a *doubling*
+        // of sound energy, so the default's whole-number rounding would swallow
+        // day-to-day movement worth a third of a doubling — real change on
+        // this scale, invisible on that rendering.
+        case .environmentalSoundDose, .headphoneSoundDose:
+            return String(format: "%.1f", value)
         default:
             return "\(Int(value.rounded()))"
         }
