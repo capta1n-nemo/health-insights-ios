@@ -1,0 +1,25 @@
+--- install ---
+Installing build/Build/Products/Debug-iphoneos/HealthInsights.app onto the pinned device (iPhone 16 Pro)
+ERROR: A connection to this device could not be established. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))
+       DeviceIdentifier = 26642940-2E82-5266-8527-0A0351F9D4D8
+       ----------------------------------------
+           Internal logic error: Connection was invalidated (com.apple.CoreDevice.ControlChannelConnectionError error 1 (0x01))
+       ----------------------------------------
+               Transport error (com.apple.CoreDevice.ControlChannelConnectionError error 0 (0x00))
+       ----------------------------------------
+                   The operation couldn’t be completed. (Network.NWError error 54 - Connection reset by peer)
+                   NSDescription = Connection reset by peer
+       ----------------------------------------
+           Internal logic error: Connection was invalidated (com.apple.CoreDevice.ControlChannelConnectionError error 1 (0x01))
+       ----------------------------------------
+               Transport error (com.apple.CoreDevice.ControlChannelConnectionError error 0 (0x00))
+       ----------------------------------------
+                   The operation couldn’t be completed. (Network.NWError error 54 - Connection reset by peer)
+                   NSDescription = Connection reset by peer
+       ----------------------------------------
+           Internal logic error: Connection was invalidated (com.apple.CoreDevice.ControlChannelConnectionError error 1 (0x01))
+       ----------------------------------------
+               Transport error (com.apple.CoreDevice.ControlChannelConnectionError error 0 (0x00))
+       ----------------------------------------
+                   The operation couldn’t be completed. (Network.NWError error 54 - Connection reset by peer)
+                   NSDescription = Connection reset by peer
