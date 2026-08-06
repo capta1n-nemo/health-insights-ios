@@ -189,11 +189,20 @@ public enum NutritionModel {
         var terms: [Term] = []
         var drivers: [InsightDriver] = []
 
+        // `value` is the daily mean in the metric's own unit — the measured
+        // figure each curve was fed, directly (fibre, sodium) or through the
+        // stated transformation (protein per kg, fat as a share of energy),
+        // which the detail spells out. No baseline/z anywhere on this card:
+        // every term is judged against a published figure, never the reader's
+        // own history.
         func add(_ metric: MetricType, score: Double, weight: Double,
-                 higherIsBetter: Bool?, detail: String, driver: String) {
+                 higherIsBetter: Bool?, detail: String, driver: String,
+                 value: Double? = nil) {
             terms.append(Term(row: MetricContribution(metric: metric,
                                                       higherIsBetter: higherIsBetter,
-                                                      weight: weight, detail: detail),
+                                                      weight: weight, detail: detail,
+                                                      componentScore: score,
+                                                      value: value),
                               score: score, weight: weight))
             drivers.append(.component(driver, score: score))
         }
@@ -202,37 +211,43 @@ public enum NutritionModel {
             let score = proteinScore(gramsPerKilogram: perKg)
             add(.dietaryProtein, score: score, weight: 0.25, higherIsBetter: true,
                 detail: String(format: "%.0f g a day — %.2f g per kg of your body weight", grams, perKg),
-                driver: String(format: "Protein %.2f g/kg — the floor for holding on to lean mass while losing weight is about 1.2 g/kg (WHO/FAO safe intake is 0.83)", perKg))
+                driver: String(format: "Protein %.2f g/kg — the floor for holding on to lean mass while losing weight is about 1.2 g/kg (WHO/FAO safe intake is 0.83)", perKg),
+                value: grams)
         }
         if let fibre = means[.dietaryFibre] {
             let score = fibreScore(grams: fibre)
             add(.dietaryFibre, score: score, weight: 0.20, higherIsBetter: true,
                 detail: String(format: "%.0f g a day against a 25 g floor", fibre),
-                driver: String(format: "Fibre %.0f g a day — EFSA's adequate intake is 25 g and the UK figure is 30 g", fibre))
+                driver: String(format: "Fibre %.0f g a day — EFSA's adequate intake is 25 g and the UK figure is 30 g", fibre),
+                value: fibre)
         }
         if let percent = satFatPercent, let grams = means[.dietarySaturatedFat] {
             let score = saturatedFatScore(percentOfEnergy: percent)
             add(.dietarySaturatedFat, score: score, weight: 0.20, higherIsBetter: false,
                 detail: String(format: "%.0f g a day — %.0f%% of what you ate", grams, percent),
-                driver: String(format: "Saturated fat %.0f%% of energy — WHO's figure is below 10%%", percent))
+                driver: String(format: "Saturated fat %.0f%% of energy — WHO's figure is below 10%%", percent),
+                value: grams)
         }
         if let sodium = means[.dietarySodium] {
             let score = sodiumScore(milligrams: sodium)
             add(.dietarySodium, score: score, weight: 0.15, higherIsBetter: false,
                 detail: String(format: "%.0f mg a day against a 2,000 mg ceiling", sodium),
-                driver: String(format: "Sodium %.0f mg a day — WHO's figure is under 2,000 mg, about 5 g of salt", sodium))
+                driver: String(format: "Sodium %.0f mg a day — WHO's figure is under 2,000 mg, about 5 g of salt", sodium),
+                value: sodium)
         }
         if let potassium = means[.dietaryPotassium] {
             let score = potassiumScore(milligrams: potassium)
             add(.dietaryPotassium, score: score, weight: 0.05, higherIsBetter: true,
                 detail: String(format: "%.0f mg a day against a 3,510 mg floor", potassium),
-                driver: String(format: "Potassium %.0f mg a day — WHO's figure is at least 3,510 mg", potassium))
+                driver: String(format: "Potassium %.0f mg a day — WHO's figure is at least 3,510 mg", potassium),
+                value: potassium)
         }
         if let percent = fatPercent, let grams = means[.dietaryFat] {
             let score = fatScore(percentOfEnergy: percent)
             add(.dietaryFat, score: score, weight: 0.05, higherIsBetter: false,
                 detail: String(format: "%.0f g a day — %.0f%% of what you ate", grams, percent),
-                driver: String(format: "Total fat %.0f%% of energy — WHO's figure is at or below 30%%", percent))
+                driver: String(format: "Total fat %.0f%% of energy — WHO's figure is at or below 30%%", percent),
+                value: grams)
         }
         if let water = means[.dietaryWater] {
             let score = waterScore(litres: water, sex: profile.sex)
@@ -240,13 +255,15 @@ public enum NutritionModel {
                 detail: String(format: "%.1f L logged a day — EFSA's total-water figure is %@, and food carries about a fifth of it",
                                water, profile.sex == .female ? "2.0 L" : "2.5 L"),
                 driver: String(format: "Water %.1f L a day from what you logged — EFSA's total figure is %@ including the water in food",
-                               water, profile.sex == .female ? "2.0 L" : "2.5 L"))
+                               water, profile.sex == .female ? "2.0 L" : "2.5 L"),
+                value: water)
         }
         if let caffeine = means[.dietaryCaffeine] {
             let score = caffeineScore(milligrams: caffeine)
             add(.dietaryCaffeine, score: score, weight: 0.05, higherIsBetter: false,
                 detail: String(format: "%.0f mg a day against a 400 mg ceiling", caffeine),
-                driver: String(format: "Caffeine %.0f mg a day — EFSA calls up to 400 mg no safety concern for a healthy adult", caffeine))
+                driver: String(format: "Caffeine %.0f mg a day — EFSA calls up to 400 mg no safety concern for a healthy adult", caffeine),
+                value: caffeine)
         }
 
         // MARK: The eight vitamins and minerals
@@ -271,6 +288,10 @@ public enum NutritionModel {
             for row in micronutrients.rows {
                 let detail = MicronutrientEstimate.rowDetail(row)
                 guard !row.isEstimated else {
+                    // No `value` either: the intake here is modelled from
+                    // calories and a population density, and the decomposition
+                    // printing it as a raw value would launder an estimate
+                    // into a measurement — the same reason it is not scored.
                     estimatedRows.append(MetricContribution(
                         metric: row.metric, higherIsBetter: nil, weight: 0,
                         detail: detail + " — not scored, because a modelled intake cannot be evidence about you"))
@@ -280,7 +301,8 @@ public enum NutritionModel {
                     weight: 0.02,
                     higherIsBetter: row.standing == .aboveUpperLimit ? false : true,
                     detail: detail,
-                    driver: "\(row.metric.displayName) \(detail). \(row.target.provenance)")
+                    driver: "\(row.metric.displayName) \(detail). \(row.target.provenance)",
+                    value: row.intake)
             }
         }
 
@@ -292,7 +314,12 @@ public enum NutritionModel {
         var contributions = terms.map { term in
             MetricContribution(metric: term.row.metric,
                                higherIsBetter: term.row.higherIsBetter,
-                               weight: term.weight / totalWeight, detail: term.row.detail)
+                               weight: term.weight / totalWeight, detail: term.row.detail,
+                               // Carried over from the un-renormalised row —
+                               // renormalising a weight does not change what
+                               // the component itself scored or read.
+                               componentScore: term.row.componentScore,
+                               value: term.row.value)
         }
         contributions += trackedNotScored(means: means, energy: energy)
         contributions += estimatedRows
@@ -345,15 +372,19 @@ public enum NutritionModel {
     /// reason — and each reason is on the row, because a bare zero weight is
     /// what `testAnUnweightedRowAlwaysSaysWhy` exists to catch.
     static func trackedNotScored(means: [MetricType: Double], energy: Double) -> [MetricContribution] {
+        // `value` filled, `componentScore` deliberately not: the readings are
+        // real and "not scored" is each row's whole statement.
         var out: [MetricContribution] = [
             MetricContribution(
                 metric: .dietaryEnergy, higherIsBetter: nil, weight: 0,
-                detail: String(format: "%.0f kcal a day — tracked, not scored: no published figure says what one person should eat, and for a reader losing weight a deficit is the point", energy))
+                detail: String(format: "%.0f kcal a day — tracked, not scored: no published figure says what one person should eat, and for a reader losing weight a deficit is the point", energy),
+                value: energy)
         ]
         if let carbs = means[.dietaryCarbohydrates] {
             out.append(MetricContribution(
                 metric: .dietaryCarbohydrates, higherIsBetter: nil, weight: 0,
-                detail: String(format: "%.0f g a day — tracked, not scored: the guidance here is about which carbohydrates rather than how many grams, and this app is not going to invent a gram figure", carbs)))
+                detail: String(format: "%.0f g a day — tracked, not scored: the guidance here is about which carbohydrates rather than how many grams, and this app is not going to invent a gram figure", carbs),
+                value: carbs))
         }
         if let sugar = means[.dietarySugar] {
             // The honest one, and the reason it is not simply scored against
@@ -362,7 +393,8 @@ public enum NutritionModel {
             // against the other would mark down an apple.
             out.append(MetricContribution(
                 metric: .dietarySugar, higherIsBetter: nil, weight: 0,
-                detail: String(format: "%.0f g a day — tracked, not scored: WHO's under-10%% figure is for *free* sugars, and this number is total sugars, so it counts the sugar in fruit and milk too", sugar)))
+                detail: String(format: "%.0f g a day — tracked, not scored: WHO's under-10%% figure is for *free* sugars, and this number is total sugars, so it counts the sugar in fruit and milk too", sugar),
+                value: sugar))
         }
         return out
     }

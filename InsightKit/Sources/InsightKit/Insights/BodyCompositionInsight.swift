@@ -187,9 +187,21 @@ public struct BodyCompositionInsight: InsightModel {
             terms.append(.init(metric: dial.metric,
                                  higherIsBetter: dial.metric == .bodyFatPercentage ? false : nil,
                                  score: dial.value, weight: Self.levelWeight,
-                                 detail: Self.formatted(dial.metric, samples: samples)))
+                                 detail: Self.formatted(dial.metric, samples: samples),
+                                 // The fat fraction the level was judged from —
+                                 // measured, or estimated from the reader's own
+                                 // dimensions on the RFM route. The BMI route
+                                 // reports no `value`: it attributes to body
+                                 // mass, and a BMI is not a reading in body
+                                 // mass's own unit.
+                                 value: dial.metric == .bodyFatPercentage
+                                     ? (bodyFat ?? build?.relativeFatMass) : nil))
         }
         if let velocity {
+            // No `value` on either velocity term: the rate is scored from
+            // percent-per-week and the quality from the lean share of what
+            // moved — neither is a reading in its metric's own unit, and the
+            // phrase carries both figures in words.
             terms.append(.init(
                 metric: .bodyMass, higherIsBetter: nil,
                 score: CompositionVelocityModel.rateScore(
@@ -241,11 +253,15 @@ public struct BodyCompositionInsight: InsightModel {
     static func trackedNotScored(samples: [HealthMetricSample]) -> [MetricContribution] {
         var out: [MetricContribution] = []
         if let muscle = samples.latestValue(.muscleMass) {
+            // `value` filled, `componentScore` deliberately not, on all three
+            // rows here: the readings are real, and "not scored" is the row's
+            // whole statement — a sub-score would contradict it.
             out.append(MetricContribution(
                 metric: .muscleMass, higherIsBetter: true, weight: 0,
                 detail: String(format: "%.1f kg — tracked, not scored: your scale works it "
                                + "out from lean mass, which already carries a share, and "
-                               + "counting both would count one tissue twice", muscle)))
+                               + "counting both would count one tissue twice", muscle),
+                value: muscle))
         }
         // **The medication, and why its weight is zero rather than small.**
         //
@@ -281,7 +297,8 @@ public struct BodyCompositionInsight: InsightModel {
                 detail: String(format: "%.0f kcal — tracked, not scored: what the "
                                + "right number is depends on what you're aiming for, "
                                + "so this card shows it against your weight rather "
-                               + "than marking it", calories)))
+                               + "than marking it", calories),
+                value: calories))
         }
         if let level = samples.latestValue(.activeMedicationLevel) {
             out.append(MetricContribution(
@@ -289,7 +306,8 @@ public struct BodyCompositionInsight: InsightModel {
                 detail: String(format: "%.2f mg — tracked, not scored: worked out from "
                                + "your logged doses, not measured. There is no better or "
                                + "worse level to be at; what it's doing to your weight is "
-                               + "what this card scores", level)))
+                               + "what this card scores", level),
+                value: level))
         }
         return out
     }

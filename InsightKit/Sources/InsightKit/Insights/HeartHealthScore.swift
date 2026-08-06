@@ -21,10 +21,20 @@ public enum HeartHealthScore {
         /// score used rather than a hand-maintained guess at it.
         public let metric: MetricType
         public let higherIsBetter: Bool?
+        /// The reading `score` came from, in the metric's own unit, plus the
+        /// baseline and departure **only where the component judged against the
+        /// reader's own history** — which here is respiratory stability alone;
+        /// the other three score against published age/sex references, and
+        /// quoting a "baseline" for those would misname a norm table.
+        public let value: Double?
+        public let baseline: Double?
+        public let z: Double?
         public init(name: String, score: Double, weight: Double, detail: String,
-                    metric: MetricType, higherIsBetter: Bool?) {
+                    metric: MetricType, higherIsBetter: Bool?,
+                    value: Double? = nil, baseline: Double? = nil, z: Double? = nil) {
             self.name = name; self.score = score; self.weight = weight; self.detail = detail
             self.metric = metric; self.higherIsBetter = higherIsBetter
+            self.value = value; self.baseline = baseline; self.z = z
         }
     }
 
@@ -39,7 +49,11 @@ public enum HeartHealthScore {
             guard total > 0 else { return [] }
             return components.map {
                 MetricContribution(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
-                                   weight: $0.weight / total, detail: $0.detail)
+                                   weight: $0.weight / total, detail: $0.detail,
+                                   // The composite is exactly the weighted mean
+                                   // of these, so the counterfactual is exact.
+                                   componentScore: $0.score, value: $0.value,
+                                   baseline: $0.baseline, z: $0.z)
             }
         }
     }
@@ -92,19 +106,22 @@ public enum HeartHealthScore {
             comps.append(.init(name: "Cardio fitness (VO₂max)",
                                score: vo2Score(vo2, age: age, sex: sex), weight: 0.45,
                                detail: String(format: "%.0f mL/kg·min", vo2),
-                               metric: .vo2Max, higherIsBetter: true))
+                               metric: .vo2Max, higherIsBetter: true,
+                               value: vo2))
         }
         if let hr = restingHR {
             comps.append(.init(name: "Resting heart rate",
                                score: restingHRScore(hr), weight: 0.25,
                                detail: String(format: "%.0f bpm", hr),
-                               metric: .restingHeartRate, higherIsBetter: false))
+                               metric: .restingHeartRate, higherIsBetter: false,
+                               value: hr))
         }
         if let v = hrv {
             comps.append(.init(name: "Heart-rate variability",
                                score: hrvScore(v, age: age), weight: 0.25,
                                detail: String(format: "%.0f ms", v),
-                               metric: hrvMetric, higherIsBetter: true))
+                               metric: hrvMetric, higherIsBetter: true,
+                               value: v))
         }
         if let dev = respiratoryRateDeviation {
             // Stable respiratory rate (near baseline) scores high; big deviations lower it.
@@ -112,7 +129,10 @@ public enum HeartHealthScore {
             comps.append(.init(name: "Respiratory stability",
                                score: clamp(90 - penalty), weight: 0.05,
                                detail: String(format: "%.0f br/min", dev.value),
-                               metric: .respiratoryRate, higherIsBetter: nil))
+                               metric: .respiratoryRate, higherIsBetter: nil,
+                               // The one component here judged against the
+                               // reader's own baseline rather than a norm table.
+                               value: dev.value, baseline: dev.baseline, z: dev.zScore))
         }
 
         guard !comps.isEmpty else { return nil }
@@ -229,7 +249,8 @@ public struct HeartHealthInsight: InsightModel {
         let blend = ScoreBlend.blend(
             primary: out.components.map {
                 ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
-                                score: $0.score, weight: $0.weight, detail: $0.detail)
+                                score: $0.score, weight: $0.weight, detail: $0.detail,
+                                value: $0.value, baseline: $0.baseline, z: $0.z)
             },
             supporting: supporting.map { [$0] } ?? [])
         let score = blend?.score ?? out.score

@@ -140,7 +140,7 @@ the place to look.
 - `Insights/HeartAgeModel.swift`
   - `HeartAgeModel` :13
 - `Insights/HeartHealthScore.swift`
-  - `HeartHealthInsight` :129
+  - `HeartHealthInsight` :149
   - `HeartHealthScore` :13
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
@@ -161,7 +161,7 @@ the place to look.
   - `LagFinder` :27
   - `LaggedRelationship` :14
 - `Insights/MentalHealthModel.swift`
-  - `MentalHealthInsight` :237
+  - `MentalHealthInsight` :248
   - `MentalHealthModel` :55
 - `Insights/MetabolismInsight.swift`
   - `EnergyBalance` :43
@@ -176,7 +176,7 @@ the place to look.
 - `Insights/MicronutrientTargets.swift`
   - `MicronutrientTargets` :22
 - `Insights/NutritionInsight.swift`
-  - `NutritionInsight` :379
+  - `NutritionInsight` :411
   - `NutritionModel` :19
 - `Insights/PeerStanding.swift`
   - `PeerStandingModel` :21
@@ -184,7 +184,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :213
+  - `ReadinessInsight` :244
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45

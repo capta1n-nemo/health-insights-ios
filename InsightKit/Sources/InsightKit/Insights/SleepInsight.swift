@@ -153,17 +153,22 @@ public struct SleepInsight: InsightModel {
         // neither was read, so on a device reporting only an absolute the
         // temperature term silently took its neutral 75 — and the two metrics
         // charted on no card at all, because the overlay draws contributors.
-        let tempSignal: (metric: MetricType, departure: Double, detail: String)? = {
+        // `value`/`baseline` ride along for the decomposition: on the deviation
+        // metric the departure *is* the value and there is nothing separate to
+        // call a baseline; on an absolute metric the reading and the baseline it
+        // was measured against are both real numbers worth showing.
+        let tempSignal: (metric: MetricType, departure: Double, value: Double,
+                         baseline: Double?, detail: String)? = {
             if let deviation = VitalReader.reading(.skinTemperatureDeviation,
                                                    from: samples, now: now) {
-                return (.skinTemperatureDeviation, deviation.value,
+                return (.skinTemperatureDeviation, deviation.value, deviation.value, nil,
                         String(format: "%+.1f °C vs your baseline", deviation.value))
             }
             for metric in [MetricType.skinTemperature, .bodyTemperature] {
                 guard let reading = VitalReader.reading(metric, from: samples, now: now),
                       let baseline = reading.baseline else { continue }
                 let departure = reading.value - baseline
-                return (metric, departure,
+                return (metric, departure, reading.value, baseline,
                         String(format: "%.1f °C, %+.1f from your normal",
                                reading.value, departure))
             }
@@ -320,51 +325,82 @@ public struct SleepInsight: InsightModel {
         // score cannot drift. `Weight.durationLine` folds the consistency and
         // debt terms into duration's line: three coefficients, one
         // measurement, so one line, with the detail naming all three.
+        // Each row's `componentScore` is the same sub-score the expression
+        // above multiplied by the same coefficient, so the decomposition's
+        // counterfactual is exact — with two folds mirroring the weight folds:
+        //
+        // - Duration's line carries the weighted mean of its three folded
+        //   terms (duration, debt, consistency) over `Weight.durationLine`,
+        //   which is exactly what the line contributes per unit of weight.
+        //   The neutral 75s an absent debt term feeds are in it because they
+        //   are in the score — this reports the arithmetic, not an ideal.
+        // - The two stage rows each carry the one restorative score at half
+        //   its weight, so their two headrooms sum to the term's true one.
         var contributors = [MetricContribution(
             metric: .sleepDurationHours, higherIsBetter: true, weight: Weight.durationLine,
             detail: String(format: "%.1f h · consistency %d/100%@",
                            lastNight, Int(consistencyScore),
-                           debt.map { String(format: " · %.1f h behind", $0.debtHours) } ?? ""))]
+                           debt.map { String(format: " · %.1f h behind", $0.debtHours) } ?? ""),
+            componentScore: (durationScore * Weight.duration + debtScore * Weight.debt
+                             + consistencyScore * Weight.consistency) / Weight.durationLine,
+            value: lastNight)]
         if let regularity {
+            // No `value`: the score judges the *spread* of bedtimes, which is
+            // not a quantity in sleepOnset's own unit (a clock time), and the
+            // detail already carries both figures as words.
             contributors.append(.init(
                 metric: .sleepOnset, higherIsBetter: nil, weight: Weight.regularity,
                 detail: String(format: "%@ ± %.1f h",
                                MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
-                               regularity.spreadHours)))
+                               regularity.spreadHours),
+                componentScore: regularityScore))
         }
         if let latest = efficiencyReading?.value {
             contributors.append(.init(metric: .sleepEfficiency, higherIsBetter: true,
                                       weight: Weight.efficiency,
-                                      detail: String(format: "%.0f%%", latest)))
+                                      detail: String(format: "%.0f%%", latest),
+                                      componentScore: efficiencyScore, value: latest))
         }
         if let latest = latencyReading?.value {
             contributors.append(.init(metric: .sleepLatencyMinutes, higherIsBetter: false,
                                       weight: Weight.latency,
-                                      detail: String(format: "%.0f min", latest)))
+                                      detail: String(format: "%.0f min", latest),
+                                      componentScore: latencyScore, value: latest))
         }
         if let latest = deepReading?.value {
             contributors.append(.init(metric: .sleepDeepMinutes, higherIsBetter: nil,
                                       weight: Weight.stageLine,
-                                      detail: String(format: "%.0f min", latest)))
+                                      detail: String(format: "%.0f min", latest),
+                                      componentScore: restorativeScore, value: latest))
         }
         if let latest = remReading?.value {
             contributors.append(.init(metric: .sleepRemMinutes, higherIsBetter: nil,
                                       weight: Weight.stageLine,
-                                      detail: String(format: "%.0f min", latest)))
+                                      detail: String(format: "%.0f min", latest),
+                                      componentScore: restorativeScore, value: latest))
         }
         if let latest = spo2Reading?.value {
             contributors.append(.init(metric: .oxygenSaturation, higherIsBetter: true,
                                       weight: Weight.oxygen,
-                                      detail: String(format: "%.0f%%", latest)))
+                                      detail: String(format: "%.0f%%", latest),
+                                      componentScore: oxygenScore, value: latest))
         }
         if let latest = respReading?.value {
+            // The one term here judged against the reader's own nights rather
+            // than a published band, so it also reports what it was judged
+            // against.
             contributors.append(.init(metric: .respiratoryRate, higherIsBetter: false,
                                       weight: Weight.respiratory,
-                                      detail: String(format: "%.0f br/min", latest)))
+                                      detail: String(format: "%.0f br/min", latest),
+                                      componentScore: respScore, value: latest,
+                                      baseline: respReading?.baseline,
+                                      z: respReading?.zScore))
         }
         if let tempSignal {
             contributors.append(.init(metric: tempSignal.metric, higherIsBetter: nil,
-                                      weight: Weight.temperature, detail: tempSignal.detail))
+                                      weight: Weight.temperature, detail: tempSignal.detail,
+                                      componentScore: tempScore, value: tempSignal.value,
+                                      baseline: tempSignal.baseline))
         }
 
         // A stale night can't buy high confidence however long the history is.

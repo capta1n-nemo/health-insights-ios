@@ -195,15 +195,27 @@ public struct SustainedLoadInsight: InsightModel {
             let text = String(format: "%@ has sat %.1f SD %@ this month against your last season",
                               name, abs(channel.loadZ), direction)
             drivers.append(InsightDriver(text: text, isNotable: channel.loadZ >= 0.5))
+            let risingIsLoad = SustainedLoadModel.watched
+                .first { $0.metric == channel.metric }!.risingIsLoad
             contributions.append(MetricContribution(
                 metric: channel.metric,
                 // Whether *up* is good for this metric, which is the opposite
                 // of `risingIsLoad` — the chart asks about the reading, not
                 // about the load direction the model signs it toward.
-                higherIsBetter: !SustainedLoadModel.watched
-                    .first { $0.metric == channel.metric }!.risingIsLoad,
+                higherIsBetter: !risingIsLoad,
                 weight: channel.weight / total,
-                detail: text))
+                detail: text,
+                // **No componentScore, deliberately.** The score is a curve
+                // over the *pooled* load, and a curve is not linear — a
+                // per-channel 0–100 would hand the decomposition a
+                // counterfactual arithmetic this model cannot support.
+                // What each channel genuinely has is its month, its season,
+                // and the departure between them.
+                value: channel.recent, baseline: channel.reference,
+                // `loadZ` is signed toward load; the field's contract is
+                // "signed as the metric is measured", so un-flip the channels
+                // where *falling* is the load direction (HRV, sleep).
+                z: risingIsLoad ? channel.loadZ : -channel.loadZ))
         }
 
         // **The caveat is not decoration.** Four autonomic signals move for

@@ -497,7 +497,15 @@ public struct EnergyInsight: InsightModel {
             ScoreBlend.Term(metric: $0.metric, higherIsBetter: $0.higherIsBetter,
                             score: output.level,
                             weight: totalEffect > 0 ? abs($0.points) / totalEffect : 0,
-                            detail: $0.detail)
+                            detail: $0.detail,
+                            // `score` above is the whole reservoir level, fed in
+                            // only because the blend needs *something* to weight
+                            // — its blended score is discarded (see below). It
+                            // is not this term's own 0–100; no term of a
+                            // simulated reservoir has one, and before this flag
+                            // every row reached the decomposition claiming to
+                            // have scored exactly what the card did.
+                            scoreIsOwn: false)
         }
         // Resting heart rate is the *line* exertion is counted above, and heart
         // rate lands here whenever the day is too thin to count exertion from —

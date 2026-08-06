@@ -125,10 +125,16 @@ public struct FitnessInsight: InsightModel {
         let effort = EffortIntensityModel.evaluate(samples: samples, now: now)
         let dose = ActivityDoseModel.evaluate(samples: samples, now: now)
         var primary: [ScoreBlend.Term] = [
+            // Judged against age/sex norms, so no baseline/z — those fields are
+            // for the reader's own history, and a norm table is not that.
             .init(metric: .vo2Max, higherIsBetter: true, score: vo2Score,
-                  weight: totalWeight, detail: String(format: "%.0f", vo2))
+                  weight: totalWeight, detail: String(format: "%.0f", vo2),
+                  value: vo2)
         ]
         if let effort {
+            // No `value`: the score judges moderate-equivalent minutes, which
+            // is a derived weekly figure and not a reading in physicalEffort's
+            // own unit — the detail says the number in words instead.
             primary.append(.init(
                 metric: .physicalEffort, higherIsBetter: true, score: effort.score,
                 weight: Self.doseWeight,
@@ -138,7 +144,10 @@ public struct FitnessInsight: InsightModel {
             primary.append(.init(
                 metric: .exerciseMinutes, higherIsBetter: true, score: dose.score,
                 weight: Self.doseWeight,
-                detail: String(format: "%.0f min this week", dose.weeklyMinutes)))
+                detail: String(format: "%.0f min this week", dose.weeklyMinutes),
+                // The week's total, in the metric's own minutes — exactly what
+                // the WHO band scored.
+                value: dose.weeklyMinutes))
         }
 
         // The supporting signals carry a share of the number rather than being
@@ -253,7 +262,8 @@ public struct FitnessInsight: InsightModel {
             unmetRequirements: unmet,
             contributors: blend?.contributions
                 ?? [.init(metric: .vo2Max, higherIsBetter: true, weight: 1,
-                          detail: String(format: "%.0f", vo2))],
+                          detail: String(format: "%.0f", vo2),
+                          componentScore: vo2Score, value: vo2)],
             weighting: .weightedAverage,
             derivedOutputs: Self.derivedOutputs(fitnessAge: fitnessAge,
                                                 trajectory: trajectory, effort: effort))

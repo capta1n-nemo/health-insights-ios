@@ -270,7 +270,13 @@ public struct CardiovascularRiskInsight: InsightModel {
             // risk, which is good news and must not render as a bare zero under
             // a section that has just promised every input carries a share.
             detail: "\(Int(systolic.rounded())) mmHg" + (systolicShare > 0 ? "" :
-                " — at or better than the optimal 120, so it's carrying none of your risk"))]
+                " — at or better than the optimal 120, so it's carrying none of your risk"),
+            // The cuff reading the equations ran on. **No componentScore** —
+            // SCORE2 and ASCVD are equations, not averages, so no input owns a
+            // 0–100; `RiskAttribution` re-running the equation is this card's
+            // honest decomposition. No baseline/z: the optimal 120 is a
+            // published reference, which is not the reader's own baseline.
+            value: systolic)]
         // VO₂max and vascular age, charted by this card's own section and named
         // in its drivers. `HeartAgeAnalyser` already reports them at weight 0
         // and reads them off the analysis rather than the samples, so the chart
@@ -291,7 +297,12 @@ public struct CardiovascularRiskInsight: InsightModel {
                     metric: $0.metric, higherIsBetter: $0.higherIsBetter, weight: 0,
                     detail: $0.detail + ($0.metric == .vo2Max
                         ? " — feeds your heart age; SCORE2 and ASCVD have no term for fitness"
-                        : " — your wearable's own estimate, reported beside ours rather than folded in"))
+                        : " — your wearable's own estimate, reported beside ours rather than folded in"),
+                    // Forwarded, not re-derived — the analyser reads these off
+                    // the same analysis the driver lines quote, so the
+                    // decomposition cannot print a different number.
+                    componentScore: $0.componentScore, value: $0.value,
+                    baseline: $0.baseline, z: $0.z)
             }
 
         return InsightResult(
