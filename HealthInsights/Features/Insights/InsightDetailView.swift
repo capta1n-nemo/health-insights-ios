@@ -2286,6 +2286,20 @@ struct InsightDetailView: View {
                 caveat: .none
             ) {
                 VStack(alignment: .leading, spacing: Theme.spacing) {
+                    // **The chart, above the rows** — the reader's request,
+                    // 2026-08-06. Four numbers in a column make the reader do
+                    // the comparison; one axis does it for them, and the
+                    // *subject of this section is the disagreement*. Where two
+                    // error bars overlap they are the same answer measured
+                    // twice; where they do not, something real is going on, and
+                    // that is visible at a glance and invisible in a list.
+                    //
+                    // Same shape as `biologicalAgeMarkersCard` on purpose: one
+                    // axis of years, a dot per estimate, its error bar around
+                    // it, a dashed line at the reader's real age. Two strips
+                    // drawing the same encoding differently is how the chart
+                    // gap-bridge defect happened.
+                    ageEstimateStrip(estimates)
                     ForEach(estimates) { estimate in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(alignment: .firstTextBaseline) {
@@ -2308,6 +2322,108 @@ struct InsightDetailView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - The age chart
+
+    /// **Every age estimate on one axis of years**, each with its own error bar,
+    /// and the reader's real age as a dashed line through all of them.
+    ///
+    /// Drawn by hand rather than with Swift Charts, for the same reason the
+    /// biological-age marker strip is: the x axis here is *age*, not time, so
+    /// the substance shading every chart in this app carries would have nothing
+    /// to sit on — the exemption `FitnessProjectionChart` already holds.
+    ///
+    /// ⚠️ **The rule this drawing must not break is "relay, never merge".**
+    /// There is no combined marker, no mean of the estimates and no shaded
+    /// consensus band, because averaging four ages into one would invent a
+    /// precision none of them has. What the picture adds is the *comparison* —
+    /// overlapping bars are the same answer measured twice, separated bars are a
+    /// real disagreement — and that is a reading of the data, not a fifth
+    /// number laid on top of it.
+    @ViewBuilder private func ageEstimateStrip(_ estimates: [AgeComparison.Estimate]) -> some View {
+        let chronological = estimates.first { $0.label == "Your age" }?.years
+        let others = estimates.filter { $0.label != "Your age" }
+        let span = ageStripSpan(estimates)
+        if !others.isEmpty, span.upperBound > span.lowerBound {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(others) { estimate in
+                    ageStripRow(estimate, chronological: chronological, span: span)
+                }
+                HStack {
+                    Text(String(format: "%.0f", span.lowerBound))
+                    Spacer()
+                    if let chronological {
+                        Text(String(format: "you · %.0f", chronological))
+                    }
+                    Spacer()
+                    Text(String(format: "%.0f", span.upperBound))
+                }
+                .font(.caption2).monospacedDigit().foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// The axis every row shares. Widened to hold every error bar **and** the
+    /// reader's real age, so no bar is drawn clipped at an edge and read as
+    /// pinned there — the same guard `biologicalAgeSpan` carries.
+    private func ageStripSpan(_ estimates: [AgeComparison.Estimate]) -> ClosedRange<Double> {
+        var low = Double.greatestFiniteMagnitude
+        var high = -Double.greatestFiniteMagnitude
+        for estimate in estimates {
+            let error = estimate.uncertainty.years ?? 0
+            low = min(low, estimate.years - error)
+            high = max(high, estimate.years + error)
+        }
+        guard low < high else { return 0...1 }
+        // A little air either side, so a dot never sits on the frame.
+        let padding = max(2, (high - low) * 0.06)
+        return (low - padding)...(high + padding)
+    }
+
+    private func ageStripRow(_ estimate: AgeComparison.Estimate,
+                             chronological: Double?,
+                             span: ClosedRange<Double>) -> some View {
+        let width = span.upperBound - span.lowerBound
+        let error = estimate.uncertainty.years ?? 0
+        // The app's own estimates are the ones with a derived error; a vendor's
+        // is relayed with none. Tinting them apart is the same claim the rows
+        // below make in words.
+        let isOurs = estimate.attribution.hasPrefix("This app")
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(estimate.label)
+                .font(.caption2).foregroundStyle(.secondary)
+            GeometryReader { geometry in
+                let scale = geometry.size.width / width
+                let centre = (estimate.years - span.lowerBound) * scale
+                let barStart = (max(span.lowerBound, estimate.years - error) - span.lowerBound) * scale
+                let barEnd = (min(span.upperBound, estimate.years + error) - span.lowerBound) * scale
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.10)).frame(height: 6)
+                    if error > 0 {
+                        Capsule()
+                            .fill((isOurs ? Theme.accent : Color.secondary).opacity(0.30))
+                            .frame(width: max(2, barEnd - barStart), height: 6)
+                            .offset(x: barStart)
+                    }
+                    Circle()
+                        .fill(isOurs ? Theme.accent : Color.secondary)
+                        .frame(width: 9, height: 9)
+                        .offset(x: centre - 4.5)
+                    if let chronological, span.contains(chronological) {
+                        // Dashed, because it is the one line here that is not an
+                        // estimate — the app's own convention that a dash means
+                        // "not measured the way the solid ones were".
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.45))
+                            .frame(width: 1.5, height: 18)
+                            .offset(x: (chronological - span.lowerBound) * scale)
+                    }
+                }
+                .frame(height: 18)
+            }
+            .frame(height: 18)
         }
     }
 

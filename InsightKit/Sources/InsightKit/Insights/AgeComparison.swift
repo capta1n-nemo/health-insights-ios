@@ -89,6 +89,7 @@ public enum AgeComparison {
                                  heart: HeartAgeModel.Output?,
                                  sex: BiologicalSex?,
                                  samples: [HealthMetricSample],
+                                 biological: BiologicalAgeModel.Output? = nil,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> [Estimate] {
         var out: [Estimate] = []
@@ -133,14 +134,51 @@ public enum AgeComparison {
                 uncertainty: uncertainty))
         }
 
-        // Relayed, never recomputed. `VitalReader` picks one instrument and
-        // never blends, so this is a vendor's number reported as a vendor's.
-        if let vascular = VitalReader.reading(.vascularAge, from: samples,
-                                             now: now, calendar: calendar) {
+        // **This app's own biological age.** Added 2026-08-06 at the reader's
+        // request — *"I wanted it to take all the age estimates from all the
+        // sources, and also build our own age estimate."*
+        //
+        // It belongs here more than any other row, because it is the only one
+        // whose error was **derived rather than assumed**: `BiologicalAgeModel`
+        // combines its markers by inverse-variance weighting, and the ± that
+        // falls out of that arithmetic is the honest width of the answer rather
+        // than a figure anybody chose. Every vendor row below it publishes none.
+        if let biological {
             out.append(Estimate(
-                label: "Vascular age", years: vascular.value,
-                attribution: vascular.sourceName,
-                uncertainty: .notPublishedByVendor(vascular.sourceName)))
+                label: "Biological age", years: biological.biologicalAge,
+                attribution: "This app, from \(biological.markers.count) markers against published age norms",
+                uncertainty: .derived(
+                    years: biological.uncertaintyYears.rounded(),
+                    from: "combining \(biological.markers.count) markers by how precisely each can pin an age — this is what those measurements are worth, not a hedge")))
+        }
+
+        // ⚠️ **Every source, not the winner.**
+        //
+        // This used to be `VitalReader.reading(.vascularAge, …)`, which is
+        // correct for a *vital* — it picks one instrument by freshness and
+        // history and never blends, because a chart of "your resting heart rate"
+        // must be one device's series rather than a smear of two.
+        //
+        // **It is exactly wrong for this section**, whose entire subject is that
+        // different instruments disagree. A reader with an Oura *and* a Withings
+        // vascular age saw one of them and was never told the other existed —
+        // on the one screen built to show the disagreement. The reader asked for
+        // "all the age estimates from all the sources" and this is the line that
+        // was quietly refusing.
+        //
+        // `latestBySource` is the right door: one row per device, each attributed
+        // to the device that produced it. **Still relayed, never merged** —
+        // averaging two vendors' ages into a house number would invent a
+        // precision neither of them has, which is the rule at the top of this
+        // file.
+        let vascular = MultiSource.breakdown(.vascularAge, from: samples)
+        for (source, value) in vascular.latestBySource {
+            let name = source.displayName
+            out.append(Estimate(
+                label: vascular.sources.count > 1 ? "Vascular age · \(name)" : "Vascular age",
+                years: value,
+                attribution: name,
+                uncertainty: .notPublishedByVendor(name)))
         }
 
         return out

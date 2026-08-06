@@ -2115,10 +2115,17 @@ final class AppModel {
         Task.detached(priority: .userInitiated) {
             let analysis = HeartAgeAnalyser().analyse(samples: samples, profile: profile,
                                                       now: Date())
+            // The app's own biological age joins the comparison — the reader's
+            // request, 2026-08-06. Computed on this same detached pass rather
+            // than read from the card, so the section cannot show a number the
+            // card has since moved past.
+            let biological = BiologicalAgeModel.evaluate(samples: samples, profile: profile,
+                                                         now: Date())
             let estimates = AgeComparison.estimates(
                 chronological: analysis.chronologicalAge,
                 fitness: analysis.fitness, heart: analysis.heart,
-                sex: profile.sex, samples: samples, now: Date())
+                sex: profile.sex, samples: samples,
+                biological: biological, now: Date())
             await MainActor.run { [weak self] in
                 guard let self, self.scoreHistoryGeneration == generation else { return }
                 self.riskProjections = analysis.projections

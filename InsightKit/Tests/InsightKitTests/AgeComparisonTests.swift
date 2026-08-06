@@ -141,3 +141,114 @@ final class AgeComparisonTests: XCTestCase {
         XCTAssertEqual(spread, expected, accuracy: 0.001)
     }
 }
+
+/// **Every age estimate from every source, plus this app's own** — the reader's
+/// request, 2026-08-06: *"I wanted it to take all the age estimates from all the
+/// sources, and also build our own age estimate."*
+///
+/// Both halves of that turned out to be missing, and the first was a defect
+/// rather than an omission.
+final class AgeComparisonAllSourcesTests: XCTestCase {
+
+    private let utc = TestClock.utc
+    private let now = TestClock.now
+
+    /// A vascular age from each of two devices, as a reader with both would have.
+    private func twoVendors() -> [HealthMetricSample] {
+        (0..<20).flatMap { day -> [HealthMetricSample] in
+            let date = now.addingTimeInterval(-Double(day) * 86_400)
+            return [
+                HealthMetricSample(type: .vascularAge, value: 34, start: date,
+                                   end: date, source: .oura),
+                HealthMetricSample(type: .vascularAge, value: 47, start: date,
+                                   end: date, source: .withings),
+            ]
+        }
+    }
+
+    /// ⚠️ **The defect.** The section relayed vascular age through
+    /// `VitalReader.reading`, which picks ONE instrument by freshness and
+    /// history and never blends. That is right for a vital — a chart of "your
+    /// resting heart rate" must be one device's series — and exactly wrong here,
+    /// because **the subject of this section is that instruments disagree**. A
+    /// reader with two vascular ages saw one of them, on the one screen built to
+    /// show the difference.
+    func testEveryVendorGetsItsOwnRowRatherThanOneWinning() throws {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: twoVendors(), now: now, calendar: utc)
+
+        let vascular = estimates.filter { $0.label.hasPrefix("Vascular age") }
+        XCTAssertEqual(vascular.count, 2,
+                       "one vendor won and the other was never mentioned")
+        let attributions = Set(vascular.map(\.attribution))
+        XCTAssertEqual(attributions.count, 2, "both rows must name their own device")
+        // And each row is labelled by device, so two "Vascular age" rows are
+        // not indistinguishable.
+        XCTAssertEqual(Set(vascular.map(\.label)).count, 2)
+    }
+
+    /// With one vendor the label stays plain — a device suffix on a single row
+    /// is noise, and this is the state most readers are in.
+    func testASingleVendorKeepsThePlainLabel() throws {
+        let single = (0..<20).map { day in
+            HealthMetricSample(type: .vascularAge, value: 34,
+                               start: now.addingTimeInterval(-Double(day) * 86_400),
+                               source: .oura)
+        }
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: single, now: now, calendar: utc)
+        XCTAssertEqual(estimates.filter { $0.label == "Vascular age" }.count, 1)
+    }
+
+    /// **This app's own biological age joins the list**, and it is the only row
+    /// whose error was derived rather than assumed or absent.
+    func testOurOwnBiologicalAgeAppearsWithADerivedError() throws {
+        var profile = UserHealthProfile()
+        let dob = now.addingTimeInterval(-45 * 365.2425 * 86_400)
+        profile.set(.init(kind: .dateOfBirth, value: dob.timeIntervalSince1970, recordedAt: now))
+        profile.set(.init(kind: .biologicalSex, value: 0, recordedAt: now))
+
+        var samples: [HealthMetricSample] = []
+        for metric in [MetricType.vo2Max, .heartRateVariabilityRMSSD,
+                       .bloodPressureSystolic, .bodyFatPercentage] {
+            guard let value = BiologicalAgeModel.expected(metric, age: 45, sex: .male)
+            else { continue }
+            samples += (0..<200).map { day in
+                let date = now.addingTimeInterval(-Double(day) * 86_400)
+                return HealthMetricSample(type: metric, value: value, start: date,
+                                          end: date, source: .appleHealth)
+            }
+        }
+        let biological = try XCTUnwrap(BiologicalAgeModel.evaluate(
+            samples: samples, profile: profile, now: now, calendar: utc))
+
+        let estimates = AgeComparison.estimates(
+            chronological: 45, fitness: nil, heart: nil, sex: .male,
+            samples: samples, biological: biological, now: now, calendar: utc)
+
+        let ours = try XCTUnwrap(estimates.first { $0.label == "Biological age" })
+        XCTAssertTrue(ours.attribution.hasPrefix("This app"), ours.attribution)
+        guard case .derived = ours.uncertainty else {
+            return XCTFail("our own estimate must carry a derived error, got \(ours.uncertainty)")
+        }
+        XCTAssertNotNil(ours.uncertainty.years)
+    }
+
+    /// ⚠️ **Relay, never merge — still.** Adding rows must not add a combined
+    /// one: averaging several ages into a house number invents a precision none
+    /// of them has, and it is the rule the whole section rests on.
+    func testNothingIsMergedIntoAConsensusRow() {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: twoVendors(), now: now, calendar: utc)
+        for banned in ["consensus", "combined", "average", "overall", "blended"] {
+            XCTAssertFalse(estimates.contains { $0.label.lowercased().contains(banned) },
+                           "a merged row appeared: \(banned)")
+        }
+        // Two vendors 13 years apart must still read as a disagreement rather
+        // than being quietly reconciled.
+        XCTAssertEqual(AgeComparison.spread(estimates) ?? 0, 13, accuracy: 0.001)
+    }
+}
