@@ -252,3 +252,72 @@ final class AgeComparisonAllSourcesTests: XCTestCase {
         XCTAssertEqual(AgeComparison.spread(estimates) ?? 0, 13, accuracy: 0.001)
     }
 }
+
+/// The two defects the scouting pass found in the multi-source change itself.
+///
+/// Both are about the same trade: the old code **filtered** relayed readings on
+/// freshness and the new code carries their **date** instead. Filtering hid a
+/// real estimate; not filtering would have presented a year-old one as current.
+final class AgeComparisonFreshnessTests: XCTestCase {
+
+    private let utc = TestClock.utc
+    private let now = TestClock.now
+
+    private func vascular(daysAgo: Int, source: MetricSource = .oura) -> [HealthMetricSample] {
+        (0..<10).map { offset in
+            let date = now.addingTimeInterval(-Double(daysAgo + offset) * 86_400)
+            return HealthMetricSample(type: .vascularAge, value: 34, start: date,
+                                      end: date, source: source)
+        }
+    }
+
+    /// ⚠️ **The live defect.** The vendor row was read through
+    /// `VitalReader.reading`, whose default window is 36 hours — so a reader
+    /// whose ring had not synced since yesterday lost the only non-app estimate
+    /// on the section, while the card above it went on printing the same
+    /// vendor's number from a sixty-day window. Two windows, one card, one
+    /// number.
+    func testAVendorRowSurvivesARingThatHasNotSyncedSinceYesterday() throws {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: vascular(daysAgo: 4), now: now, calendar: utc)
+        XCTAssertTrue(estimates.contains { $0.label.hasPrefix("Vascular age") },
+                      "a four-day-old vendor reading vanished from the section")
+    }
+
+    /// And the opposite fault, which dropping the filter would have introduced:
+    /// `latest` is the newest raw sample with no window at all, so a device that
+    /// stopped a year ago would read as current. It is shown **with its age**.
+    func testAVendorRowThatStoppedAYearAgoSaysSoRatherThanReadingAsCurrent() throws {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: vascular(daysAgo: 400), now: now, calendar: utc)
+        let row = try XCTUnwrap(estimates.first { $0.label.hasPrefix("Vascular age") })
+        let stale = try XCTUnwrap(row.staleness(now: now),
+                                  "a year-old reading was presented as current")
+        XCTAssertTrue(stale.lowercased().contains("year"), stale)
+    }
+
+    /// A recent reading says nothing — the note is a finding, not decoration.
+    func testAFreshVendorRowCarriesNoStalenessNote() throws {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: vascular(daysAgo: 1), now: now, calendar: utc)
+        let row = try XCTUnwrap(estimates.first { $0.label.hasPrefix("Vascular age") })
+        XCTAssertNil(row.staleness(now: now))
+    }
+
+    /// ⚠️ **Two devices with the same display name must not collide.** `id` was
+    /// `label`, which is fine while every row is a different kind of age and
+    /// breaks the moment two devices report the same kind — SwiftUI silently
+    /// drops a duplicate id, losing exactly the row this work exists to add.
+    func testTwoSourcesSharingADisplayNameKeepDistinctIdentities() {
+        let estimates = AgeComparison.estimates(
+            chronological: 40, fitness: nil, heart: nil, sex: .male,
+            samples: vascular(daysAgo: 1, source: .oura)
+                + vascular(daysAgo: 2, source: .withings),
+            now: now, calendar: utc)
+        let ids = estimates.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count, "two rows shared an id and one would be dropped")
+    }
+}

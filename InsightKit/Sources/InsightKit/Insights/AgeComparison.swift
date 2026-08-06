@@ -62,7 +62,58 @@ public enum AgeComparison {
         /// app's own is the failure this whole section exists to avoid.
         public let attribution: String
         public let uncertainty: Uncertainty
-        public var id: String { label }
+        /// When the reading behind a **relayed** estimate was taken. Nil for the
+        /// app's own rows, which are computed from whatever is current.
+        ///
+        /// ⚠️ **This replaced a freshness *filter*, and the swap is the point.**
+        /// The vendor row used to be read through `VitalReader.reading`, whose
+        /// default window is 36 hours — so a reader whose ring had not synced
+        /// since yesterday lost the only non-app estimate on the section
+        /// entirely, while the card above it went on printing the same vendor's
+        /// number from a 60-day window. Two windows on one card for one number.
+        ///
+        /// Dropping the filter for `latestBySource` fixed that and introduced
+        /// the opposite fault: `latest` is the newest raw sample with no window
+        /// at all, so a device that stopped reporting a year ago would read as
+        /// current. **Neither hiding it nor pretending it is fresh is honest.**
+        /// The row is shown, with its date, and says how old it is.
+        public let asOf: Date?
+
+        /// Unique per row, not per label.
+        ///
+        /// `label` alone was the id, which is fine while every row is a
+        /// different kind of age and breaks the moment two devices report the
+        /// same kind: two sources sharing a `displayName` produce duplicate ids
+        /// and SwiftUI silently drops one — losing exactly the row this change
+        /// exists to add.
+        public var id: String { "\(label)|\(attribution)" }
+
+        public init(label: String, years: Double, attribution: String,
+                    uncertainty: Uncertainty, asOf: Date? = nil) {
+            self.label = label
+            self.years = years
+            self.attribution = attribution
+            self.uncertainty = uncertainty
+            self.asOf = asOf
+        }
+
+        /// How stale a relayed reading is allowed to be before the row says so.
+        ///
+        /// Sixty days, matching `HeartAgeAnalyser`'s window for the same metric
+        /// — chosen so the two places on this card that read a vendor age agree
+        /// about what "current" means, which they did not before.
+        public static let staleAfter: TimeInterval = 60 * 86_400
+
+        /// The sentence appended when a relayed reading is old, or nil.
+        public func staleness(now: Date = Date()) -> String? {
+            guard let asOf else { return nil }
+            let age = now.timeIntervalSince(asOf)
+            guard age > Self.staleAfter else { return nil }
+            let days = Int(age / 86_400)
+            return days >= 365
+                ? "Last reported over a year ago, so this describes you as you were then."
+                : "Last reported \(days) days ago, so it may not describe you now."
+        }
     }
 
     /// How far a year of age moves the reference VO₂max, from the app's own norm
@@ -172,13 +223,16 @@ public enum AgeComparison {
         // precision neither of them has, which is the rule at the top of this
         // file.
         let vascular = MultiSource.breakdown(.vascularAge, from: samples)
-        for (source, value) in vascular.latestBySource {
-            let name = source.displayName
+        for series in vascular.sources {
+            guard let newest = series.samples.last else { continue }
+            let name = series.displayName
             out.append(Estimate(
                 label: vascular.sources.count > 1 ? "Vascular age · \(name)" : "Vascular age",
-                years: value,
+                years: newest.value,
                 attribution: name,
-                uncertainty: .notPublishedByVendor(name)))
+                uncertainty: .notPublishedByVendor(name),
+                // Carried rather than filtered on — see `Estimate.asOf`.
+                asOf: newest.start))
         }
 
         return out

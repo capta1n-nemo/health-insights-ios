@@ -2313,6 +2313,14 @@ struct InsightDetailView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                             Text(estimate.uncertainty.note)
                                 .font(.caption2).foregroundStyle(.tertiary)
+                            // A relayed reading that has gone quiet is shown
+                            // with its age rather than hidden — see
+                            // `AgeComparison.Estimate.asOf`.
+                            if let stale = estimate.staleness() {
+                                Text(stale)
+                                    .font(.caption2).foregroundStyle(Theme.warn)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                     }
                     if let disagreement = AgeComparison.disagreement(estimates) {
