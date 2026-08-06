@@ -1,6 +1,6 @@
 ---
 name: add-metric-type
-description: Add a new MetricType to InsightKit correctly. Use whenever a new vital, measurement or body metric needs to become a first-class canonical metric — it feeds eight exhaustive switches and several tests, and missing one is this repo's most frequent CI break.
+description: Add a new MetricType to InsightKit correctly. Use whenever a new vital, measurement or body metric needs to become a first-class canonical metric — it feeds the exhaustive switches tabled inside and several tests, and missing one is this repo's most frequent CI break.
 ---
 
 # Adding a `MetricType`
@@ -20,9 +20,11 @@ still don't mention your new case, without needing a compiler.
 Canonical units are the app's vocabulary: metres, kilograms, °C, mmHg, hours.
 Convert at the provider boundary, never here.
 
-## 2. The eight exhaustive switches
+## 2. The exhaustive switches
 
-None has a `default:`, so all eight must be updated:
+None has a `default:`, so **every row of this table** must be updated. (No
+count in the heading on purpose: it said "eight" while the table below held
+nine, which is the stale-count failure this repo keeps logging.)
 
 | Where | What it decides |
 | --- | --- |

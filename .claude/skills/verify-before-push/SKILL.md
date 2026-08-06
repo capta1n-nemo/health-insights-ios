@@ -39,9 +39,12 @@ running even with no toolchain. It checks:
   `some View` instead of `some ChartContent` silently drops `.lineStyle` and
   `.foregroundStyle`. Broke CI twice.
 - **Every exhaustive `MetricType` switch mentions every metric.** Adding a case
-  and missing one of `displayName`, `unit`, `family`, `chartStyleIndex`,
-  `presentation`, `maxValidInterval`, `requiresPositiveValue` is the single most
-  common way this repo breaks its own build.
+  and missing one of the switches tabled in the `add-metric-type` skill
+  (`displayName`, `unit`, `family`, `chartStyleIndex`, `presentation`,
+  `maxValidInterval`, `referenceRange`, `dataCategory`,
+  `requiresPositiveValue`) is the single most common way this repo breaks its
+  own build. A generic pass also covers exhaustive switches over any other
+  InsightKit enum, anywhere.
 
 ## 3. Interpreting a failure
 

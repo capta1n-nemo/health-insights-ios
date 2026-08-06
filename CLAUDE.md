@@ -21,10 +21,13 @@ The `Bash` tool's working directory persists between calls, so one
 `cd InsightKit && swift test` used to relocate every later relative path — six
 sessions of dead round trips. Since 2026-08-01 a `PreToolUse` hook
 (`scripts/bash-workdir-hook.sh`, wired in `.claude/settings.json`) rewrites
-every shell command to `cd /home/user/health-insights-ios && …`, so relative
-paths resolve from the repo root whatever the previous call did. Absolute
-paths remain good practice, but the round trip class is retired by the hook,
-not by care.
+every shell command to `cd "$CLAUDE_PROJECT_DIR" && …`, so relative paths
+resolve from the repo root whatever the previous call did. Absolute paths
+remain good practice, but the round trip class is retired by the hook, not by
+care. **A worktree-isolated agent is anchored to its own worktree root
+instead** — before the hook learnt that (2026-08-06), it sent such an agent's
+relative paths to the *main* working copy and made every `git` command
+refusable by the isolation guard.
 
 One rule survives for anyone editing the hooks themselves: **a hook command in
 `settings.json` must be `$CLAUDE_PROJECT_DIR`-absolute** — hook processes
@@ -198,6 +201,15 @@ So:
   beside it are hand-written and a moved section changes all four.
 - `docs/efficiency-log.md` -> **Are we getting cheaper?** Per-session log, the
   repeat-activity ledger, and the efficiency roadmap. Written by `/handover`.
+- `docs/data-opportunities.md` -> **What's in the data that nothing reads yet.**
+  Every unmodelled signal from the first export, ranked with the published
+  basis for scoring each honestly. Read before proposing a new signal or card
+  input — the scoring-basis research is already done there.
+- `docs/research-notes.md` -> **Why the app decides things the way it does.**
+  The published-literature half of the 2026-08-04 research runs (illness
+  detection, radar, body mesh). The full reports live outside the repo —
+  `~/HealthSeed/research/` on the user's Mac — because they quote real
+  physiology. Read before re-researching any of those topics.
 - `docs/symbol-index.md` -> **Where does X live.** One line per top-level type.
   **Don't read it and don't grep for a path — run `./scripts/where.sh <name>`.**
   It prints `path:line` and is shorter than the grep you were about to guess at.
@@ -219,10 +231,13 @@ So:
   or picker on a card. Two enums hold the app together (`DataDomain` for what can
   be *seen*, `InputKind` for what can be *given*), four surfaces have to agree,
   and three checks enforce it. Also carries the modelled-not-measured rules.
-- `add-metric-type` -> the eight exhaustive switches a new `MetricType` feeds.
-  This is the most frequent way the build breaks; the skill lists all of them.
-- `add-insight` -> the five `InsightID` switches (the docs said three) and the
-  two registrations that fail silently.
+- `add-metric-type` -> the exhaustive switches a new `MetricType` feeds. This
+  is the most frequent way the build breaks; the skill's table lists all of
+  them. (No count here on purpose — "eight" sat in this line while the table
+  held nine.)
+- `add-insight` -> the `InsightID` switches (the skill's table is the
+  authority; prose counts of it have gone stale twice) and the two
+  registrations that fail silently.
 - `use-the-simulator` -> **Mac sessions only: see the app before saying a UI
   change works.** Written from the invisible-cards defect. Says plainly what a
   simulator cannot answer, and that it never replaces `verify.sh --tests`.

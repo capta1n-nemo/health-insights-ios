@@ -18,7 +18,14 @@ has now happened four times in this repo's history.
 ## Part 1 — carry the work forward
 
 1. Analyze the code changes and decisions made in this chat session.
-2. Update `docs/activeContext.md` with current focus, recent edits, and exact next steps.
+2. Update `docs/activeContext.md` with current focus, recent edits, and exact
+   next steps. **And keep it a *current* state, not a stack**: the file is read
+   at every session start, so every superseded narrative left in it is a tax on
+   every future session (by 2026-08-06 it had accreted to 4,100+ lines across
+   28 sessions). When a section describes work that later sessions closed or
+   re-decided, **move it to `docs/archive/activeContext-history.md`** — move,
+   never delete, so the audit survives — and leave one line behind only if a
+   conclusion is still load-bearing.
 3. Update `docs/progress.md` task statuses, then run
    **`./scripts/roadmap-table.sh`** — the open-items table at the top of that
    file is generated from the boxes below it, and `handover-check.sh` fails

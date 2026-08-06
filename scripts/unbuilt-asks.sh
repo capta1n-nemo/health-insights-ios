@@ -12,6 +12,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Fail LOUDLY if the backlog headings this parses ever move. Without this, a
+# renamed "### B2 —" makes the script print an empty list — a false "nothing
+# outstanding", which is the exact three-session failure it exists to stop.
+if ! grep -q '^### B2 —' docs/backlog.md || ! grep -q '^### B5 —' docs/backlog.md; then
+    echo "ERROR: docs/backlog.md no longer has '### B2 —' / '### B5 —' headings." >&2
+    echo "This script parses them; fix the headings or this script before trusting its output." >&2
+    exit 1
+fi
+
 echo "Things the reader asked for that are NOT built:"
 echo
 # §B5 rows without a ✅, and §B2 rows without one. The marker convention is the

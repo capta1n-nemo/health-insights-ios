@@ -64,9 +64,11 @@ if [ -x scripts/ci-status.sh ]; then
     esac
 fi
 
-# --- 4. The lint and the suite still pass ----------------------------------
-# A handover that leaves the gate red hands the next session a broken baseline
-# and no way to tell which change broke it.
+# --- 4. The lint still passes ----------------------------------------------
+# Plain verify.sh: the lints and (on Darwin) the app-target parse, NOT the test
+# suite — the suite belongs to the pre-push gate, which ran before HEAD reached
+# origin. A handover that leaves the lint red hands the next session a broken
+# baseline and no way to tell which change broke it.
 if ./scripts/verify.sh >/dev/null 2>&1; then
     ok 'verify.sh lint clean'
 else

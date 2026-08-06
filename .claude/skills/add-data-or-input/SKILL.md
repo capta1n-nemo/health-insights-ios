@@ -32,7 +32,7 @@ about me", and that claim only holds if it is complete.
    - `isVisible(_:)` — how it answers a **search**. "It doesn't" is a decision
      somebody makes, not a row that quietly never appears.
 3. If the data is a *series*, it is a `MetricType` instead — load the
-   `add-metric-type` skill, which lists the eight switches that feeds.
+   `add-metric-type` skill, which tables the exhaustive switches that feeds.
 
 **A domain is not a metric.** A metric is one measured series; a domain is a
 *shape* — a dated log, paired readings, a regimen with a decay curve. Most are
