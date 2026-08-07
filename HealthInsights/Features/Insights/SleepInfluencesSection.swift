@@ -315,11 +315,18 @@ struct SleepInfluencesSection: View {
                  + "did to tonight's sleep. The same day's activity is taken out first, "
                  + "because a busy day changes both and would otherwise look like the "
                  + "cause; so is whether the next morning was a free one.")
+            // ⚠️ The candidate count only goes in this sentence when there *is*
+            // one. Caught in the simulator: with nothing to test it read "it has
+            // to beat the best of all 0 at once", which is the shape of a
+            // sentence built by interpolating a number nobody checked.
             Text("Nothing is called a finding until it beats \(SleepInfluences.permutations) "
                  + "reshuffles of your own data that keep each thing's own week-to-week "
-                 + "rhythm intact — and it has to beat the *best* of all "
-                 + "\(analysis.tested) at once, so checking more things makes it harder "
-                 + "to find one, not easier.")
+                 + "rhythm intact"
+                 + (analysis.tested > 0
+                    ? " — and it has to beat the best of all \(analysis.tested) at once, "
+                        + "so checking more things makes it harder to find one, not easier."
+                    : " — and, when there are several, the best of all of them at once, so "
+                        + "checking more things makes it harder to find one, not easier."))
             Text("Associations in one person's record. Not causes, and not medical "
                  + "findings.")
         }
