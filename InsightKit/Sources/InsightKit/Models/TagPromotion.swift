@@ -182,17 +182,58 @@ public enum TagPromotion {
 public struct TagMappingStore: Codable, Sendable, Equatable {
     private var mappings: [String: TagApplicabilityMapping]
 
-    public init(mappings: [String: TagApplicabilityMapping] = [:]) {
+    /// **Tags the on-device model was asked about and could not place.**
+    ///
+    /// Not a cache of an answer — there is no answer — but a record that the
+    /// question has already been put. It exists because of a starvation bug that
+    /// only shows up on a real library of tags: `TagApplicabilityModel` asks
+    /// about at most a dozen tags per pass, most-used first, and re-asks anything
+    /// still unplaced. A tag the model *cannot* place therefore stays at the head
+    /// of that queue for ever, and the thirteenth tag is never asked at all. On a
+    /// reader with twenty invented tags, eight of them would never have been seen
+    /// by the model on any launch.
+    ///
+    /// ⚠️ **Only a settled "I don't know" belongs in here** — the model replied
+    /// and named no category. A *thrown* call (Apple Intelligence switched off
+    /// mid-flight, a guardrail, a timeout) must never land here, because that is
+    /// a transient condition and recording it would permanently retire a tag over
+    /// a momentary failure. `TagApplicabilityModel.Outcome` is what keeps the two
+    /// apart.
+    private var declinedByModel: Set<String>
+
+    public init(mappings: [String: TagApplicabilityMapping] = [:],
+                declinedByModel: Set<String> = []) {
         self.mappings = mappings
+        self.declinedByModel = declinedByModel
+    }
+
+    /// Hand-written so a store persisted before `declinedByModel` existed still
+    /// decodes. The synthesized initialiser throws on a missing key, and the
+    /// thing that would be lost is every correction the reader has ever made.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mappings = try container.decodeIfPresent([String: TagApplicabilityMapping].self,
+                                                 forKey: .mappings) ?? [:]
+        declinedByModel = try container.decodeIfPresent(Set<String>.self,
+                                                        forKey: .declinedByModel) ?? []
     }
 
     public var keys: Set<String> { Set(mappings.keys) }
-    public var isEmpty: Bool { mappings.isEmpty }
+    public var isEmpty: Bool { mappings.isEmpty && declinedByModel.isEmpty }
     public var count: Int { mappings.count }
 
     public func mapping(for key: String) -> TagApplicabilityMapping? { mappings[key] }
 
-    /// Record an answer, **keeping the better-evidenced one**.
+    /// Whether the model has already been asked about this tag and said nothing.
+    public func modelHasDeclined(_ key: String) -> Bool { declinedByModel.contains(key) }
+
+    /// Record that the model answered and named no category this app has.
+    public mutating func recordModelDeclined(_ key: String) {
+        declinedByModel.insert(key)
+    }
+
+    /// Record an answer, **keeping the better-evidenced one — except that the
+    /// reader always wins.**
     ///
     /// ⚠️ Not a plain assignment, and that is the whole safety property here: a
     /// later, weaker answer must not overwrite a stronger earlier one. The case
@@ -200,7 +241,24 @@ public struct TagMappingStore: Codable, Sendable, Equatable {
     /// recovery, and the next sync hands the model the same word and gets
     /// Activity back. Ranking rather than recency means the reader's correction
     /// stands until the reader changes it.
+    ///
+    /// ⚠️ **And the reader changing it is the case a rank comparison alone gets
+    /// wrong.** Two `.reader` mappings rank identically (400 + 1.0), so a strict
+    /// `>` silently discarded the second one: a reader who corrected "Sauna" to
+    /// Sleep & recovery and then decided it was really Activity tapped the menu,
+    /// watched the row snap back, and had no way to tell the app was refusing
+    /// them. A correction is not evidence to be weighed against the previous
+    /// correction — it is the reader saying what their own word meant, which is
+    /// the one thing in here that is not an inference at all.
     public mutating func record(_ mapping: TagApplicabilityMapping, for key: String) {
+        // A tag the reader has just placed themselves is settled; if the model
+        // had previously given up on it, that fact is now irrelevant and keeping
+        // it would only stop a future pass ever re-examining a re-cleared tag.
+        if mapping.method == .reader {
+            mappings[key] = mapping
+            declinedByModel.remove(key)
+            return
+        }
         guard let existing = mappings[key] else {
             mappings[key] = mapping
             return
@@ -210,10 +268,16 @@ public struct TagMappingStore: Codable, Sendable, Equatable {
         }
     }
 
-    /// Force an answer in, ignoring rank. **Only for the reader clearing their
-    /// own correction**, which is the one case where a weaker mapping is the
-    /// right one.
+    /// Drop everything stored about a tag, ignoring rank. **The reader taking
+    /// their own correction back**, which is the one case where a weaker mapping
+    /// is the right one — the deterministic classifier's answer returns, and the
+    /// model is free to be asked again.
     public mutating func clear(_ key: String) {
         mappings.removeValue(forKey: key)
+        declinedByModel.remove(key)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case mappings, declinedByModel
     }
 }
