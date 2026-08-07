@@ -152,6 +152,29 @@ public enum VitalReader {
     /// reading only `value`, `date` or `isFresh` is unaffected by it either way
     /// and should say `.none`; the moment it touches `baseline`, `zScore` or
     /// `history` the answer is load-bearing.
+    ///
+    /// ## `excludingPartialDay`, and why it is a flag rather than a filtered array
+    ///
+    /// A cumulative metric read at 9 am is a fraction of a day being judged
+    /// against whole ones — `FitnessInsight.judgementSamples` documents the
+    /// defect ("Steps: 224 · 1.5 SD below your normal", exported in the
+    /// morning). The obvious expression of that is to hand this function
+    /// `samples.filter { $0.start < startOfToday }`, and **that is what it cost**
+    /// (backlog `D57`, measured 2026-08-07 on the reader's own 381,701-sample
+    /// record):
+    ///
+    /// - the filter itself walks the whole array and allocates a copy, and
+    /// - the copy is **not the array the evaluation's memo was opened for**, so
+    ///   `MultiSource.breakdown` and `dailyBuckets` both miss and recompute from
+    ///   scratch — a second full scan, a deduplicate-and-sort of every reading
+    ///   of that metric, and a full re-bucketing, *per metric, per caller*.
+    ///
+    /// Fitness alone did that eleven times over two call sites and took
+    /// **783 ms of a 979 ms pass**. Dropping the partial day from the *buckets*
+    /// instead is exactly equivalent — bucketing is per-day and independent, so
+    /// "drop today's samples then bucket" and "bucket then drop today's bucket"
+    /// produce the same days — and it costs a `prefix` over a few hundred
+    /// points on the memoised result.
     public static func reading(_ metric: MetricType,
                                from samples: [HealthMetricSample],
                                now: Date = Date(),
@@ -159,12 +182,18 @@ public enum VitalReader {
                                minimumDays: Int = defaultMinimumDays,
                                freshWithin: TimeInterval = defaultFreshness,
                                gap: ReferenceGap,
+                               excludingPartialDay: Bool = false,
                                calendar: Calendar = .current) -> VitalReading? {
         // One series per physical device, de-duplicated: the same ring arriving
         // twice is one instrument.
         let breakdown = MultiSource.breakdown(metric, from: samples)
         guard !breakdown.sources.isEmpty else { return nil }
-        let buckets = dailyBuckets(metric, breakdown: breakdown, from: samples, calendar: calendar)
+        let allBuckets = dailyBuckets(metric, breakdown: breakdown, from: samples, calendar: calendar)
+        let startOfToday = calendar.startOfDay(for: now)
+        // Buckets are oldest → newest, so this is a prefix rather than a scan.
+        let buckets = excludingPartialDay
+            ? allBuckets.map { Array($0.prefix { $0.date < startOfToday }) }
+            : allBuckets
 
         var best: (reading: VitalReading, historyCount: Int)?
         for (series, daily) in zip(breakdown.sources, buckets) {

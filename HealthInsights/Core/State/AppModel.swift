@@ -2019,8 +2019,39 @@ final class AppModel {
     /// the samples change, so a hit can never be stale data — only a saved
     /// re-run. A failed cast falls through to recompute, so the worst case is
     /// the old behaviour. A `nil` result is never cached — see `RenderMemo`.
+    ///
+    /// ## ⚠️ Why this is three lines and not `renderMemo.value(key, compute)`
+    ///
+    /// **Backlog `D58`: that one line crashed the app with `SIGABRT`,** and the
+    /// crash report said nothing about why — no exception, no subtype, no `asi`
+    /// payload, just `swift_beginAccess → swift::fatalError → abort` above
+    /// `AppModel.memoized`.
+    ///
+    /// `RenderMemo.value` is `mutating`, so `renderMemo.value(key, compute)`
+    /// holds an exclusive access to the `renderMemo` **property** for the entire
+    /// duration of `compute()`. Any `compute` that memoises something itself
+    /// asks for a second access to the same property while the first is open,
+    /// and Swift's exclusivity enforcement traps rather than corrupting the
+    /// dictionary.
+    ///
+    /// It was not hypothetical and it was not rare. `SettlingSection` memoises
+    /// `"overnightCardiac"`, and `OvernightCardiacReading.build` memoises
+    /// `"nightSleepAllNights"` — so **every render of that section aborted the
+    /// process.** Two crash reports an hour and forty minutes apart, from
+    /// different builds, carry the identical stack.
+    ///
+    /// The fix is to hold no access across the compute: a **read** that ends at
+    /// the lookup, the compute with nothing held, then a **short** write. A
+    /// re-entrant call for the same key now computes twice and stores twice,
+    /// which is a wasted pass rather than a dead process.
+    ///
+    /// **The rule for anything else that caches behind a stored property: never
+    /// run a caller's closure inside a `mutating` method of it.**
     func memoized<T>(_ key: String, _ compute: () -> T) -> T {
-        renderMemo.value(key, compute)
+        if let hit: T = renderMemo.cached(key) { return hit }
+        let value = compute()
+        renderMemo.store(key, value)
+        return value
     }
 
     /// A source-split breakdown of a metric across all connected devices, cached
@@ -2207,13 +2238,25 @@ final class AppModel {
         diag.info("Sync", "Refresh started",
                   detail: "Build \(BuildInfo.summary), built \(BuildInfo.formattedDate)")
 
+        // ⚠️ **One number for a dozen phases is not a measurement** — backlog
+        // `D57`. "Refresh complete in 15.5s" said nothing about *which* of the
+        // steps below was the fifteen seconds, and the row that recorded it
+        // guessed at the insight pass. The pass was then measured at ~1 s over
+        // the reader's whole record (`InsightPassBenchmarkTests`), so the guess
+        // was wrong and the time is in one of the other laps. Every phase is
+        // named from here down; see `RefreshPhaseTimer`.
+        var timer = RefreshPhaseTimer()
+
         let manual = dataStore.loadManualSamples()
+        timer.lap("manual samples")
         let synced = await registry.syncAllConnected()
+        timer.lap("provider sync (network)")
         // The calendar is pulled here rather than inside `syncAllConnected`,
         // because its output is not `SyncedData` — a meeting is not a sample,
         // and pretending otherwise would put events in the vitals layer. See
         // `CalendarIntegration.sync`.
         await syncCalendar()
+        timer.lap("calendar sync")
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
             switch integration.status {
@@ -2229,16 +2272,19 @@ final class AppModel {
         // providers sent — including fields nobody has written code for — and it
         // has to finish before the cache merge and the insight pass, not after.
         let ingested = ingestPayloads(synced.payloads, diag: diag)
+        timer.lap("ingest payloads")
 
         // Cache-merge: a source that returned data this sync replaces its cached
         // copy; sources that returned nothing (disconnected/offline) keep their
         // last-known cache, so their data never disappears from the app.
         let freshSamples = synced.samples + ingested.promoted
         let cached = dataStore.loadCachedSamples()
+        timer.lap("load sample cache")
         let freshSourceIDs = Set(freshSamples.map { $0.source.id })
         let retained = cached.filter { !freshSourceIDs.contains($0.source.id) }
         let nonManual = freshSamples + retained
         dataStore.saveCachedSamples(nonManual)
+        timer.lap("save sample cache")
         if !retained.isEmpty {
             diag.info("Cache", "Kept \(retained.count) cached sample(s) from idle sources")
         }
@@ -2246,10 +2292,12 @@ final class AppModel {
         // Same cache-merge for the raw "other" data.
         let freshOther = synced.other + ingested.raw
         let cachedOther = dataStore.loadCachedOther()
+        timer.lap("load raw cache")
         let freshOtherSourceIDs = Set(freshOther.map { $0.source.id })
         let retainedOther = cachedOther.filter { !freshOtherSourceIDs.contains($0.source.id) }
         otherSamples = freshOther + retainedOther
         dataStore.saveCachedOther(otherSamples)
+        timer.lap("save raw cache")
         if !freshOther.isEmpty {
             diag.ok("Import", "\(freshOther.count) other data point(s) imported")
         }
@@ -2257,10 +2305,12 @@ final class AppModel {
         // both, and neither from the retained cache.
         observeArrivals(Set(freshOther.map(\.identifier))
                             .union(freshSamples.map { $0.type.rawValue }))
+        timer.lap("observe arrivals")
 
         // Drop placeholder zeros (e.g. an Oura day with no HR → 0 bpm) so they
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
         let (merged, dropped) = (manual + nonManual).partitionedVitals()
+        timer.lap("sanitiser")
         logSanitiserDrops(dropped, diag: diag)
         // …and record the same verdict against the sightings written above, so
         // an arrival that became nothing says so instead of sitting in "New
@@ -2279,23 +2329,29 @@ final class AppModel {
         samples = SoundDoseModel.withSoundDose(
             TemperatureReconstructor.withReconstructedTemperature(merged),
             raw: otherSamples)
+        timer.lap("derived series (temperature, sound dose)")
         logMetricCounts(diag)
+        timer.lap("per-metric counts")
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
+        timer.lap("profile + substance log")
         recompute()
         // The summary is written from `results`, so this one caller waits for
         // the pass it just started. The interface is free during the wait —
         // that is the difference from running it inline, and it is the whole
         // fix for the reader's "Syncing your devices" hang.
         await recomputeSettled()
+        timer.lap("insight pass (19 models, off the main actor)")
         launchPhase = .summarising
         await refreshSummaryIfChanged(now: startedAt, diag: diag)
+        timer.lap("daily summary")
         // **After the sync has otherwise finished, deliberately.** Every tag is
         // already promoted and already carries a deterministic applicability, so
         // this can only improve a heading — it can never be the reason the Tags
         // section is empty or late. On a device with no on-device model it
         // returns having done nothing.
         await refreshTagApplicability()
+        timer.lap("tag applicability")
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })
@@ -2305,7 +2361,7 @@ final class AppModel {
             .prefix { $0.date >= startedAt }
             .filter { $0.status == .fail }
         diag.info("Sync", "Refresh complete in \(elapsed)s — \(samples.count) samples, \(results.count) insights",
-                  detail: (bySource + [
+                  detail: ([timer.summary(), ""] + bySource + [
                     "Other (unmodelled) values held: \(otherSamples.count)",
                     failures.isEmpty
                         ? "No failures this sync."

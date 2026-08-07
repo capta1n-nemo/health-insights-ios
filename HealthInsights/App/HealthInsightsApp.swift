@@ -20,7 +20,15 @@ struct HealthInsightsApp: App {
                 // nothing to the unified log until a sync or an import runs,
                 // which on the simulator is never, and `simulator.sh logs`
                 // cannot be told apart from a broken mirror.
-                .task { DiagnosticsLog.shared.recordLaunch() }
+                // Both idempotent, so a scene change re-running this `task`
+                // costs nothing. The watchdog is DEBUG-only and compiles to
+                // nothing in a release build — see `MainThreadWatchdog`, and
+                // backlog `D54` for the reader's "I see so many hangs".
+                .task {
+                    DiagnosticsLog.shared.recordLaunch()
+                    MainThreadWatchdog.start()
+                    HangDiagnosticsReporter.shared.start()
+                }
                 // The share-sheet and "Open With" entry point. A shared file
                 // arrives as a URL the OS opens the app with, so this is the
                 // only hook that sees it — there is no callback and nothing to

@@ -31,11 +31,51 @@ public struct RenderMemo {
     /// cached nil on its very first ask and never ran at all. That is what
     /// emptied "What you're made of" and "How you compare" the day render
     /// memoisation shipped, on a phone whose data was fine throughout.
+    ///
+    /// ## ⚠️ Never call this on a memo held in a stored property
+    ///
+    /// It is `mutating`, so calling it as `someObject.memo.value(key) { … }`
+    /// holds an **exclusive access to `someObject.memo` for the whole of
+    /// `compute()`**. A `compute` that memoises anything itself then asks for a
+    /// second access to the same property, Swift's exclusivity checker traps,
+    /// and the process takes `SIGABRT` — no exception, no message, nothing in
+    /// the report but `swift_beginAccess → fatalError → abort`.
+    ///
+    /// That is backlog `D58`, diagnosed 2026-08-07 from two crash reports an
+    /// hour and forty minutes apart with identical stacks: `SettlingSection`
+    /// memoised `overnightCardiac`, whose `OvernightCardiacReading.build`
+    /// memoises `nightSleepAllNights`. Every render of that section aborted the
+    /// app.
+    ///
+    /// **`cached(_:)` + `store(_:_:)` below are the re-entrant-safe pair, and
+    /// `AppModel.memoized` uses them.** This method survives for callers that
+    /// own the memo as a local — where the hazard cannot arise — and for the
+    /// tests that pin the two rules above.
     public mutating func value<T>(_ key: String, _ compute: () -> T) -> T {
-        if let stored = storage[key], let hit = stored as? T { return hit }
+        if let hit: T = cached(key) { return hit }
         let value = compute()
-        if !Self.isNil(value) { storage[key] = value }
+        store(key, value)
         return value
+    }
+
+    /// A cache lookup that holds **no** access once it returns.
+    ///
+    /// Non-mutating on purpose — see the warning on `value(_:_:)`. This is the
+    /// half a re-entrant caller must use, because a read access ends at the
+    /// return and cannot overlap the compute that follows.
+    public func cached<T>(_ key: String) -> T? {
+        guard let stored = storage[key], let hit = stored as? T else { return nil }
+        return hit
+    }
+
+    /// Store a computed value, unless it is `nil`.
+    ///
+    /// The nil rule lives here rather than in `value(_:_:)` so that the
+    /// re-entrant path cannot quietly lose it — a cached `nil` is the defect
+    /// this type's own doc comment opens with.
+    public mutating func store<T>(_ key: String, _ value: T) {
+        guard !Self.isNil(value) else { return }
+        storage[key] = value
     }
 
     public mutating func removeAll(keepingCapacity: Bool = false) {
