@@ -25,6 +25,14 @@ public extension MetricType {
              .bodyMass, .bodyFatPercentage, .leanBodyMass, .muscleMass,
              .boneMass, .bodyWaterPercentage, .height,
              .bodyTemperature, .skinTemperature,
+             // ⚠️ **Not optional, and measured rather than assumed.** 35 of the
+             // reader's 136 basal readings are exact zeros (26%) in a series
+             // whose real values never go below 35.19 °C — the Shortcut writes
+             // a zero when it has nothing. `RawMetricSample
+             // .placeholderZeroIdentifiers` censored those while the identifier
+             // was raw; promoted to a metric, **this line is the censor**, and
+             // a zero surviving it would drag the baseline down every time.
+             .basalBodyTemperature,
              // A living person cannot read zero on any of these; a zero is a
              // provider placeholder.
              .bloodGlucose, .peripheralPerfusionIndex, .heartRateRecovery,
@@ -137,7 +145,12 @@ public extension MetricType {
         case .bloodPressureSystolic: return 60...300
         case .bloodPressureDiastolic: return 30...200
         // Temperature, in °C. Survivable core temperature, generously bounded.
-        case .bodyTemperature, .skinTemperature: return 25...45
+        // A basal reading is a core reading taken at the circadian trough, so
+        // the same generous survivable bounds hold. The zeros are dropped by
+        // `requiresPositiveValue` above rather than by this range, which is
+        // deliberate: the range rejects a unit slip, the positivity rule
+        // rejects a placeholder, and conflating the two hides which happened.
+        case .bodyTemperature, .skinTemperature, .basalBodyTemperature: return 25...45
         // Body. Deliberately wide: these are the metrics where being wrong about
         // somebody's body is worst, and a scale reporting a real 200 kg must be
         // believed.

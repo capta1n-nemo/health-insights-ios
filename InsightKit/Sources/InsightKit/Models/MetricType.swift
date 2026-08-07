@@ -180,6 +180,31 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     case bodyTemperature           // °C absolute CORE (thermometer, Withings 71/12)
     case skinTemperature           // °C absolute SKIN (Whoop, Withings 73, Apple wrist, reconstructed)
     case skinTemperatureDeviation  // °C deviation from personal baseline (Oura/Hume)
+    /// °C, taken on waking before getting up — the reader's own morning
+    /// thermometer reading, written to Apple Health by a Shortcut.
+    ///
+    /// **A fourth thermal metric, and it earns its own case for one reason: it
+    /// is the only temperature here that does not come off a wearable.**
+    /// Measured on the reader's export 2026-08-07 — 136 records over 124 days,
+    /// 80 of the last 90 — and read by absolutely nothing until now. It sat in
+    /// the raw "other data" pile, which is where a signal goes to be counted
+    /// and never used.
+    ///
+    /// ⚠️ **26% of those records are exact zeros meaning "no reading"** (35 of
+    /// 136), which is why `RawMetricSample.placeholderZeroIdentifiers` names
+    /// this identifier. Promoted to a canonical metric the censor is
+    /// `requiresPositiveValue`, which `sanitizedVitals()` applies on the ingest
+    /// path — and it must stay true, because a zero read as a temperature drags
+    /// the baseline down every single time.
+    ///
+    /// **Why it is not folded into `.bodyTemperature`.** They are both core-ish
+    /// readings from a thermometer, but a basal reading is defined by *when* it
+    /// is taken — on waking, before moving — and a daytime oral reading is not.
+    /// Pooling them would mix a 06:40 resting value with an afternoon one taken
+    /// because somebody felt hot, and the spread of the merged series would
+    /// swallow the half-degree this is measured to find. Same family, so the
+    /// symptom radar still collapses them to one vote (`sharesMeasurementBasis`).
+    case basalBodyTemperature      // °C CORE, taken on waking (thermometer via Shortcut)
 
     // Vitals Apple Health has always collected and the app imported only as raw
     // "other data" — measurements with real units and real baselines, so they
@@ -337,6 +362,10 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         case .bodyTemperature: return "Body Temperature"
         case .skinTemperature: return "Skin Temperature"
         case .skinTemperatureDeviation: return "Skin Temp Deviation"
+        // "Basal" is in the name because the time of day is the definition, not
+        // a detail: this is the reading taken on waking, and a reader who sees
+        // "Body Temperature" twice in a list has no way to tell which is which.
+        case .basalBodyTemperature: return "Basal Body Temperature"
         case .bloodGlucose: return "Blood Glucose"
         case .peripheralPerfusionIndex: return "Perfusion Index"
         case .atrialFibrillationBurden: return "AFib Burden"
@@ -414,7 +443,8 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
         // any unit suffix would claim it is a count or a rate, which it isn't.
         case .breathingDisturbanceIndex: return ""
         case .screenTimeMinutes: return "min"
-        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return "°C"
+        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             .basalBodyTemperature: return "°C"
         case .bloodGlucose: return "mmol/L"
         case .peripheralPerfusionIndex, .atrialFibrillationBurden,
              .walkingSteadiness, .walkingAsymmetry, .walkingDoubleSupport: return "%"

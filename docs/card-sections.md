@@ -230,7 +230,7 @@ silently; count the enum before trusting the table.
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "When you settled" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Screen time and your sleep" + "Overnight HRV" + "Sleep apnoea indicator" (which *contains* "Breathing during sleep") | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **nine top-level sections**: "Last night in stages" + "What changed while you slept" + "When you settled" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Screen time and your sleep" + "Overnight HRV" + "Sleep apnoea indicator" (which *contains* "Breathing during sleep") | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" + "Sleep debt" + "Your best bedtime" + "What's impacting your sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Readiness | Today | ● | ● | ● | ● | ◐ "How long you take to come back" — the recovery tracker (S6). It does **not** redraw the seventeen-vital scan: that *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
@@ -339,6 +339,21 @@ B18-4, B18-5 and P22) and each its own `@ViewBuilder` member:
   maps a ring's composite onto a sleep study's event counts. It adds a drift
   sentence (a direction only when the slope beats the scatter) and the latest
   night's placement among the reader's own.
+- **"What changed while you slept"** (5t, `OvernightChangeSection.swift`) —
+  backlog S5, the reader's own ask, and it is a *comparison* rather than another
+  summary of the night. One row per nocturnal channel — resting heart rate, the
+  denser HRV quantity, respiratory rate, oxygen saturation, the thermal series
+  and the breathing index — each showing last night's figure, how far it sits
+  from the reader's own previous nights, and **how far that is in that
+  channel's own night-to-night spread**, printed beside the spread and the
+  count of nights the spread rests on. A channel with fewer than
+  `OvernightChange.minimumReferenceNights` behind it is named as *waiting*, not
+  judged. Every channel comes from `VitalReader.dailySeries` — one derivation
+  route, so the card never holds two opinions about what a night is. **It has
+  no total, deliberately**: several channels leaning together is the symptom
+  radar's calibrated claim, and the section says so on screen. Bars are drawn
+  with plain shapes on a fixed ±3-spread axis (no time axis, so
+  substance-shading exempt, and no `Chart3DContent` hazard).
 - **"When you settled"** (5q, `SettlingSection.swift`) — backlog B3-20, and the
   thing the competitive scan found nobody drawing: **the shape inside the
   night**, not the nightly summary every wearable reports. Last night's heart
@@ -856,6 +871,7 @@ map above.
 | 5q | **When you settled** | Sleep | open (closed when empty) | ● `needsInput` — a watch or ring worn to bed | settled after `n` min | `partial` — twenty-minute medians, band excludes the night drawn | raw `Chart` (hours-since-onset axis) |
 | 5r | **Screen time and your sleep** | Sleep | open (closed when nothing paired) | ● the `CoverageGate` line, always | `n` nights paired | `associationsNotCauses` | raw `Chart` (scatter, screen minutes axis) |
 | 5s | **Overnight HRV** | Sleep | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` — names SDNN or rMSSD, never pools them | `OvernightNightlyChart` |
+| 5t | **What changed while you slept** | Sleep | open (closed when empty) | ● `needsMore` | `n` of `m` moved | `partial` — one figure a night per channel, your own nights only, and the night a source filed it under | plain shapes, no time axis |
 | 5o | Breathing during sleep | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
 | 5q | **Sleep debt** | Sleep | open (closed when empty) | ● | h behind / clear | `estimated` — a decaying sum of shortfalls, not a measure of tiredness | `ScrollableMetricChart` |
 | 5r | **Your best bedtime** | Sleep | open when a window is named, else closed behind it | ● two reasons | the window | `associationsNotCauses` + `replayedHistory` | raw `Chart` — bedtime bins (shading-exempt: x is a clock time) |
@@ -921,6 +937,7 @@ the generated map above is the authority for how many there are):
 | Sleep | When you settled | open (closed when empty) | ● `needsInput` | settled after `n` min | `partial` | raw `Chart` (hours-since-onset axis) |
 | Sleep | Screen time and your sleep | open (closed when nothing paired) | ● the `CoverageGate` line, always | `n` nights paired | `associationsNotCauses` | raw `Chart` (scatter) |
 | Sleep | Overnight HRV | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` | `OvernightNightlyChart` |
+| Sleep | What changed while you slept | open (closed when empty) | ● `needsMore` | `n` of `m` moved | `partial` | plain shapes, no time axis |
 | Sleep | Sleep apnoea indicator | open (closed when empty) | ● `needsInput` | latest index | `estimated` — `notAnApnoeaTest` | `MultiSourceChart` |
 | Sleep | …Breathing during sleep | **nested inside the apnoea indicator** (B18-1) | — | `n` nights | `estimated` — trended, never scored | `MultiSourceChart` |
 | Sleep | Your fortnight | nested in the night card | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |

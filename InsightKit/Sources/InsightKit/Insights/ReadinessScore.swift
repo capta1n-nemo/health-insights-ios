@@ -272,8 +272,24 @@ public struct ReadinessInsight: InsightModel {
         // a duplicate here would draw the same series twice on the overlay.
         // `{ $0.metric }` rather than `\.metric` on `watched`: it is an array of
         // tuples, and a key path into a tuple element is a compile error.
+        //
+        // ⚠️ **A watched metric with no `VitalSignsCheck.Spec` is excluded**, and
+        // the morning thermometer (2026-08-07, backlog R33) is the first one.
+        // Readiness's contributors come from the vitals scan, not from the
+        // health watch — the watch only contributes a driver *line* — so a
+        // metric the scan has no spec for can never be reported as a
+        // contributor, and declaring it here would put it in "How you compare"
+        // and "How far from your normal" while it is absent from "What goes
+        // into this". That is the exact inconsistency
+        // `CandidateReachabilityTests` exists to catch, and its instruction is
+        // to wire it into the score or drop the declaration. Dropping is the
+        // honest half here: the reading is read by the **symptom radar**, which
+        // does declare it and does report it, and inventing a Readiness spec
+        // for a waking temperature would mean inventing a normal band for it —
+        // see `MetricType.referenceRange`, which says why there isn't one.
+        let scanned = Set(VitalSignsCheck.specs.map(\.metric))
         for extra in VitalSignsCheck.specs.map(\.metric) + HealthWatchModel.watched.map({ $0.metric })
-        where !metrics.contains(extra) {
+        where !metrics.contains(extra) && scanned.contains(extra) {
             metrics.append(extra)
         }
         return metrics

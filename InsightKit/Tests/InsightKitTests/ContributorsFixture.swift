@@ -38,6 +38,14 @@ enum ContributorsFixture {
             .height: 1.83, .stepCount: 9000, .activeEnergyBurned: 520,
             .sleepDurationHours: 7.4, .bodyTemperature: 36.6,
             .skinTemperature: 33.8, .skinTemperatureDeviation: 0.1,
+            // Promoted 2026-08-07 (backlog R33). A waking reading sits at the
+            // circadian trough, so it is deliberately below the 36.6 core
+            // figure above rather than equal to it — a fixture whose two
+            // thermometers agree exactly would let a card that mixed them pass.
+            // Present here for the same reason the other promoted vitals are:
+            // a declared candidate has to be reachable on this fixture or
+            // `CandidateReachabilityTests` calls the declaration dead.
+            .basalBodyTemperature: 36.3,
             // Charted by Sleep at weight 0 (backlog #30/S9). Here for the same
             // reason the medication level and calories are: a declared
             // candidate has to be reachable as a contributor on this fixture,

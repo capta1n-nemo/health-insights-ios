@@ -74,6 +74,12 @@ public extension MetricType {
              // breathing was overnight looks where the night's data lives.
              .breathingDisturbanceIndex,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             // With the other temperatures. It is taken on waking rather than
+             // overnight, but the reader looking for "how warm was I" looks in
+             // one place, and splitting the four thermal series across two
+             // sections would make the one they actually record the hardest to
+             // find.
+             .basalBodyTemperature,
              .dayStrain:
             return .sleepRecovery
         case .dietaryEnergy, .dietaryProtein, .dietaryCarbohydrates, .dietaryFat,

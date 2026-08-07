@@ -45,6 +45,12 @@ final class CandidateReachabilityTests: XCTestCase {
         // — which is precisely what this table means, rather than a dead
         // declaration.
         (.fitness, .exerciseMinutes, [.physicalEffort])
+        // ⚠️ **No row for `basalBodyTemperature` on readiness, on purpose**
+        // (2026-08-07, backlog R33). One was written and then deleted: readiness
+        // takes its contributors from the vitals scan, and a metric with no
+        // `VitalSignsCheck.Spec` can never become one however many siblings are
+        // withheld — so the fix was to stop readiness *declaring* it rather than
+        // to teach this table about it. See `ReadinessInsight.candidateMetrics`.
     ]
 
     private func samples(now: Date, without withheld: Set<MetricType>) -> [HealthMetricSample] {

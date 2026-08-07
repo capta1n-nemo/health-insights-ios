@@ -94,7 +94,16 @@ public extension MetricType {
         // exactly what trending the index is for.
         case .respiratoryRate, .oxygenSaturation,
              .breathingDisturbanceIndex: return .respiratory
-        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation: return .thermal
+        // ⚠️ **`.thermal` on purpose, and it is a calibration decision rather
+        // than a filing one.** `sharesMeasurementBasis` is family-wide, so the
+        // symptom radar's `collapsingDuplicates` folds a basal reading and a
+        // ring's nightly deviation into **one thermal vote** — whichever leans
+        // harder. That is what stops the card counting one morning's warmth
+        // twice, and it is also what makes the basal series useful: on a night
+        // the ring was not worn it is the thermal channel, rather than an extra
+        // one. See `HealthWatchModel.watched`.
+        case .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             .basalBodyTemperature: return .thermal
         case .bloodPressureSystolic, .bloodPressureDiastolic, .vascularAge,
              .peripheralPerfusionIndex: return .circulatory
         case .bloodGlucose: return .metabolic
@@ -295,6 +304,11 @@ public extension MetricType {
         // These two share no chart with anything yet, so the tail costs nothing.
         case .environmentalSoundDose: return 75
         case .headphoneSoundDose: return 76
+        // Appended, like every case since 30, after re-reading the max from
+        // this switch. Its usual chart is the symptom radar's own thermal row
+        // and the Data tab's temperature list, where hues resolve per chart —
+        // so sharing a preferred hue with the tail above costs nothing.
+        case .basalBodyTemperature: return 77
         }
     }
 
@@ -344,7 +358,13 @@ public extension MetricType {
 
     static let interchangeableGroups: [Set<MetricType>] = [
         [.heartRateVariabilityRMSSD, .heartRateVariabilitySDNN],
-        [.skinTemperatureDeviation, .skinTemperature, .bodyTemperature]
+        // The basal reading joins the thermal group: a card that declares a
+        // temperature and reads whichever one the reader actually records has
+        // read a temperature. It is deliberately *not* interchangeable with
+        // nothing — the reader's densest thermal series is this one on the
+        // nights the ring is off.
+        [.skinTemperatureDeviation, .skinTemperature, .bodyTemperature,
+         .basalBodyTemperature]
     ]
 
     /// The hue this metric prefers. Not necessarily the one it gets — see
@@ -368,6 +388,10 @@ public extension MetricType {
              .heartRateVariabilitySDNN, .heartRateVariabilityRMSSD,
              .vo2Max, .vascularAge, .respiratoryRate, .oxygenSaturation, .dayStrain,
              .bodyTemperature, .skinTemperature, .skinTemperatureDeviation,
+             // One reading a morning, inside a personal band a tenth of a
+             // degree wide. Never a total, and never cumulative: temperatures
+             // do not add up.
+             .basalBodyTemperature,
              .sleepDurationHours, .sleepOnset, .sleepEfficiency,
              .sleepDeepMinutes, .sleepRemMinutes, .sleepLatencyMinutes,
              // One index per night, varying inside a personal band — the same
@@ -461,6 +485,11 @@ public extension MetricType {
              .breathingDisturbanceIndex,
              .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
+             // One reading a morning, and on the reader's own record it lands
+             // on 80 of the last 90 days — so a day's grace and no more. A line
+             // bridging a week away from the thermometer would draw mornings
+             // nobody measured.
+             .basalBodyTemperature,
              .dayStrain, .stepCount, .activeEnergyBurned, .exerciseMinutes,
              .distanceWalkingRunning, .flightsClimbed,
              // Watch-only, and on the reader's own record it lands on 14 of the
@@ -661,6 +690,16 @@ public extension MetricType {
         // The zero point *is* the personal baseline, so a fixed band here would
         // be a band around a moving target.
         case .skinTemperatureDeviation: return nil
+        // ⚠️ **The oral band above does not apply, and drawing it here would be
+        // wrong every morning.** Body temperature follows a circadian rhythm of
+        // roughly half a degree, and a basal reading is taken at its trough —
+        // so 36.1–37.2 °C, a range built from daytime oral readings, would shade
+        // an ordinary waking temperature as borderline-low day after day. The
+        // published basal bands that do exist are cycle-phase bands for women
+        // tracking ovulation, which is a different claim from "is this normal".
+        // What this series is honestly good for is its own trend, which is what
+        // the symptom radar reads it as.
+        case .basalBodyTemperature: return nil
         // 0.5% is an alarm floor; published perfusion index spans roughly 0.3–10%
         // with no agreed normal band.
         case .peripheralPerfusionIndex: return nil
