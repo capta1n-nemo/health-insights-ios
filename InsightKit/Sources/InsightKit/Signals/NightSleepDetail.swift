@@ -100,33 +100,51 @@ public struct NightSleepDetail: Sendable, Equatable {
     public static func latest(raw: [RawMetricSample],
                               samples: [HealthMetricSample],
                               calendar: Calendar = .current) -> NightSleepDetail? {
+        allNights(raw: raw, samples: samples, calendar: calendar).last
+    }
+
+    /// **Every** night with anything to draw, oldest first.
+    ///
+    /// `latest` was the whole API until 2026-08-07, which is why the sleep card
+    /// could draw one night in stages and nothing at all about a *stretch* of
+    /// them: the decoding existed, and only the last night's worth of it was
+    /// ever reachable. `SleepStageAverages` is the first caller. The per-night
+    /// assembly is unchanged and `latest` now goes through here, so the single
+    /// night the chart draws and the nights an average is taken over can never
+    /// be built by two different rules.
+    public static func allNights(raw: [RawMetricSample],
+                                 samples: [HealthMetricSample],
+                                 calendar: Calendar = .current) -> [NightSleepDetail] {
         let ouraNights = ouraSegments(raw: raw, calendar: calendar)
         let appleNights = appleSegments(raw: raw, calendar: calendar)
         let windowNights = windowLanes(samples: samples, calendar: calendar)
 
-        guard let night = Set(ouraNights.keys)
+        let days = Set(ouraNights.keys)
             .union(appleNights.keys)
-            .union(windowNights.keys).max() else { return nil }
+            .union(windowNights.keys)
+            .sorted()
 
-        var lanes: [Lane] = []
-        if let bands = ouraNights[night], !bands.isEmpty {
-            lanes.append(Lane(source: "Oura", bands: bands.sorted { $0.start < $1.start }))
+        return days.compactMap { night in
+            var lanes: [Lane] = []
+            if let bands = ouraNights[night], !bands.isEmpty {
+                lanes.append(Lane(source: "Oura", bands: bands.sorted { $0.start < $1.start }))
+            }
+            // Apple's stage lanes, one per writing device, before the window
+            // fallback — and the fallback is then suppressed for any source that
+            // has real stages, or the same night would draw twice: once in colour
+            // and once as a flat grey bar over it.
+            for (source, bands) in (appleNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
+            where !bands.isEmpty {
+                lanes.append(Lane(source: source, bands: bands.sorted { $0.start < $1.start }))
+            }
+            let staged = Set((appleNights[night] ?? [:]).keys)
+            for (source, band) in (windowNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
+            where !staged.contains(source) {
+                lanes.append(Lane(source: source, bands: [band]))
+            }
+            guard !lanes.isEmpty else { return nil }
+            return NightSleepDetail(night: night, lanes: lanes)
         }
-        // Apple's stage lanes, one per writing device, before the window
-        // fallback — and the fallback is then suppressed for any source that
-        // has real stages, or the same night would draw twice: once in colour
-        // and once as a flat grey bar over it.
-        for (source, bands) in (appleNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
-        where !bands.isEmpty {
-            lanes.append(Lane(source: source, bands: bands.sorted { $0.start < $1.start }))
-        }
-        let staged = Set((appleNights[night] ?? [:]).keys)
-        for (source, band) in (windowNights[night] ?? [:]).sorted(by: { $0.key < $1.key })
-        where !staged.contains(source) {
-            lanes.append(Lane(source: source, bands: [band]))
-        }
-        guard !lanes.isEmpty else { return nil }
-        return NightSleepDetail(night: night, lanes: lanes)
     }
 
     /// The wake day a segment belongs to.

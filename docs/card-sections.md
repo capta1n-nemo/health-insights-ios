@@ -144,7 +144,7 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | # | Key | Section | Gate |
 |---|---|---|---|
 | — | *picker* | the timeframe control, pinned above the tab bar | **always** |
-| 1 | `Hdr` | the score — dial or headline, confidence badge, explanation | always |
+| 1 | `Hdr` | the score — dial, **title and headline beside it**, trend chip, confidence badge, subheadline, explanation | always |
 | 2 | `Drv` | "What's driving this" | **always** |
 | 3 | `ScrHx` | "Score over time" | **always** |
 | 4 | `Chg` | "What changed" — period contrast | **always** |
@@ -210,7 +210,7 @@ silently; count the enum before trusting the table.
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ 3 nested: "Your fortnight", "How fast you fall asleep", "Breathing during sleep"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.screenTime` | ● | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
@@ -268,16 +268,34 @@ totals (`OuraResponseParser.isMorningReSleep`), afternoon and evening naps and
 untimed rest records stay excluded, and a re-sleep still never provides the
 night's bedtime or latency.
 
-**Sleep's night card carries three nested deep-dives** — "Your fortnight"
-(5f), "How fast you fall asleep" (5n), and, since 2026-08-06, **"Breathing
-during sleep"** (5o): Oura's nightly breathing-disturbance index promoted from
-the raw catalogue (backlog #30/S9), drawn with the shared `MultiSourceChart`
-against the reader's own recent range and reported by the model as a weight-0
-contribution — trended, never scored, and its caveat says outright that it is
-not an apnoea test. The onset and breathing deep-dives are their own
-`@ViewBuilder` members rather than more lines in `sleepNightCard`, because
-`card-map.sh` reads titles from a 4,000-character window per member and fails
-open past it (activeContext finding 3).
+**Sleep's other four sections**, all top-level since 2026-08-07 (backlog B18-3,
+B18-4, B18-5 and P22) and each its own `@ViewBuilder` member:
+
+- **"A typical night"** (5p, `SleepStageAverageChart` over
+  `SleepStageAverages`) — per-stage averages across sources, **obeying the page
+  timeframe**, which is backlog P22's third and final part. It exists because
+  the timeframe control drove five sections and drove nothing on the card's own
+  subject: the stage picture was one fixed night, so *"has my deep sleep been
+  getting worse?"* could not be asked. One bar per source, never pooled, and
+  each source averaged over **the nights it recorded** rather than the nights in
+  the window — the other denominator draws a ring worn nine nights in thirty as
+  somebody sleeping two hours a night.
+- **"Your fortnight"** (5f) — the bedtime strip.
+- **"How fast you fall asleep"** (5n) — nightly latency, its drift, and the four
+  things the app can see that move it.
+- **"Breathing during sleep"** (5o): Oura's nightly breathing-disturbance index
+  promoted from the raw catalogue (backlog #30/S9), drawn with the shared
+  `MultiSourceChart` against the reader's own recent range and reported by the
+  model as a weight-0 contribution — trended, never scored, and its caveat says
+  outright that it is not an apnoea test. **Backlog B18-1 wants this contained
+  by a dedicated sleep-apnoea indicator section**, which does not exist yet;
+  when it is built, this is the section it wraps.
+
+Keeping each in its own member is not tidiness. `card-map.sh` reads titles from
+a 4,000-character window per member and **fails open** past it (activeContext
+finding 3), and `sleepNightCard` was at 3,124 characters while holding all five
+— one added paragraph from silently dropping a title from the generated map.
+Split, the largest of them is well under half the window.
 
 It was five until 2026-08-01. Heart Health and Readiness had their centile strip
 and their departure panel nested under "How this is weighted", which was their
@@ -305,6 +323,8 @@ deliberate exceptions remain, each about the *card* rather than about the data:
   picture of its own subject, so there is nothing generic to draw in its place.
   Its `switch` is exhaustive over all eighteen ids with no `default:`
   (`adca807`), and five cards draw more than one thing in it under a `Divider()`.
+  **Sleep left the nesting pattern entirely on 2026-08-07** and returns five
+  top-level sections.
   **Readiness's arm is `EmptyView()` on purpose** and the comment on it says so:
   its subject *is* the seventeen-vital scan, which `Nrm` already draws unnarrowed
   for this one card, and a second copy would be the same strip twice.
@@ -697,6 +717,44 @@ empty state at all** — see the note under the second table.
 Key — `●` yes · `○` no · `—` not applicable. `#` is the position in the generated
 map above.
 
+| # | Section | On | Arrives | Empty state | Figure | Caveat | Chart |
+|---|---|---|---|---|---|---|---|
+| 2 | Score over time | all 9 | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
+| 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
+| 4 | How this is weighted | all 9 | **closed** | ● 5 reasons | `n` weighted | `unscored` | — |
+| 5a | Your readings | BP | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
+| 5b | Heart/Fitness age over time | CVR, Fit | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
+| 5c | If today's numbers hold | CVR | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
+| 5d | Where this is heading | Fit | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
+| 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
+| 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
+| 5p | **A typical night** | Sleep | open (closed when empty) | ● `needsInput` — says "widen the timeframe" first | `n` nights · the timeframe | `estimated` — a mean; sources never pooled | `SleepStageAverageChart` |
+| 5n | How fast you fall asleep | Sleep | open (closed when empty) | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| 5o | Breathing during sleep | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
+| 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
+| 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
+| 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
+| 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
+| 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
+| 6b | **How hard you worked** | Fit | open (absent when no effort data) | ● the gate, as a fact | min moderate+ | `partial` | — (seven wear-scaled bars) |
+| 6c | **How much you moved** | Fit | open (absent when nothing recorded) | ● | week's steps | `partial` | — (three totals) |
+| 6a | **Weight management** | BodyC | open (closed when empty) | ● | mg in your system | `.none` | — (the section) |
+| 6a·1 | Since you started | BodyC | nested in 6a | ● | — | `doseAttribution` | — (four figures) |
+| 6a·2 | Medication in your system | BodyC | nested in 6a | ● | mg | `.none` | `MedicationCurveChart` |
+| 6a·3 | Is it working | BodyC | nested in 6a | ● | — | `.none` | `MedicationResponseChart` |
+| 6a·4 | By dose | BodyC | nested in 6a, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
+| 6a·5 | By injection site | BodyC | nested in 6a, if recorded | ● | — | `doseAttribution` | — (grid) |
+| 6a·6 | Side effects | BodyC | nested in 6a, if any | ● | — | `.none` | — (worst avg first) |
+| 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
+| 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
+| 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
+| 9 | What changed | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `periodContrast` | — |
+| 10 | Full history | all 9 | open | ○ | `n` signals | `.none` | — |
+| 11 | View & add | 6 | open, **not closable** | ○ | per route | own | — |
+| 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
+
 **The fifteen generic slots**, every one of them on all eighteen cards:
 
 | # | Section | Arrives | Empty state | Figure | Caveat | Chart |
@@ -845,6 +903,16 @@ age — 12 bpm or fewer in the first minute marked roughly double six-year
 mortality across 2 428 adults (Cole et al., NEJM 1999) — so it reads the same at
 25 and 65. Beside it sit resting rate and rMSSD as a pair, because they come off
 one beat-to-beat stream and only agreement between them is evidence.
+
+⚠️ **One row owed to the table below (left for its owner, 2026-08-07).**
+`SleepStageAverageChart` is new and belongs in the chart audit as:
+`○` wraps the wrapper · `○` pan/zoom · `○` scrub · **`●` honours the card's
+timeframe** — it is the only chart on the sleep card that does, which was the
+whole of backlog P22. It does not wrap `ScrollableMetricChart` because its x
+axis is *hours per night*, not time, and it is `substance-shading: exempt` for
+the same reason — the second honest exemption after `FitnessProjectionChart`,
+so the sentence below saying that chart is "the one exemption" now needs a
+second name.
 
 ### Feature audit — what each chart supports
 

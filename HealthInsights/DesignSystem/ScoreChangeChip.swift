@@ -34,9 +34,11 @@ import InsightKit
 ///
 /// Every score in this app is oriented so higher is better — that is what lets
 /// `ScoreDial` colour them all on one scale — so up is green, down is amber, and
-/// steady is neutral. The arrow carries the direction; steady has no arrow, an
-/// equals sign, and no valence colour, because "unchanged" is neither good news
-/// nor bad.
+/// steady is grey. All three states carry an arrow and the steady one points
+/// flat: an equals sign is a glyph from a different family, and next to two
+/// arrows it read as a different *kind* of statement rather than the third
+/// value of one. Steady keeps no valence colour, because "stable" is neither
+/// good news nor bad.
 struct ScoreChangeChip: View {
     let change: ScoreChange
 
@@ -59,7 +61,9 @@ struct ScoreChangeChip: View {
         switch change.direction {
         case .up: return "arrow.up.right"
         case .down: return "arrow.down.right"
-        case .steady: return "equal"
+        // Flat, not `equal`: the third value of the same encoding the other two
+        // use, so the eye reads direction from one glyph family.
+        case .steady: return "arrow.right"
         }
     }
 
@@ -77,7 +81,7 @@ struct ScoreChangeChip: View {
         switch change.direction {
         case .up: return "up \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
         case .down: return "down \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
-        case .steady: return "no change, \(change.comparison)"
+        case .steady: return "stable, \(change.comparison)"
         }
     }
 }

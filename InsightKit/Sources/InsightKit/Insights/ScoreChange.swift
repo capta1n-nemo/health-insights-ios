@@ -95,10 +95,21 @@ public struct ScoreChange: Sendable, Equatable {
     /// tell apart. A card with too little history returns no `ScoreChange` at
     /// all, so this string only ever describes a judgement that was actually
     /// made.
+    ///
+    /// **"Stable", not "No change"** (reader's wording, 2026-08-07). The old
+    /// string described the *arithmetic* — the delta was too small to report —
+    /// and so read as an absence sitting where a finding should be. "Stable"
+    /// describes the reader's body, which is what the card is about, and it is
+    /// the same kind of word as the "Drained" or "Ready" on the line above it.
+    /// The chip draws it with a flat arrow rather than an equals sign for the
+    /// same reason: the other two states are arrows, and a glyph from a
+    /// different family reads as a different kind of thing.
+    public static let steadyLabel = "Stable"
+
     public var chipLabel: String {
         switch direction {
-        case .up, .down: return label ?? "No change"
-        case .steady: return "No change"
+        case .up, .down: return label ?? Self.steadyLabel
+        case .steady: return Self.steadyLabel
         }
     }
 }

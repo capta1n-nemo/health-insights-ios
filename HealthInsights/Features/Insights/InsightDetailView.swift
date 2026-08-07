@@ -88,8 +88,24 @@ struct InsightDetailView: View {
             bloodPressureChartCard
         case .energy:
             energyCurveCard
+        // ⚠️ **Four sections, not one** (backlog §B18, reader's ask, 2026-08-07).
+        // These used to be one `InsightSection` titled "Last night in stages"
+        // with the other three as `NestedInsightSection`s inside it — which
+        // meant the fortnight of bedtimes, the sleep-onset trend and the
+        // breathing index were all filed under a heading that says *last
+        // night*, none of them could be collapsed on its own, and none of them
+        // could show a preview when closed because a nested section has no
+        // closed state. Four subjects, four sections.
+        //
+        // The bespoke slot renders more than one view, which `@ViewBuilder`
+        // has always allowed; `secondaryBespokeSection` exists for Body
+        // Composition's *two* and would not have stretched to four.
         case .sleep:
             sleepNightCard
+            sleepTypicalNightCard
+            sleepFortnightCard
+            sleepOnsetSection
+            sleepBreathingSection
         case .substanceImpact:
             substanceLoadCard
         // Heart Health and Readiness used to own "How you compare" and "How far
@@ -541,28 +557,70 @@ struct InsightDetailView: View {
         .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
     }
 
+    /// The score, and everything that qualifies it, beside the dial.
+    ///
+    /// ## Why the headline came out of the bubble (reader's report, 2026-08-07)
+    ///
+    /// It used to be passed to `ScoreDial` as `label:`, which draws it as a
+    /// `caption2` inside the ring: *"often that sub menu text goes outside the
+    /// bubble boundary and breaks the effect."* That is not a near miss, it is
+    /// the guaranteed behaviour — the label sits in a `VStack` inside a `ZStack`
+    /// the ring only *frames* at `size × size`, with no `lineLimit` and no width
+    /// to lay out against, so any headline longer than about eight characters is
+    /// wider than the circle it is nominally inside. "Running low" overflows a
+    /// 96pt dial, and the dial is a closed shape, so the overflow reads as
+    /// broken rather than as text.
+    ///
+    /// The space to the right of the dial was empty, and the row on Today and
+    /// Insights had already solved this: dial on the left, title and headline
+    /// stacked beside it. This is that layout, at the detail page's size — which
+    /// also means the card the reader tapped and the card they land on are
+    /// recognisably the same object, rather than two arrangements of the same
+    /// facts.
+    ///
+    /// The trend chip moves in for the same reason: it was on the row and not
+    /// here, so the one screen devoted to a score was the one screen that did
+    /// not say which way it had been going.
     private func headerCard(_ result: InsightResult) -> some View {
-        Card {
+        let change = model.scoreChange(for: result.id)
+        return Card {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
+                HStack(alignment: .top, spacing: 16) {
                     if let score = result.score {
-                        ScoreDial(score: score, label: result.headline, size: 96)
-                    } else {
-                        VStack(alignment: .leading) {
-                            Text(result.headline).font(.largeTitle.weight(.bold))
-                        }
+                        // No `label:`. The accessibility label it used to build
+                        // out of that text is rebuilt here from the title, which
+                        // is what the number is a score *of*.
+                        ScoreDial(score: score, size: 96)
+                            .accessibilityLabel(
+                                "\(result.title) score \(Int(score.rounded())) out of 100")
                     }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        ConfidenceBadge(confidence: result.confidence)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(result.title).font(.headline)
+                            Spacer(minLength: 8)
+                            ConfidenceBadge(confidence: result.confidence)
+                        }
+                        HStack(spacing: 6) {
+                            // Larger where there is no dial: with nothing to the
+                            // left of it, the headline *is* the number.
+                            Text(result.headline)
+                                .font(result.score == nil
+                                      ? .title2.weight(.bold)
+                                      : .title3.weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let change {
+                                ScoreChangeChip(change: change)
+                            }
+                            Spacer(minLength: 0)
+                        }
                         // Same reason as on the card row: the badge says
                         // "Experimental" while the dial may be reading a real
                         // cuff, so the other figure belongs next to the badge
                         // that is describing it.
                         if let subheadline = result.subheadline {
                             Text(subheadline)
-                                .font(.caption2).foregroundStyle(.secondary)
-                                .multilineTextAlignment(.trailing)
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -972,96 +1030,173 @@ struct InsightDetailView: View {
         }
     }
 
-    /// The fortnight of bedtimes, against the middle they are measured from.
+    /// **"Last night in stages" — one section, one subject: the night just
+    /// slept.**
     ///
-    /// The card reports a spread and the score history plots that spread over
-    /// months; neither draws the thing itself. A regular sleeper is a tight
-    /// column and an irregular one is scatter, and that is the picture the whole
-    /// insight is about.
-    /// Sleep's bespoke slot: the night just slept, then the fortnight's shape —
-    /// two pictures of one subject in one slot, the Body Composition pattern.
+    /// It exists because of 2026-07-29: Oura filed 4.3 h, Apple Health 8.5 h,
+    /// and no aggregate could show both were true. One lane per source, stage
+    /// bands, gaps left visible — the user's request, verbatim: show the gaps,
+    /// show what type of sleep each part was, and let the disagreement between
+    /// sources be seen instead of averaged.
     ///
-    /// "Last night in stages" exists because of 2026-07-29: Oura filed 4.3 h,
-    /// Apple Health 8.5 h, and no aggregate could show both were true. One lane
-    /// per source, stage bands, gaps left visible — the user's request, verbatim:
-    /// show the gaps, show what type of sleep each part was, and let the
-    /// disagreement between sources be seen instead of averaged.
+    /// It used to be the container for three other subjects as well (see the
+    /// `.sleep` case of `bespokeSection`). Splitting them out also shrinks this
+    /// member below the 4,000-character window `card-map.sh` reads section
+    /// titles from — it was 3,124 characters and **that check fails open**, so
+    /// it was one added paragraph away from silently losing a title.
     @ViewBuilder private var sleepNightCard: some View {
         let detail = model.memoized("nightSleepDetail") {
             NightSleepDetail.latest(raw: model.otherSamples, samples: model.samples)
         }
+        // Closed behind its reason when there is nothing to draw — the rule in
+        // `card-sections.md` ▸ "Every section closes; only some arrive closed".
+        // It could not have one while it was the container for four other
+        // sections: closing it would have taken them with it.
+        let placeholder = detail == nil
+            ? SectionPlaceholder.needsInput(
+                subject: "A night drawn in stages",
+                what: "a sleep source",
+                remedy: "connect Oura (stage detail) or let Apple Health "
+                    + "record sleep, under Settings")
+            : nil
         InsightSection(
             title: "Last night in stages",
             trailing: detail.flatMap { d in
                 d.lanes.first.map { String(format: "%.1f h asleep", $0.asleepHours) }
             },
-            caveat: .none
+            caveat: .none,
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let detail {
                 NightSleepChart(detail: detail)
-            } else {
-                emptySection(SectionPlaceholder.needsInput(
-                    subject: "A night drawn in stages",
-                    what: "a sleep source",
-                    remedy: "connect Oura (stage detail) or let Apple Health "
-                        + "record sleep, under Settings"))
+            } else if let placeholder {
+                emptySection(placeholder)
             }
-
-            Divider()
-
-            if let regularity = model.sleepRegularity(),
-               regularity.nights.count >= CircadianConsistencyModel.minimumNights {
-                let jetlag = regularity.socialJetlagHours
-                NestedInsightSection(
-                    title: "Your fortnight",
-                    trailing: jetlag.flatMap { hours in
-                        abs(hours) >= 0.5
-                            ? String(format: "weekends %.1f h %@",
-                                     abs(hours), hours > 0 ? "later" : "earlier")
-                            : nil
-                    },
-                    caveat: .fittedCentre(nights: regularity.nights.count)
-                ) {
-                    SleepOnsetStripChart(
-                        output: regularity,
-                        // A year of bedtimes, not the scored fortnight: the strip
-                        // re-fits its centre and band over whatever comes into
-                        // view, so it needs something to scroll to.
-                        allNights: model.sleepOnsetNights(),
-                        window: window(spanning: nightsSpan(model.sleepOnsetNights())))
-                }
-            } else {
-                NestedInsightSection(title: "Your fortnight", trailing: nil,
-                                     caveat: .none) {
-                    emptySection(SectionPlaceholder.needsMore(
-                        subject: "The shape of your fortnight",
-                        have: model.sleepRegularity()?.nights.count ?? 0,
-                        need: CircadianConsistencyModel.minimumNights,
-                        noun: "night with a recorded bedtime",
-                        plural: "nights with recorded bedtimes"))
-                }
-            }
-
-            Divider()
-            sleepOnsetSection
-
-            Divider()
-            sleepBreathingSection
         }
     }
 
-    /// "How fast you fall asleep" — the reader's own request: a graph of nightly
-    /// sleep latency with its drift, and a deep-dive on what moves it, from the
-    /// four things the app can actually see (substances, medication, temperature,
-    /// how active the day was). What it can't see is named rather than left as a
-    /// silent gap.
+    /// **"A typical night" — per-stage averages across sources, obeying the page
+    /// timeframe.** Backlog P22's third and last part.
+    ///
+    /// The sleep card's timeframe control drives five sections and drove nothing
+    /// on the card's own subject: the stage picture was one night, fixed, and
+    /// switching from W to Y changed everything on the page except the thing the
+    /// page is about. This is the section that answers *"has my deep sleep been
+    /// getting worse?"*, which is a question about a stretch and could not be
+    /// asked of a single night.
+    ///
+    /// The nights themselves are memoized because decoding a year of Oura phase
+    /// strings is not free; the averaging over them is cheap, so the timeframe
+    /// can be changed without re-decoding anything.
+    @ViewBuilder private var sleepTypicalNightCard: some View {
+        let nights = model.memoized("nightSleepAllNights") {
+            NightSleepDetail.allNights(raw: model.otherSamples, samples: model.samples)
+        }
+        let averages = SleepStageAverages.over(nights, since: timeframe.startDate())
+        if averages.isEmpty {
+            let placeholder = SectionPlaceholder.needsInput(
+                subject: "A typical night",
+                what: "a sleep source with something recorded in this timeframe",
+                remedy: "widen the timeframe below, or connect Oura (stage "
+                    + "detail) or Apple Health under Settings")
+            InsightSection(title: "A typical night", trailing: nil, caveat: .none,
+                           expansion: expansion(preview: placeholder.headline)) {
+                emptySection(placeholder)
+            }
+        } else {
+            InsightSection(
+                title: "A typical night",
+                trailing: "\(averages.nightsCovered) "
+                    + (averages.nightsCovered == 1 ? "night" : "nights")
+                    + " · \(timeframe.longLabel.lowercased())",
+                caveat: .computed(.estimated,
+                                  "A mean, so one very short or very long night "
+                                  + "pulls it. Each source is averaged only over "
+                                  + "the nights it recorded, and sources are "
+                                  + "never averaged with each other.")
+            ) {
+                SleepStageAverageChart(averages: averages)
+            }
+        }
+    }
+
+    /// **"Your fortnight" — the fortnight of bedtimes, against the middle they
+    /// are measured from.**
+    ///
+    /// The card reports a spread and the score history plots that spread over
+    /// months; neither draws the thing itself. A regular sleeper is a tight
+    /// column and an irregular one is scatter, and that is the picture the whole
+    /// insight is about.
+    ///
+    /// Standalone since 2026-08-07 rather than nested under "Last night in
+    /// stages": a fortnight is not last night, and filing it there meant the one
+    /// section about *regularity* could only be reached by opening a section
+    /// about a single night.
+    @ViewBuilder private var sleepFortnightCard: some View {
+        if let regularity = model.sleepRegularity(),
+           regularity.nights.count >= CircadianConsistencyModel.minimumNights {
+            let jetlag = regularity.socialJetlagHours
+            InsightSection(
+                title: "Your fortnight",
+                trailing: jetlag.flatMap { hours in
+                    abs(hours) >= 0.5
+                        ? String(format: "weekends %.1f h %@",
+                                 abs(hours), hours > 0 ? "later" : "earlier")
+                        : nil
+                },
+                caveat: .fittedCentre(nights: regularity.nights.count)
+            ) {
+                SleepOnsetStripChart(
+                    output: regularity,
+                    // A year of bedtimes, not the scored fortnight: the strip
+                    // re-fits its centre and band over whatever comes into
+                    // view, so it needs something to scroll to.
+                    allNights: model.sleepOnsetNights(),
+                    window: window(spanning: nightsSpan(model.sleepOnsetNights())))
+            }
+        } else {
+            let have = model.sleepRegularity()?.nights.count ?? 0
+            let placeholder = SectionPlaceholder.needsMore(
+                subject: "The shape of your fortnight",
+                have: have,
+                need: CircadianConsistencyModel.minimumNights,
+                noun: "night with a recorded bedtime",
+                plural: "nights with recorded bedtimes")
+            InsightSection(title: "Your fortnight", trailing: nil,
+                           caveat: .none,
+                           expansion: expansion(preview: placeholder.headline)) {
+                emptySection(placeholder)
+            }
+        }
+    }
+
+    /// **"How fast you fall asleep"** — the reader's own request: a graph of
+    /// nightly sleep latency with its drift, and a deep-dive on what moves it,
+    /// from the four things the app can actually see (substances, medication,
+    /// temperature, how active the day was). What it can't see is named rather
+    /// than left as a silent gap.
+    ///
+    /// A section of its own since 2026-08-07 (backlog B18-5). It was a
+    /// `NestedInsightSection` under "Last night in stages", which cost it the
+    /// two things only a real section has: its own collapse, and a preview line
+    /// when closed — so the reader who never opened last night's stage chart
+    /// never learnt this existed.
     @ViewBuilder private var sleepOnsetSection: some View {
         // `sleepOnsetAnalysis()` caches in the model, so no render-memo wrapper.
         let analysis = model.sleepOnsetAnalysis()
-        NestedInsightSection(
+        let placeholder = analysis == nil
+            ? SectionPlaceholder.needsMore(
+                subject: "How fast you fall asleep",
+                have: 0,
+                need: SleepOnsetModel.minimumNights,
+                noun: "night with a recorded sleep-onset time",
+                plural: "nights with recorded sleep-onset times")
+            : nil
+        InsightSection(
             title: "How fast you fall asleep",
             trailing: analysis.map { "\(Int($0.medianMinutes.rounded())) min typical" },
-            caveat: .associationsNotCauses
+            caveat: .associationsNotCauses,
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if let analysis {
                 Text(onsetTrendSentence(analysis))
@@ -1093,13 +1228,11 @@ struct InsightDetailView: View {
                 Text("Can't see: \(analysis.unseenFactors.joined(separator: ", ")). These matter for a lot of people and aren't on your phone, so they're not in the picture above — worth keeping in mind before blaming what is.")
                     .font(.caption2).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else {
-                emptySection(SectionPlaceholder.needsMore(
-                    subject: "How fast you fall asleep",
-                    have: model.sleepOnsetAnalysis()?.nightsAnalysed ?? 0,
-                    need: SleepOnsetModel.minimumNights,
-                    noun: "night with a recorded sleep-onset time",
-                    plural: "nights with recorded sleep-onset times"))
+            } else if let placeholder {
+                // `have:` was `model.sleepOnsetAnalysis()?.nightsAnalysed ?? 0`,
+                // which is unreachable except as 0 — this branch runs only when
+                // that call returned nil.
+                emptySection(placeholder)
             }
         }
     }
@@ -1136,9 +1269,22 @@ struct InsightDetailView: View {
     /// from a 4000-character window per member and `sleepNightCard` was
     /// already 3,124 characters (activeContext finding 3: the check fails
     /// open, so keeping members small is the real defence).
+    ///
+    /// **Standalone since 2026-08-07**, along with the other two that were
+    /// nested in the night card. Backlog B18-1 wants this *contained* by a
+    /// dedicated sleep-apnoea indicator section that does not exist yet; when
+    /// it is built, this is the section it wraps, and it should not go back to
+    /// being a nested block under a heading about last night.
     @ViewBuilder private var sleepBreathingSection: some View {
         let breakdown = model.breakdown(.breathingDisturbanceIndex)
-        NestedInsightSection(
+        let placeholder = breakdown.dateSpan == nil
+            ? SectionPlaceholder.needsInput(
+                subject: "The night's breathing",
+                what: "a wearable that reports a breathing-disturbance "
+                    + "index — Oura's ring does",
+                remedy: "connect Oura under Settings")
+            : nil
+        InsightSection(
             title: "Breathing during sleep",
             trailing: breakdown.mostRecent.map { sample in
                 let value = MetricValueFormatter.string(sample.value, .breathingDisturbanceIndex)
@@ -1151,7 +1297,8 @@ struct InsightDetailView: View {
                               + "No published scale says what a given level means, so "
                               + "this app trends it against your own nights and never "
                               + "scores it — and it is not an apnoea test: only a "
-                              + "sleep study can answer that question.")
+                              + "sleep study can answer that question."),
+            expansion: expansion(preview: placeholder?.headline)
         ) {
             if breakdown.dateSpan != nil {
                 if let sentence = breathingPersonalSentence {
@@ -1161,12 +1308,8 @@ struct InsightDetailView: View {
                 }
                 MultiSourceChart(breakdown: breakdown,
                                  window: window(spanning: breakdown.dateSpan))
-            } else {
-                emptySection(SectionPlaceholder.needsInput(
-                    subject: "The night's breathing",
-                    what: "a wearable that reports a breathing-disturbance "
-                        + "index — Oura's ring does",
-                    remedy: "connect Oura under Settings"))
+            } else if let placeholder {
+                emptySection(placeholder)
             }
         }
     }

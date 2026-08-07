@@ -76,7 +76,7 @@ final class ScoreChangeTests: XCTestCase {
         let steady = try XCTUnwrap(daily([60, 68, 55, 71, 58, 66, 62, 64]))
         XCTAssertEqual(up.chipLabel, "+17")
         XCTAssertEqual(down.chipLabel, "−19")
-        XCTAssertEqual(steady.chipLabel, "No change")
+        XCTAssertEqual(steady.chipLabel, "Stable")
         XCTAssertFalse(steady.chipLabel.isEmpty)
     }
 

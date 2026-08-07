@@ -31,7 +31,11 @@ struct NightSleepChart: View {
     /// Fixed semantic colours — stages are categories, not series, so the
     /// palette machinery for keeping metrics apart does not apply. Awake is the
     /// warm one on purpose: inside a night it is the interruption.
-    private static func color(for stage: NightSleepDetail.Stage?) -> Color {
+    ///
+    /// Not `private`: `SleepStageAverageChart` draws the same four stages over a
+    /// window and has to agree with this one bar for bar. A second copy of four
+    /// colours is a copy that drifts, and the two charts sit on the same card.
+    static func color(for stage: NightSleepDetail.Stage?) -> Color {
         switch stage {
         case .deep: return .indigo
         case .light: return .teal
