@@ -167,11 +167,32 @@ struct DataTabView: View {
     /// four metrics with "sleep" in their name.
     private var filteredGroups: [MetricGroup] {
         guard !trimmed.isEmpty else { return groups }
+        // ⚠️ **A raw field filed into a canonical section was unsearchable.**
+        // `metricSections` draws the raw extras *inside* their category's
+        // section, so dropping a category because none of its **modelled**
+        // metrics matched silently took the matching raw rows with it:
+        // searching "Device model" said *No Results* while "Device model" and
+        // "Device model ID" sat under Body measurements, because no
+        // `MetricType` in `.body` is called that. Every raw field that has a
+        // canonical home — nutrition, hearing, breathing, walking, body, sleep
+        // detail, heart events — was reachable only by a query that happened to
+        // name a modelled metric beside it.
+        //
+        // Seen in the simulator while finishing D27. The homeless groups never
+        // had the fault, which is why the tab looked searchable: `stress` and
+        // `readiness` both find their rows through `otherDataSection`, and it
+        // draws its own sections.
+        let extras = rawFieldsByCategory
         return groups.compactMap { group in
             if matches(group.title, DataDomain.metrics.title) { return group }
             let hits = group.metrics.filter { matches($0.displayName) }
-            return hits.isEmpty ? nil : MetricGroup(title: group.title, metrics: hits,
-                                                    category: group.category)
+            guard hits.isEmpty else {
+                return MetricGroup(title: group.title, metrics: hits, category: group.category)
+            }
+            // No modelled metric matched — but keep the section if a raw field
+            // filed under it did, with no metric rows.
+            guard !(extras[group.category] ?? []).isEmpty else { return nil }
+            return MetricGroup(title: group.title, metrics: [], category: group.category)
         }
     }
 
@@ -182,7 +203,28 @@ struct DataTabView: View {
         }
         // The raw identifier as well as the display name: "HKQuantityType…" is
         // what an export shows, and this screen is where those get looked up.
-        return otherGroups.filter { matches($0.displayName, $0.id) }
+        //
+        // ⚠️ **And the name actually on the row**, which was missing: searching
+        // "Device model" returned *No Results* while a row reading "Device
+        // model ID" sat in Body measurements, because the filter saw only the
+        // provider's own `displayName` ("Modelid") and the path. Every raw row
+        // has been titled by `RawFieldPresentation` since the flat list became
+        // a catalogue, so a search that cannot see those titles cannot find
+        // what the reader is looking at. Seen in the simulator while finishing
+        // D27 — no test knew the two strings were meant to agree.
+        //
+        // The per-path title, not the collision-resolved one from
+        // `fieldTitles`: that is computed *from* this list, and reading it here
+        // would be circular. It differs only in how far a colliding name is
+        // widened, and the leaf it starts from is in both.
+        //
+        // The group heading too, so "stress" finds the fields under "Stress &
+        // resilience (Oura)" whatever each one happens to be called.
+        return otherGroups.filter {
+            matches($0.displayName, $0.id,
+                    RawFieldPresentation.title(forPath: $0.id),
+                    RawFieldGrouping.group(for: $0.id).title)
+        }
     }
 
     private var filteredSideEffects: [SideEffectRecord] {
@@ -840,20 +882,41 @@ struct DataTabView: View {
         NavigationLink {
             OtherDataDetailView(group: field)
         } label: {
-            HStack {
-                Text(fieldName(field, titles: titles)).lineLimit(1)
-                // Not hidden — this tab is the app's answer to "what do you know
-                // about me" — but not dressed as a measurement either. Two of
-                // these are constant across every row the reader has.
-                if RawFieldPresentation.isRecordingDetail(field.id) {
-                    Text("how it was recorded")
-                        .font(.caption2).foregroundStyle(.tertiary)
+            HStack(alignment: .firstTextBaseline) {
+                // ⚠️ **No `lineLimit(1)`.** It shipped one, and on the reader's
+                // own record that truncated the names that needed reading most:
+                // "Environmental Sound Reduct…", "Daily readiness temperature
+                // de…" — a row whose *whole* subject is its name, with no way
+                // to see the name. The canonical metric rows above wrap
+                // ("Resting Heart Rate" is two lines on a 390pt screen), so
+                // wrapping is this tab's own convention and this row was the
+                // one place breaking it. `fixedSize` vertically is what makes a
+                // `Text` in an `HStack` take the height it needs rather than
+                // being squeezed back to one line.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fieldName(field, titles: titles))
+                        .fixedSize(horizontal: false, vertical: true)
+                    // Not hidden — this tab is the app's answer to "what do you
+                    // know about me" — but not dressed as a measurement either.
+                    // Two of these are constant across every row the reader has.
+                    // **Under the name, not beside it**: beside it, it competed
+                    // with the name for the width that was already too narrow.
+                    if RawFieldPresentation.isRecordingDetail(field.id) {
+                        Text("how it was recorded")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 if let value = fieldValue(field) {
+                    // Two lines and wrapping, for the same reason: a decoded
+                    // recording detail reads "Measured by the device", and
+                    // truncating that back to "Measured by th…" would reinstate
+                    // the defect at the other end of the row.
                     Text(value)
                         .foregroundStyle(.secondary).monospacedDigit()
-                        .lineLimit(1).truncationMode(.tail)
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -1083,11 +1146,22 @@ struct DataTabView: View {
             } header: {
                 Text(section.group.title)
             } footer: {
-                // The footer goes on the last section only, so it reads as a
-                // statement about the whole catalogue rather than being repeated
-                // thirteen times.
-                if section.id == sections.last?.id {
-                    Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
+                // **Every group says what it holds** (`RawFieldGrouping.Group.
+                // blurb`), which is standing rule 9 — every data entry carries a
+                // "what this is" description — finally reaching the raw
+                // catalogue. Before this the reader got thirteen bare headings
+                // and one sentence at the very bottom about the lot; "Time
+                // restored — 0m" under "Stress & resilience (Oura)" named its
+                // subject and explained nothing.
+                //
+                // The catalogue-wide sentence still goes on the last section
+                // only, so it reads as a statement about the whole list rather
+                // than being repeated under each group.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(section.group.blurb)
+                    if section.id == sections.last?.id {
+                        Text("Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.")
+                    }
                 }
             }
         }
@@ -1149,6 +1223,16 @@ struct OtherDataDetailView: View {
     let group: RawMetricGroup
     @State private var timeframe: Timeframe = .month
 
+    /// The same readable name the tab's row shows.
+    ///
+    /// It used to be `group.displayName` — the provider's own label — so a row
+    /// reading "Time stressed" opened a page headed "Stress high", and one
+    /// reading "Visceral fat index" opened "Measure 170". A reader tapping a
+    /// name should land on that name.
+    private var title: String {
+        group.id.contains(".") ? RawFieldPresentation.title(forPath: group.id) : group.displayName
+    }
+
     // `realSamples`: a provider placeholder of exactly zero is not a reading,
     // and this page charted 35 of them in the reader's basal body temperature
     // as a series plunging to 0 °C. See `RawMetricGroup.placeholderZeros`.
@@ -1188,8 +1272,58 @@ struct OtherDataDetailView: View {
             .sorted { $0.count > $1.count }
     }
 
+    /// **What this is**, and it is never empty.
+    ///
+    /// Standing rule 9 — every data entry carries a "what this is" description
+    /// — was met for canonical metrics by `MetricExplainer` and missed entirely
+    /// by the raw catalogue, which is where a reader most needs it: they did
+    /// not choose these fields and mostly did not know they had them. Backlog
+    /// D28 named the symptom on the reader's own screen — Oura's stress fields
+    /// sitting "unsorted **and unexplained**".
+    ///
+    /// Two tiers, because the raw catalogue is an open set: the field's own
+    /// sentence where the app has actually looked into it, and its group's
+    /// blurb otherwise. Never a guess dressed as knowledge — the group blurb
+    /// says what kind of thing the field is, which is true of every member by
+    /// construction.
+    private var explanation: String {
+        RawFieldPresentation.explanation(forPath: group.id)
+            ?? RawFieldGrouping.group(for: group.id).blurb
+    }
+
+    /// One reading, under the same rules the tab's rows follow.
+    ///
+    /// It was `sample.formattedValue` — the provider's number and the
+    /// provider's unit string — so a page reached by tapping a row reading
+    /// "58" listed "58 count", and one reading "2h 45m" listed "9900". **The
+    /// unit-and-precision rules had reached the list and stopped at the page
+    /// behind it**, which is the same split that let a named recording detail
+    /// print its wire code: recognition in one place, rendering in another.
+    ///
+    /// The one difference from the row: where `rowValue` declines to print an
+    /// undecoded code, this page still shows it. It is the review surface —
+    /// the app's literal answer to "what do you know about me" — every row
+    /// here carries a date and sits under a "Readings" heading, and the
+    /// explanation above already says the field describes a reading rather
+    /// than being one.
+    private func readingText(_ sample: RawMetricSample) -> String {
+        guard let number = sample.numericValue else {
+            return RawFieldPresentation.rowText(sample.formattedValue, identifier: group.id)
+        }
+        return RawFieldPresentation.rowValue(number, unit: sample.unit, identifier: group.id)
+            ?? RawFieldPresentation.formatted(number, unit: sample.unit)
+    }
+
     var body: some View {
         List {
+            Section {
+                Text(explanation)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("What this is")
+            }
+
             Section {
                 Picker("Timeframe", selection: $timeframe) {
                     ForEach(Timeframe.allCases) { Text($0.shortLabel).tag($0) }
@@ -1212,7 +1346,7 @@ struct OtherDataDetailView: View {
                     .frame(height: 160)
                 }
             } header: {
-                Text(group.displayName)
+                Text(title)
             } footer: {
                 // **The placeholder count sits here, outside the chart's own
                 // `count > 1` gate.** On a series that is mostly placeholders
@@ -1259,7 +1393,7 @@ struct OtherDataDetailView: View {
                 let suspect = group.suspectValues
                 ForEach(samples) { s in
                     HStack {
-                        Text(s.formattedValue)
+                        Text(readingText(s))
                             .monospacedDigit()
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1279,7 +1413,7 @@ struct OtherDataDetailView: View {
                 }
             }
         }
-        .navigationTitle(group.displayName)
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

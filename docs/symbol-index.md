@@ -670,7 +670,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1148
+  - `OtherDataDetailView` :1222
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

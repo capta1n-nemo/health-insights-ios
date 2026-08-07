@@ -18,7 +18,7 @@ public enum RawFieldGrouping {
     public enum Group: String, Sendable, CaseIterable, Comparable {
         case nutrition, hearing, daylight, respiratory, mobility, mind
         case movement, heartEvents, bodyMeasurements, environment
-        case activityScore, sleepDetail, stressResilience, unsorted
+        case activityScore, sleepDetail, readiness, stressResilience, unsorted
 
         public var title: String {
             switch self {
@@ -32,13 +32,64 @@ public enum RawFieldGrouping {
             case .heartEvents: return "Heart events"
             case .bodyMeasurements: return "Body measurements"
             case .environment: return "Environment"
-            case .activityScore: return "Activity score components"
+            case .activityScore: return "Activity score components (Oura)"
             case .sleepDetail: return "Sleep detail"
             // "(Oura)" in the heading because these are a vendor's own composite
             // numbers relayed, not this app's — the same honesty rule that dashes
             // an inferred line on a chart.
+            case .readiness: return "Readiness (Oura)"
             case .stressResilience: return "Stress & resilience (Oura)"
             case .unsorted: return "Not yet sorted"
+            }
+        }
+
+        /// **What this group is**, in one sentence, shown under the section.
+        ///
+        /// Standing rule 9 — every data entry carries a "what this is"
+        /// description — reached the canonical metrics through
+        /// `MetricExplainer` and stopped at the raw catalogue, where it is
+        /// needed most: `MetricType.heartRate` at least names itself, and
+        /// "Time restored — 0m" does not. Non-optional over an exhaustive
+        /// switch for the same reason `MetricExplainer.explanation(for:)` is:
+        /// a new group cannot compile until somebody says what it holds.
+        ///
+        /// ⚠️ **Where the number is a vendor's, the sentence says so.** Oura's
+        /// readiness, stress and resilience are composites with an undisclosed
+        /// formula; this app relays them and does not re-derive them, and a
+        /// blurb that described them as measurements would be the first half of
+        /// the merge backlog N1 forbids.
+        public var blurb: String {
+            switch self {
+            case .nutrition:
+                return "Nutrients imported from what you logged elsewhere. Nothing here is modelled — these are the figures the source sent."
+            case .hearing:
+                return "Sound levels your devices measured around you and through your headphones. The daily doses computed from them sit with the metrics above."
+            case .daylight:
+                return "Time outdoors and ultraviolet exposure, as your watch recorded it."
+            case .respiratory:
+                return "Breathing measurements — spirometry, blood oxygen and the fields around them."
+            case .mobility:
+                return "How you move on your feet: gait, steadiness, stairs and walking tests."
+            case .mind:
+                return "Mindful minutes, states of mind, and the symptoms you or your devices logged."
+            case .movement:
+                return "Effort and distance covered, plus the energy your body spends at rest."
+            case .heartEvents:
+                return "Heart notifications and vascular figures your devices raised, rather than continuous readings."
+            case .bodyMeasurements:
+                return "Body figures the app receives but does not model yet, including how each reading was taken."
+            case .environment:
+                return "What was around you when a reading was taken — water temperature, depth."
+            case .activityScore:
+                return "The workings behind Oura's own daily activity score, each 0–100. Oura's numbers, relayed as sent — this app does not compute them and does not use them in its own scores."
+            case .sleepDetail:
+                return "The finer detail behind each night, beyond the sleep metrics listed above."
+            case .readiness:
+                return "Oura's own daily readiness score and the pieces behind it, each 0–100. Relayed as sent: the formula is Oura's and is not published, so this app shows it rather than re-deriving it. This app's own Readiness card is a separate figure."
+            case .stressResilience:
+                return "Oura's own stress and resilience figures — how much of the day it read as stressful or restorative, and how well it thinks you are coping over time. Relayed as sent; the app models no stress metric of its own yet."
+            case .unsorted:
+                return "Fields the app has received but cannot yet file under a subject. This list is meant to be short — a long one means the sorting rules have fallen behind what your devices are sending, not that your data is unusual."
             }
         }
 
@@ -89,6 +140,11 @@ public enum RawFieldGrouping {
             // different kind of thing from a reading, and burying them among
             // real measurements is what made the flat list unreadable.
             case .activityScore: return nil
+            // Oura's readiness is not this app's Readiness card, and filing it
+            // under "Sleep & recovery" would put a vendor composite among the
+            // measurements the app models itself. Its own section, named for
+            // whose number it is.
+            case .readiness: return nil
             // The stress research's raw material (backlog N1), kept together
             // and labelled: the app models no stress metric yet, so a section
             // of its own is the honest answer until one exists.
@@ -146,32 +202,52 @@ public enum RawFieldGrouping {
         ("HKQuantityTypeIdentifierUnderwaterDepth", .environment),
     ]
 
-    /// Rule 2/3 — a connector's own namespace, and its sub-scores.
+    /// Rule 2 — **the connector's own collection decides, contributors and all.**
     ///
-    /// `contributors.*` is the giveaway: Oura publishes the components of a
-    /// daily score under it, and eleven of them arriving as eleven top-level
-    /// rows is what made this list unreadable. They are one score's workings,
-    /// so they group as one.
+    /// ⚠️ **This used to be a bare `contains(".contributors.")` sending every
+    /// score's workings to `.activityScore`, and it was wrong on screen.** Oura
+    /// publishes the components of *each* daily score under the same
+    /// `contributors` container, so the reader's readiness contributors — HRV
+    /// balance, body temperature, activity balance — and their sleep
+    /// contributors — efficiency, latency, restfulness — were all filed under a
+    /// heading reading **"Activity score components"**. Seen in the simulator
+    /// while finishing backlog D28: searching "readiness" showed three of the
+    /// reader's readiness contributors under the activity heading, and the
+    /// readiness score itself in "Not yet sorted" below them.
+    ///
+    /// A section heading is a statement about a subject — the same rule that
+    /// killed the two "Nutrition" headings — so the container cannot decide the
+    /// subject. The collection can, and it is sitting in the identifier one
+    /// component to the left.
+    ///
+    /// **Order matters within the table**: `oura.daily_sleep` must be tried
+    /// before the `.sleep_` catch below, and `daily_resilience.contributors.
+    /// sleep_recovery` contains `.sleep_` without being sleep detail.
+    private static let providerCollections: [(String, Group)] = [
+        ("oura.daily_stress", .stressResilience),
+        ("oura.daily_resilience", .stressResilience),
+        ("oura.daily_readiness", .readiness),
+        ("oura.daily_activity", .activityScore),
+        ("oura.daily_sleep", .sleepDetail),
+        ("oura.sleep", .sleepDetail),
+        ("oura.daily_spo2", .respiratory),
+        ("oura.daily_cardiovascular_age", .heartEvents),
+    ]
+
     public static func group(for identifier: String) -> Group {
         for (prefix, group) in healthKitPrefixes where identifier.hasPrefix(prefix) {
             return group
         }
         let lower = identifier.lowercased()
-        // Oura's stress and resilience fields are one subject — the raw
-        // material the stress research reads (backlog N1) — and they file
-        // together. ⚠️ **Before the two generic rules below**, both of which
-        // would otherwise claim pieces of it: `daily_resilience.contributors.*`
-        // are the workings of the *resilience* level, not of an activity score,
-        // and `contributors.sleep_recovery` contains `.sleep_` without being
-        // sleep detail.
-        if lower.hasPrefix("oura.daily_stress") || lower.hasPrefix("oura.daily_resilience") {
-            return .stressResilience
+        for (prefix, group) in providerCollections where lower.hasPrefix(prefix) {
+            return group
         }
-        if lower.contains(".contributors.") { return .activityScore }
-        if lower.hasPrefix("oura.sleep") || lower.contains(".sleep_") { return .sleepDetail }
-        if lower.hasPrefix("oura.daily_activity") { return .activityScore }
-        if lower.hasPrefix("oura.daily_spo2") || lower.contains("breath") { return .respiratory }
-        if lower.hasPrefix("oura.daily_cardiovascular_age") { return .heartEvents }
+        // No generic `contributors` rule follows on purpose. An unknown
+        // collection's components land in "Not yet sorted", which is the bucket
+        // named for its own failure doing its job — where the old rule instead
+        // gave them a confident and wrong heading.
+        if lower.contains(".sleep_") { return .sleepDetail }
+        if lower.contains("breath") { return .respiratory }
         // ⚠️ **Reported by the reader**: *"at the very bottom of the page I see
         // a VO₂ Max data point from Oura… why isn't that with the other VO₂
         // max?"* `oura.vO2_max.vo2_max` matched no rule and landed in "Not yet
