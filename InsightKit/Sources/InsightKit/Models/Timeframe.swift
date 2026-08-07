@@ -31,6 +31,35 @@ public enum Timeframe: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
+    /// How a legend row names the question its direction phrase answers —
+    /// "30-day trend", "6-month trend" — so a trend can never be read as an
+    /// answer to a different question sitting next to it.
+    ///
+    /// ⚠️ **Backlog D45, ruled 2026-08-07.** On Work impact, Sleep Duration's
+    /// legend read "Holding steady" while the card's own driver line said sleep
+    /// ran worse on the reader's busier working days. Both were true — one is
+    /// the metric's trend over the chart window, the other a busy-versus-quiet
+    /// contrast — and adjacent they read as a contradiction, which erodes trust
+    /// in every number around them. The reader chose naming the question over
+    /// dropping the chip, because it generalises to every contrast card instead
+    /// of fixing one screen.
+    ///
+    /// Days for the short windows and months for the long ones, because "182-day
+    /// trend" is arithmetic where "6-month trend" is the thing the reader
+    /// actually chose in the picker above it.
+    public var trendLabel: String {
+        switch self {
+        case .day: return "24-hour trend"
+        case .week: return "7-day trend"
+        case .month: return "30-day trend"
+        case .sixMonths: return "6-month trend"
+        case .year: return "12-month trend"
+        // Not a length, so it does not get one. "All-time" is the honest name
+        // for a window whose start is wherever the reader's data begins.
+        case .all: return "All-time trend"
+        }
+    }
+
     /// Lookback length in seconds; `nil` means all-time (no lower bound).
     public var window: TimeInterval? {
         switch self {

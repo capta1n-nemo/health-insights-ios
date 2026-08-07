@@ -349,7 +349,7 @@ the place to look.
   - `TagMappingStore` :182
   - `TagPromotion` :31
 - `Models/Timeframe.swift`
-  - `AxisTickGranularity` :71
+  - `AxisTickGranularity` :100
   - `Timeframe` :5
 - `Presentation/BalanceWeb.swift`
   - `BalanceWebGeometry` :39
@@ -724,6 +724,8 @@ the place to look.
   - `VitalsGlance` :227
 - `Features/Dashboard/InstrumentCoverageSection.swift`
   - `InstrumentCoverageSection` :45
+- `Features/Data/ArrivalRowLabel.swift`
+  - `ArrivalRowLabel` :25
 - `Features/Data/BodyScanDataView.swift`
   - `BodyScanDataView` :14
 - `Features/Data/CalendarEventsDataView.swift`
@@ -734,7 +736,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1358
+  - `OtherDataDetailView` :1366
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

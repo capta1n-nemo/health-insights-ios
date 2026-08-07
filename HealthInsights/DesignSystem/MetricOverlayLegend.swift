@@ -17,6 +17,17 @@ struct MetricOverlayLegend: View {
     let contributions: ChartedContributions
     /// Declared inputs with nothing to plot — shown dimmed rather than omitted.
     let missing: [MetricType]
+    /// The window the series were built over — **the reader's own picker**, not
+    /// the span the points happen to cover.
+    ///
+    /// ⚠️ It is here so every direction phrase can name the question it answers
+    /// (backlog D45). On Work impact this row said "Holding steady" beside a
+    /// driver line saying sleep ran worse on the reader's busier working days:
+    /// a trend and a contrast, both true, adjacent, and reading as a
+    /// contradiction because neither said which question it was answering.
+    /// Passing the timeframe fixes that for every card at once rather than for
+    /// the one screen it was spotted on.
+    let timeframe: Timeframe
     /// Which series are on the chart. Shared with it, so the key and the plot
     /// can never disagree about what's drawn.
     var selection: Binding<Set<MetricType>>?
@@ -52,11 +63,12 @@ struct MetricOverlayLegend: View {
     /// of the model rather than of the row.
     private func caption(_ one: NormalizedSeries) -> LegendCaption {
         guard contributions.areReported else {
-            return .unreported(trendPerWeek: one.trendPerWeek)
+            return .unreported(trendPerWeek: one.trendPerWeek, over: timeframe.trendLabel)
         }
         return .series(trendPerWeek: one.trendPerWeek,
                        higherIsBetter: one.higherIsBetter,
-                       weight: contribution(for: one.metric)?.weight ?? 0)
+                       weight: contribution(for: one.metric)?.weight ?? 0,
+                       over: timeframe.trendLabel)
     }
 
     private func caption(missing metric: MetricType) -> LegendCaption {
