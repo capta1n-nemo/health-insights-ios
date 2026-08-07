@@ -90,4 +90,36 @@ final class BreathingDisturbanceTrendTests: XCTestCase {
     func testTheIndexStillCarriesNoPublishedRange() {
         XCTAssertNil(MetricType.breathingDisturbanceIndex.referenceRange)
     }
+
+    // MARK: - The contract the trend surface rests on (S13)
+
+    /// **`BreathingTrendChart` draws the fitted line only where
+    /// `trend.isMeaningful`, and its caption switches on the same flag.** That
+    /// coupling lives in the app target, which has no test target — so what can
+    /// be held here is the other end of it: `driftSentence` names a direction on
+    /// exactly the nights `isMeaningful` is true for, and says "steady" on the
+    /// rest.
+    ///
+    /// If those two ever came apart the screen would show a dashed line under a
+    /// sentence saying nothing is drifting, or the reverse. The app target
+    /// cannot catch that; this can.
+    func testTheDriftSentenceNamesADirectionOnExactlyTheNightsTheLineIsDrawnFor() throws {
+        // A clean rise: a line worth drawing, and a sentence that names it.
+        let rising = BreathingDisturbanceTrend.build(
+            samples: nights((0..<30).map { 3 + Double($0) * 0.2 }), calendar: calendar)
+        let risingTrend = try XCTUnwrap(rising.trend)
+        XCTAssertTrue(risingTrend.isMeaningful)
+        let risingSentence = try XCTUnwrap(rising.driftSentence)
+        XCTAssertTrue(risingSentence.contains("Drifting up"), risingSentence)
+
+        // Scatter with no slope in it: no line, and a sentence that says so
+        // rather than hedging.
+        let flat = BreathingDisturbanceTrend.build(
+            samples: nights((0..<30).map { 5 + Double($0 % 5) }), calendar: calendar)
+        let flatTrend = try XCTUnwrap(flat.trend)
+        XCTAssertFalse(flatTrend.isMeaningful)
+        let flatSentence = try XCTUnwrap(flat.driftSentence)
+        XCTAssertTrue(flatSentence.contains("Steady"), flatSentence)
+        XCTAssertFalse(flatSentence.contains("Drifting"), flatSentence)
+    }
 }

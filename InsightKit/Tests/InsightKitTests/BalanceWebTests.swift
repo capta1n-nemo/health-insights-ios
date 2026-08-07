@@ -304,9 +304,18 @@ final class BalanceWebTests: XCTestCase {
     ///    nothing draws the tallest possible spoke, and one correcting a real
     ///    deficiency draws a shorter one. Neither is a statement about how they
     ///    are doing, which is what every other axis on this circle is.
+    /// 6. `screenTime` — **`mentalHealth`'s argument with the counterweight
+    ///    removed.** Its top band means *your heavier screen days looked like
+    ///    your lighter ones*: a difference not found, drawn as a tall green
+    ///    spoke. Work impact and social battery survive the same objection
+    ///    because their exposure carries a share, so a heavy fortnight pulls the
+    ///    spoke down even when the body shrugs it off. This card scores no
+    ///    exposure at all, by design (`ScreenTimeModel.evidenceRefusal`), so a
+    ///    reader whose days never vary draws the tallest spoke on the chart and
+    ///    it says nothing about them.
     func testEveryOtherScoringCardStillBelongsOnTheWeb() {
         let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge, .mentalHealth,
-                                       .soundExposure, .supplementStack]
+                                       .soundExposure, .supplementStack, .screenTime]
         for id in InsightID.allCases where !excluded.contains(id) {
             XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
         }

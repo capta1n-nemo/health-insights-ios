@@ -196,14 +196,14 @@ the place to look.
 - `Insights/IdealSleepWindow.swift`
   - `IdealSleepWindow` :57
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :211
-  - `InsightCadence` :169
-  - `InsightConfidence` :203
-  - `InsightDriver` :239
+  - `GroundingRequirement` :231
+  - `InsightCadence` :189
+  - `InsightConfidence` :223
+  - `InsightDriver` :259
   - `InsightID` :15
-  - `InsightModel` :528
-  - `InsightResult` :256
-  - `RequirementStatus` :227
+  - `InsightModel` :548
+  - `InsightResult` :276
+  - `RequirementStatus` :247
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -263,6 +263,9 @@ the place to look.
 - `Insights/ScoreWeighting.swift`
   - `ScoreFactor` :152
   - `ScoreWeighting` :31
+- `Insights/ScreenTimeModel.swift`
+  - `ScreenTimeInsight` :611
+  - `ScreenTimeModel` :54
 - `Insights/SickDayReport.swift`
   - `IllnessEstimator` :279
   - `SickDayReport` :46
@@ -444,7 +447,7 @@ the place to look.
   - `InputGroup` :476
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :66
+  - `InsightPalette` :67
 - `Presentation/InstrumentCoverage.swift`
   - `InstrumentCoverage` :100
   - `InstrumentReport` :34
@@ -1023,6 +1026,9 @@ the place to look.
   - `MeasurementUnitToggle` :42
 - `Features/Insights/BodyOverTimeSection.swift`
   - `BodyOverTimeSection` :24
+- `Features/Insights/BreathingTrendSection.swift`
+  - `BreathingTrendChart` :118
+  - `BreathingTrendSection` :38
 - `Features/Insights/IdealSleepWindowSection.swift`
   - `IdealSleepWindowSection` :42
 - `Features/Insights/InsightDetailView.swift`
@@ -1055,6 +1061,8 @@ the place to look.
   - `RecoverySection` :21
 - `Features/Insights/ScoreComparisonDetailView.swift`
   - `ScoreComparisonDetailView` :39
+- `Features/Insights/ScreenTimeSection.swift`
+  - `ScreenTimeSection` :42
 - `Features/Insights/SettlingSection.swift`
   - `SettlingSection` :43
 - `Features/Insights/SickDayDetailView.swift`

@@ -51,6 +51,7 @@ public extension InsightID {
         case .soundExposure: return 18
         case .socialBattery: return 19
         case .supplementStack: return 20
+        case .screenTime: return 21
         }
     }
 }

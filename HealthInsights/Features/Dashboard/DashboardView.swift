@@ -428,6 +428,11 @@ struct InsightCard: View {
         // stack of products, not any one thing in it, and the card is about
         // what the labels add up to.
         case .supplementStack: return "pills.circle"
+        // A phone, not an eye or a clock: the subject is the device the reader
+        // hands this card a figure for. Deliberately not `eye.trianglebadge
+        // .exclamationmark` or anything else carrying a warning — the icon must
+        // not make the judgement the card refuses to make.
+        case .screenTime: return "iphone"
         // An hourglass, not a candle or a calendar: this is a rate, and the
         // card leads with the pace rather than the number.
         case .biologicalAge: return "hourglass"
