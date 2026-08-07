@@ -87,6 +87,8 @@ struct BodyMeasurementsSheet: View {
                     Text("What you're wearing changes the numbers more than anything else does. Recording it is what lets the app tell a real change from a different pair of trousers.")
                 }
 
+                scanSection
+
                 Section {
                     field(.waist)
                 } header: {
@@ -115,6 +117,56 @@ struct BodyMeasurementsSheet: View {
                     Button("Save") { save() }.disabled(measured.isEmpty)
                 }
             }
+        }
+    }
+
+    /// The camera route, offered from inside the tape sheet.
+    ///
+    /// **Always visible, never hidden for want of hardware.** The row is here on
+    /// a phone with no LiDAR, no camera permission and no ARKit at all — it just
+    /// says which of those it is, in one line, and the screen behind it explains
+    /// properly. Hiding it would make "this phone can't" indistinguishable from
+    /// "this app never built it", which is the confusion `InputKind` exists to
+    /// end and the reason the 2026-08-07 rule says a card shows even with
+    /// nothing behind it.
+    ///
+    /// The tape stays first among equals in the copy, and that is not modesty:
+    /// `BodyMeasurementProvenance.tape` outranks both scan modes, so a reader
+    /// with a tape in the drawer should use it.
+    @ViewBuilder private var scanSection: some View {
+        let availability = BodyScanCaptureAvailability.decide(
+            capability: BodyScanCapture.currentCapability,
+            authorization: CameraPermission.current,
+            policy: model.bodyScanPolicy)
+
+        Section {
+            NavigationLink {
+                BodyScanCaptureView()
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Scan with the camera")
+                        Text(scanRowDetail(availability))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } icon: {
+                    Image(systemName: "figure.stand")
+                }
+            }
+        } footer: {
+            Text("A scan is quicker and a tape is more accurate — the app ranks a tape above both scan modes and never lets a scan overwrite one. Nothing is uploaded either way.")
+        }
+    }
+
+    private func scanRowDetail(_ availability: BodyScanCaptureAvailability) -> String {
+        switch availability {
+        case .ready(.lidarDepth), .needsPermission(.lidarDepth):
+            return "This phone has a depth sensor, so it can measure rather than infer. Four quarter turns, about a minute."
+        case .ready, .needsPermission:
+            return "No depth sensor on this phone, so the scan works from your outline — less precise, and the app records which kind each scan was."
+        case let .unavailable(block):
+            return block.title + " — tap to see why."
         }
     }
 

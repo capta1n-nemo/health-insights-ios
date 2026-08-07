@@ -63,7 +63,7 @@
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Health Insights reads the times of your calendar events — never their titles, notes, attendees or locations — to work out how busy a day was and when you changed time zone. Nothing about your calendar leaves your device.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Health Insights uses the camera to scan a blood-test report so the values can be read on your device. The pages are read and discarded — no photo is saved, and nothing is uploaded.</string>
+    <string>Health Insights uses the camera two ways: to scan a blood-test report so the values can be read on your device, and to take a body scan for your measurements. Both are processed on this phone and nothing is uploaded. Report pages are read and discarded; what a body scan keeps is yours to choose in Settings ▸ Body scans, and it keeps no photographs unless you turn that on.</string>
 
     <!-- Custom URL scheme used as the OAuth redirect target for Oura/Withings.
          Credentials are entered in-app and stored in the Keychain; there is no

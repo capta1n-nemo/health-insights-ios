@@ -960,11 +960,30 @@ final class AppModel {
     func saveBodyScan(_ scan: BodyScan) {
         dataStore.saveBodyScan(scan)
         bodyScans = dataStore.bodyScans()
-        let source: MetricSource = scan.mode == .tape ? .manual : .screenshot
+        // **A scan's figures are worked out, not read.** `.screenshot` means
+        // "read off a screenshot of the reader's own device" — the Screen Time
+        // route — and a LiDAR capture is not that. `.calculated` is what the
+        // overlay legend, the per-source breakdown and the export then say,
+        // which is the honest description of a circumference fitted to depth.
+        let source: MetricSource = scan.mode == .tape ? .manual : .calculated
+        let calendar = Calendar.current
+        let typed = dataStore.loadManualSamples()
+            .filter { $0.source.id == MetricSource.manual.id }
         for sample in scan.samples(source: source) {
-            dataStore.replaceManualSamples(of: sample.type,
-                                           on: Calendar.current.startOfDay(for: sample.start),
-                                           with: [sample])
+            let day = calendar.startOfDay(for: sample.start)
+            // ⚠️ **A scan never overwrites a measured figure.** Scan and tape on
+            // the same day used to collide here and the scan won, purely because
+            // it was written second — backwards, since
+            // `BodyMeasurementProvenance` ranks a tape above both scan modes and
+            // `BodyMeasurementReconciliation` would have chosen the tape if it
+            // had still been there to choose. Skipping keeps the scan on its own
+            // page and in `bodyScans`; only the promoted canonical series defers.
+            if scan.mode != .tape,
+               typed.contains(where: { $0.type == sample.type
+                                       && calendar.isDate($0.start, inSameDayAs: day) }) {
+                continue
+            }
+            dataStore.replaceManualSamples(of: sample.type, on: day, with: [sample])
         }
         reloadScanSamples()
         recompute()
@@ -1017,8 +1036,14 @@ final class AppModel {
         // Anything the same site arrived as through Apple Health or a provider.
         for site in BodySite.allCases {
             guard let metric = site.metricType else { continue }
+            // Everything this app produced itself is excluded, or a scan would
+            // come back round as an "Apple Health" candidate and argue with
+            // itself. `.calculated` is the scan source since 2026-08-07;
+            // `.screenshot` stays in the list because scans written by earlier
+            // builds are still on disk under it.
             let external = samples.samples(of: metric)
                 .filter { $0.source.id != MetricSource.manual.id
+                          && $0.source.id != MetricSource.calculated.id
                           && $0.source.id != MetricSource.screenshot.id }
             if let latest = external.max(by: { $0.start < $1.start }) {
                 candidates.append(SourcedMeasurement(site: site, centimetres: latest.value,
