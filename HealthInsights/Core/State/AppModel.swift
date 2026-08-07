@@ -2653,6 +2653,11 @@ final class AppModel {
         // branch.
         refreshCyclePhaseProfile()
         prewarmBreakdowns()
+        // The daily number, written where a home-screen widget will read it.
+        // A few hundred bytes, and a no-op when nothing a reader could see has
+        // changed. See `AppModel+WidgetSnapshot.swift` — including why it runs
+        // on builds where no widget can read it yet.
+        publishWidgetSnapshot(from: evaluated)
     }
 
     /// Build every metric's source breakdown off the main thread, ahead of the

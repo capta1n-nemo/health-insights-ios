@@ -17,6 +17,16 @@ packages:
     path: InsightKit
 
 targets:
+  # ⚠️ **The widget extension is defined below and is COMMENTED OUT.** Backlog
+  # `D8`. Uncommenting it — plus the `dependencies` entry on the app target that
+  # embeds it — is the whole of "switch the widget on", and it will turn the
+  # deploy red until two things exist that this repo cannot grant itself. Read
+  # `docs/widgets.md` first; it names both, and what happens if you skip them.
+  #
+  # It is parked rather than deleted for the reason `ShotsyImportAction`'s revert
+  # is documented rather than forgotten: the next session to reach for this must
+  # find the finished answer *and* the reason it is off, not rediscover the
+  # signing wall from a red `main`.
   HealthInsights:
     type: application
     platform: iOS
@@ -41,6 +51,49 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_EMIT_LOC_STRINGS: YES
+    # To embed the widget, add alongside `- package: InsightKit` above:
+    #   - target: HealthInsightsWidgets
+    #     embed: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PARKED — the home-screen widget. Backlog `D8`. See `docs/widgets.md`.
+  #
+  # Uncommenting this alone is not enough and not safe:
+  #   • `Support/HealthInsightsWidgets.entitlements` must exist and declare
+  #     `com.apple.security.application-groups` =
+  #     ["group.com.jasonsalway.healthinsights"], and the SAME group must be
+  #     added to `Support/HealthInsights.entitlements`. Without it the widget
+  #     reads an empty container and shows its placeholder forever — silently,
+  #     which is why `WidgetSnapshotStore.isVisibleToWidgets` exists.
+  #   • App Groups cannot be signed by a free personal team, and the deploy
+  #     runner has no Xcode account to mint a profile for a second bundle id.
+  #     Both blockers are quoted verbatim in `docs/deployment.md`.
+  #
+  # Note `sources`: two files from the app target are compiled into the
+  # extension as well. An extension cannot link the containing app, so a shared
+  # view has to be shared by *source*. Keep that list at two — anything longer
+  # means logic has drifted out of InsightKit, where the tests are.
+  #
+  # HealthInsightsWidgets:
+  #   type: app-extension
+  #   platform: iOS
+  #   sources:
+  #     - path: HealthInsightsWidgets
+  #     - path: HealthInsights/Features/Widgets/DailyNumberWidgetView.swift
+  #     - path: HealthInsights/DesignSystem/Theme.swift
+  #   dependencies:
+  #     - package: InsightKit
+  #   settings:
+  #     base:
+  #       PRODUCT_BUNDLE_IDENTIFIER: com.jasonsalway.healthinsights.Widgets
+  #       PRODUCT_NAME: HealthInsightsWidgets
+  #       CODE_SIGN_ENTITLEMENTS: Support/HealthInsightsWidgets.entitlements
+  #       SWIFT_VERSION: "5.9"
+  #       TARGETED_DEVICE_FAMILY: "1"
+  #       GENERATE_INFOPLIST_FILE: YES
+  #       INFOPLIST_KEY_CFBundleDisplayName: Health Insights
+  #       INFOPLIST_KEY_NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  # ─────────────────────────────────────────────────────────────────────────
 
   # The app target's unit tests. Added 2026-08-07 — before that the app target
   # had none at all, and 39% of the shipped Swift (every render site, every
