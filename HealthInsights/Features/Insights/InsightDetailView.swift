@@ -586,16 +586,29 @@ struct InsightDetailView: View {
     /// subject, so each card now draws its own age against the chronological
     /// line and the risk card carries the sentence about them disagreeing.
     private var ageHistoryCard: some View {
-        // Filtered to this card's own age by blanking the other, rather than
-        // by teaching the chart a mode: `AgePoint` already carries both as
-        // optionals and `AgeHistoryChart` already skips a nil, so the data is
-        // the cheaper place to make the cut and the chart stays one thing.
-        let points = model.heartAgeHistory().map { point in
-            insightID == .fitness
-                ? AgePoint(date: point.date, chronological: point.chronological,
-                           heart: nil, fitness: point.fitness)
-                : AgePoint(date: point.date, chronological: point.chronological,
-                           heart: point.heart, fitness: nil)
+        // Filtered to this card's own age by blanking the others, rather than
+        // by teaching the chart a mode: `AgePoint` carries all four as
+        // optionals and `AgeHistoryChart` skips a nil, so the data is the
+        // cheaper place to make the cut and the chart stays one thing.
+        //
+        // **The Biological age card takes two**, and it is the one place that
+        // should: its own composite is the card's subject, and the vendor's
+        // vascular age is the number the reader's ring shows them on its front
+        // page. Drawing them together answers "are these two moving the same
+        // way" — which the comparison section below can only answer for today.
+        let points = model.heartAgeHistory().map { point -> AgePoint in
+            switch insightID {
+            case .fitness:
+                return AgePoint(date: point.date, chronological: point.chronological,
+                                heart: nil, fitness: point.fitness)
+            case .biologicalAge:
+                return AgePoint(date: point.date, chronological: point.chronological,
+                                heart: nil, fitness: nil,
+                                vascular: point.vascular, biological: point.biological)
+            default:
+                return AgePoint(date: point.date, chronological: point.chronological,
+                                heart: point.heart, fitness: nil)
+            }
         }
         var placeholder: SectionPlaceholder?
         if points.count < 3 {
@@ -605,8 +618,7 @@ struct InsightDetailView: View {
         }
 
         return InsightSection(
-            title: insightID == .fitness ? "Fitness age over time"
-                                         : "Heart age over time",
+            title: Self.ageHistoryTitle(insightID),
             // "+1.4 years a year" rather than "1.4 a year". The unit was
             // missing on both this section and the projection beneath it, and
             // two unitless figures in different units stacked on one card is
@@ -637,6 +649,16 @@ struct InsightDetailView: View {
                 // drew one — see `projectionSection`.
                 projectionSection
             }
+        }
+    }
+
+    /// Named for what the card actually draws, so the heading cannot promise a
+    /// series the chart does not carry.
+    static func ageHistoryTitle(_ id: InsightID) -> String {
+        switch id {
+        case .fitness: return "Fitness age over time"
+        case .biologicalAge: return "Your ages over time"
+        default: return "Heart age over time"
         }
     }
 
@@ -2693,6 +2715,19 @@ struct InsightDetailView: View {
         // Their copy has to keep saying so, because two strips of years on one
         // card would otherwise read as the same picture twice.
         case .biologicalAge:
+            // ⚠️ **The chart and the section used to disagree about how many
+            // ages exist.** This section listed four — heart, fitness, this
+            // app's own composite, and every vendor's vascular age — while
+            // `AgePoint` held two fields, so the only ages that could be drawn
+            // over time were the two belonging to *other* cards. This card's own
+            // number had no history at all, on a model whose own documentation
+            // says the absolute figure is soft and **the direction it moves is
+            // the part worth watching**.
+            //
+            // Above the comparison, because "is mine moving?" is the question a
+            // reader arrives with, and "what does everything else say today?" is
+            // the one they ask second.
+            ageHistoryCard
             ageComparisonSection
         // **Backlog §B5 #34–35, both the reader's own reversals, and both
         // asked for as *sections on Fitness* rather than as cards.** Two of

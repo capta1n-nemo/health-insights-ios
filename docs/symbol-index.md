@@ -105,7 +105,7 @@ the place to look.
 - `Insights/ActivityDoseModel.swift`
   - `ActivityDoseModel` :30
 - `Insights/AgeComparison.swift`
-  - `AgeComparison` :30
+  - `AgeComparison` :38
 - `Insights/BiologicalAgeModel.swift`
   - `BiologicalAgeInsight` :802
   - `BiologicalAgeModel` :72
@@ -149,8 +149,8 @@ the place to look.
 - `Insights/HeartAgeAnalyser.swift`
   - `HeartAgeAnalyser` :20
 - `Insights/HeartAgeHistory.swift`
-  - `AgePoint` :4
-  - `HeartAgeHistory` :40
+  - `AgePoint` :15
+  - `HeartAgeHistory` :77
 - `Insights/HeartAgeModel.swift`
   - `HeartAgeModel` :13
 - `Insights/HeartHealthScore.swift`

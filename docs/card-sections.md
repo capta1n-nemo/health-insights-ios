@@ -210,13 +210,24 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "Your ages over time" **+ "How old does each thing think you are"** | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Four cards
 draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
 & Stroke Risk, and — since 2026-08-02 — Sleep), separated by a `Divider()` and
 wrapped in `NestedInsightSection` — the pattern Body Composition established.
+
+**Biological age's second slot carries two sections since 2026-08-07** —
+"Your ages over time" above "How old does each thing think you are" (backlog
+D22). The order is the reader's question order: *is mine moving* comes before
+*what does everything else say today*. Before this the card had no history at
+all, which was the wrong half to be missing on a model whose own documentation
+says the absolute number is soft to about ±10 years and the direction it moves
+is what survives. Note the chart there draws **two** series — the app's own
+biological age and the vendor's vascular age — and is the only caller of
+`AgeHistoryChart` that draws more than one; see `AgeHistoryChart.banded` for
+why only the leading one gets a filled band.
 
 That stopped being enough for Body Composition on 2026-08-02. **"Weight
 management" is a second top-level bespoke section**, at the user's request, and
@@ -645,7 +656,7 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
 | 4 | How this is weighted | all 9 | **closed** | ● 5 reasons | `n` weighted | `unscored` | — |
 | 5a | Your readings | BP | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
-| 5b | Heart/Fitness age over time | CVR, Fit | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
+| 5b | An age over time | CVR, Fit, BioAge | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
 | 5c | If today's numbers hold | CVR | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
 | 5d | Where this is heading | Fit | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
 | 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |

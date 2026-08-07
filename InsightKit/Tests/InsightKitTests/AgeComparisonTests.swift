@@ -253,6 +253,162 @@ final class AgeComparisonAllSourcesTests: XCTestCase {
     }
 }
 
+/// **Backlog D21 — "all the sources" was two-thirds true.**
+///
+/// The vascular row stopped picking a winner on 2026-08-06. The app's *own* two
+/// ages did not: both arrived here already collapsed to one instrument by
+/// `VitalReader.reading` inside `HeartAgeAnalyser`, and the reader's export
+/// carries **four VO₂max source ids and four systolic ones**.
+///
+/// That is the section committing the exact offence it exists to expose — a
+/// screen whose subject is that instruments disagree, manufacturing agreement by
+/// silently choosing one. It matters numerically as well as in principle: two
+/// wrist VO₂max estimates differing by 6 mL/kg·min are fifteen years of fitness
+/// age apart, which is wider than the ±9 the row prints.
+final class AgeComparisonAppOwnSourcesTests: XCTestCase {
+
+    private let utc = TestClock.utc
+    private let now = TestClock.now
+
+    private func samples(_ metric: MetricType,
+                         _ readings: [(MetricSource, Double)],
+                         days: Int = 20) -> [HealthMetricSample] {
+        (0..<days).flatMap { day -> [HealthMetricSample] in
+            let date = now.addingTimeInterval(-Double(day) * 86_400)
+            return readings.map {
+                HealthMetricSample(type: metric, value: $0.1, start: date, end: date,
+                                   source: $0.0)
+            }
+        }
+    }
+
+    private func subject(systolic: Double = 130) -> HeartAgeModel.Subject {
+        HeartAgeModel.Subject(sex: .male, race: .whiteOrOther, region: .low,
+                              systolicBP: systolic, totalCholesterolMmol: 5.2,
+                              hdlCholesterolMmol: 1.3, isSmoker: false,
+                              hasDiabetes: false, treatedForBP: false)
+    }
+
+    // MARK: - Fitness age
+
+    /// ⚠️ **The defect.** One VO₂max won and the other three were never
+    /// mentioned, on the one screen built to show the difference.
+    func testEveryVO2MaxSourceGetsItsOwnFitnessAge() throws {
+        let estimates = AgeComparison.estimates(
+            chronological: 50, fitness: nil, heart: nil, sex: .male,
+            samples: samples(.vo2Max, [(.appleHealth, 46), (.oura, 38)]),
+            now: now, calendar: utc)
+
+        let rows = estimates.filter { $0.label.hasPrefix("Fitness age") }
+        XCTAssertEqual(rows.count, 2, "one instrument won and the other vanished")
+        XCTAssertEqual(Set(rows.map(\.label)).count, 2, "both rows must name their own device")
+        XCTAssertEqual(Set(rows.map(\.id)).count, 2, "duplicate ids drop a row in SwiftUI")
+        // Still the app's own estimate — the strip tints these apart from a
+        // relayed vendor number on exactly this prefix.
+        for row in rows {
+            XCTAssertTrue(row.attribution.hasPrefix("This app"), row.attribution)
+        }
+        // And they genuinely disagree by more than the row's own stated error,
+        // which is the whole reason hiding one was a defect rather than tidiness.
+        let years = rows.map(\.years)
+        let stated = try XCTUnwrap(rows.first?.uncertainty.years)
+        XCTAssertGreaterThan(try XCTUnwrap(years.max()) - (try XCTUnwrap(years.min())),
+                             stated)
+    }
+
+    /// With one instrument the label stays plain — a device suffix on a single
+    /// row is noise, and this is the state most readers are in.
+    func testASingleVO2MaxSourceKeepsThePlainLabel() {
+        let estimates = AgeComparison.estimates(
+            chronological: 50, fitness: nil, heart: nil, sex: .male,
+            samples: samples(.vo2Max, [(.appleHealth, 46)]), now: now, calendar: utc)
+        XCTAssertEqual(estimates.filter { $0.label == "Fitness age" }.count, 1)
+    }
+
+    /// **The app's own rows carry a date now too.** A fitness age built from a
+    /// VO₂max nobody has refreshed since last winter sits beside one from last
+    /// week; without the date the gap between them reads as physiology when it
+    /// is partly just time.
+    func testAnAppRowFromAQuietInstrumentSaysHowOldItIs() throws {
+        let stale = (0..<10).map { day -> HealthMetricSample in
+            let date = now.addingTimeInterval(-Double(300 + day) * 86_400)
+            return HealthMetricSample(type: .vo2Max, value: 38, start: date, end: date,
+                                      source: .oura)
+        }
+        let estimates = AgeComparison.estimates(
+            chronological: 50, fitness: nil, heart: nil, sex: .male,
+            samples: stale, now: now, calendar: utc)
+        let row = try XCTUnwrap(estimates.first { $0.label.hasPrefix("Fitness age") })
+        XCTAssertNotNil(row.staleness(now: now),
+                        "a ten-month-old reading was presented as current")
+    }
+
+    // MARK: - Heart age
+
+    /// The same defect on the other half: four systolic sources, one row.
+    ///
+    /// Only the blood pressure varies between these rows. Cholesterol, smoking
+    /// and diabetes are facts about the person rather than readings off a
+    /// device, so holding them fixed is what makes the spread here attributable
+    /// to the instruments.
+    func testEverySystolicSourceGetsItsOwnHeartAge() {
+        let estimates = AgeComparison.estimates(
+            chronological: 55, fitness: nil, heart: nil, sex: .male,
+            samples: samples(.bloodPressureSystolic,
+                             [(.manual, 118), (.withings, 148)]),
+            heartSubject: subject(), now: now, calendar: utc)
+
+        let rows = estimates.filter { $0.label.hasPrefix("Heart age") }
+        XCTAssertEqual(rows.count, 2, "one cuff won and the other was never mentioned")
+        XCTAssertEqual(Set(rows.map(\.id)).count, 2)
+        // The higher pressure must produce the older heart — otherwise the rows
+        // are not actually being solved from their own instrument's number.
+        let byLabel = Dictionary(uniqueKeysWithValues: rows.map { ($0.label, $0.years) })
+        let low = try? XCTUnwrap(byLabel.first { $0.key.contains("Manual") }?.value)
+        let high = try? XCTUnwrap(byLabel.first { $0.key.contains("Withings") }?.value)
+        XCTAssertLessThan(low ?? 0, high ?? 0)
+    }
+
+    /// **The reader's own cuff needs no special case.** `DataStore` mirrors every
+    /// entered cuff reading into a `.bloodPressureSystolic` sample under
+    /// `MetricSource.manual`, so the per-source breakdown already carries it —
+    /// and a hand-written "the reading you entered" row would have printed it
+    /// twice, which on a section about disagreement reads as two instruments
+    /// agreeing perfectly.
+    func testTheEnteredCuffIsOneSourceAndNotTwoRows() {
+        let estimates = AgeComparison.estimates(
+            chronological: 55, fitness: nil, heart: nil, sex: .male,
+            samples: samples(.bloodPressureSystolic, [(.manual, 130)]),
+            heartSubject: subject(), now: now, calendar: utc)
+        XCTAssertEqual(estimates.filter { $0.label.hasPrefix("Heart age") }.count, 1)
+    }
+
+    /// A caller with no subject to re-solve from still gets its row rather than
+    /// losing it — the fallback that keeps this change from being a regression
+    /// for anything that computed an age elsewhere.
+    func testACallerWithNoSubjectKeepsTheSingleRowItPassedIn() throws {
+        let output = try XCTUnwrap(HeartAgeModel.evaluate(subject: subject(systolic: 150),
+                                                          age: 55))
+        let estimates = AgeComparison.estimates(
+            chronological: 55, fitness: nil, heart: output, sex: .male,
+            samples: [], now: now, calendar: utc)
+        XCTAssertEqual(estimates.filter { $0.label == "Heart age" }.count, 1)
+    }
+
+    /// ⚠️ **Relay, never merge — still.** More rows must not become a house
+    /// average, and the widened spread has to survive into the finding.
+    func testMoreRowsStillNeverProduceAConsensusRow() {
+        let estimates = AgeComparison.estimates(
+            chronological: 50, fitness: nil, heart: nil, sex: .male,
+            samples: samples(.vo2Max, [(.appleHealth, 46), (.oura, 38)]),
+            now: now, calendar: utc)
+        for banned in ["consensus", "combined", "average", "overall", "blended"] {
+            XCTAssertFalse(estimates.contains { $0.label.lowercased().contains(banned) },
+                           "a merged row appeared: \(banned)")
+        }
+    }
+}
+
 /// The two defects the scouting pass found in the multi-source change itself.
 ///
 /// Both are about the same trade: the old code **filtered** relayed readings on
