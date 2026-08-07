@@ -14,10 +14,12 @@
 		AAAA0000000000000000AA07 /* HealthInsights.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HealthInsights.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAAA0000000000000000AA0E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAAA0000000000000000AA0F /* HealthInsights.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HealthInsights.entitlements; sourceTree = "<group>"; };
+		AAAA0000000000000000AA16 /* HealthInsightsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HealthInsightsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AAAA0000000000000000AA05 /* HealthInsights */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HealthInsights; sourceTree = "<group>"; };
+		AAAA0000000000000000AA17 /* HealthInsightsTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HealthInsightsTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +31,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AAAA0000000000000000AA1A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -36,6 +45,7 @@
 			isa = PBXGroup;
 			children = (
 				AAAA0000000000000000AA05 /* HealthInsights */,
+				AAAA0000000000000000AA17 /* HealthInsightsTests */,
 				AAAA0000000000000000AA04 /* Support */,
 				AAAA0000000000000000AA03 /* Products */,
 			);
@@ -45,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				AAAA0000000000000000AA07 /* HealthInsights.app */,
+				AAAA0000000000000000AA16 /* HealthInsightsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -84,6 +95,29 @@
 			productReference = AAAA0000000000000000AA07 /* HealthInsights.app */;
 			productType = "com.apple.product-type.application";
 		};
+		AAAA0000000000000000AA18 /* HealthInsightsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAA0000000000000000AA1E /* Build configuration list for PBXNativeTarget "HealthInsightsTests" */;
+			buildPhases = (
+				AAAA0000000000000000AA19 /* Sources */,
+				AAAA0000000000000000AA1A /* Frameworks */,
+				AAAA0000000000000000AA1B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AAAA0000000000000000AA1C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AAAA0000000000000000AA17 /* HealthInsightsTests */,
+			);
+			name = HealthInsightsTests;
+			packageProductDependencies = (
+			);
+			productName = HealthInsightsTests;
+			productReference = AAAA0000000000000000AA16 /* HealthInsightsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -96,6 +130,10 @@
 				TargetAttributes = {
 					AAAA0000000000000000AA06 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					AAAA0000000000000000AA18 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = AAAA0000000000000000AA06;
 					};
 				};
 			};
@@ -116,12 +154,20 @@
 			projectRoot = "";
 			targets = (
 				AAAA0000000000000000AA06 /* HealthInsights */,
+				AAAA0000000000000000AA18 /* HealthInsightsTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		AAAA0000000000000000AA0A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AAAA0000000000000000AA1B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -138,7 +184,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AAAA0000000000000000AA19 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AAAA0000000000000000AA1C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAAA0000000000000000AA06 /* HealthInsights */;
+			targetProxy = AAAA0000000000000000AA1D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		AAAA0000000000000000AA1D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAAA0000000000000000AA01 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAAA0000000000000000AA06;
+			remoteInfo = HealthInsights;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin XCBuildConfiguration section */
 		AAAA0000000000000000AA11 /* Debug */ = {
@@ -239,6 +310,40 @@
 			};
 			name = Release;
 		};
+		AAAA0000000000000000AA1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonsalway.healthinsights.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HealthInsights.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HealthInsights";
+			};
+			name = Debug;
+		};
+		AAAA0000000000000000AA20 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jasonsalway.healthinsights.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = "$(inherited) $(BUILT_PRODUCTS_DIR)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HealthInsights.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HealthInsights";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -256,6 +361,15 @@
 			buildConfigurations = (
 				AAAA0000000000000000AA14 /* Debug */,
 				AAAA0000000000000000AA15 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AAAA0000000000000000AA1E /* Build configuration list for PBXNativeTarget "HealthInsightsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AAAA0000000000000000AA1F /* Debug */,
+				AAAA0000000000000000AA20 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

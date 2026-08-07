@@ -1231,6 +1231,90 @@ if [ "${1:-}" = "--tests" ]; then
             note 'Darwin but no xcodebuild or no project — skipping the app-target compile. CI is the gate for it.'
         fi
     fi
+
+    # --- The app target's own tests (Darwin + a simulator only) -------------
+    #
+    # **Backlog D5.** The app target had zero tests until 2026-08-07 — 28,573
+    # lines, ~39% of the shipped Swift, and the 39% holding every render site,
+    # every card-visibility gate and every `AppModel` transition. InsightKit's
+    # suite is large, green, runs on Linux, and cannot see any of it.
+    #
+    # ⚠️ **This is the only place these tests can ever run.** A unit-test bundle
+    # hosted in an iOS app needs the iOS SDK to build and an iOS *simulator* to
+    # run — which the hosted Linux sessions do not have, and which `ci.yml`'s
+    # runner does not have either. So CI does not gate this target and never
+    # will; the Mac gate is the gate. The scheme's BuildAction still lists only
+    # the app, so `xcodebuild build` — what CI and `deploy.yml` run — does not
+    # compile the test target at all, and a broken test file cannot stop a
+    # deploy reaching the phone.
+    #
+    # Cost, measured on 2026-08-07 (M-series Mac, iPhone 16e simulator):
+    #   * **~19 s** on a warm slot — ~11 s of it the tests themselves, the rest
+    #     the simulator install/launch round trip. That is what this adds to
+    #     `verify.sh --tests` in normal use.
+    #   * ~81 s once per cold derived-data slot, i.e. the first gate run in a
+    #     fresh worktree. Same shape, and the same tradeoff, as the device-SDK
+    #     compile above.
+    # That is the price of the class it retires — see `CardRenderSmokeTests`,
+    # which found a live process-killing exclusivity trap on its first run.
+    #
+    # A slot of its own, and not `$DERIVED_SLOT`: this build targets the
+    # *simulator* SDK while the compile above targets the device SDK, and
+    # sharing one path makes each run invalidate the other's products, turning
+    # two ~1.4 s incrementals into two cold builds.
+    #
+    # Its own `apptestfail`, for the reason `testfail` and `iosfail` have their
+    # own: a flag shared with the lints above can be cleared by somebody else's
+    # recovery, and that has already shipped a bad commit here once.
+    if [ "$(uname -s)" = "Darwin" ] && command -v xcodebuild >/dev/null 2>&1 \
+       && [ -d "$APP.xcodeproj" ]; then
+        # The same pick as `simulator.sh`: the caller's choice, else the newest
+        # available iPhone. Named rather than `booted`, because xcodebuild needs
+        # a destination before anything is booted.
+        sim="${SIM_DEVICE:-$(xcrun simctl list devices available 2>/dev/null \
+            | grep -oE '^ +iPhone [^(]+' | sed 's/^ *//;s/ *$//' | tail -1)}"
+        if [ -z "$sim" ]; then
+            # **Say it, do not swallow it.** A gate that skips silently reads as
+            # a gate that passed, and this repo has paid for that shape more
+            # than once. Not a failure either — a Mac with no simulator runtime
+            # installed is a real and recoverable state.
+            note 'No iOS simulator available — the app-target tests did NOT run.'
+            printf '%s\n' 'Nothing has checked HealthInsightsTests. Install a simulator runtime, or say so in the reply.'
+        else
+            note "Running the app-target tests on $sim (Mac only — CI cannot run these)."
+            apptestlog="${TMPDIR:-/tmp}/healthinsights-app-tests.log"
+            apptestfail=0
+            xcodebuild test \
+                -project "$APP.xcodeproj" \
+                -scheme "$APP" \
+                -destination "platform=iOS Simulator,name=$sim" \
+                -derivedDataPath "$DERIVED_ROOT/${DERIVED_SLOT/verify-ios/verify-apptests}" \
+                CODE_SIGNING_ALLOWED=NO > "$apptestlog" 2>&1 || apptestfail=1
+            # Same collision check, and for the same reason, as the compile
+            # above: a locked build database prints two `error:` lines for
+            # something that is not a test failure at all.
+            if [ "$apptestfail" -ne 0 ] && grep -q 'database is locked' "$apptestlog"; then
+                note 'Another build holds this derived-data path — NOT a test failure, and not your diff.'
+                printf '%s\n' "Path: $DERIVED_ROOT/${DERIVED_SLOT/verify-ios/verify-apptests}"
+                printf '%s\n' 'Wait for it to finish and run this again. Nothing here has been checked, so this is not a pass.'
+                fail=1
+            elif [ "$apptestfail" -ne 0 ]; then
+                note 'The app-target tests failed:'
+                grep -E 'error:|Restarting after unexpected exit' "$apptestlog" | head -12
+                # A test run can fail without printing `error:` — a crashed host
+                # leaves a stack trace and no such line. Naming that is the
+                # difference between a diagnosis and an empty grep the reader
+                # has to conclude means nothing happened.
+                grep -qE 'error:' "$apptestlog" \
+                    || printf '%s\n' "No 'error:' line — the host may have crashed. Full log: $apptestlog"
+                printf '%s\n' "Full output: $apptestlog"
+                fail=1
+            else
+                printf '\033[32m✓\033[0m %s\n' \
+                    "$(grep -oE 'Executed [0-9]+ tests' "$apptestlog" | tail -1 || echo 'App-target tests') passed."
+            fi
+        fi
+    fi
 fi
 
 # --- FoundationModels must be canImport-guarded ---
