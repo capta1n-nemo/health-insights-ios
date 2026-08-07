@@ -139,6 +139,26 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// would let self-reported free text into the symptom radar without anybody
     /// deciding it should be there.
     case tags
+    /// **The half-hours the app noticed and could not explain**, and what the
+    /// reader said each one was — backlog P32.
+    ///
+    /// The reader's own description: the app flags an event (*"heart rate spiked
+    /// 30 mins this evening — sexual activity?"*) and they confirm or correct
+    /// it, with a *"GPS map, time, why it was flagged"*.
+    ///
+    /// Its own domain rather than a view of `metrics`, for the reason the file
+    /// header gives: a metric is one measured series, and a flagged event is a
+    /// *shape* — a window, a departure from a personal reference, a guess, an
+    /// answer and the gap between the last two. None of that fits a metric row,
+    /// and the pair that matters (what the app said, what the reader said) is
+    /// precisely what a series cannot express.
+    ///
+    /// ⚠️ **A question the app asked, never a finding about a body.** A flag
+    /// says a number moved; only the reader's answer says what was happening.
+    /// Nothing here should ever be read as the app having detected an activity —
+    /// see `FlaggedEvent`, which keeps the measured half and the guessed half in
+    /// separate fields for exactly this reason.
+    case flaggedEvents
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -174,6 +194,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .holidays: return "Holidays"
         case .sickDays: return "Sick days"
         case .tags: return "Tags"
+        case .flaggedEvents: return "Flagged events"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -208,6 +229,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every day you were ill, from your calendar and from what you told the app — what you said, never what a sensor decided."
         case .tags:
             return "The words you put on a day, grouped by what the app worked out each one is about — and how it worked that out, so you can disagree with it."
+        case .flaggedEvents:
+            return "Stretches where your heart rate ran high with nothing moving to explain it — what the app guessed, what you said it was, and how often it gets that right."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

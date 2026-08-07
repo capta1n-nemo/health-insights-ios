@@ -51,7 +51,11 @@ struct OnboardingView: View {
     /// satisfied without being answered is not mandatory.
     @State private var dobIsPlaceholder = false
 
-    private let lastPage = 3
+    /// The permission as the location step last saw it. Drives that step's copy
+    /// only — never a decision to prompt, which is always the reader's tap.
+    @State private var locationAccess: LocationAccess = LocationCapture.shared.access
+
+    private let lastPage = 4
 
     /// The last page can't be completed until both required facts are set —
     /// and a placeholder is not a set date.
@@ -63,7 +67,14 @@ struct OnboardingView: View {
                 welcome.tag(0)
                 connectHealth.tag(1)
                 connectDevices.tag(2)
-                profile.tag(3)
+                // ⚠️ **Before the system prompt, always.** The reader's
+                // condition on the whole location feature (backlog Q6) was an
+                // onboarding step that explains why *before* iOS asks. This is
+                // that step — and it is why `LocationCapture` has no path that
+                // requests authorisation of its own accord: the ask is a button
+                // on a screen that has just finished explaining itself.
+                explainLocation.tag(3)
+                profile.tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -164,6 +175,51 @@ struct OnboardingView: View {
                 Text("Prefer to skip? Just tap Continue.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
+        }
+    }
+
+    /// **The explanation, before anything is asked.** See the `TabView` above.
+    ///
+    /// Fully skippable — Continue moves past it with the permission untouched
+    /// and nothing in the app stops working. A step that could not be skipped
+    /// would be a system prompt with extra reading in front of it, which is not
+    /// what was approved.
+    ///
+    /// The copy is `LocationExplanation.body`, shared with the feed's own row:
+    /// two paragraphs making the same promise is how one of them goes stale.
+    private var explainLocation: some View {
+        OnboardingPanel(icon: "mappin.and.ellipse", title: LocationExplanation.title) {
+            VStack(spacing: 14) {
+                Text(LocationExplanation.body)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if locationAccess.capturesPlaces {
+                    Label("Allowed", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.good)
+                        .font(.headline)
+                } else if locationAccess.isWorthAsking {
+                    Button("Allow location") {
+                        LocationCapture.shared.requestWhileUsing()
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else if let sentence = locationAccess.sentence {
+                    Text(sentence)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                Text("Prefer to skip? Just tap Continue — it can be turned on later from the flagged-moments list, and the app will offer once.")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            // The system prompt does not dismiss this screen, so the copy has to
+            // notice the answer itself. Read from `LocationCapture.access`
+            // rather than tracked separately — the permission has one source of
+            // truth and this screen is not it.
+            .onChange(of: LocationCapture.shared.access) { _, new in
+                locationAccess = new
+            }
+            .onAppear { locationAccess = LocationCapture.shared.access }
         }
     }
 

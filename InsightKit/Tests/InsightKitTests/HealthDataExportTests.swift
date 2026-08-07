@@ -191,6 +191,14 @@ final class HealthDataExportTests: XCTestCase {
             // exactly what the reader said would not scale.
             tags: [HealthTag(name: "Kayaking", code: nil, date: now, source: .oura,
                              mapping: TagLexicon.classify(name: "Kayaking"))],
+            // P32. One flagged moment the reader answered — and **corrected**,
+            // so the fixture holds the shape that actually carries information:
+            // a guess and an answer that disagree. Built through the judgement
+            // initialiser rather than by hand, which is the route the app uses
+            // and the one that would break if the artifact stopped travelling
+            // with the guess.
+            flaggedEvents: [Self.answeredFlaggedEvent(at: now)]
+                .compactMap { HealthDataExport.FlaggedEventExport($0) },
             reports: .init(inventory: "# Inventory\nbodyMass · 1 reading",
                            cardOutputs: "# Cards\ncardiovascularRisk 72",
                            modelInternals: "# Internals\nbaseline n=1",
@@ -199,6 +207,30 @@ final class HealthDataExportTests: XCTestCase {
                 tier: .full,
                 judgements: [Self.correctedJudgement(at: now)],
                 outcomes: []))
+    }
+
+    /// One flagged moment the reader answered, with all three layers — the
+    /// app's guess, their correction, and the snapshot it guessed against.
+    ///
+    /// It carries a `note` and a `.usual` place deliberately: the export row
+    /// built from it must show neither, and a fixture with nothing to omit
+    /// cannot demonstrate that.
+    private static func answeredFlaggedEvent(at now: Date) -> FlaggedEventJudgement {
+        let start = now.addingTimeInterval(-3 * 3600)
+        let event = FlaggedEvent(
+            id: "restingHeartRateElevation-1",
+            start: start, end: start.addingTimeInterval(1800),
+            trigger: .restingHeartRateElevation,
+            evidence: FlagEvidence(peak: 104, typical: 66, spread: 6,
+                                   referenceDays: 28, stepsInWindow: 0, sampleCount: 6),
+            place: PlaceContext(familiarity: .usual,
+                                coordinate: CoarseCoordinate(rounding: -33.86,
+                                                             longitude: 151.2),
+                                capture: .visit, capturedAt: start),
+            candidates: [CauseCandidate(cause: .intimacy, weight: 0.3, basis: .timeOfDay)])
+        return FlaggedEventJudgement(pending: event)
+            .reviewed(correction: .stress, note: "row with the landlord",
+                      confirmed: false, at: now)
     }
 
     /// One reviewed calendar event with all three layers — the app's guess, the

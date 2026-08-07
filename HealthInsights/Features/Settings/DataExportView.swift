@@ -391,6 +391,20 @@ struct DataExportView: View {
             // summaries: a summary is a count, and the dates are what a norm
             // would ever be built from. See `HealthDataExport.tags`.
             tags: model.tags,
+            // Every flagged moment the reader has answered, built from the
+            // **stored judgement** rather than from today's detector — so an
+            // answer survives in the file even after a threshold change stops
+            // the window being flagged, which is exactly the correction worth
+            // most to a pooled dataset. `FlaggedEventExport` has no field a
+            // coordinate or a note could occupy; see
+            // `HealthDataExport.exportKey(for: .flaggedEvents)`.
+            //
+            // Answered only, and deliberately: an unanswered flag is the app's
+            // own guess with nothing to check it against, and pooling those
+            // would build a "norm" out of unlabelled guesses.
+            flaggedEvents: EventFeedStore.standard.loadJudgements()
+                .filter(\.isReviewed)
+                .compactMap { HealthDataExport.FlaggedEventExport($0) },
             // Which sources are connected and when each last delivered — the
             // provenance every other key in the file rests on, and held nowhere
             // that leaves the phone otherwise (Keychain and SwiftData). **Never

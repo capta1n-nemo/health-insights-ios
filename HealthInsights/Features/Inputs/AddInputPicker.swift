@@ -235,6 +235,18 @@ extension AppModel {
             // what the reader has given, not what the calendar suggested.
             let count = holidayEntries.count
             return count == 0 ? nil : "\(count) recorded"
+        case .eventConfirmation:
+            // **What is waiting takes precedence over what has been done.** The
+            // standing figure is the reason to tap the row, and "3 waiting" is
+            // that reason where "12 answered" is a trophy. Falls back to the
+            // total once the queue is empty, so the row still says something on
+            // a caught-up phone — and to nil on a fresh install, where a bare
+            // "0 waiting" would read as a broken detector rather than a quiet
+            // fortnight.
+            let feed = EventFeedModel.shared.feed
+            if !feed.pending.isEmpty { return "\(feed.pending.count) waiting" }
+            let answered = feed.accuracy.scored + feed.accuracy.answeredWithoutAGuess
+            return answered == 0 ? nil : "\(answered) answered"
         }
     }
 }

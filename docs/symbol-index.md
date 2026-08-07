@@ -377,8 +377,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :269
-  - `InputGroup` :280
+  - `CardRequirement` :330
+  - `InputGroup` :341
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :65
@@ -468,6 +468,20 @@ the place to look.
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
   - `CompositionVelocityModel` :89
+- `Signals/EventConfirmationFeed.swift`
+  - `EventConfirmationFeed` :218
+  - `FlaggedEventAccuracy` :152
+  - `FlaggedEventJudgement` :14
+  - `FlaggedEventRetention` :327
+- `Signals/FlaggedEvent.swift`
+  - `CauseCandidate` :332
+  - `EventCause` :228
+  - `FlagEvidence` :167
+  - `FlagTrigger` :132
+  - `FlaggedEvent` :32
+  - `FlaggedEventArtifact` :404
+- `Signals/FlaggedEventDetector.swift`
+  - `FlaggedEventDetector` :42
 - `Signals/MedicationDoseResponse.swift`
   - `MedicationDoseResponse` :37
 - `Signals/MedicationResponse.swift`
@@ -489,6 +503,14 @@ the place to look.
   - `MedicationSchedule` :107
   - `PharmacokineticsModel` :131
   - `TitrationEngine` :260
+- `Signals/PlaceContext.swift`
+  - `CoarseCoordinate` :198
+  - `LocationAccess` :389
+  - `PlaceAnchor` :267
+  - `PlaceAnchorSet` :296
+  - `PlaceCapture` :162
+  - `PlaceContext` :51
+  - `PlaceFamiliarity` :131
 - `Signals/PostureAssessment.swift`
   - `JointPosition` :11
   - `PostureAssessment` :52
@@ -621,6 +643,13 @@ the place to look.
   - `FoundationModelSummarizer` :16
 - `Core/Intelligence/TagApplicabilityModel.swift`
   - `TagApplicabilityModel` :44
+- `Core/Location/EventFeedModel.swift`
+  - `EventFeedModel` :25
+- `Core/Location/LocationCapture.swift`
+  - `LocationCapture` :52
+- `Core/Location/PlaceAnchorStore.swift`
+  - `EventFeedStore` :65
+  - `PlaceAnchorStore` :18
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :8
 - `Core/Persistence/KeychainStore.swift`
@@ -755,7 +784,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1366
+  - `OtherDataDetailView` :1414
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -765,6 +794,8 @@ the place to look.
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
   - `SymptomDataView` :326
+- `Features/Data/FlaggedEventDataView.swift`
+  - `FlaggedEventDataView` :23
 - `Features/Data/GeneratedInsightsDataView.swift`
   - `GeneratedCardDataView` :57
   - `GeneratedInsightsDataView` :11
@@ -778,6 +809,15 @@ the place to look.
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
   - `ImportLabView` :11
+- `Features/Events/EventAnswerSheet.swift`
+  - `EventAnswerSheet` :23
+  - `EventConfirmationSheet` :210
+- `Features/Events/EventConfirmationFeedView.swift`
+  - `EventConfirmationFeedView` :29
+  - `FlaggedEventRow` :224
+  - `LocationExplanation` :274
+- `Features/Events/EventPlaceMap.swift`
+  - `EventPlaceMap` :17
 - `Features/Grounding/AddBloodPressureView.swift`
   - `AddBloodPressureView` :6
 - `Features/Grounding/CalibrationProgress.swift`
@@ -797,13 +837,13 @@ the place to look.
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `BodyTypeSheet` :214
-  - `HolidayEntrySheet` :768
+  - `BodyTypeSheet` :228
+  - `HolidayEntrySheet` :782
   - `InputSheet` :129
-  - `PushedInSheet` :187
-  - `ReaderIdentitySheet` :641
-  - `ScreenTimeEntrySheet` :293
-  - `SideEffectEntrySheet` :827
+  - `PushedInSheet` :201
+  - `ReaderIdentitySheet` :655
+  - `ScreenTimeEntrySheet` :307
+  - `SideEffectEntrySheet` :841
 - `Features/Inputs/AddInputPicker.swift`
   - `AddInputPicker` :36
   - `AddInputToolbar` :132
@@ -899,14 +939,14 @@ the place to look.
 - `Features/Metrics/StaticAttributeCard.swift`
   - `StaticAttributeCard` :9
 - `Features/Onboarding/OnboardingView.swift`
-  - `OnboardingPanel` :327
+  - `OnboardingPanel` :383
   - `OnboardingView` :7
 - `Features/Settings/BodyScanSettingsView.swift`
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :37
-  - `FullExport` :465
-  - `OtherDataListView` :478
+  - `FullExport` :479
+  - `OtherDataListView` :492
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73

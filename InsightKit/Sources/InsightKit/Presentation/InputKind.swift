@@ -70,6 +70,19 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// One period of leave, entered by hand — backlog B7 H4. Past or planned:
     /// *"I should also be able to input holidays that are planned manually."*
     case holiday
+    /// **Telling the app what a flagged half-hour actually was** — backlog P32.
+    ///
+    /// An input like any other, and it belongs on this list for the reason the
+    /// list exists: the app takes something from the reader, so every input
+    /// surface has to know about it or it becomes the next feature reachable
+    /// from exactly one screen.
+    ///
+    /// **One case for confirm and correct**, for the reason `.bodyMeasurements`
+    /// is one case: they answer one question ("what was this?") in one sheet,
+    /// and two near-identical rows would bury it. The distinction between
+    /// agreeing and disagreeing is kept where it is measurable —
+    /// `FlaggedEventJudgement`, which stores the guess and the answer apart.
+    case eventConfirmation
 
     public var id: String { rawValue }
 
@@ -88,6 +101,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyMeasurements: return "Body measurements"
         case .readerIdentity: return "Name & emails"
         case .holiday: return "Holiday or leave"
+        case .eventConfirmation: return "Confirm a flagged event"
         }
     }
 
@@ -121,6 +135,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Your name, work and personal emails. Lets the calendar tell whose meeting — and whose OOO block — an event is. Stays on this phone and is never exported."
         case .holiday:
             return "Time off, past or planned. Goes into one leave record beside what your calendar shows, so the app can know how long since you last had any."
+        case .eventConfirmation:
+            return "The app flags stretches where your heart rate ran high with nothing moving to explain it, and guesses what they were. Tell it what actually happened — the guess and your answer are kept apart, so it can show you how often it's right."
         }
     }
 
@@ -139,6 +155,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyMeasurements: return "figure.mixed.cardio"
         case .readerIdentity: return "person.crop.circle"
         case .holiday: return "beach.umbrella"
+        case .eventConfirmation: return "questionmark.bubble"
         }
     }
 
@@ -149,7 +166,11 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         // A holiday is a dated entry like a substance or a dose — logged as it
         // happens (or as it is booked), not a standing fact.
         case .cuffBloodPressure, .substanceEvent, .medicationDose, .sideEffect,
-             .screenTime, .holiday:
+             .screenTime, .holiday,
+             // Answering a flag is a dated act about a dated window, not a
+             // standing fact — the same shape as logging a substance, entered
+             // again and again.
+             .eventConfirmation:
             return .asItHappens
         // Identity is entered once and changed rarely — the profile's shape,
         // even though it is not a grounding fact.
@@ -172,6 +193,20 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
              .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
              .bodyMeasurements, .readerIdentity, .holiday:
+            return nil
+        // ⚠️ **`nil`, deliberately, even though there is often nothing to
+        // answer.** Making the row unavailable when the queue is empty was the
+        // first draft and it is the shape rule 7 was written against: a surface
+        // that disappears for want of data is indistinguishable from one that
+        // was never built. The feed opens either way and its own empty state
+        // says what the detector is waiting for — which is the honest version
+        // and the one the reader can act on.
+        //
+        // It would also be a lie half the time it fired. `unavailableReason`'s
+        // only consumer treats a non-nil value as "no medication yet"
+        // (`AddDataView.isBlocked`), so a second conditional kind would have
+        // been blocked by the *medication* test.
+        case .eventConfirmation:
             return nil
         }
     }
@@ -242,6 +277,32 @@ public extension InputKind {
         // `daysSinceLastLeave`, each with a `modelVersion` bump, and the card
         // offer belongs in that change — a card offering an input its model
         // ignores would be claiming a sensitivity it does not have.
+        // ⚠️ **Settings and the `+` menu only, and the reason is a date rather
+        // than a principle** — the same call `.holiday` makes below.
+        //
+        // **No shipped card reads a confirmed event yet.** The judgements are
+        // stored, the accuracy is computed and the Data tab renders all of it,
+        // but nothing scores off a confirmed cause. A card offering the input
+        // would be claiming a sensitivity its model does not have, which is the
+        // one thing `ContributionRoute` must never be used to imply. The offer
+        // moves onto the cards — Readiness and Health Watch are the obvious
+        // pair, since a confirmed cause is exactly what would let them stop
+        // counting an evening as an unexplained departure — in the same change
+        // that wires them, with a `modelVersion` bump.
+        //
+        // ⚠️ **This is not the same as being unprompted.** The reader's own
+        // condition on this feature was a dismissible front-page suggestion, and
+        // it exists: `SuggestionEngine.eventsAwaitingReview` raises the queue
+        // itself, and `SuggestionEngine.locationPermission` raises the missing
+        // permission. Both are better-founded than the generic
+        // "you-have-not-tried-this" row `.offeredAndPrompted` would produce —
+        // they carry a count and a reason — which is why routing through
+        // `unusedInputs` would have been a downgrade rather than the rule.
+        case .eventConfirmation:
+            return .settingsOnly("No shipped card scores off a confirmed event "
+                + "yet, so a card offering the input would claim a sensitivity "
+                + "its model has not got. The feed is reached from the Data tab, "
+                + "the + menu and its own dismissible suggestions instead.")
         case .holiday:
             return .settingsOnly("No shipped card reads the holiday ledger yet "
                 + "(B7 H6). Offering the log on a card whose score ignores it "
