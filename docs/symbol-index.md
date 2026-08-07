@@ -253,11 +253,11 @@ the place to look.
 - `Models/CalendarEventArtifact.swift`
   - `CalendarEventArtifact` :47
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :329
+  - `CalendarClassifierAccuracy` :394
   - `CalendarEventClassification` :35
   - `CalendarEventJudgement` :238
 - `Models/CalendarEventClassifier.swift`
-  - `CalendarEventBucket` :389
+  - `CalendarEventBucket` :415
   - `CalendarEventClassifier` :31
 - `Models/CycleLog.swift`
   - `Cycle` :98
@@ -563,18 +563,18 @@ the place to look.
   - `CalendarEventRecord` :233
   - `CalendarJudgementRecord` :349
   - `CycleDayRecord` :199
-  - `DoseLogRecord` :515
-  - `FeedbackRecord` :453
+  - `DoseLogRecord` :523
+  - `FeedbackRecord` :461
   - `GroundingRecord` :9
   - `HolidayEntry` :308
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :483
-  - `PredictionOutcomeRecord` :420
-  - `SideEffectRecord` :547
+  - `MedicationRecord` :491
+  - `PredictionOutcomeRecord` :428
+  - `SideEffectRecord` :555
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :402
+  - `SuggestionDismissalRecord` :410
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`

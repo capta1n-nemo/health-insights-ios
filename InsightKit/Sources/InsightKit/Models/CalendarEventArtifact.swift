@@ -59,6 +59,23 @@ public struct CalendarEventArtifact: Sendable, Equatable, Codable, Hashable {
     public let attendeeCount: Int?
     /// Duration in hours, from the event's own start and end.
     public let durationHours: Double
+    /// **When it was due to begin**, as the snapshot read it.
+    ///
+    /// Optional because rows written before this field existed have none, and a
+    /// missing start is *unknown* rather than a claim — `differs(from:)` skips
+    /// the comparison rather than reporting a change it cannot see. Same posture
+    /// as `attendeeCount` and `organizerIsReader`.
+    ///
+    /// ⚠️ **Today a moved event usually arrives as a different event.**
+    /// `CalendarIntegration.fetchEvents` folds the occurrence's start into the
+    /// identifier (`"\(eventIdentifier)|\(startDate.timeIntervalSince1970)"`),
+    /// so dragging a meeting mints a new `CalendarEvent.id` and the old
+    /// judgement is left behind rather than found to have drifted. This field is
+    /// therefore belt-and-braces — and it stops being belt-and-braces the moment
+    /// that id scheme changes, which is exactly the kind of change that would
+    /// otherwise make drift detection silently blind to the most obvious edit a
+    /// reader can make.
+    public let start: Date?
     public let isAllDay: Bool
     /// The *calendar's* name — "Work", "Family" — which remains the single
     /// strongest signal for work-versus-personal and is therefore the field a
@@ -71,14 +88,20 @@ public struct CalendarEventArtifact: Sendable, Equatable, Codable, Hashable {
     /// makes the paragraph above checkable rather than asserted.
     public let capturedAt: Date
 
+    /// `start` is **defaulted**, so the call sites written before the field
+    /// existed keep compiling untouched — `SharingExample.calendarCorrection`
+    /// and `SharingTierTests`, both of which build a fictional artifact by hand
+    /// and have no start to give.
     public init(title: String, location: String?, attendeeCount: Int?,
-                durationHours: Double, isAllDay: Bool, calendarName: String,
+                durationHours: Double, start: Date? = nil,
+                isAllDay: Bool, calendarName: String,
                 hasVideoLink: Bool, organizerIsReader: Bool?,
                 capturedAt: Date) {
         self.title = title
         self.location = location
         self.attendeeCount = attendeeCount
         self.durationHours = durationHours
+        self.start = start
         self.isAllDay = isAllDay
         self.calendarName = calendarName
         self.hasVideoLink = hasVideoLink
@@ -94,6 +117,7 @@ public struct CalendarEventArtifact: Sendable, Equatable, Codable, Hashable {
                   location: event.location,
                   attendeeCount: event.attendeeCount,
                   durationHours: event.durationHours,
+                  start: event.start,
                   isAllDay: event.isAllDay,
                   calendarName: event.calendarName,
                   hasVideoLink: event.hasVideoLink,
@@ -102,11 +126,14 @@ public struct CalendarEventArtifact: Sendable, Equatable, Codable, Hashable {
     }
 
     /// Whether the event has drifted from the snapshot — the words, the place,
-    /// the shape or the size changed after it was judged.
+    /// the shape, the size or the slot changed after it was judged.
     ///
-    /// Nothing acts on this yet; it exists so a future review row can say "this
-    /// event has changed since the app read it" instead of quietly showing a
-    /// correction against text nobody can see any more.
+    /// **This is what re-judgement is triggered from** (backlog B8 R3 + C4). It
+    /// is a pure struct comparison — no rules, no on-device model — which is
+    /// what makes it cheap enough to run against every synced event, and it is
+    /// deliberately the *only* thing that runs at sync time: what it finds is
+    /// queued, and the classifier runs on a boundary. See
+    /// `AppModel.flushCalendarReclassification()`.
     public func differs(from event: CalendarEvent) -> Bool {
         title != event.title
             || location != event.location
@@ -115,5 +142,9 @@ public struct CalendarEventArtifact: Sendable, Equatable, Codable, Hashable {
             || calendarName != event.calendarName
             || hasVideoLink != event.hasVideoLink
             || abs(durationHours - event.durationHours) > 0.001
+            // A snapshot with no start recorded cannot say the event moved, so
+            // it says nothing rather than guessing. One second of slack: these
+            // round-trip through JSON and a Date is not a decimal.
+            || (start.map { abs($0.timeIntervalSince(event.start)) > 1 } ?? false)
     }
 }

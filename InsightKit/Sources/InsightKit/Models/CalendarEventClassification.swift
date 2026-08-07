@@ -252,6 +252,22 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
     /// the app ever computes.
     public let isConfirmed: Bool
     public let reviewedAt: Date?
+    /// **When the event was first seen to have changed after the reader had
+    /// already answered about it**, and nil while it has not.
+    ///
+    /// ⚠️ **The one thing a re-judgement is not allowed to resolve.** Re-running
+    /// the classifier refreshes the guess *and* the snapshot — it has to, or the
+    /// stored pair stops being a real training example — and the moment the
+    /// snapshot moves, the comparison that found the drift stops reporting it.
+    /// The reader's correction would then sit there looking current, when it was
+    /// actually an answer about a version of the event that no longer exists.
+    ///
+    /// So the fact is recorded separately from the comparison and outlives it.
+    /// Backlog C4 keeps the guess and the reader's answer apart so accuracy stays
+    /// measurable; this keeps them apart in *time* as well — where the two may
+    /// have come apart, the reader is told rather than overruled. Cleared only by
+    /// the reader looking again (`reviewed(correction:confirmed:at:)`).
+    public let changedAfterReviewAt: Date?
 
     public var id: String { eventID }
 
@@ -267,16 +283,53 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
             || correction.presence != classification.presence
     }
 
+    /// Whether the reader answered about a version of this event that no longer
+    /// exists. **Surfaced, never resolved** — see `changedAfterReviewAt`.
+    ///
+    /// Gated on there being an answer at all: an untouched guess cannot have
+    /// gone stale, it can only be re-judged, which is exactly what happens to it.
+    public var needsRereview: Bool {
+        changedAfterReviewAt != nil && (isConfirmed || correction != nil)
+    }
+
+    /// Whether the event as it stands now differs from the one that was judged.
+    ///
+    /// False when there is no snapshot: a row written before B8 R3 has nothing to
+    /// compare against, and "changed" would be an invention — the same refusal
+    /// the artifact itself makes about a start it never recorded.
+    public func hasDrifted(from event: CalendarEvent) -> Bool {
+        artifact?.differs(from: event) ?? false
+    }
+
+    /// Note that the event moved under a reader who had already answered.
+    ///
+    /// Idempotent and **earliest-wins**: the instant worth keeping is when their
+    /// answer first went stale, not the last time a sync happened to notice. A
+    /// judgement nobody has reviewed is returned unchanged — there is no answer
+    /// for the change to have invalidated.
+    public func markedChangedAfterReview(at date: Date) -> CalendarEventJudgement {
+        guard reviewedAt != nil, changedAfterReviewAt == nil else { return self }
+        return CalendarEventJudgement(eventID: eventID,
+                                      classification: classification,
+                                      correction: correction,
+                                      isConfirmed: isConfirmed,
+                                      reviewedAt: reviewedAt,
+                                      artifact: artifact,
+                                      changedAfterReviewAt: date)
+    }
+
     public init(eventID: String, classification: CalendarEventClassification,
                 correction: CalendarEventClassification? = nil,
                 isConfirmed: Bool = false, reviewedAt: Date? = nil,
-                artifact: CalendarEventArtifact? = nil) {
+                artifact: CalendarEventArtifact? = nil,
+                changedAfterReviewAt: Date? = nil) {
         self.eventID = eventID
         self.classification = classification
         self.correction = correction
         self.isConfirmed = isConfirmed
         self.reviewedAt = reviewedAt
         self.artifact = artifact
+        self.changedAfterReviewAt = changedAfterReviewAt
     }
 
     /// **Re-classification, as a rule rather than a habit.**
@@ -294,6 +347,12 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
     /// already stored rather than erasing it, so a re-classification with no
     /// event in hand degrades to the old two-layer record instead of losing the
     /// third.
+    ///
+    /// ⚠️ **`changedAfterReviewAt` survives too**, and that is the point of it
+    /// being stored rather than derived: this call is what refreshes the
+    /// snapshot, so the drift comparison goes quiet a line later. If the flag
+    /// moved with the snapshot, a re-judgement would silently decide that a
+    /// correction made about the old event still describes the new one.
     public func reclassified(as classification: CalendarEventClassification,
                              artifact: CalendarEventArtifact? = nil) -> CalendarEventJudgement {
         CalendarEventJudgement(eventID: eventID,
@@ -301,7 +360,8 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
                                correction: correction,
                                isConfirmed: isConfirmed,
                                reviewedAt: reviewedAt,
-                               artifact: artifact ?? self.artifact)
+                               artifact: artifact ?? self.artifact,
+                               changedAfterReviewAt: changedAfterReviewAt)
     }
 
     /// The reader's answer, recorded against the guess that is already stored.
@@ -311,6 +371,10 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
     /// refreshed here** — the model judged a particular version of the event, and
     /// re-reading it at correction time would attribute words to the model that
     /// it may never have seen.
+    ///
+    /// ⚠️ **It clears `changedAfterReviewAt`**, and only this does. The reader is
+    /// looking at the event as it stands now, so whatever it did since they last
+    /// answered has been answered for.
     public func reviewed(correction: CalendarEventClassification?,
                          confirmed: Bool, at date: Date) -> CalendarEventJudgement {
         CalendarEventJudgement(eventID: eventID,
@@ -318,7 +382,8 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
                                correction: correction,
                                isConfirmed: confirmed,
                                reviewedAt: date,
-                               artifact: artifact)
+                               artifact: artifact,
+                               changedAfterReviewAt: nil)
     }
 }
 

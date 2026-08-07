@@ -363,6 +363,32 @@ public enum CalendarEventClassifier {
             hours: stored.hours, deciders: deciders)
     }
 
+    // MARK: - Drift: the event changed after it was judged
+
+    /// **Which of these events no longer match the snapshot they were judged
+    /// against**, in the order they were given.
+    ///
+    /// A pure comparison — no rules, no model, one dictionary lookup per event —
+    /// which is what makes it safe on every sync. Re-judging what it returns is a
+    /// separate and deliberately debounced step; see
+    /// `AppModel.flushCalendarReclassification()`.
+    ///
+    /// Two things it deliberately does not call drift:
+    ///
+    /// - **An event with no judgement.** That is unjudged, not changed, and the
+    ///   sync path already classifies those.
+    /// - **A judgement written before the artifact snapshot existed.** There is
+    ///   nothing to compare, and treating "cannot tell" as "changed" would spend
+    ///   the on-device model on every pre-B8 row at once, which is precisely the
+    ///   *"do not completely slow down the app"* half of the reader's
+    ///   instruction.
+    public static func drifted(_ judgements: [CalendarEventJudgement],
+                               events: [CalendarEvent]) -> [CalendarEvent] {
+        let byID = Dictionary(judgements.map { ($0.eventID, $0) },
+                              uniquingKeysWith: { first, _ in first })
+        return events.filter { byID[$0.id]?.hasDrifted(from: $0) == true }
+    }
+
     // MARK: - What the cards read
 
     /// The three data sources the reader named — *"Work Events, Personal Events,
