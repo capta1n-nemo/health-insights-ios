@@ -288,7 +288,11 @@ public enum VitalSignsCheck {
     /// than the radar's four because this scan judges a *day* rather than a
     /// three-day mean, so it needs less clearance — and every day of gap is a
     /// day of history the estimate does not get.
-    static let referenceGapDays = 2
+    ///
+    /// Derived from `VitalReader.judgementGap` rather than repeating its
+    /// literal: the two were the same number written twice, and this is the one
+    /// that must move if that one ever does.
+    static let referenceGapDays = VitalReader.judgementGap.count
     static let minimumBaselineDays = 7
     /// A metric seen at all within this window is one the user "normally
     /// records", and therefore counts toward coverage.
@@ -331,7 +335,7 @@ public enum VitalSignsCheck {
             guard let vital = VitalReader.reading(
                 spec.metric, from: samples, now: now,
                 windowDays: baselineDays, minimumDays: minimumBaselineDays,
-                freshWithin: spec.freshWithin, gapDays: referenceGapDays,
+                freshWithin: spec.freshWithin, gap: VitalReader.judgementGap,
                 calendar: calendar) else { continue }
 
             if vital.isFresh {

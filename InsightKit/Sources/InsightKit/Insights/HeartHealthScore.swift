@@ -198,19 +198,34 @@ public struct HeartHealthInsight: InsightModel {
         // resting-HR sample ever recorded, which over a 180-day lookback is
         // effectively frozen: real improvement moved it by a fraction of a beat,
         // so the score could not reflect one.
-        let vo2 = VitalReader.reading(.vo2Max, from: samples, now: now)?.value
-        let rhrReading = VitalReader.reading(.restingHeartRate, from: samples, now: now)
+        // **`.none` throughout this block, and for two different reasons.**
+        //
+        // The resting-HR and HRV lines read `baseline ?? value` as *the level* —
+        // "your usual resting heart rate", deliberately, because that is what
+        // the paragraph above says a score should rest on. A reference gap is
+        // machinery for judging today against the past; used on a level it just
+        // makes the level staler, which is the opposite of the fix that comment
+        // describes.
+        //
+        // The respiratory deviation below genuinely is a judgement, and it is
+        // still `.none` — because it is a *scored* judgement, and the score
+        // bands were calibrated against the ungapped baseline. Held with the
+        // rest of the scoring path; see the call-site rule in `VitalReader`.
+        let vo2 = VitalReader.reading(.vo2Max, from: samples, now: now, gap: .none)?.value
+        let rhrReading = VitalReader.reading(.restingHeartRate, from: samples, now: now,
+                                             gap: .none)
         let restHR = rhrReading.map { $0.baseline ?? $0.value }
         // Track which flavour was used, so the chart plots the series the score
         // actually read rather than whichever one it guesses at.
         let hrvMetric: MetricType = VitalReader.reading(.heartRateVariabilityRMSSD,
-                                                        from: samples, now: now) != nil
+                                                        from: samples, now: now,
+                                                        gap: .none) != nil
             ? .heartRateVariabilityRMSSD : .heartRateVariabilitySDNN
-        let hrv = VitalReader.reading(hrvMetric, from: samples, now: now)
+        let hrv = VitalReader.reading(hrvMetric, from: samples, now: now, gap: .none)
             .map { $0.baseline ?? $0.value }
 
         let respDev: Baseline.Deviation? = VitalReader
-            .reading(.respiratoryRate, from: samples, now: now)
+            .reading(.respiratoryRate, from: samples, now: now, gap: .none)
             .flatMap { (reading: VitalReading) -> Baseline.Deviation? in
                 guard let z = reading.zScore, let baseline = reading.baseline else { return nil }
                 return Baseline.Deviation(value: reading.value, baseline: baseline, zScore: z,
@@ -243,8 +258,11 @@ public struct HeartHealthInsight: InsightModel {
         // "charted, not scored" — declared, holding data a day old, and visible
         // nowhere. A weight-0 row that says what it is waiting for is the
         // contract every other unweighted signal on this card already honours.
+        // `.none`: a supporting score term, held with the rest of the scoring
+        // path.
         let supporting = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
-                                             freshWithin: HeartResponseModel.recoveryFreshness)
+                                             freshWithin: HeartResponseModel.recoveryFreshness,
+                                             gap: .none)
             .map { ScoreBlend.supportingOrTracked($0, higherIsBetter: true) }
         let blend = ScoreBlend.blend(
             primary: out.components.map {

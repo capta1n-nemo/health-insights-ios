@@ -83,8 +83,11 @@ public struct FitnessInsight: InsightModel {
         // Heart Health makes the same call for the same reason. `staleAfter` is
         // the trajectory model's own documented threshold rather than a number
         // invented here.
+        // `.none`: `.value` only, scored against age/sex norms — the comment on
+        // the `.vo2Max` term below says so in as many words.
         guard let vo2Reading = VitalReader.reading(.vo2Max, from: samples, now: now,
-                                                   freshWithin: VO2Trajectory.staleAfter) else {
+                                                   freshWithin: VO2Trajectory.staleAfter,
+                                                   gap: .none) else {
             return InsightResult(
                 id: id, title: title, primaryValue: nil, headline: "No readings yet",
                 score: nil, confidence: .low,
@@ -373,10 +376,12 @@ public struct FitnessInsight: InsightModel {
     static func supportingTerms(samples: [HealthMetricSample], now: Date,
                                 calendar: Calendar = .current) -> [ScoreBlend.Term] {
         contextMetrics.compactMap { metric, higherIsBetter in
+            // `.none`: supporting score terms, held with the rest of the
+            // scoring path. See the call-site rule in `VitalReader`.
             VitalReader.reading(metric,
                                 from: judgementSamples(for: metric, samples: samples,
                                                        now: now, calendar: calendar),
-                                now: now)
+                                now: now, gap: .none)
                 .flatMap { ScoreBlend.supporting($0, higherIsBetter: higherIsBetter) }
         }
     }
@@ -436,7 +441,7 @@ public struct FitnessInsight: InsightModel {
                     metric,
                     from: judgementSamples(for: metric, samples: samples,
                                            now: now, calendar: calendar),
-                    now: now) else { return nil }
+                    now: now, gap: .none) else { return nil }
             return .routine("\(metric.displayName): \(MetricValueFormatter.string(reading.value, metric)) \(metric.unit)")
         }
     }

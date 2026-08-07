@@ -165,9 +165,11 @@ public enum HeartResponseModel {
                                 now: Date = Date(),
                                 windowDays: Int = 90,
                                 calendar: Calendar = .current) -> Output {
+        // `.none`: `.value` and nothing else — the trailing `?.value` is the
+        // whole use, so the baseline this would have shifted is never read.
         let recovery = VitalReader.reading(.heartRateRecovery, from: samples, now: now,
                                            freshWithin: recoveryFreshness,
-                                           calendar: calendar)?.value
+                                           gap: .none, calendar: calendar)?.value
 
         func signal(_ metric: MetricType, higherIsBetter: Bool) -> Signal? {
             let series = VitalReader.dailySeries(metric, from: samples, days: windowDays,

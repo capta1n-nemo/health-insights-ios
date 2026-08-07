@@ -223,7 +223,16 @@ public struct VitalDeparturePanel: Sendable, Equatable {
                       // peer comparison: "unusual for you" would read as a
                       // measurement claim about something nothing measured.
                       && !PeerStandingModel.isModelled($0) }
+            // **`judgementGap`, and this is the call site backlog P38 was
+            // written about.** Every row here renders as "away from your
+            // normal", and without the gap yesterday's excursion is inside the
+            // baseline judging today — so a departure stops being a departure by
+            // lasting two days, with nothing about the body having changed. The
+            // scan's own rows (`from(output:)` above) have had the gap since
+            // 2026-08-05; these extra rows sit beside them on the same panel and
+            // must be measured the same way, or one card shows two kinds of z.
             .compactMap { VitalReader.reading($0, from: samples, now: now,
+                                              gap: VitalReader.judgementGap,
                                               calendar: calendar) }
         return forCard(output, cardMetrics: cardMetrics, extraReadings: extras)
     }
