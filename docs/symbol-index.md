@@ -421,6 +421,8 @@ the place to look.
   - `BodyScanPolicy` :79
 - `Signals/BodySymmetry.swift`
   - `BodySymmetry` :19
+- `Signals/BreathingDisturbanceTrend.swift`
+  - `BreathingDisturbanceTrend` :29
 - `Signals/BuildAssessment.swift`
   - `BodyDimensions` :9
   - `BuildAssessment` :49
@@ -434,6 +436,8 @@ the place to look.
   - `NightSleepDetail` :17
 - `Signals/NutritionLogging.swift`
   - `NutritionLogging` :14
+- `Signals/OvernightCardiac.swift`
+  - `OvernightCardiac` :49
 - `Signals/Pharmacokinetics.swift`
   - `ActiveCompoundPoint` :121
   - `AdministeredDose` :79
@@ -449,6 +453,8 @@ the place to look.
   - `PostureJoint` :28
 - `Signals/ScanComparability.swift`
   - `ScanComparability` :22
+- `Signals/ScreenTimeSleepLink.swift`
+  - `ScreenTimeSleepLink` :40
 - `Signals/SleepNights.swift`
   - `SleepNights` :73
   - `SleepSegment` :9
@@ -736,8 +742,18 @@ the place to look.
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
   - `MedicationSetupSheet` :285
+- `Features/Insights/OvernightHRVSection.swift`
+  - `OvernightCardiacReading` :22
+  - `OvernightHRVSection` :85
+  - `OvernightNightlyChart` :228
 - `Features/Insights/ScoreComparisonDetailView.swift`
   - `ScoreComparisonDetailView` :20
+- `Features/Insights/SettlingSection.swift`
+  - `SettlingSection` :43
+- `Features/Insights/SleepApnoeaSection.swift`
+  - `SleepApnoeaSection` :38
+- `Features/Insights/SleepScreenTimeSection.swift`
+  - `SleepScreenTimeSection` :38
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Insights/SymptomRadarWebCard.swift`
