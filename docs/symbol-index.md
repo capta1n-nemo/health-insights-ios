@@ -776,14 +776,16 @@ the place to look.
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `AddInputMenu` :159
-  - `BodyTypeSheet` :302
-  - `HolidayEntrySheet` :856
-  - `InputSheet` :217
-  - `PushedInSheet` :275
-  - `ReaderIdentitySheet` :729
-  - `ScreenTimeEntrySheet` :381
-  - `SideEffectEntrySheet` :915
+  - `BodyTypeSheet` :214
+  - `HolidayEntrySheet` :768
+  - `InputSheet` :129
+  - `PushedInSheet` :187
+  - `ReaderIdentitySheet` :641
+  - `ScreenTimeEntrySheet` :293
+  - `SideEffectEntrySheet` :827
+- `Features/Inputs/AddInputPicker.swift`
+  - `AddInputPicker` :36
+  - `AddInputToolbar` :132
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :182
@@ -864,7 +866,7 @@ the place to look.
 - `Features/Metrics/StaticAttributeCard.swift`
   - `StaticAttributeCard` :9
 - `Features/Onboarding/OnboardingView.swift`
-  - `OnboardingPanel` :257
+  - `OnboardingPanel` :327
   - `OnboardingView` :7
 - `Features/Settings/BodyScanSettingsView.swift`
   - `BodyScanSettingsView` :24

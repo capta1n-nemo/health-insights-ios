@@ -89,91 +89,12 @@ struct AddDataView: View {
 
     /// Where the reader stands on this input, in one short phrase.
     ///
-    /// Exhaustive, so a new input has to say what its standing figure is — or
-    /// say explicitly that it hasn't got one, which two of these do.
+    /// The exhaustive switch behind it lives on `AppModel` (in
+    /// `AddInputPicker.swift`) because the `+` picker prints the same figures,
+    /// and two surfaces disagreeing about the same input is the drift
+    /// `InputKind` exists to end.
     private func standing(_ kind: InputKind) -> String? {
-        switch kind {
-        case .profileFacts:
-            let all = GroundingKind.directlyEntered
-            let set = all.filter { model.profile.value($0) != nil }.count
-            return "\(set) of \(all.count)"
-        case .cuffBloodPressure:
-            guard let latest = model.bloodPressureReadings.first else { return nil }
-            return "\(Int(latest.systolic.rounded()))/\(Int(latest.diastolic.rounded()))"
-        case .substanceEvent:
-            let count = model.substanceEvents.count
-            return count == 0 ? nil : "\(count) logged"
-        case .medicationRegimen:
-            guard let medication = model.activeMedication else { return nil }
-            return medication.brandName ?? medication.compound?.displayName
-        case .medicationDose:
-            guard let count = model.activeMedication?.doses.count, count > 0 else { return nil }
-            return count == 1 ? "1 dose" : "\(count) doses"
-        case .sideEffect:
-            let count = model.sideEffects.count
-            return count == 0 ? nil : "\(count) recorded"
-        case .bloodTestPhoto:
-            // No standing: a photographed report becomes cholesterol facts, and
-            // those are counted on the profile row. Counting them twice would
-            // read as two separate sets of numbers.
-            return nil
-        case .fileImport:
-            return ShotsyIntegration.lastImportDate.map {
-                $0.formatted(.relative(presentation: .named))
-            }
-        case .bodyMeasurements:
-            guard let latest = model.bodyScans.first else { return nil }
-            let sites = latest.measurements.sites.count
-            return "\(sites) site\(sites == 1 ? "" : "s"), "
-                + latest.capturedAt.formatted(.relative(presentation: .named))
-        case .bodyType:
-            // The reader's word first, the app's estimate second and marked as
-            // such — the row must not read as though they chose something they
-            // didn't.
-            if let chosen = model.buildOverrideName { return chosen }
-            return model.estimatedBuildName.map { "\($0) (estimated)" }
-        case .screenTime:
-            let days = model.screenTimeDaysRecorded
-            return days == 0 ? nil : "\(days) \(days == 1 ? "day" : "days")"
-        case .readerIdentity:
-            // The name if given, the email count otherwise — the reader's own
-            // device is the one place the name renders.
-            if let name = model.readerIdentity.name, !name.isEmpty { return name }
-            let emails = model.readerIdentity.allEmails.count
-            return emails == 0 ? nil : "\(emails) email\(emails == 1 ? "" : "s")"
-        case .holiday:
-            // Entered records only, matching `usedInputs` — this row is about
-            // what the reader has given, not what the calendar suggested.
-            let count = model.holidayEntries.count
-            return count == 0 ? nil : "\(count) recorded"
-        }
-    }
-}
-
-/// The `+` menu's contents, from the same list as the screen above.
-///
-/// A menu and a screen showing different sets of inputs is exactly the drift
-/// this is meant to end, so neither of them owns a list — `InputKind` does.
-/// The menu shows only what can be used right now (a blocked row is a dead
-/// entry in a menu, where the screen has room to say why).
-struct AddInputMenu: View {
-    @Binding var active: InputKind?
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        ForEach(InputGroup.allCases) { group in
-            Section(group.title) {
-                ForEach(group.kinds) { kind in
-                    if kind.unavailableReason == nil || model.activeMedication != nil {
-                        Button {
-                            active = kind
-                        } label: {
-                            Label(kind.title, systemImage: kind.symbolName)
-                        }
-                    }
-                }
-            }
-        }
+        model.standing(for: kind)
     }
 }
 
@@ -189,27 +110,18 @@ extension View {
         }
     }
 
-    /// The app's one global add affordance — the `+` menu and every sheet it can
-    /// open — as a single modifier.
+    /// The app's one global add affordance — the `+` button, the full-height
+    /// picker it opens, and every sheet that can lead to — as a single modifier.
     ///
     /// It lived on Today alone until 2026-08-03, so the reader looking at
     /// Insights or at Data had to go back a tab to give the app anything. The
     /// fix is deliberately not three copies of Today's `ToolbarItem`: the
-    /// menu's *contents* already come from `InputKind`, and this makes its
-    /// *placement* one decision as well, so the open judgement call — whether
-    /// it stays a toolbar item or becomes a floating button, which only the
-    /// phone can settle — is one edit rather than a hunt for three.
+    /// list's *contents* already come from `InputKind`, and this makes its
+    /// *placement* one decision as well — which is what let the 2026-08-07
+    /// change from a cut-off `Menu` to a `.large` sheet be one edit rather than
+    /// a hunt for three. See `AddInputToolbar` in `AddInputPicker.swift`.
     func addInputToolbar(_ active: Binding<InputKind?>) -> some View {
-        toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    AddInputMenu(active: active)
-                } label: {
-                    Label("Add", systemImage: "plus.circle")
-                }
-            }
-        }
-        .inputSheet(active)
+        modifier(AddInputToolbar(active: active))
     }
 }
 
