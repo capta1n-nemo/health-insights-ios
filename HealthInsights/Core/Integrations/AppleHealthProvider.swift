@@ -28,7 +28,7 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
     ///
     /// The app cannot learn *why* it read nothing. It can notice **that** it
     /// did, which is enough to stop claiming a successful sync.
-    @Published private(set) var syncWarning: String?
+    @Published private(set) var syncTrouble: SyncTrouble?
 
     private let service: HealthKitService
     /// iOS deliberately doesn't expose HealthKit *read* authorization state, and
@@ -85,12 +85,23 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
         let data = await service.fetchAllData()
         // Said before the status is set, so a reader who opens Settings on the
         // next frame sees the two together rather than the green line alone.
-        syncWarning = (data.samples.isEmpty && data.other.isEmpty)
-            // Short, because a Settings row has very little width left beside
-            // its button. The long version — why a refusal and an empty phone
-            // look identical from here — is the Troubleshooting entry
+        syncTrouble = (data.samples.isEmpty && data.other.isEmpty)
+            // Short summary, because a Settings row has very little width left
+            // beside its button. The long version — why a refusal and an empty
+            // phone look identical from here — is the Troubleshooting entry
             // `HealthKitService.logReadOutcome` writes on the same pass.
-            ? "Read nothing this sync. Check Health \u{25B8} Apps & Services \u{25B8} Health Insights."
+            //
+            // ⚠️ There **is** an action here and it is deliberately not
+            // "reconnect": reconnecting cannot fix a declined read type, and
+            // `disconnect()` already records that iOS gives an app no way to
+            // ask again. The only thing that changes anything is the Health
+            // app's own switch, so that is what it says.
+            ? SyncTrouble(
+                summary: "Read nothing this sync.",
+                cause: "Apple Health returned no samples of any kind. Read access may have been "
+                     + "declined, or there may genuinely be nothing recorded — HealthKit does not "
+                     + "let an app tell those apart.",
+                action: "Check Health \u{25B8} your profile \u{25B8} Apps & Services \u{25B8} Health Insights.")
             : nil
         status = .connected(lastSync: Date())
         return data

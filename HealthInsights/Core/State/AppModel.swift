@@ -1233,8 +1233,25 @@ final class AppModel {
         for entry in cycleLog {
             dataStore.setCycleDay(entry.day, flow: entry.flow, calendar: calendar)
         }
-        let generated = SyntheticSeed.samples(days: days, endingOn: Date(),
+        var generated = SyntheticSeed.samples(days: days, endingOn: Date(),
                                               cycleDays: cycleLog, calendar: calendar)
+        // **A hole the shape of a declined Health category.** Backlog D10.
+        //
+        // A partial HealthKit denial produces no error anywhere — a refused
+        // type reads exactly like an unrecorded one — so it cannot be walked at
+        // the connector. It can be walked here: seed everything the reader
+        // allowed and nothing they declined, then look at what the cards claim
+        // over the gap. Launch-armed, DEBUG-only.
+        #if DEBUG
+        if ConnectorFaultInjection.isArmed(.healthPartialDenial) {
+            generated.removeAll { ConnectorFault.deniedMetrics.contains($0.type) }
+            DiagnosticsLog.shared.null(
+                "Fault injection",
+                "Seeded with \(ConnectorFault.deniedMetrics.count) metric type(s) withheld",
+                detail: "Standing in for a partial Apple Health denial: "
+                    + ConnectorFault.deniedMetrics.map(\.displayName).sorted().joined(separator: ", "))
+        }
+        #endif
         let byDayAndType = Dictionary(grouping: generated) { sample in
             "\(sample.type.rawValue)|\(calendar.startOfDay(for: sample.start).timeIntervalSince1970)"
         }
@@ -1811,6 +1828,17 @@ final class AppModel {
     /// provider connects, fails or syncs (the providers themselves aren't tracked
     /// by @Observable). Keyed by integration id.
     private(set) var integrationStatuses: [String: IntegrationStatus] = [:]
+
+    /// The same observable copy for **what the last sync could not see**, so the
+    /// Today tab can say it. Backlog D10.
+    ///
+    /// A separate dictionary rather than a field on the status, because the two
+    /// failures that hurt most leave the status reading `.connected`: HealthKit
+    /// returning nothing after a refusal it is never told about, and an OAuth
+    /// grant that 401s every collection while the connection stays up. Folding
+    /// trouble into status would make both unrepresentable.
+    private(set) var integrationTroubles: [String: SyncTrouble] = [:]
+
     var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -2392,6 +2420,20 @@ final class AppModel {
         // named from here down; see `RefreshPhaseTimer`.
         var timer = RefreshPhaseTimer()
 
+        #if DEBUG
+        // Before the first sync, so the log reads in causal order: what was
+        // armed, then what it did. Backlog D10.
+        ConnectorFaultInjection.announceOnce()
+        // A partial denial is a statement about data that *is* there, so this
+        // fault is meaningless on an empty store — the walk would show the same
+        // empty states as a phone with nothing on it and prove nothing. Fill it
+        // the same way the Settings button does, once, before the pipeline runs.
+        if ConnectorFaultInjection.isArmed(.healthPartialDenial),
+           !UserDefaults.standard.bool(forKey: "d10.partialDenialSeeded") {
+            UserDefaults.standard.set(true, forKey: "d10.partialDenialSeeded")
+            seedSyntheticData(days: 120)
+        }
+        #endif
         let manual = dataStore.loadManualSamples()
         timer.lap("manual samples")
         let synced = await registry.syncAllConnected()
@@ -2404,8 +2446,20 @@ final class AppModel {
         timer.lap("calendar sync")
         for integration in registry.integrations {   // reflect fresh sync status
             integrationStatuses[integration.id] = integration.status
+            integrationTroubles[integration.id] = integration.syncTrouble
             switch integration.status {
             case .connected(let last):
+                // ⚠️ **A green tick over a source that saw nothing is the D10
+                // defect in one line.** This branch logged an unconditional
+                // "Synced", directly under `logReadOutcome`'s "Read nothing —
+                // every type came back empty", so the log contradicted itself
+                // in adjacent rows and the later, greener one won.
+                if let trouble = integration.syncTrouble {
+                    diag.null(integration.displayName, trouble.summary,
+                              detail: trouble.cause
+                                  + (trouble.action.map { "\n\n\($0)" } ?? "\n\nThere is nothing to do about this."))
+                    break
+                }
                 diag.ok(integration.displayName, last == nil ? "Connected" : "Synced")
             case .error(let msg): diag.fail(integration.displayName, msg)
             case .unavailable(let reason): diag.null(integration.displayName, reason)

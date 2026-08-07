@@ -301,8 +301,19 @@ final class OuraProvider: OAuthIntegration {
         // Backlog D10: this summary was already exact and already written, and
         // reached nobody who hadn't gone looking for Troubleshooting — while
         // the row the reader *does* see said "Synced just now" in green.
-        syncWarning = missing.isEmpty
-            ? "\(failures.count) of \(attempted) Oura collections failed this sync (\(names))."
-            : "\(failures.count) of \(attempted) Oura collections failed — the saved sign-in is missing the \(missing.joined(separator: ", ")) permission\(missing.count == 1 ? "" : "s"). Reconnecting is the only fix."
+        syncTrouble = missing.isEmpty
+            ? SyncTrouble(
+                summary: "\(failures.count) of \(attempted) Oura collections failed this sync.",
+                cause: "The ones that failed: \(names). The connection itself still works — the "
+                     + "other collections answered — so nothing here says the sign-in is broken.",
+                action: nil)   // nothing to reconnect; a per-collection failure is not a grant failure
+            : SyncTrouble(
+                summary: "\(failures.count) of \(attempted) Oura collections failed "
+                       + "— a permission is missing.",
+                cause: "The saved sign-in does not carry the "
+                     + "\(missing.joined(separator: ", ")) permission\(missing.count == 1 ? "" : "s"), "
+                     + "so those collections are refused every time. Nothing on this phone can grant it.",
+                action: "Reconnect Oura in Settings \u{25B8} Data sources — and revoke this app in "
+                      + "your Oura account first, or the old grant is reissued unchanged.")
     }
 }

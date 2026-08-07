@@ -10,6 +10,39 @@ enum IntegrationStatus: Equatable {
     case error(String)
 }
 
+/// **What a source could not see, why, and whether the reader can do anything.**
+/// Backlog D10.
+///
+/// `syncWarning` — a `String?` — was the first answer to *"say what you cannot
+/// see"*, and it got the Settings row right. Walking the token-expiry path on
+/// 2026-08-07 showed what a bare string cannot do: **it cannot say whether
+/// there is anything to be done.** An expired sign-in and a flight-mode toggle
+/// produce the same shape of sentence, and the app has to tell them apart —
+/// telling a reader to reconnect a provider that is working fine, over a train
+/// tunnel, is the same defect `waitingOn` was written for a fortnight ago
+/// (*"the app told them to do something they had already done"*).
+///
+/// So the three parts are separate fields and `action` is **optional on
+/// purpose**. A `nil` action is not a gap to be filled in later; it is the
+/// assertion that there is nothing the reader can do, and a surface rendering
+/// this must stay quiet rather than invent an instruction.
+struct SyncTrouble: Equatable, Sendable {
+    /// What is missing, from the reader's side. Short — a Settings row has very
+    /// little width left beside its button.
+    let summary: String
+    /// The honest cause in one sentence, including when the honest cause is
+    /// *"this cannot be distinguished from that"*.
+    let cause: String
+    /// What to do, or `nil` when there is nothing to do.
+    let action: String?
+
+    init(summary: String, cause: String, action: String? = nil) {
+        self.summary = summary
+        self.cause = cause
+        self.action = action
+    }
+}
+
 /// What an integration can provide, so the UI can describe it.
 struct IntegrationCapabilities: Equatable {
     let metrics: [MetricType]
@@ -75,6 +108,10 @@ protocol HealthIntegration: AnyObject {
     /// the cost of forgetting is one wrong sentence rather than a stall that is
     /// never reported.
     var syncsOnItsOwn: Bool { get }
+    /// The same fact, with its cause and whether the reader can act on it —
+    /// which is what the Today tab needs and a bare string cannot carry. See
+    /// `SyncTrouble`.
+    var syncTrouble: SyncTrouble? { get }
 }
 
 extension HealthIntegration {
@@ -83,6 +120,10 @@ extension HealthIntegration {
     var syncWarning: String? { nil }
 
     var syncsOnItsOwn: Bool { true }
+    var syncTrouble: SyncTrouble? { nil }
+    /// Derived rather than stored, so a source cannot warn in Settings and stay
+    /// silent on Today — the two surfaces are one fact seen from two distances.
+    var syncWarning: String? { syncTrouble?.summary }
 }
 
 /// Holds the set of available integrations and exposes them to Settings + sync.

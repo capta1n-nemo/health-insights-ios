@@ -22,6 +22,9 @@ struct TodayView: View {
                 LazyVStack(spacing: Theme.spacing) {
                     summaryCard
                     suggestionCard
+                    // Above the cards on purpose: it is the cause, and they are
+                    // the symptoms. Backlog D10.
+                    ConnectorTroubleSection()
                     LastNightCard()
                     InstrumentCoverageSection()
                     VitalsGlance()
