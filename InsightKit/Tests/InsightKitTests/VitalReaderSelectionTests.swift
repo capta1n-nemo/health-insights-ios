@@ -31,7 +31,8 @@ final class VitalReaderSelectionTests: XCTestCase {
 
     private func read(_ samples: [HealthMetricSample],
                       _ metric: MetricType = .heartRateVariabilityRMSSD) -> VitalReading? {
-        VitalReader.reading(metric, from: samples, now: readerNow, calendar: readerCalendar)
+        VitalReader.reading(metric, from: samples, now: readerNow, gap: .none,
+                            calendar: readerCalendar)
     }
 
     /// The bug, exactly: a long-quiet ring against a short-but-current watch.
@@ -75,8 +76,11 @@ final class VitalReaderSelectionTests: XCTestCase {
                              source: .oura, endingDaysAgo: 5)
         samples += series(.restingHeartRate, Array(repeating: 50, count: 8),
                           source: .appleHealthDevice("Apple Watch"))
+        // `judgementGap`, matching what `VitalSignsCheck` passes — the two are
+        // one rule and this test exists to pin that they stay one.
         let reader = VitalReader.reading(.restingHeartRate, from: samples,
-                                         now: readerNow, calendar: readerCalendar)
+                                         now: readerNow, gap: VitalReader.judgementGap,
+                                         calendar: readerCalendar)
         let check = VitalSignsCheck.evaluate(samples: samples, now: readerNow,
                                              calendar: readerCalendar)
             .readings.first { $0.metric == .restingHeartRate }

@@ -336,8 +336,12 @@ public enum PeerStandingModel {
             // is genuinely uncomparable, so it falls to the unnormed list.
             if metric == .leanBodyMass {
                 guard let height = heightMetres, height > 0.5,
+                // `.none` here and below: a peer standing compares the reader
+                // with a population norm, never with their own history, so only
+                // `value` is taken. A gap would cost history for no effect.
                       let reading = VitalReader.reading(metric, from: samples, now: now,
                                                         freshWithin: freshness(for: metric),
+                                                        gap: .none,
                                                         calendar: calendar) else {
                     unNormed.append(metric)
                     continue
@@ -356,6 +360,7 @@ public enum PeerStandingModel {
             }
             guard let reading = VitalReader.reading(metric, from: samples, now: now,
                                                     freshWithin: freshness(for: metric),
+                                                    gap: .none,
                                                     calendar: calendar) else { continue }
             standings.append(Standing(metric: metric, value: reading.value,
                                       percentile: percentile(reading.value, norm: norm)))

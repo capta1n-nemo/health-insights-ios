@@ -76,14 +76,17 @@ final class EvaluationMemoTests: XCTestCase {
         let samples = mixedHistory()
         for metric in [MetricType.heartRate, .restingHeartRate, .sleepDurationHours] {
             let uncached = VitalReader.reading(metric, from: samples,
-                                               now: TestClock.now, calendar: TestClock.utc)
+                                               now: TestClock.now, gap: .none,
+                                               calendar: TestClock.utc)
             let uncachedSeries = VitalReader.dailySeries(metric, from: samples, days: 30,
                                                          now: TestClock.now, calendar: TestClock.utc)
             let cached = MultiSource.withMemo(for: samples) {
                 _ = VitalReader.reading(metric, from: samples,
-                                        now: TestClock.now, calendar: TestClock.utc)
+                                        now: TestClock.now, gap: .none,
+                                        calendar: TestClock.utc)
                 return (VitalReader.reading(metric, from: samples,
-                                            now: TestClock.now, calendar: TestClock.utc),
+                                            now: TestClock.now, gap: .none,
+                                            calendar: TestClock.utc),
                         VitalReader.dailySeries(metric, from: samples, days: 30,
                                                 now: TestClock.now, calendar: TestClock.utc))
             }

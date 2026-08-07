@@ -122,8 +122,12 @@ public struct SleepInsight: InsightModel {
         // raw samples, so a nap counted as a night and a second source counted
         // the same night twice — which is what drove the consistency score to
         // zero: the spread it measured was fragmentation, not sleep.
+        // `.none`: only `value`, `date` and `isFresh` are read below — the
+        // score comes from published hour bands, never from this reader's own
+        // baseline — so a gap would cost history and change nothing.
         guard let sleepReading = VitalReader.reading(.sleepDurationHours, from: samples,
-                                                     now: now, freshWithin: 36 * 3600) else {
+                                                     now: now, freshWithin: 36 * 3600,
+                                                     gap: .none) else {
             return invitingInput(
                 id, title,
                 action: "Connect a sleep source",
@@ -156,7 +160,13 @@ public struct SleepInsight: InsightModel {
         // report a nightly figure, but daytime readings land in the same series
         // and `last` was picking whichever arrived most recently — often a
         // waking measurement that says nothing about the night.
-        let respReading = VitalReader.reading(.respiratoryRate, from: samples, now: now)
+        //
+        // **`judgementGap`: this one scores the z directly.** Without it a
+        // raised respiratory rate two nights running sets the bar it is then
+        // measured against and the card stops mentioning it — the same defect
+        // the clinical scan was given a gap for.
+        let respReading = VitalReader.reading(.respiratoryRate, from: samples, now: now,
+                                              gap: VitalReader.judgementGap)
         let respScore: Double = {
             guard let dev = respReading?.zScore else { return 75 }
             return max(0, 90 - min(60, abs(dev) * 20))
@@ -166,7 +176,9 @@ public struct SleepInsight: InsightModel {
         // clearest non-invasive marker of disrupted breathing during sleep, and
         // it was being collected and ignored. Neutral 75 when absent, so nights
         // without a reading aren't penalised.
-        let spo2Reading = VitalReader.reading(.oxygenSaturation, from: samples, now: now)
+        // `.none`: scored against a published saturation scale, not a baseline.
+        let spo2Reading = VitalReader.reading(.oxygenSaturation, from: samples, now: now,
+                                              gap: .none)
         let oxygenScore = spo2Reading.map { Self.oxygenScore($0.value) } ?? 75
 
         // Skin temperature away from baseline disturbs sleep and marks the
@@ -185,13 +197,22 @@ public struct SleepInsight: InsightModel {
         // was measured against are both real numbers worth showing.
         let tempSignal: (metric: MetricType, departure: Double, value: Double,
                          baseline: Double?, detail: String)? = {
+            // `.none` on the deviation branch: the provider has already done
+            // the differencing, so the reading's own baseline plays no part.
             if let deviation = VitalReader.reading(.skinTemperatureDeviation,
-                                                   from: samples, now: now) {
+                                                   from: samples, now: now,
+                                                   gap: .none) {
                 return (.skinTemperatureDeviation, deviation.value, deviation.value, nil,
                         String(format: "%+.1f °C vs your baseline", deviation.value))
             }
             for metric in [MetricType.skinTemperature, .bodyTemperature] {
-                guard let reading = VitalReader.reading(metric, from: samples, now: now),
+                // **`judgementGap` on this branch, `.none` on the one above,
+                // and the asymmetry is the point.** Here the app does the
+                // differencing itself and prints "%+.1f from your normal", so a
+                // fever that has lasted two nights would otherwise have raised
+                // the normal it is compared with.
+                guard let reading = VitalReader.reading(metric, from: samples, now: now,
+                                                        gap: VitalReader.judgementGap),
                       let baseline = reading.baseline else { continue }
                 let departure = reading.value - baseline
                 return (metric, departure, reading.value, baseline,
@@ -209,8 +230,12 @@ public struct SleepInsight: InsightModel {
         // Apple all report the pieces and the parser discarded them, so this
         // card scored a night by its length and its breathing while the
         // composition of that night sat unread in the same payload.
+        // `.none` for the four below: each is scored against a published
+        // consensus band or as a share of the night, never against this
+        // reader's own history, so only `value` is read.
         let efficiencyReading = VitalReader.reading(.sleepEfficiency, from: samples,
-                                                    now: now, freshWithin: 36 * 3600)
+                                                    now: now, freshWithin: 36 * 3600,
+                                                    gap: .none)
         let efficiencyScore = efficiencyReading.map { Self.efficiencyScore($0.value) } ?? 75
 
         // How long it took to fall asleep, against the same NSF consensus
@@ -220,14 +245,17 @@ public struct SleepInsight: InsightModel {
         // become the night's figure. Neutral 75 when absent, like every other
         // absent term here.
         let latencyReading = VitalReader.reading(.sleepLatencyMinutes, from: samples,
-                                                 now: now, freshWithin: 36 * 3600)
+                                                 now: now, freshWithin: 36 * 3600,
+                                                 gap: .none)
         let latencyScore = latencyReading.map { Self.latencyScore($0.value) } ?? 75
 
         // Deep and REM as a share of the night, never as a minute target.
         let deepReading = VitalReader.reading(.sleepDeepMinutes, from: samples,
-                                              now: now, freshWithin: 36 * 3600)
+                                              now: now, freshWithin: 36 * 3600,
+                                              gap: .none)
         let remReading = VitalReader.reading(.sleepRemMinutes, from: samples,
-                                             now: now, freshWithin: 36 * 3600)
+                                             now: now, freshWithin: 36 * 3600,
+                                             gap: .none)
         let restorativeShare: Double? = {
             guard lastNight > 0, deepReading != nil || remReading != nil else { return nil }
             let minutes = (deepReading?.value ?? 0) + (remReading?.value ?? 0)
@@ -443,8 +471,10 @@ public struct SleepInsight: InsightModel {
         // a "How far from your normal" row, without moving the score by a
         // point. `higherIsBetter: false` is the one directional fact the
         // index's own definition states: calmer breathing sits lower.
+        // `.none`: tracked and printed, weight 0 — nothing here is judged.
         if let breathing = VitalReader.reading(.breathingDisturbanceIndex,
-                                               from: samples, now: now) {
+                                               from: samples, now: now,
+                                               gap: .none) {
             contributors.append(.init(
                 metric: .breathingDisturbanceIndex, higherIsBetter: false, weight: 0,
                 detail: String(format: "index %.1f — tracked, not scored: no published "

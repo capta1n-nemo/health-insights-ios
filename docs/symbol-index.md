@@ -14,7 +14,8 @@ the place to look.
 - `Baseline/PhaseAwareBaseline.swift`
   - `PhaseAwareBaseline` :52
 - `Baseline/VitalReader.swift`
-  - `VitalReader` :46
+  - `ReferenceGap` :66
+  - `VitalReader` :87
   - `VitalReading` :24
 - `Body/BodyMesh.swift`
   - `BodyLimb` :88
@@ -130,7 +131,7 @@ the place to look.
 - `Insights/EffortIntensityModel.swift`
   - `EffortIntensityModel` :50
 - `Insights/Energy.swift`
-  - `EnergyInsight` :392
+  - `EnergyInsight` :397
   - `EnergyModel` :29
 - `Insights/FitnessAgeModel.swift`
   - `FitnessAgeModel` :18
@@ -198,7 +199,7 @@ the place to look.
   - `PeriodChange` :9
   - `PeriodContrast` :30
 - `Insights/ReadinessScore.swift`
-  - `ReadinessInsight` :244
+  - `ReadinessInsight` :254
   - `ReadinessScore` :15
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45

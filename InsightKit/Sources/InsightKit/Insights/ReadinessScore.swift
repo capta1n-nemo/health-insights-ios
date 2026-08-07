@@ -113,8 +113,18 @@ public enum ReadinessScore {
                                 now: Date = Date()) -> Output? {
         var comps: [Component] = []
 
+        // ⚠️ **`.none`, and it is a decision rather than an omission** — see
+        // the call-site rule in `VitalReader`. Readiness scores the z directly,
+        // so on the face of it it belongs with the judging callers. It is held
+        // back because its bands are calibrated against the ungapped baseline
+        // and this repo has already paid for changing that blind: applying the
+        // robust spread to scoring made this very model fall across a month of
+        // *improving* HRV, which is why robustness is opt-in. Moving the
+        // denominator here needs the reader's export to falsify it, and that
+        // measurement has not been done.
         func fresh(_ type: MetricType) -> VitalReading? {
-            guard let reading = VitalReader.reading(type, from: samples, now: now) else { return nil }
+            guard let reading = VitalReader.reading(type, from: samples, now: now,
+                                                    gap: .none) else { return nil }
             return reading.isFresh ? reading : nil
         }
 

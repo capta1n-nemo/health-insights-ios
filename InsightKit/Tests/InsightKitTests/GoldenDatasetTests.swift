@@ -44,7 +44,8 @@ final class GoldenDatasetTests: XCTestCase {
     /// and a fever becomes mathematically invisible.
     func testTheHeartRateBaselineIsDaysNotReadings() throws {
         let reading = try XCTUnwrap(VitalReader.reading(
-            .heartRate, from: samples, now: TestClock.now, calendar: TestClock.utc))
+            .heartRate, from: samples, now: TestClock.now, gap: .none,
+            calendar: TestClock.utc))
         // 28 days of history, minus the fortnight of silence inside the window.
         XCTAssertGreaterThan(reading.history.count, 8)
         XCTAssertLessThanOrEqual(reading.history.count, VitalReader.defaultWindowDays)

@@ -110,18 +110,22 @@ public struct HeartAgeAnalyser {
         // provider's vascular age. `latestValue` gave the newest raw sample and
         // asked nothing about its age or whether the same reading had arrived
         // twice.
+        // `.none` for all three: every one is a level fed into an age equation
+        // built on population norms, so the reader's own recent days are not a
+        // bar to clear and holding them out would only shorten the history.
         let vo2Reading = VitalReader.reading(.vo2Max, from: samples, now: now,
-                                             freshWithin: 45 * 86_400)
+                                             freshWithin: 45 * 86_400, gap: .none)
         let fitness = vo2Reading.map {
             FitnessAgeModel.evaluate(vo2: $0.value, sex: sex, chronologicalAge: age)
         }
         let vascularReading = VitalReader.reading(.vascularAge, from: samples, now: now,
-                                                  freshWithin: 60 * 86_400)
+                                                  freshWithin: 60 * 86_400, gap: .none)
 
         // Heart age needs a blood pressure and a real age; everything else falls
         // back to the same averages the risk card assumes.
         let systolicReading = VitalReader.reading(.bloodPressureSystolic, from: samples,
-                                                  now: now, freshWithin: 14 * 86_400)
+                                                   now: now, freshWithin: 14 * 86_400,
+                                                   gap: .none)
         let systolic = profile.cuffSystolic ?? systolicReading?.value
         guard let age, let systolic else {
             return Analysis(chronologicalAge: age, heart: nil, fitness: fitness,

@@ -93,8 +93,11 @@ public struct CardiovascularRiskInsight: InsightModel {
         // day's blood pressure and a clinician averages them. SCORE2 and ASCVD
         // are exponential in systolic, so that is the largest single number this
         // migration moves.
+        // `.none`: a level. The risk equation wants the systolic number and
+        // whether it is recent; it never asks whether it is unusual for you.
         let bpReading = VitalReader.reading(.bloodPressureSystolic, from: samples,
-                                            now: now, freshWithin: 14 * 86_400)
+                                            now: now, freshWithin: 14 * 86_400,
+                                            gap: .none)
         let sbp = profile.cuffSystolic ?? bpReading?.value
         let staleSystolic = profile.cuffSystolic == nil && (bpReading.map { !$0.isFresh } ?? false)
 

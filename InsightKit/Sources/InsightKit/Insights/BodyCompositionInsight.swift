@@ -448,7 +448,11 @@ public struct BodyCompositionInsight: InsightModel {
                                 excluding primary: Set<MetricType>) -> [ScoreBlend.Term] {
         supportingMetrics.compactMap { metric, higherIsBetter in
             guard !primary.contains(metric),
-                  let reading = VitalReader.reading(metric, from: samples, now: now)
+                  // `.none`: a supporting score term. Body composition moves
+                  // over months, so two days of gap would be noise against the
+                  // window anyway, and the score bands assume the ungapped one.
+                  let reading = VitalReader.reading(metric, from: samples, now: now,
+                                                    gap: .none)
             else { return nil }
             return ScoreBlend.supporting(reading, higherIsBetter: higherIsBetter)
         }

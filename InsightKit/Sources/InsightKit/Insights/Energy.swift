@@ -157,17 +157,22 @@ public enum EnergyModel {
     public static func evaluate(samples: [HealthMetricSample],
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
+        // `.none` for the reservoir's inputs: Energy models a level that fills
+        // and drains, so its arithmetic wants the most recent nights in the
+        // baseline rather than held out of it. See the call-site rule in
+        // `VitalReader`.
         let sleep = VitalReader.reading(.sleepDurationHours, from: samples, now: now,
-                                        freshWithin: 36 * 3600, calendar: calendar)
-        let rmssd = VitalReader.reading(.heartRateVariabilityRMSSD, from: samples, now: now,
+                                        freshWithin: 36 * 3600, gap: .none,
                                         calendar: calendar)
+        let rmssd = VitalReader.reading(.heartRateVariabilityRMSSD, from: samples, now: now,
+                                        gap: .none, calendar: calendar)
         let hrv = rmssd
             ?? VitalReader.reading(.heartRateVariabilitySDNN, from: samples, now: now,
-                                   calendar: calendar)
+                                   gap: .none, calendar: calendar)
         let hrvMetric: MetricType? = hrv == nil ? nil
             : (rmssd == nil ? .heartRateVariabilitySDNN : .heartRateVariabilityRMSSD)
         let resting = VitalReader.reading(.restingHeartRate, from: samples, now: now,
-                                          calendar: calendar)
+                                          gap: .none, calendar: calendar)
 
         // Without a night behind it there is no reservoir to report.
         guard let sleep, sleep.isFresh else { return nil }
@@ -521,7 +526,9 @@ public struct EnergyInsight: InsightModel {
         let supporting: [ScoreBlend.Term] = [MetricType.restingHeartRate, .heartRate]
             .filter { !alreadyScored.contains($0) }
             .compactMap { metric in
-                VitalReader.reading(metric, from: samples, now: now).flatMap {
+                // `.none`: a supporting score term, held with the rest of the
+                // scoring path until a gap there can be measured.
+                VitalReader.reading(metric, from: samples, now: now, gap: .none).flatMap {
                     ScoreBlend.supporting($0, higherIsBetter: false)
                 }
             }

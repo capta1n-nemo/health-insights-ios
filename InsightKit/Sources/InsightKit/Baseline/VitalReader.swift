@@ -43,7 +43,97 @@ public struct VitalReading: Sendable, Equatable {
     public var isJudged: Bool { zScore != nil }
 }
 
+/// Whether the days immediately before today may help set the bar today is
+/// judged against.
+///
+/// ## Why this is a type and not an `Int` with a default
+///
+/// `reading()` took `gapDays: Int = 0` from the day the gap was added, so
+/// exactly one caller — `VitalSignsCheck` — ever stated an answer and the other
+/// twenty-odd got theirs by omission. That is not "no gap decided": it is *the
+/// no-gap answer, chosen by nobody*, on every card that says a number is away
+/// from your normal. The reader caught the consequence twice on 2026-08-05
+/// ("still the same value.. but no longer in danger?") — an excursion ages two
+/// days into its own baseline and stops being an excursion without the body
+/// changing at all.
+///
+/// The fix is **not** a better default. There is no right global answer here:
+/// a card asking *"is today unusual?"* must hold the recent days out, and a
+/// card asking *"what is my level lately?"* must not, because holding them out
+/// deletes its newest and most relevant data. So the parameter is required and
+/// named, every call site says which question it is asking, and a new caller
+/// cannot get an answer without choosing one.
+public enum ReferenceGap: Sendable, Equatable {
+    /// The baseline runs right up to yesterday.
+    ///
+    /// For a caller whose question is *"where am I now"* rather than *"is this
+    /// unusual"* — a level, a trend, a score's input, a chart's own mean. Those
+    /// callers want the newest days most of all, and a gap would silently cost
+    /// them the ones that matter.
+    case none
+
+    /// Hold the last `n` days out of the baseline before judging today.
+    case days(Int)
+
+    /// Days this gap actually withholds.
+    public var count: Int {
+        switch self {
+        case .none: return 0
+        case .days(let n): return max(0, n)
+        }
+    }
+}
+
 public enum VitalReader {
+
+    /// The house answer for a caller whose sentence is *"today is away from
+    /// your normal"*.
+    ///
+    /// **Two, because two is the one that has already shipped through this
+    /// function** — `VitalSignsCheck.referenceGapDays` has passed it since
+    /// 2026-08-05 and is the only measured evidence available for a gap on this
+    /// path. The illness radar's `HealthWatchModel.referenceGapDays` is 4 and
+    /// stays 4: it is watching a signal that builds over several days, so it has
+    /// to hold out more of them, and it does its own windowing rather than
+    /// coming through here.
+    ///
+    /// ⚠️ Widening this moves the baseline of every judging caller at once,
+    /// which moves their z-scores. Anything calibrated against a z — and the
+    /// score bands are — has to be re-checked in the same change.
+    public static let judgementGap = ReferenceGap.days(2)
+
+    // MARK: - The rule the call sites were decided by
+    //
+    // Every `reading()` caller in this target now states a gap, and they were
+    // not all given the same one. The line drawn, on 2026-08-07:
+    //
+    // - **`judgementGap` where the reading's whole job is to say *"this is
+    //   away from your normal"***  — the clinical scan (`VitalSignsCheck`), the
+    //   departure panel every card renders (`VitalDeparture`), and the two
+    //   sentences in `SleepInsight` that print a departure from baseline. These
+    //   are the surfaces the defect was actually reported on.
+    // - **`.none` where the reading is a *level*** — `value` and `isFresh` only
+    //   (`PeerStanding`, `CardiovascularRiskInsight`, `HeartAgeAnalyser`,
+    //   `HeartResponseModel`, most of `SleepInsight`), or `baseline` used as
+    //   "your usual figure" rather than as a bar (`HeartHealthScore`). A gap
+    //   would cost these their newest days and buy them nothing.
+    // - **`.none`, deliberately and provisionally, on the scoring path** —
+    //   `ReadinessScore`, `Energy`, `FitnessInsight`, `BodyCompositionInsight`
+    //   and `HeartHealthScore`'s supporting terms feed z-scores into bands that
+    //   were calibrated against the ungapped baseline. Moving the denominator
+    //   moves every one of those bands, and this repo already has the lesson
+    //   recorded: the robust-spread change was made opt-in precisely because
+    //   applied to scoring it made `ReadinessScore` fall across a month of
+    //   *improving* HRV. Whether the gap helps a score is an empirical question
+    //   that needs the reader's export to answer, and it has not been answered.
+    //   ⚠️ **This is a decision, not an oversight** — do not "tidy" it to match
+    //   the judging callers without measuring first.
+    //
+    // The distinction that actually matters, when a new caller has to choose:
+    // a **judgement** asks whether today is unusual, so the last few days are
+    // contamination; a **level** asks where you are, so they are the answer.
+
+    // MARK: -
 
     /// Days of history a baseline is built from.
     public static let defaultWindowDays = 28
@@ -57,13 +147,18 @@ public enum VitalReader {
     /// Returns the reading even when stale or unjudged — the caller decides what
     /// to do about that, because "we have a number but can't judge it" and "we
     /// have nothing" deserve different words.
+    ///
+    /// `gap` has **no default on purpose** — see `ReferenceGap`. A caller
+    /// reading only `value`, `date` or `isFresh` is unaffected by it either way
+    /// and should say `.none`; the moment it touches `baseline`, `zScore` or
+    /// `history` the answer is load-bearing.
     public static func reading(_ metric: MetricType,
                                from samples: [HealthMetricSample],
                                now: Date = Date(),
                                windowDays: Int = defaultWindowDays,
                                minimumDays: Int = defaultMinimumDays,
                                freshWithin: TimeInterval = defaultFreshness,
-                               gapDays: Int = 0,
+                               gap: ReferenceGap,
                                calendar: Calendar = .current) -> VitalReading? {
         // One series per physical device, de-duplicated: the same ring arriving
         // twice is one instrument.
@@ -83,23 +178,25 @@ public enum VitalReader {
             // the rest of it, and it is the same device `HealthWatchModel` has
             // always had (`referenceGapDays`).
             //
-            // Zero by default: a caller that wants "how does today compare with
-            // the recent past" — a trend, a chart's own mean — is asking a
-            // different question and must not silently lose its newest days.
+            // `.none` is a real answer and not an absence of one: a caller that
+            // wants "how does today compare with the recent past" — a trend, a
+            // chart's own mean, a score's input — is asking a different question
+            // and must not lose its newest days. Which is why `gap` is required
+            // and typed rather than an `Int` that defaults to zero.
             let earlier = daily.dropLast()
             func window(gap: Int) -> [Double] {
                 let gapEnd = today.date.addingTimeInterval(-Double(gap) * 86_400)
                 let cutoff = gapEnd.addingTimeInterval(-Double(windowDays) * 86_400)
                 return earlier.filter { $0.date >= cutoff && $0.date < gapEnd }.map(\.value)
             }
-            // **The gap is affordable, not mandatory.** It costs `gapDays` of
+            // **The gap is affordable, not mandatory.** It costs `gap.count` of
             // history, and a reader who has just started has none to spare —
             // holding the line strictly would leave them with no judgement at
             // all for their first week and a half, which is worse than the
             // weakness the gap exists to remove. So: take the gap when the
             // window can still clear its own minimum without those days, and
-            // fall back to today's behaviour when it cannot.
-            let gapped = window(gap: gapDays)
+            // fall back to the ungapped window when it cannot.
+            let gapped = window(gap: gap.count)
             let history = gapped.count >= minimumDays ? gapped : window(gap: 0)
             let deviation = history.count >= minimumDays
                 ? Baseline.deviation(latest: today.value, history: history)
