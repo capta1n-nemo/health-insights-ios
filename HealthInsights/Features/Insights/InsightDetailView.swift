@@ -228,6 +228,10 @@ struct InsightDetailView: View {
             SocialBatterySection(timeframe: timeframe)
             calendarReviewSection(buckets: [.work, .personal],
                                   title: "The events behind this")
+        // Q8 / B3-25. Two sections in its own file — the summed table, and which
+        // bottles each figure came from.
+        case .supplementStack:
+            SupplementStackSection()
         }
     }
 

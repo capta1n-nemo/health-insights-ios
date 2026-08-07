@@ -60,7 +60,7 @@ final class ContributionRouteTests: XCTestCase {
                                    "\(model.id) offers an empty grounding route")
                 case .bloodPressureReadings, .substanceLog, .fileImport,
                      .medication, .bodyType, .bodyMeasurements, .screenTime,
-                     .symptomLog, .readerIdentity:
+                     .symptomLog, .readerIdentity, .supplementStack:
                     continue
                 }
             }

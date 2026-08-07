@@ -300,6 +300,11 @@ struct DataExportView: View {
             samples: model.samples,
             unmodelled: model.otherDataGroups.flatMap(\.samples),
             substances: model.substanceEvents,
+            // The stack, whole — products, declared ingredients (including the
+            // lines that declare no amount) and servings per day. See
+            // `HealthDataExport.supplements` for why the entries travel rather
+            // than the totals.
+            supplements: model.supplementEntries,
             medication: model.activeMedication.flatMap(Self.exported),
             // Every finished course as well. `activeMedication` alone was
             // dropping them, and the reader could not tell — see

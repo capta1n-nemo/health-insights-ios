@@ -253,6 +253,7 @@ struct TelemetryOutboxView: View {
             case .travelDrain: return "Travel drain"
             case .socialBattery: return "Social battery"
             case .soundExposure: return "Sound you took on"
+            case .supplementStack: return "What is actually in your stack"
             }
         } ?? raw
     }

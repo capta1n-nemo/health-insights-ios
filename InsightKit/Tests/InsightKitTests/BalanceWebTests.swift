@@ -299,9 +299,14 @@ final class BalanceWebTests: XCTestCase {
     ///    tallest spoke on the chart. It is also the only score here that is
     ///    maxed by *not doing* something enjoyable, which the web — read as a
     ///    picture of how the reader is doing — would render as encouragement.
+    /// 5. `supplementStack` — **it is not about the reader's body at all.** It
+    ///    scores a list of labels against a published table: a reader who takes
+    ///    nothing draws the tallest possible spoke, and one correcting a real
+    ///    deficiency draws a shorter one. Neither is a statement about how they
+    ///    are doing, which is what every other axis on this circle is.
     func testEveryOtherScoringCardStillBelongsOnTheWeb() {
         let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge, .mentalHealth,
-                                       .soundExposure]
+                                       .soundExposure, .supplementStack]
         for id in InsightID.allCases where !excluded.contains(id) {
             XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
         }

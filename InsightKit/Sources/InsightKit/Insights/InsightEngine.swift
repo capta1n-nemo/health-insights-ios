@@ -83,7 +83,16 @@ public struct InsightEngine: Sendable {
             // chart, and `SubstanceImpactInsight` — built as a free function and
             // skipped silently by all four for as long as it existed — is the
             // standing cautionary case for forgetting.
-            SocialBatteryInsight()
+            SocialBatteryInsight(),
+            // Bound to an empty stack; the app rebinds on every recompute via
+            // `withSupplements(_:)`. Registered rather than merely built —
+            // `SubstanceImpactInsight` spent months as a card the registry could
+            // not see, and score recording, replay and the comparison chart all
+            // skipped it silently for as long as that lasted.
+            //
+            // Last, and beside the other log-driven cards: its input is a list
+            // the reader keeps rather than anything a sensor noticed.
+            SupplementStackInsight()
         ]
     }
 
@@ -121,6 +130,18 @@ public struct InsightEngine: Sendable {
     public func withSubstanceLog(_ events: [SubstanceEvent]) -> InsightEngine {
         InsightEngine(models: models.map { model in
             model is SubstanceImpactInsight ? SubstanceImpactInsight(events: events) : model
+        })
+    }
+
+    /// The same registry with the supplement card bound to the reader's stack.
+    ///
+    /// Idempotent — it *replaces* the model rather than appending one — so a
+    /// caller may apply it on every recompute without compounding. Same contract
+    /// and same reason as `withSubstanceLog`: a supplement stack lives in
+    /// SwiftData and is not a `HealthMetricSample`.
+    public func withSupplements(_ entries: [SupplementEntry]) -> InsightEngine {
+        InsightEngine(models: models.map { model in
+            model is SupplementStackInsight ? SupplementStackInsight(entries: entries) : model
         })
     }
 

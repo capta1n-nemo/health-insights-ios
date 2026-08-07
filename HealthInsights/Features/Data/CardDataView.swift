@@ -109,7 +109,34 @@ struct CardDataView: View {
         case .screenTime: screenTimeSection
         case .symptomLog: symptomSection
         case .readerIdentity: readerIdentitySection
+        case .supplementStack: supplementSection
         case .groundingFacts(let kinds): factsSection(kinds)
+        }
+    }
+
+    /// The stack as this card sees it: what each bottle contributes, and — the
+    /// part that matters — how many ingredients declared no amount, since every
+    /// total the card prints is a floor while that is above nought.
+    @ViewBuilder private var supplementSection: some View {
+        if !model.supplementEntries.isEmpty {
+            Section("Supplements") {
+                ForEach(model.supplementEntries) { entry in
+                    HStack {
+                        Text(entry.product.name)
+                        Spacer()
+                        Text("\(entry.product.ingredients.count) "
+                             + "\(SectionCaveat.plural(entry.product.ingredients.count, "ingredient"))")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let stack = model.supplementStackSummary, stack.unresolvedCount > 0 {
+                    Text("\(stack.unresolvedCount) "
+                         + "\(SectionCaveat.plural(stack.unresolvedCount, "ingredient")) "
+                         + "declare no usable amount, so the totals on this card "
+                         + "are floors rather than figures.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

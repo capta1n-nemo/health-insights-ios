@@ -421,6 +421,10 @@ struct InsightCard: View {
         // Headphones rather than an ear or a waveform: the number is what the
         // reader chose to listen to, not what happened to their hearing.
         case .soundExposure: return "headphones"
+        // A pill bottle rather than a capsule or a leaf: the subject is the
+        // stack of products, not any one thing in it, and the card is about
+        // what the labels add up to.
+        case .supplementStack: return "pills.circle"
         // An hourglass, not a candle or a calendar: this is a rate, and the
         // card leads with the pace rather than the number.
         case .biologicalAge: return "hourglass"

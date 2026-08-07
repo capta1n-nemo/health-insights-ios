@@ -146,6 +146,31 @@ final class HealthDataExportTests: XCTestCase {
             unmodelled: [.init(identifier: "oura.x", displayName: "X", value: 1.0,
                                unit: "", start: now, source: .oura)],
             substances: [.init(substance: .alcohol, timestamp: now)],
+            // Q8 / B3-25. ⚠️ **Two ingredients on purpose, and only one of them
+            // declares an amount** — a stack whose every line is a number is not
+            // the shape that ships, and the proprietary-blend case is the one
+            // whose encoding could silently become a nought.
+            supplements: [SupplementEntry(
+                product: SupplementProduct(
+                    name: "Daily multivitamin",
+                    brand: "Test",
+                    servingDescription: "2 capsules",
+                    ingredients: [
+                        SupplementIngredient(
+                            nutrient: .zinc, labelText: "Zinc (as citrate)",
+                            amount: .stated(.init(value: 15, unit: .milligrams))),
+                        SupplementIngredient(
+                            nutrient: .selenium, labelText: "Selenium",
+                            amount: .withinProprietaryBlend(
+                                blendName: "Antioxidant Blend",
+                                blendTotal: .init(value: 250, unit: .milligrams))),
+                    ],
+                    // ⚠️ Stamped rather than defaulted. `addedAt` defaults to
+                    // `Date()`, whose sub-second precision `.iso8601` truncates
+                    // — so a defaulted fixture fails the round-trip comparison
+                    // for a reason that has nothing to do with this type.
+                    addedAt: now),
+                servingsPerDay: 1, startedOn: now.addingTimeInterval(-30 * 86_400))],
             medication: .init(compound: "tirzepatide", brandName: "Mounjaro", startedOn: now,
                               doses: [.init(takenAt: now, milligrams: 12.5,
                                             injectionSite: "Left Thigh",

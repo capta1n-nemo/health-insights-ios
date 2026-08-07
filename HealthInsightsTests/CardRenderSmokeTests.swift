@@ -30,13 +30,32 @@ final class CardRenderSmokeTests: XCTestCase {
     /// rather than deferred off-screen.
     private static let canvas = CGSize(width: 393, height: 3000)
 
+    /// ⚠️ **The `autoreleasepool` is load-bearing, not tidiness.**
+    ///
+    /// The canvas is 393 × 3000 at scale 1 — about 4.7 million pixels, so each
+    /// `uiImage` is roughly 19 MB of backing store, and it is a `UIImage`
+    /// returned autoreleased. Without a pool per render, every image a sweep
+    /// produces stays alive until the whole test method returns: the loop over
+    /// `InsightID.allCases` was holding all of them at once, and on 2026-08-07
+    /// the twentieth card took it past what the simulator would give the host.
+    /// The symptom is `Test crashed with signal kill` with no `error:` line and
+    /// no stack — a memory kill, which reads exactly like a card that traps.
+    ///
+    /// The card that tipped it (`.supplementStack`) rendered fine alone and the
+    /// other nineteen rendered fine without it; only the whole sweep died, which
+    /// is the signature of an accumulation rather than a defect in any card.
+    /// **Draining per render fixes the class**, so the next card added does not
+    /// re-discover this.
     private func render(_ view: some View, _ what: String,
                         file: StaticString = #filePath, line: UInt = #line) {
-        let renderer = ImageRenderer(content:
-            view.frame(width: Self.canvas.width, height: Self.canvas.height)
-        )
-        renderer.scale = 1
-        XCTAssertNotNil(renderer.uiImage, "\(what) produced no image.", file: file, line: line)
+        autoreleasepool {
+            let renderer = ImageRenderer(content:
+                view.frame(width: Self.canvas.width, height: Self.canvas.height)
+            )
+            renderer.scale = 1
+            XCTAssertNotNil(renderer.uiImage, "\(what) produced no image.",
+                            file: file, line: line)
+        }
     }
 
     /// ⚠️ **Cards this test cannot run, because rendering them kills the

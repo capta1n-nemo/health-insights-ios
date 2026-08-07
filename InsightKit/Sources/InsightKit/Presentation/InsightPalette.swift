@@ -50,6 +50,7 @@ public extension InsightID {
         case .travelDrain: return 17
         case .soundExposure: return 18
         case .socialBattery: return 19
+        case .supplementStack: return 20
         }
     }
 }

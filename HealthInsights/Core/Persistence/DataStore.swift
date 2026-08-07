@@ -19,7 +19,8 @@ final class DataStore {
                              // ⚠️ A @Model not listed here silently never persists.
                              CycleDayRecord.self,
                              CalendarEventRecord.self, CalendarJudgementRecord.self,
-                             HolidayEntry.self])
+                             HolidayEntry.self,
+                             SupplementEntryRecord.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -746,6 +747,39 @@ final class DataStore {
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         let records = (try? context.fetch(descriptor)) ?? []
         return records.compactMap(\.event)
+    }
+
+    // MARK: - Supplements
+
+    /// The reader's stack, newest first. Rows whose payload will not decode are
+    /// dropped rather than crashing — see `SupplementEntryRecord`.
+    func loadSupplementEntries() -> [SupplementEntry] {
+        let descriptor = FetchDescriptor<SupplementEntryRecord>(
+            sortBy: [SortDescriptor(\.startedOn, order: .reverse)])
+        return ((try? context.fetch(descriptor)) ?? []).compactMap(\.entry)
+    }
+
+    /// Insert or replace. Upsert rather than insert, so editing a bottle's label
+    /// corrects the row the reader is looking at instead of leaving two products
+    /// with the same name for the summation to double-count.
+    func saveSupplementEntry(_ entry: SupplementEntry) {
+        let id = entry.id
+        let descriptor = FetchDescriptor<SupplementEntryRecord>(
+            predicate: #Predicate { $0.id == id })
+        if let existing = (try? context.fetch(descriptor))?.first {
+            context.delete(existing)
+        }
+        context.insert(SupplementEntryRecord(entry: entry))
+        try? context.save()
+    }
+
+    func deleteSupplementEntry(id: UUID) {
+        let descriptor = FetchDescriptor<SupplementEntryRecord>(
+            predicate: #Predicate { $0.id == id })
+        if let record = (try? context.fetch(descriptor))?.first {
+            context.delete(record)
+            try? context.save()
+        }
     }
 
     // MARK: - Medication

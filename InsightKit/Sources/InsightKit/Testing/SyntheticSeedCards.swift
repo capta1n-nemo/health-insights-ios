@@ -191,6 +191,20 @@ public extension InsightID {
                 formality as its exposure side, and a seeded simulator has no \
                 calendar — so the depletion comparison has nothing to compare.
                 """)
+        // ⚠️ **Seeding this would be seeding somebody's stack**, which is the
+        // one thing on this switch that is not merely unavailable but wrong to
+        // invent: a fixture supplement stack is a list of products a fictional
+        // person takes, and a screenshot of it would look exactly like a
+        // reading. The card's empty state is the thing worth looking at on a
+        // simulator anyway — it is the state most readers will meet.
+        case .supplementStack:
+            return .needsMore("""
+                A supplement stack. Nothing senses one: the entries live in \
+                SwiftData and are rebound by InsightEngine.withSupplements, and \
+                there is no seed for them on purpose — an invented stack is a \
+                list of products a person does not take, and it would photograph \
+                as a finding. Add a bottle from the plus menu to see it populated.
+                """)
         }
     }
 }

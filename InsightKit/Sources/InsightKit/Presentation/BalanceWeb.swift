@@ -371,6 +371,14 @@ public extension InsightID {
         // encouragement.
         case .soundExposure:
             return false
+        // **Off the web, and it is the clearest case on this switch.** The web
+        // rings axes of how the reader's *body* is doing. This card scores a
+        // list of labels against a published table: a reader who takes nothing
+        // at all draws the tallest possible spoke, and a reader correcting a
+        // genuine deficiency draws a shorter one. Neither is a statement about
+        // them, and putting the two on one circle would make it one.
+        case .supplementStack:
+            return false
         }
     }
 
@@ -393,6 +401,7 @@ public extension InsightID {
         case .workImpact: return "Work"
         case .travelDrain: return "Travel"
         case .soundExposure: return "Sound"
+        case .supplementStack: return "Stack"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

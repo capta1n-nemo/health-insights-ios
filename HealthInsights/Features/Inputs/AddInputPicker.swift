@@ -235,6 +235,13 @@ extension AppModel {
             // what the reader has given, not what the calendar suggested.
             let count = holidayEntries.count
             return count == 0 ? nil : "\(count) recorded"
+        case .supplement:
+            // A product count, not an ingredient count: the row answers "how
+            // much have I told it", and the reader thinks in bottles. What the
+            // ingredients add up to is the card's job, and putting a share of a
+            // published limit on a menu row would be an alarm with no context.
+            let count = supplementEntries.count
+            return count == 0 ? nil : "\(count) \(SectionCaveat.plural(count, "product"))"
         }
     }
 }

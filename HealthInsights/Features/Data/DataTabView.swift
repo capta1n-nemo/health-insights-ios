@@ -249,6 +249,21 @@ struct DataTabView: View {
             return !model.substanceEvents.isEmpty
                 && (matches(domain.title, "cardiovascular load")
                     || model.substanceEvents.contains { matches($0.substance.displayName) })
+        case .supplements:
+            // Searchable by the **product's own name and by the nutrient**,
+            // which is the point: a reader looking for "zinc" is asking which of
+            // their bottles has zinc in it, and they have no reason to know the
+            // app files that under Supplements. The label text is searched too,
+            // so a line they typed themselves finds its bottle.
+            guard !model.supplementEntries.isEmpty else { return false }
+            return matches(domain.title, "supplement", "vitamin", "mineral",
+                           "multivitamin", "stack", "upper limit")
+                || model.supplementEntries.contains { matches($0.product.name) }
+                || model.supplementEntries.contains { entry in
+                    entry.product.ingredients.contains {
+                        matches($0.labelText) || matches($0.nutrient?.displayName ?? "")
+                    }
+                }
         case .medication:
             guard let medication = model.activeMedication, !medication.doses.isEmpty else {
                 return false
@@ -601,6 +616,7 @@ struct DataTabView: View {
         case .metrics: metricSections
         case .bloodPressure: bloodPressureSection
         case .substances: substanceSection
+        case .supplements: supplementSection
         case .medication: medicationSection
         case .sideEffects: sideEffectSection
         case .symptoms: symptomSection
@@ -614,6 +630,50 @@ struct DataTabView: View {
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection
         }
+    }
+
+    /// The reader's supplement stack — Q8 / B3-25.
+    ///
+    /// The row leads with **what is nearest a published limit**, because that is
+    /// the finding the sum exists to produce; a product count would be a
+    /// statement about how much typing has been done.
+    @ViewBuilder private var supplementSection: some View {
+        if !model.supplementEntries.isEmpty {
+            Section {
+                NavigationLink {
+                    SupplementsDataView()
+                } label: {
+                    let stack = model.supplementStackSummary
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("What your stack adds up to")
+                            Spacer()
+                            Text("\(model.supplementEntries.count)")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text(supplementSubtitle(stack))
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.supplements.title)
+            } footer: {
+                Text(DataDomain.supplements.summary)
+            }
+        }
+    }
+
+    private func supplementSubtitle(_ stack: SupplementStackModel.Output?) -> String {
+        guard let stack else { return "Entered by you, never sensed" }
+        if let highest = stack.highest, let share = highest.shareOfLimit {
+            return "\(highest.nutrient.displayName) is at "
+                + "\(SupplementFormatting.percent(share)) of its published limit"
+        }
+        if stack.unresolvedCount > 0 {
+            return "\(stack.unresolvedCount) "
+                + "\(SectionCaveat.plural(stack.unresolvedCount, "ingredient")) with no stated amount"
+        }
+        return "Entered by you, never sensed"
     }
 
     /// One row, opening the sub-page — the reader's own shape for it, 2026-08-06:

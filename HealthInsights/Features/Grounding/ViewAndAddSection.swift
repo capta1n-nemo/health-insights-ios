@@ -156,6 +156,15 @@ struct ContributionRouteStatus {
             summary = .symptoms(
                 tagged: model.symptoms.filter(\.severity.isPresent).count,
                 recordedAbsences: model.symptoms.filter { !$0.severity.isPresent }.count)
+        case .supplementStack:
+            title = "Supplements"
+            // Safe to read from a view only because `supplementEntries` is a
+            // stored, observed property — see its doc comment.
+            let stack = model.supplementStackSummary
+            summary = .supplementStack(
+                products: model.supplementEntries.count,
+                nutrients: stack?.totals.count ?? 0,
+                unresolved: stack?.unresolvedCount ?? 0)
         case .readerIdentity:
             title = "Name & emails"
             summary = .readerIdentity(name: model.readerIdentity.name,

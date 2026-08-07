@@ -166,6 +166,8 @@ private struct InputSheet: View {
             ReaderIdentitySheet()
         case .holiday:
             HolidayEntrySheet()
+        case .supplement:
+            SupplementStackSheet()
         }
     }
 

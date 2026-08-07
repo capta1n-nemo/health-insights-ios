@@ -376,7 +376,13 @@ final class ContributionSummaryTests: XCTestCase {
                         .screenTime(daysRecorded: 30, needed: 14, lastEntered: "today")]),
         ("readerIdentity", [.readerIdentity(name: nil, emails: 0),
                             .readerIdentity(name: "", emails: 2),
-                            .readerIdentity(name: "Alex", emails: 1)])
+                            .readerIdentity(name: "Alex", emails: 1)]),
+        // Q8 / B3-25. The third case is the one that matters: a stack carrying
+        // an ingredient with no stated amount has to word itself differently
+        // from one that does not, because those totals are floors.
+        ("supplementStack", [.supplementStack(products: 0, nutrients: 0, unresolved: 0),
+                             .supplementStack(products: 3, nutrients: 12, unresolved: 0),
+                             .supplementStack(products: 3, nutrients: 12, unresolved: 2)])
     ]
 
     private var all: [ContributionSummary] { Self.routes.flatMap(\.cases) }

@@ -139,6 +139,29 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// would let self-reported free text into the symptom radar without anybody
     /// deciding it should be there.
     case tags
+    /// **The reader's supplement stack** — the bottles, their Supplement Facts
+    /// panels, and what the whole lot adds up to per ingredient. Backlog Q8 /
+    /// B3-25.
+    ///
+    /// Its own domain rather than a flavour of `substances`, and the line is
+    /// sharp: a substance event is something that *happened at a time* and is
+    /// read against the vitals around it. A supplement stack is a **standing
+    /// list** — what the reader takes every day — and the finding in it is not
+    /// temporal at all, it is the sum of the labels across the products against
+    /// a published table. Folding them together would put a bottle of zinc in a
+    /// dated log with a timestamp nobody meant.
+    ///
+    /// Its own domain rather than a `MetricType` for the reason in this file's
+    /// header: a metric is one measured series and this is a *shape* — a
+    /// product, a list of declared ingredients, some of which declare no amount
+    /// at all, and a servings-per-day the reader can change without the label
+    /// changing.
+    ///
+    /// ⚠️ **What the reader typed, never what a sensor found.** Nothing on this
+    /// phone senses a supplement. Every figure here traces to a label the reader
+    /// entered, and the ingredients with no stated amount are shown as unstated
+    /// rather than as nought.
+    case supplements
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -174,6 +197,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .holidays: return "Holidays"
         case .sickDays: return "Sick days"
         case .tags: return "Tags"
+        case .supplements: return "Supplements"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -208,6 +232,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every day you were ill, from your calendar and from what you told the app — what you said, never what a sensor decided."
         case .tags:
             return "The words you put on a day, grouped by what the app worked out each one is about — and how it worked that out, so you can disagree with it."
+        case .supplements:
+            return "What you take, ingredient by ingredient — every product, everything its label declares, and what the whole stack adds up to against the published upper intake limits."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:
