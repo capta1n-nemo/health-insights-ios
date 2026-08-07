@@ -23,6 +23,7 @@ struct TodayView: View {
                     summaryCard
                     suggestionCard
                     LastNightCard()
+                    InstrumentCoverageSection()
                     VitalsGlance()
                     // "Improve your insights" used to sit here — a second list
                     // of the same grounding gaps `SuggestionEngine.unlocks`
@@ -319,7 +320,8 @@ struct InsightCard: View {
 
     /// Silent unless the score has moved past its own usual spread — see
     /// `ScoreChangeChip`.
-    private var change: ScoreChange? { model.scoreChange(for: result.id) }
+    private var changeState: ScoreChangeState? { model.scoreChangeState(for: result.id) }
+    private var change: ScoreChange? { changeState?.change }
 
     var body: some View {
         // 16 between the dial and the text, 8 before the chevron. Uniform 16
@@ -352,6 +354,8 @@ struct InsightCard: View {
                         // not swallow into a blank.
                         if let change {
                             ScoreChangeChip(change: change)
+                        } else if let changeState {
+                            PendingChangeChip(state: changeState)
                         }
                     }
                     // The figure the headline is *not* showing — on Blood
@@ -392,7 +396,11 @@ struct InsightCard: View {
     /// Folded into the card's combined label, because the chip's own label is
     /// unreachable once `accessibilityElement(children: .combine)` has merged it.
     private var changeSpeech: String {
-        guard let change else { return "" }
+        guard let change else {
+            // VoiceOver hears the fourth state too — the combine swallows
+            // `PendingChangeChip`'s own label exactly as it swallows the chip's.
+            return changeState.flatMap(\.explanation).map { "\($0) " } ?? ""
+        }
         switch change.direction {
         case .up: return "Up \(Int(abs(change.delta).rounded())) points \(change.comparison). "
         case .down: return "Down \(Int(abs(change.delta).rounded())) points \(change.comparison). "

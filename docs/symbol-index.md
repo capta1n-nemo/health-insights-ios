@@ -208,7 +208,8 @@ the place to look.
   - `SupportingSignal` :24
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
-  - `ScoreChangeReader` :117
+  - `ScoreChangeReader` :186
+  - `ScoreChangeState` :132
 - `Insights/ScoreCurve.swift`
   - `ScoreCurve` :33
 - `Insights/ScoreDecomposition.swift`
@@ -350,6 +351,10 @@ the place to look.
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :63
+- `Presentation/InstrumentCoverage.swift`
+  - `InstrumentCoverage` :100
+  - `InstrumentReport` :34
+  - `ListPhrase` :286
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -605,6 +610,9 @@ the place to look.
   - `BodyMeshView` :35
 - `DesignSystem/BodySilhouetteView.swift`
   - `BodySilhouetteView` :28
+- `DesignSystem/CoverageNotice.swift`
+  - `CoverageGateNotice` :26
+  - `PendingChangeChip` :75
 - `DesignSystem/DerivedSeriesChart.swift`
   - `DerivedSeriesChart` :20
 - `DesignSystem/EnergyCurveChart.swift`
@@ -679,10 +687,12 @@ the place to look.
 - `Features/Cycle/CycleTabView.swift`
   - `CycleTabView` :38
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :316
-  - `LastNightCard` :151
+  - `InsightCard` :317
+  - `LastNightCard` :152
   - `TodayView` :8
-  - `VitalsGlance` :226
+  - `VitalsGlance` :227
+- `Features/Dashboard/InstrumentCoverageSection.swift`
+  - `InstrumentCoverageSection` :45
 - `Features/Data/BodyScanDataView.swift`
   - `BodyScanDataView` :14
 - `Features/Data/CardDataView.swift`
@@ -810,10 +820,15 @@ the place to look.
   - `DataExportView` :16
   - `FullExport` :399
   - `OtherDataListView` :412
+- `Features/Settings/ResearchView.swift`
+  - `FindingRow` :83
+  - `ResearchFinding` :73
+  - `ResearchTopic` :113
+  - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :371
-  - `IntegrationRow` :272
-  - `IntegrationSummaryRow` :328
+  - `DisclaimerView` :376
+  - `IntegrationRow` :277
+  - `IntegrationSummaryRow` :333
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12
