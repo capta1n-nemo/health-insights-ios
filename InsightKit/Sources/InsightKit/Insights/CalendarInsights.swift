@@ -238,14 +238,40 @@ public enum WorkImpactModel {
                           now: now, calendar: calendar).mapValues(\.hours)
     }
 
+    /// Ready, or waiting on something nameable. See `TravelDrainModel.Readiness`
+    /// for the defect both exist to stop — a card saying "Connect your calendar"
+    /// to a reader whose calendar was connected, because five different `nil`
+    /// paths all rendered the same invitation.
+    public enum Readiness: Sendable {
+        case ready(Output)
+        case waiting(CoverageGate)
+        case noCalendar
+    }
+
     public static func evaluate(events: [CalendarEvent],
                                 judgements: [CalendarEventJudgement],
                                 samples: [HealthMetricSample],
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
+        if case .ready(let out) = analyse(events: events, judgements: judgements,
+                                          samples: samples, now: now,
+                                          calendar: calendar) { return out }
+        return nil
+    }
+
+    public static func analyse(events: [CalendarEvent],
+                               judgements: [CalendarEventJudgement],
+                               samples: [HealthMetricSample],
+                               now: Date = Date(),
+                               calendar: Calendar = .current) -> Readiness {
+        guard !events.isEmpty else { return .noCalendar }
         let profile = workingDayProfile(events: events, judgements: judgements,
                                         now: now, calendar: calendar)
-        guard profile.count >= minimumDaysPerHalf * 2 else { return nil }
+        guard profile.count >= minimumDaysPerHalf * 2 else {
+            return .waiting(CoverageGate(
+                need: minimumDaysPerHalf * 2, have: profile.count, unit: "working day",
+                unlocks: "this can compare your busier days against your quieter ones"))
+        }
         let load = profile.mapValues(\.hours)
 
         // Split at the reader's own median rather than at a chosen number of
@@ -256,7 +282,14 @@ public enum WorkImpactModel {
         let heavy = load.filter { $0.value > median }.keys.sorted()
         let light = load.filter { $0.value <= median }.keys.sorted()
         guard heavy.count >= minimumDaysPerHalf, light.count >= minimumDaysPerHalf
-        else { return nil }
+        else {
+            // Enough working days, but they are all similar — nothing to
+            // contrast. A flat diary is a real answer, not a missing calendar.
+            return .waiting(CoverageGate(
+                need: minimumDaysPerHalf, have: Swift.min(heavy.count, light.count),
+                unit: "day on the lighter side of your own median",
+                unlocks: "this can contrast your busy days with your quiet ones — right now they look alike"))
+        }
 
         var channels: [Channel] = []
         for entry in watched {
@@ -284,7 +317,11 @@ public enum WorkImpactModel {
                                     onLightDays: lightMean,
                                     towardWorse: entry.higherIsWorse ? raw : -raw))
         }
-        guard channels.count >= 2 else { return nil }
+        guard channels.count >= 2 else {
+            return .waiting(CoverageGate(
+                need: 2, have: channels.count, unit: "responding signal",
+                unlocks: "this can tell a real work effect from one instrument having a bad week"))
+        }
 
         let pooled = channels.reduce(0) { $0 + $1.towardWorse } / Double(channels.count)
 
@@ -309,7 +346,11 @@ public enum WorkImpactModel {
         // that. The guard is here so a future change to the split cannot
         // reintroduce a divide-by-zero silently.
         let typicalDay = median > 0 ? median : (Baseline.mean(sorted) ?? 0)
-        guard typicalDay > 0 else { return nil }
+        guard typicalDay > 0 else {
+            return .waiting(CoverageGate(
+                need: 1, have: 0, unit: "hour on a typical working day",
+                unlocks: "this can measure a heavy day against your own normal one"))
+        }
 
         let peak = profile.values.max { $0.hours < $1.hours }
         let peakHours = peak?.hours ?? heavyMedian
@@ -337,9 +378,16 @@ public enum WorkImpactModel {
             typicalDay: typicalDay, peakHours: peakHours, peakMeetings: peakMeetings)
         guard let blended = ScoreBlend.blend(metrics: metricTerms, factors: factorTerms,
                                              metricShare: metricShare)
-        else { return nil }
+        else {
+            // The blend refuses when no term carries weight. Unreachable given
+            // the channel guard above, so say what happened rather than
+            // rendering a bare absence.
+            return .waiting(CoverageGate(
+                need: 1, have: 0, unit: "weighted signal",
+                unlocks: "this can put a number on how work is landing"))
+        }
 
-        return Output(
+        return .ready(Output(
             channels: channels.sorted { $0.towardWorse > $1.towardWorse },
             heavyDays: heavy.count, lightDays: light.count,
             heavyMedianHours: heavyMedian,
@@ -350,7 +398,7 @@ public enum WorkImpactModel {
             score: blended.score, pooled: pooled,
             responseShare: metricShare,
             contributions: blended.contributions,
-            factors: blended.factors)
+            factors: blended.factors))
     }
 
     // MARK: - The two components, and how much of the number each carries
@@ -642,12 +690,49 @@ public enum TravelDrainModel {
         public let disruptedDays: Int
     }
 
+    /// Ready, or waiting on something nameable.
+    ///
+    /// ⚠️ **Why this exists — a defect the reader found on their own phone,
+    /// 2026-08-07: the card said "Connect your calendar" while their calendar
+    /// WAS connected.** `evaluate` returned `nil` down three different paths —
+    /// too few trips, too few days either side, too few responding signals —
+    /// and the card rendered the same "connect it" invitation for all of them.
+    /// So the app told them to do a thing they had already done, and gave them
+    /// no way to find out what it was really waiting for.
+    ///
+    /// That is backlog D46 in its worst form. A silent gate is bad; a gate that
+    /// **names the wrong cause** is worse, because the reader acts on it and
+    /// nothing changes. `CoverageGate` was built for exactly this and had no
+    /// caller — this is the first.
+    public enum Readiness: Sendable {
+        case ready(Output)
+        /// The first unmet requirement, in the order they are checked.
+        case waiting(CoverageGate)
+        /// No calendar events at all — genuinely "connect it", and the ONLY
+        /// case for which that sentence is true.
+        case noCalendar
+    }
+
     public static func evaluate(events: [CalendarEvent],
                                 samples: [HealthMetricSample],
                                 now: Date = Date(),
                                 calendar: Calendar = .current) -> Output? {
+        if case .ready(let out) = analyse(events: events, samples: samples,
+                                          now: now, calendar: calendar) { return out }
+        return nil
+    }
+
+    public static func analyse(events: [CalendarEvent],
+                               samples: [HealthMetricSample],
+                               now: Date = Date(),
+                               calendar: Calendar = .current) -> Readiness {
+        guard !events.isEmpty else { return .noCalendar }
         let changes = CalendarModel.timeZoneChanges(events, calendar: calendar)
-        guard changes.count >= minimumTrips else { return nil }
+        guard changes.count >= minimumTrips else {
+            return .waiting(CoverageGate(
+                need: minimumTrips, have: changes.count, unit: "trip",
+                unlocks: "this can tell how travel lands on you rather than guessing from one flight"))
+        }
 
         // Days inside a recovery window after any change.
         var disrupted = Set<Date>()
@@ -675,7 +760,13 @@ public enum TravelDrainModel {
                 metric: entry.metric, onHeavyDays: afterMean, onLightDays: ordinaryMean,
                 towardWorse: entry.higherIsWorse ? raw : -raw))
         }
-        guard channels.count >= 2 else { return nil }
+        guard channels.count >= 2 else {
+            // Trips exist, so the calendar is plainly connected — what is thin
+            // is the body data on either side of them. Say that.
+            return .waiting(CoverageGate(
+                need: 2, have: channels.count, unit: "responding signal",
+                unlocks: "this can separate a real travel effect from one instrument having a bad week"))
+        }
 
         let pooled = channels.reduce(0) { $0 + $1.towardWorse } / Double(channels.count)
         let contributions = channels.map { channel in
@@ -692,11 +783,11 @@ public enum TravelDrainModel {
                 componentScore: WorkImpactModel.score(pooled: channel.towardWorse))
         }
 
-        return Output(trips: changes.count, channels: channels.sorted { $0.towardWorse > $1.towardWorse },
+        return .ready(Output(trips: changes.count, channels: channels.sorted { $0.towardWorse > $1.towardWorse },
                       score: WorkImpactModel.score(pooled: pooled), pooled: pooled,
                       contributions: contributions,
                       zones: Array(Set(changes.map(\.zone))).sorted(),
-                      disruptedDays: disrupted.count)
+                      disruptedDays: disrupted.count))
     }
 
     // MARK: - What the calendar contributes here
@@ -804,12 +895,21 @@ public struct WorkImpactInsight: InsightModel {
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
-        guard let out = WorkImpactModel.evaluate(events: events, judgements: judgements,
-                                                 samples: samples, now: now) else {
+        let what = "This compares your body on your busier working days against your quieter ones — resting heart rate, variability and sleep, each read on the night *after* the day, because a meeting cannot change the sleep before it."
+        let out: WorkImpactModel.Output
+        switch WorkImpactModel.analyse(events: events, judgements: judgements,
+                                       samples: samples, now: now) {
+        case .ready(let o):
+            out = o
+        case .noCalendar:
             return invitingInput(
                 id, title,
                 action: "Connect your calendar",
-                message: "This compares your body on your busier working days against your quieter ones — resting heart rate, variability and sleep, each read on the night *after* the day, because a meeting cannot change the sleep before it. It needs your calendar connected and about \(WorkImpactModel.minimumDaysPerHalf) working days of each.")
+                message: "\(what) It needs your calendar connected and about \(WorkImpactModel.minimumDaysPerHalf) working days of each.")
+        case .waiting(let gate):
+            // See TravelDrainInsight — this branch used to say "Connect your
+            // calendar" to a reader who had.
+            return waitingOn(id, title, gate: gate, context: what)
         }
 
         // ⚠️ **The quadrant leads, and it is the whole point of D41.** The dial
@@ -871,12 +971,23 @@ public struct TravelDrainInsight: InsightModel {
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
-        guard let out = TravelDrainModel.evaluate(events: events, samples: samples, now: now)
-        else {
+        let what = "This reads the time zone on your calendar entries — the app captures no location and no time zone on any health reading, so a calendar entry is the only thing on your phone that knows you moved."
+        let out: TravelDrainModel.Output
+        switch TravelDrainModel.analyse(events: events, samples: samples, now: now) {
+        case .ready(let o):
+            out = o
+        case .noCalendar:
             return invitingInput(
                 id, title,
                 action: "Connect your calendar",
-                message: "This reads the time zone on your calendar entries — the app captures no location and no time zone on any health reading, so a calendar entry is the only thing on your phone that knows you moved. It needs \(TravelDrainModel.minimumTrips) trips before it will say anything: one flight is an anecdote.")
+                message: "\(what) It needs \(TravelDrainModel.minimumTrips) trips before it will say anything: one flight is an anecdote.")
+        case .waiting(let gate):
+            // ⚠️ **The reader's 2026-08-07 defect.** This branch used to render
+            // the "Connect your calendar" invitation above, so a reader who had
+            // connected it was told to connect it — and had no way to learn what
+            // was actually missing. The calendar is plainly connected here: we
+            // are holding events. Say what is thin instead.
+            return waitingOn(id, title, gate: gate, context: what)
         }
 
         var drivers: [InsightDriver] = [

@@ -116,9 +116,9 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :859
-  - `TravelDrainModel` :620
-  - `WorkImpactInsight` :776
+  - `TravelDrainInsight` :959
+  - `TravelDrainModel` :668
+  - `WorkImpactInsight` :867
   - `WorkImpactModel` :40
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11

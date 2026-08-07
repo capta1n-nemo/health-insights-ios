@@ -57,6 +57,38 @@ func invitingInput(_ id: InsightID, _ title: String,
                   drivers: [], unmetRequirements: [], invitesInput: true)
 }
 
+/// **Not enough yet — and it is not the reader's fault or their job to fix.**
+///
+/// ⚠️ **Why this is a separate constructor from `invitingInput`.** Found on the
+/// reader's own phone, 2026-08-07: Travel drain said *"Connect your calendar"*
+/// while their calendar was connected. `TravelDrainModel.evaluate` returned
+/// `nil` down three different paths — too few trips, too few days either side,
+/// too few responding signals — and the card rendered the same invitation for
+/// all of them. **So the app told them to do something they had already done.**
+///
+/// `invitingInput` requires an `action` on purpose, and that rule is right: a
+/// card asking for input must say what to do. But it makes an *imperative* the
+/// only way to explain an absent figure, and most absences are not the reader's
+/// to act on — two more trips, ten more reviewed events, three more cycles.
+/// Reaching for `invitingInput` there produces a false instruction, which is
+/// worse than silence: the reader acts, and nothing changes.
+///
+/// So this is the other half of backlog D46. `invitingInput` says *do this*;
+/// this says *this is what I am still counting, and how far along it is*, and
+/// **it never sets `invitesInput`** — there is nothing to give.
+func waitingOn(_ id: InsightID, _ title: String,
+               gate: CoverageGate, context: String) -> InsightResult {
+    // A met gate says nothing (`sentence` is nil), which should be unreachable
+    // here — reaching it means a caller withheld a figure whose own gate says it
+    // had enough. Say so rather than printing an empty explanation.
+    let waiting = gate.sentence ?? "Still gathering the data behind this."
+    return InsightResult(id: id, title: title, primaryValue: nil,
+                         headline: "Learning",
+                         score: nil, confidence: .low,
+                         explanation: "\(context) \(waiting)",
+                         drivers: [], unmetRequirements: [], invitesInput: false)
+}
+
 func trendWord(recent: Double, baseline: Double, higherIsBetter: Bool) -> String {
     let delta = recent - baseline
     if abs(delta) < 0.5 { return "steady" }
