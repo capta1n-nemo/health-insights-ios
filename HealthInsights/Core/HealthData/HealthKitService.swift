@@ -399,13 +399,50 @@ final class HealthKitService {
         result.other += sleep.segments
         result.other += await fetchOtherQuantities(start: otherLookbackStart)
         result.other += await fetchOtherCategories(start: otherLookbackStart)
-        DiagnosticsLog.shared.ok("Apple Health",
-            "Read \(result.samples.count) samples + \(result.other.count) other data points")
+        logReadOutcome(result)
         return result
         #else
         return SyncedData()
         #endif
     }
+
+    #if canImport(HealthKit)
+    /// **A read of nothing is not a pass.** Backlog D10.
+    ///
+    /// This line was an unconditional green tick — *"Read 0 samples + 0 other
+    /// data points"*, filed under Passed — which is the log agreeing with the
+    /// Settings row that everything is fine. It is the one place in the app
+    /// that can notice Apple Health went quiet, so it has to be the place that
+    /// says so.
+    ///
+    /// ⚠️ **It cannot say *why*, and must not pretend to.** HealthKit hides
+    /// read refusal by design: a type the reader declined and a type they have
+    /// never recorded return the same empty array, and there is no API that
+    /// separates them. So this states the ambiguity rather than picking a side
+    /// — naming both causes and where to check — which is the honest version
+    /// and the only one available.
+    private func logReadOutcome(_ result: SyncedData) {
+        guard result.samples.isEmpty && result.other.isEmpty else {
+            DiagnosticsLog.shared.ok("Apple Health",
+                "Read \(result.samples.count) samples + \(result.other.count) other data points")
+            return
+        }
+        DiagnosticsLog.shared.null("Apple Health", "Read nothing — every type came back empty",
+            detail: """
+                \(readTypes.count) types were asked for and all \(readTypes.count) returned no \
+                samples. Two very different things look exactly like this and HealthKit does \
+                not let an app tell them apart:
+
+                · Read access was declined. Tapping \u{201C}Don't Allow\u{201D} on the Health \
+                permission sheet, or switching a category off later, makes that data invisible \
+                to this app — it is never told, and reads an empty list instead.
+                · There genuinely is nothing recorded, on a new phone or one with no watch.
+
+                Check in Health ▸ your profile ▸ Apps & Services ▸ Health Insights. Everything \
+                listed there as off is data this app cannot see, whatever the cards say.
+                """)
+    }
+    #endif
 
     #if canImport(HealthKit)
     /// Read arbitrary quantity types using each type's preferred unit, emitting

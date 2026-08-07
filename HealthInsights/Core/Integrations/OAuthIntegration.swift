@@ -163,6 +163,20 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
 
     @Published private(set) var status: IntegrationStatus
 
+    /// **Connected, and bringing nothing back.** Backlog D10.
+    ///
+    /// `fetchData` is deliberately forgiving — one collection failing must not
+    /// abort the other eight — and `OuraProvider` therefore records every
+    /// rejection and returns normally. That is right per collection and wrong
+    /// in aggregate: a token whose grant has been revoked 401s on *all* of
+    /// them, `fetchData` returns an empty `SyncedData`, and `sync()` used to
+    /// finish by stamping `.connected(lastSync: Date())`. The reader saw
+    /// "Synced just now", in green, over nothing at all.
+    ///
+    /// Set by `sync()` from what actually arrived, and enriched by a subclass
+    /// that knows more (see `OuraProvider.summarise`).
+    @Published internal(set) var syncWarning: String?
+
     /// Coalesces token refreshes. Oura's refresh tokens are single-use, so nine
     /// endpoints each reacting to their own 401 by refreshing would revoke the
     /// grant instead of repairing it. Not `@Published` — it's plumbing, not state
@@ -247,14 +261,44 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         status = .notConnected
     }
 
+    /// ⚠️ **A throw here used to leave `status` untouched.**
+    ///
+    /// `sync()` had no `catch`, and `IntegrationRegistry.syncAllConnected` swallowed
+    /// the error with `try?`. So a token that expired mid-sync and could not be
+    /// refreshed — the exact case backlog D10 names — left the row reading
+    /// "Synced 3 days ago" in green and nothing anywhere saying why it had
+    /// stopped. Silence is the one thing this app is not allowed to answer with
+    /// when it cannot see.
     func sync() async throws -> SyncedData {
         refreshFailedThisSync = false
+        syncWarning = nil
         let started = Date()
-        let token = try await validAccessToken()
-        // Pull a long history so trends and future insights have depth to work with.
-        let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
-        logSyncPreamble(since: since)
-        let data = try await fetchData(accessToken: token, since: since)
+        let data: SyncedData
+        do {
+            let token = try await validAccessToken()
+            // Pull a long history so trends and future insights have depth to work with.
+            let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
+            logSyncPreamble(since: since)
+            data = try await fetchData(accessToken: token, since: since)
+        } catch {
+            status = .error(error.localizedDescription)
+            syncWarning = "Last sync failed: \(error.localizedDescription)"
+            DiagnosticsLog.shared.fail(displayName, "Sync failed: \(error.localizedDescription)",
+                                       detail: "Nothing new arrived from \(displayName). What is already on this phone is unchanged, and will go on ageing until a sync succeeds.")
+            throw error
+        }
+        // Every call can fail individually without throwing — `fetchData`
+        // records rejections per collection so one bad scope doesn't take the
+        // other eight down. Empty on the way out is the aggregate of that, and
+        // is not a sync worth calling successful.
+        if data.samples.isEmpty && data.other.isEmpty && data.payloads.isEmpty {
+            // `??`, not `=`: a subclass that already named the collections and
+            // the missing permission has said something more useful than this.
+            syncWarning = syncWarning
+                ?? "\(displayName) returned no data at all this sync — see Troubleshooting for what each collection answered."
+            DiagnosticsLog.shared.null(displayName, "Sync brought nothing back",
+                                       detail: "Every collection either failed or was empty. If the failures above are 401s, the saved sign-in no longer covers this data and only reconnecting can fix it.")
+        }
         status = .connected(lastSync: Date())
         let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
         DiagnosticsLog.shared.ok(displayName,
