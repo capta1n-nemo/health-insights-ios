@@ -378,10 +378,9 @@ public struct FitnessInsight: InsightModel {
         contextMetrics.compactMap { metric, higherIsBetter in
             // `.none`: supporting score terms, held with the rest of the
             // scoring path. See the call-site rule in `VitalReader`.
-            VitalReader.reading(metric,
-                                from: judgementSamples(for: metric, samples: samples,
-                                                       now: now, calendar: calendar),
-                                now: now, gap: .none)
+            VitalReader.reading(metric, from: samples, now: now, gap: .none,
+                                excludingPartialDay: excludesPartialDay(metric),
+                                calendar: calendar)
                 .flatMap { ScoreBlend.supporting($0, higherIsBetter: higherIsBetter) }
         }
     }
@@ -396,12 +395,17 @@ public struct FitnessInsight: InsightModel {
     /// freshness window, so nothing goes stale by waiting for midnight.
     /// Point-in-time vitals keep today — a heart rate at 9 am is a whole
     /// measurement, not a fraction of one.
-    static func judgementSamples(for metric: MetricType,
-                                 samples: [HealthMetricSample],
-                                 now: Date, calendar: Calendar) -> [HealthMetricSample] {
-        guard metric.presentation == .cumulativeTotal else { return samples }
-        let startOfToday = calendar.startOfDay(for: now)
-        return samples.filter { $0.start < startOfToday }
+    ///
+    /// ⚠️ **This used to return a filtered copy of the sample set, and that was
+    /// four fifths of the whole insight pass** (backlog `D57`). Handing
+    /// `VitalReader` a new array defeats the evaluation memo, which keys on the
+    /// canonical array's identity — so each of the five cumulative metrics
+    /// here, on each of two call sites, paid a full scan, a full deduplicate
+    /// and a full re-bucketing of the reader's 381,701 readings. The rule is
+    /// unchanged; only where it is applied moved, from the samples to the
+    /// buckets. See `VitalReader.reading(excludingPartialDay:)`.
+    static func excludesPartialDay(_ metric: MetricType) -> Bool {
+        metric.presentation == .cumulativeTotal
     }
 
     /// The supporting signals, and which direction is the good one.
@@ -438,10 +442,9 @@ public struct FitnessInsight: InsightModel {
         contextMetrics.compactMap { metric, _ in
             guard !excluding.contains(metric),
                   let reading = VitalReader.reading(
-                    metric,
-                    from: judgementSamples(for: metric, samples: samples,
-                                           now: now, calendar: calendar),
-                    now: now, gap: .none) else { return nil }
+                    metric, from: samples, now: now, gap: .none,
+                    excludingPartialDay: excludesPartialDay(metric),
+                    calendar: calendar) else { return nil }
             return .routine("\(metric.displayName): \(MetricValueFormatter.string(reading.value, metric)) \(metric.unit)")
         }
     }

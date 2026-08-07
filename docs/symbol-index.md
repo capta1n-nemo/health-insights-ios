@@ -542,7 +542,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :64
+  - `FileImportOutcome` :72
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
@@ -551,6 +551,12 @@ the place to look.
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
   - `DiagnosticsLog` :37
+- `Core/Diagnostics/HangDiagnosticsReporter.swift`
+  - `HangDiagnosticsReporter` :46
+- `Core/Diagnostics/MainThreadWatchdog.swift`
+  - `MainThreadWatchdog` :69
+- `Core/Diagnostics/RefreshPhaseTimer.swift`
+  - `RefreshPhaseTimer` :41
 - `Core/Documents/DocumentScanService.swift`
   - `DocumentScanService` :18
   - `ScreenTimeWeekScan` :89
