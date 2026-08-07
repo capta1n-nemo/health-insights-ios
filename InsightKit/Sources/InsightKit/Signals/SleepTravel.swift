@@ -248,6 +248,74 @@ public enum SleepTravel {
         return out
     }
 
+    /// The identifier `HealthKitService` catalogues Apple's per-stage segments
+    /// under. Named here beside its reader, as `NightSleepDetail` does.
+    static let appleSegmentIdentifier = "apple_health.sleep_segment"
+
+    /// Sleep segments rebuilt from the raw catalogue.
+    ///
+    /// `HealthKitService` maps HealthKit's category samples into `SleepSegment`,
+    /// hands them to `SleepNights` and then keeps them as raw rows so the
+    /// hypnogram has something to draw. Those rows are persisted; the mapped
+    /// segments are not. So a *view* — which sees only what was stored — has to
+    /// come back through here, and this is the only way the plane nap in the
+    /// reader's own history is reachable at all after the sync that fetched it.
+    public static func segments(raw: [RawMetricSample]) -> [SleepSegment] {
+        raw.compactMap { record in
+            guard record.identifier == appleSegmentIdentifier,
+                  case .text(let name) = record.value,
+                  let kind = SleepSegment.Kind(rawValue: name),
+                  record.end > record.start else { return nil }
+            return SleepSegment(kind: kind, start: record.start, end: record.end)
+        }
+    }
+
+    /// Daytime sleep from the raw catalogue, across **both** sources.
+    ///
+    /// The segment-based overload above can only see Apple, because Apple is the
+    /// only source that publishes segments. Oura publishes whole records with a
+    /// `type`, and `OuraResponseParser.countsTowardNight` is the one rule that
+    /// decides whether such a record is part of a night — the same rule the
+    /// parser and the model-internals export already share, called here rather
+    /// than restated so a third answer cannot appear.
+    ///
+    /// ⚠️ **The reader's plane sleep is most likely an Oura record, not an Apple
+    /// segment.** Reading only segments would have surfaced nothing at all for
+    /// the journey this whole row exists to describe, on the one source they
+    /// wear every night.
+    ///
+    /// ⚠️ **Known and left alone: the two paths disagree about a mid-afternoon
+    /// record with an unrecognised type.** `SleepNights` drops anything starting
+    /// between noon and 18:00 whatever it is called; `countsTowardNight` admits
+    /// an unknown type at any hour, deliberately, so that a new Oura value
+    /// cannot silently empty the sleep card. So an Oura record typed `sleep` at
+    /// 14:00 becomes part of a night on that path and is not reported here. That
+    /// is the parser's existing decision, not this function's — changing it
+    /// belongs with the fragment work, and calling `countsTowardNight` rather
+    /// than restating it is what keeps this from becoming a third answer.
+    public static func daytimeSleepHours(raw: [RawMetricSample],
+                                         calendar: Calendar = .current) -> [Date: Double] {
+        var out = daytimeSleepHours(from: segments(raw: raw), calendar: calendar)
+
+        let typeByStart = Dictionary(
+            raw.filter { $0.identifier == "oura.sleep.type" }
+                .compactMap { record -> (Date, String)? in
+                    guard case .text(let type) = record.value else { return nil }
+                    return (record.start, type)
+                },
+            uniquingKeysWith: { first, _ in first })
+
+        for record in raw where record.identifier == "oura.sleep.total_sleep_duration" {
+            guard let seconds = record.numericValue, seconds > 0 else { continue }
+            let hour = calendar.component(.hour, from: record.start)
+            guard !OuraResponseParser.countsTowardNight(type: typeByStart[record.start],
+                                                        localStartHour: hour)
+            else { continue }
+            out[calendar.startOfDay(for: record.start), default: 0] += seconds / 3600
+        }
+        return out
+    }
+
     /// How many separate bouts of sleep these segments describe.
     ///
     /// A night on a plane is not one block: it is a doze, a meal service, and
@@ -357,7 +425,7 @@ public enum SleepTravel {
         /// than with a formatter: this package's suite runs on Linux, where
         /// several Foundation formatter paths are Darwin-only, and a sentence
         /// nothing can test is a sentence that ships wrong.
-        static func hoursText(_ hours: Double) -> String {
+        public static func hoursText(_ hours: Double) -> String {
             let total = Int((abs(hours) * 60).rounded())
             var parts: [String] = []
             let h = total / 60, m = total % 60
@@ -367,7 +435,7 @@ public enum SleepTravel {
         }
 
         /// Signed hours from midnight back to a 24-hour clock: `−1.0` → "23:00".
-        static func clockText(_ signedHours: Double) -> String {
+        public static func clockText(_ signedHours: Double) -> String {
             let minutes = Int((signedHours * 60).rounded())
             let wrapped = ((minutes % 1440) + 1440) % 1440
             return String(format: "%02d:%02d", wrapped / 60, wrapped % 60)
@@ -386,7 +454,14 @@ public enum SleepTravel {
                               segments: [SleepSegment] = [],
                               calendar: Calendar = .current) -> [Night] {
         let zones = spans(raw: raw, calendar: calendar)
-        let daytime = daytimeSleepHours(from: segments, calendar: calendar)
+        // Both sources, and `segments` on top for a caller holding freshly
+        // mapped ones the catalogue has not been written from yet. `max` rather
+        // than `+`: the raw sweep already contains the Apple segments, so adding
+        // would count the same nap twice for any caller that passes both.
+        var daytime = daytimeSleepHours(raw: raw, calendar: calendar)
+        for (day, hours) in daytimeSleepHours(from: segments, calendar: calendar) {
+            daytime[day] = Swift.max(daytime[day] ?? 0, hours)
+        }
 
         var onsets: [Date: (instant: Date, here: Double)] = [:]
         for sample in samples where sample.type == .sleepOnset {

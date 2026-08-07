@@ -126,6 +126,7 @@ struct InsightDetailView: View {
             SleepApnoeaSection(timeframe: timeframe)
             SleepDebtSection(window: window(spanning: nightsSpan(model.sleepOnsetNights())))
             IdealSleepWindowSection()
+            SleepTravelSection()
             SleepInfluencesSection()
         case .substanceImpact:
             substanceLoadCard
@@ -209,6 +210,7 @@ struct InsightDetailView: View {
         case .workImpact:
             calendarReviewSection(buckets: [.work], title: "Your work events")
         case .travelDrain:
+            JetlagSection()
             calendarReviewSection(buckets: [.travel], title: "Your travel events")
         }
     }

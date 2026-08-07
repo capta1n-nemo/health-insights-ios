@@ -337,4 +337,74 @@ final class SleepTravelTests: XCTestCase {
         XCTAssertEqual(SleepTravel.Night.hoursText(1.5), "1 hour 30 minutes")
         XCTAssertEqual(SleepTravel.Night.hoursText(0), "0 minutes")
     }
+
+    // MARK: - The plane nap, reached from what was actually persisted
+    //
+    // The mapped `SleepSegment`s never reach the store — only the raw catalogue
+    // rows do — so a view has to come back through `segments(raw:)` and
+    // `daytimeSleepHours(raw:)`. Without these the reader's *"i also slept on
+    // the plane"* has nothing behind it after the sync that fetched it.
+
+    func testApplesPlaneNapIsRecoveredFromTheRawCatalogue() {
+        let cal = calendar(sydney)
+        let start = instant(sydney, 2026, 8, 7, 14, 0)
+        let raw = [RawMetricSample(identifier: "apple_health.sleep_segment",
+                                   displayName: "Sleep stage", value: .text("core"),
+                                   unit: "", start: start,
+                                   end: start.addingTimeInterval(2 * 3600),
+                                   source: .appleHealth)]
+        XCTAssertEqual(SleepTravel.segments(raw: raw).count, 1)
+        XCTAssertEqual(SleepTravel.daytimeSleepHours(raw: raw, calendar: cal)[
+            cal.startOfDay(for: start)] ?? 0, 2, accuracy: 0.001)
+    }
+
+    /// ⚠️ **The reader's own plane sleep is far more likely to be an Oura
+    /// record than an Apple segment** — Oura is what they wear every night, and
+    /// it publishes whole records with a `type` rather than stages. Reading only
+    /// segments would have surfaced nothing at all for this journey.
+    func testOurasDaytimeRecordIsSurfacedThroughItsOwnNightRule() {
+        let cal = calendar(sydney)
+        let start = instant(sydney, 2026, 8, 7, 14, 0)
+        let raw = [
+            RawMetricSample(identifier: "oura.sleep.type", displayName: "Type",
+                            value: .text("nap"), unit: "", start: start, source: .oura),
+            RawMetricSample(identifier: "oura.sleep.total_sleep_duration",
+                            displayName: "Total Sleep Duration", value: 4 * 3600.0,
+                            unit: "s", start: start, source: .oura),
+        ]
+        XCTAssertEqual(SleepTravel.daytimeSleepHours(raw: raw, calendar: cal)[
+            cal.startOfDay(for: start)] ?? 0, 4, accuracy: 0.001)
+    }
+
+    /// A real night must never be re-reported as daytime sleep — that would
+    /// double-count the very hours `SleepNights` already turned into a night.
+    func testAnOuraNightIsNotCountedAsDaytimeSleep() {
+        let cal = calendar(sydney)
+        let bedtime = instant(sydney, 2026, 8, 6, 23, 0)
+        let raw = [
+            RawMetricSample(identifier: "oura.sleep.type", displayName: "Type",
+                            value: .text("long_sleep"), unit: "", start: bedtime, source: .oura),
+            RawMetricSample(identifier: "oura.sleep.total_sleep_duration",
+                            displayName: "Total Sleep Duration", value: 7 * 3600.0,
+                            unit: "s", start: bedtime, source: .oura),
+        ]
+        XCTAssertTrue(SleepTravel.daytimeSleepHours(raw: raw, calendar: cal).isEmpty)
+    }
+
+    /// A caller holding both the raw sweep and freshly mapped segments must not
+    /// see the same nap twice.
+    func testSegmentsAndRawTogetherDoNotDoubleCountOneNap() {
+        let cal = calendar(sydney)
+        let start = instant(sydney, 2026, 8, 7, 14, 0)
+        let raw = [RawMetricSample(identifier: "apple_health.sleep_segment",
+                                   displayName: "Sleep stage", value: .text("core"),
+                                   unit: "", start: start,
+                                   end: start.addingTimeInterval(2 * 3600),
+                                   source: .appleHealth)]
+        let nights = SleepTravel.nights(samples: [], raw: raw,
+                                        segments: SleepTravel.segments(raw: raw),
+                                        calendar: cal)
+        XCTAssertEqual(nights.count, 1)
+        XCTAssertEqual(nights[0].daytimeHours ?? 0, 2, accuracy: 0.001)
+    }
 }
