@@ -150,6 +150,15 @@ struct SettingsView: View {
             } label: {
                 Label("Research", systemImage: "text.book.closed")
             }
+            // Beside Research on purpose (backlog P24): that one is what the
+            // published literature supports the cards claiming, this one is what
+            // *this* app has actually got right on this reader's own record.
+            // They answer the same question from opposite ends.
+            NavigationLink {
+                ModelAccuracyView()
+            } label: {
+                Label("How right has it been?", systemImage: "target")
+            }
             NavigationLink {
                 DisclaimerView()
             } label: {
@@ -158,7 +167,7 @@ struct SettingsView: View {
             LabeledContent("Version", value: BuildInfo.summary)
             LabeledContent("Built", value: BuildInfo.formattedDate)
         } footer: {
-            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Research is the published work behind what the cards will and won't claim. Version and build time tell you which deploy is on the phone.")
+            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Research is the published work behind what the cards will and won't claim; How right has it been? is the app checking its own predictions against measurements it did not produce, including where the honest answer is \"not enough yet\". Version and build time tell you which deploy is on the phone.")
         }
 
         #if DEBUG
