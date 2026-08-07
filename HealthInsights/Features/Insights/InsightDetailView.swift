@@ -508,6 +508,23 @@ struct InsightDetailView: View {
                     // wants the science behind it.
                     contributorsCard(result)
                     weightedContributionCard(result)
+                    // 7b. Which instrument each of those numbers came from,
+                    // what the others said, and why the app believed one of
+                    // them. Backlog B3-23 / S8, the reader's ask.
+                    //
+                    // Here rather than anywhere else because it qualifies the
+                    // two sections immediately above it: 7 says what feeds the
+                    // score and 8 says how much each counts, and this says
+                    // *whose reading* each of those was. It is deliberately
+                    // after the pair rather than between them — "the overview
+                    // of what feeds the score, then the arithmetic" is one
+                    // argument the user made and splitting it would break it.
+                    //
+                    // It arrives closed, like the other transparency deep
+                    // dives, with the widest disagreement on the outside.
+                    InstrumentAgreementSection(
+                        metrics: resolvedContributions(result).metrics,
+                        windowDays: max(14, Int(window(spanning: nil) / 86_400)))
                     // 8. You against everyone else, then 9. you against you.
                     peerStandingSection(result)
                     vitalDepartureSection(result)

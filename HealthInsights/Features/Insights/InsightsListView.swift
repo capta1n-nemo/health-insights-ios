@@ -7,13 +7,18 @@ import InsightKit
 ///
 /// ## The shape of the screen
 ///
-/// Three sections, in this order, each with one job:
+/// Four sections, in this order, each with one job:
 ///
 /// 1. **`suggestionsDrawer`** — "Improve your health", pinned and collapsed. The
 ///    only thing here about what to *do*, and the reason the tab gets opened.
 /// 2. **`heroSection`** — `ScoreBalanceWeb`: every scored insight at once, and
 ///    the tab's index as well as its summary, since a spoke opens its card.
 /// 3. **`cardFeed`** — every trend card, unchanged and in full.
+/// 4. **`InstrumentIndexCard`** — the appendix, collapsed: every signal the
+///    reader's devices disagree about, and which one the cards above believed.
+///    Backlog B3-23. It indexes what it sits under, so it goes last — and being
+///    last in the lazy stack is also what keeps its per-metric scan off the
+///    path of opening the tab.
 ///
 /// ## What made this tab slow, and what fixed it
 ///
@@ -55,6 +60,16 @@ struct InsightsListView: View {
                     suggestionsDrawer
                     heroSection
                     cardFeed
+                    // 4. The appendix: where the reader's own devices disagree,
+                    // and which one each card believed. Backlog B3-23.
+                    //
+                    // **Last on purpose, twice over.** It is an index rather
+                    // than a headline, so it belongs after the cards it indexes;
+                    // and this tab has been made slow twice by work started from
+                    // a view body, so being the final child of the `LazyVStack`
+                    // means its per-metric scan does not run until somebody
+                    // scrolls to it.
+                    InstrumentIndexCard()
                 }
                 .padding()
             }

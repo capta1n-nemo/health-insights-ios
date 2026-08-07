@@ -11,6 +11,10 @@ the place to look.
 
 - `Baseline/Baseline.swift`
   - `Baseline` :7
+- `Baseline/InstrumentAgreement.swift`
+  - `InstrumentAgreement` :69
+  - `InstrumentAgreementPanel` :192
+  - `InstrumentAgreementWording` :395
 - `Baseline/PhaseAwareBaseline.swift`
   - `PhaseAwareBaseline` :52
 - `Baseline/VitalReader.swift`
@@ -731,7 +735,11 @@ the place to look.
 - `Features/Insights/InsightsHeroModel.swift`
   - `InsightsHeroModel` :31
 - `Features/Insights/InsightsListView.swift`
-  - `InsightsListView` :33
+  - `InsightsListView` :38
+- `Features/Insights/InstrumentAgreementSection.swift`
+  - `InstrumentAgreementSection` :47
+- `Features/Insights/InstrumentIndexCard.swift`
+  - `InstrumentIndexCard` :45
 - `Features/Insights/MedicationSection.swift`
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
