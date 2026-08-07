@@ -1107,6 +1107,83 @@ absolute — and that is `MetricType.interchangeableGroups`, two rows of data
 rather than a per-model exception list, which only ever catches the models
 somebody remembered to leave out of it.
 
+### Substance Impact's three honest sections — and the one that was refused
+
+`SubstanceEpisodesSection.swift` (2026-08-07, backlog `S7` + `P16`) adds three
+sections under the load chart: **Occasions**, **How long it took to settle**, and
+**Each substance, good and bad**. All three arrive closed.
+
+`P16` asked for a *fourth* thing first — "score everything currently charted, not
+scored" — and **it is deliberately not built**. Independent statistical review of
+the reader's own record removed the ground it stood on: `heartRate`'s apparent
+stimulant effect fell from 0.91 SD to **0.03** once same-day step count entered
+the model; three of four "confirmed" effects were welcome-direction and two were
+the same measurement twice (r = 0.912); the permutation null was ~2×
+anti-conservative; BH is invalid under the measured negative dependence
+(r = −0.795); and the finding set flipped on the day boundary — 3 confirmations
+at UTC+8, 1 at UTC, **0** at UTC−5. The reader's ruling on being shown that,
+verbatim and standing: **"Honest version, always!"**
+
+So: per-episode deltas, the named alternative explanation *on each row* rather
+than in a footnote, **no score anywhere**, and
+`SubstanceEpisodeReport.ordinaryRun` — *"nothing has happened the same way often
+enough to tell it from an ordinary run"* — as the verdict below three occasions.
+`SubstanceEpisodeReportTests` holds all of it, including a reflection test that
+fails if a field called anything like a score appears.
+
+Three decisions in `SubstanceEpisodeReport` worth not undoing:
+
+- **The occasion's shape is measured in elapsed hours, never calendar days.**
+  Two drinks at 11pm and 1am are two calendar days and one evening. The day
+  boundary is also exactly what the refutation turned on, so nothing here may
+  depend on where midnight falls.
+- **A departure under one baseline SD is not timed.** A recovery time measured
+  off a smaller wobble is timing noise, and the section says that instead of
+  showing a number.
+- **The good/bad split reads the most recent occasion that measured each
+  signal, not a mean across occasions.** Averaging four occasions would
+  manufacture the precision the review just removed.
+
+**No chart, on purpose.** Four occasions drawn as a line is the most persuasive
+possible presentation of the thing that was refuted.
+
+### "What the drug is doing" — R24 and B3-21
+
+`MedicationPanelSection.swift` (2026-08-07) is Body Composition's second bespoke
+slot's new neighbour, beneath `MedicationSection`. Two sections, both closed:
+
+- **What you eat, and what you burn** (`R24`). Daily totals of `dietaryEnergy`
+  and `activeEnergyBurned`, 90 days either side of the first *confirmed* dose,
+  seven days minimum on the thinner side. Reported as **two deltas, never one
+  number** — `MedicationDoseResponse.Contrast` has no combined field and
+  `testNoArmOfTheSentenceEverClaimsTheDrugChangedYourMetabolism` runs every
+  combination of the two through the sentence machine looking for the banned
+  claim. The expected honest finding is *"the drug moved what you eat, not what
+  you burn"*, and it is emitted only when the data shows it.
+- **What the drug is doing** (`B3-21`). Every foldable signal placed by
+  days-since-dose and averaged across doses, with the cycle length taken from
+  the reader's own median inter-dose gap. **Each bin is a mean of per-dose
+  means, not of readings** — otherwise one dose day with heavy watch wear
+  outvotes the other thirteen — and every bin's **dose count is a table column**,
+  because a mean of two doses and a mean of fourteen draw identically. Side
+  effects fold onto the same axis as **counts**: nine records over seven days
+  cannot carry an average severity.
+
+**Two claims this section exists partly to refuse**, both in its doc comment and
+both tested: *"Mounjaro speeds up your metabolism"* is never said, and Apple's
+basal energy is never read — it is a formula from height, weight, age and sex,
+and there is no basal term anywhere in `MedicationDoseResponse`. Each row states
+whether the reader logged it or a sensor measured it, and the intake row carries
+the confound that matters: appetite falling is exactly when a food log gets
+patchier.
+
+`DoseCycleChart` is a raw `Chart` and carries **both** exemptions explicitly: the
+x axis is days-since-dose rather than calendar time, so there is nowhere to land
+substance shading (§9a), and it does not pan, so it cannot strand the reader in
+an empty window (§9b). It is the **fifth** non-panning raw chart, after
+`EnergyCurveChart`, `NightSleepChart`, `FitnessProjectionChart` and
+`DataTabView`'s inline one.
+
 ---
 
 ## 2. Metric detail screens

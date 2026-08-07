@@ -430,6 +430,8 @@ the place to look.
 - `Signals/CompositionVelocity.swift`
   - `CompositionVelocity` :23
   - `CompositionVelocityModel` :89
+- `Signals/MedicationDoseResponse.swift`
+  - `MedicationDoseResponse` :37
 - `Signals/MedicationResponse.swift`
   - `MedicationResponse` :25
 - `Signals/NightSleepDetail.swift`
@@ -472,6 +474,8 @@ the place to look.
 - `Substances/Substance.swift`
   - `SubstanceClass` :12
   - `SubstanceEvent` :60
+- `Substances/SubstanceEpisodeReport.swift`
+  - `SubstanceEpisodeReport` :34
 - `Substances/SubstanceEpisodes.swift`
   - `SubstanceEpisodes` :15
 - `Substances/SubstanceImpactInsight.swift`
@@ -738,6 +742,9 @@ the place to look.
   - `InsightsHeroModel` :31
 - `Features/Insights/InsightsListView.swift`
   - `InsightsListView` :33
+- `Features/Insights/MedicationPanelSection.swift`
+  - `DoseCycleChart` :259
+  - `MedicationPanelSection` :33
 - `Features/Insights/MedicationSection.swift`
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
@@ -751,6 +758,8 @@ the place to look.
   - `SymptomReconciliationSection` :158
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
+- `Features/Insights/SubstanceEpisodesSection.swift`
+  - `SubstanceEpisodesSection` :39
 - `Features/Insights/SymptomRadarWebCard.swift`
   - `RadarRingShape` :245
   - `RadarSpokeShape` :270
