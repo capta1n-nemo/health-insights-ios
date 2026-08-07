@@ -218,12 +218,22 @@ public struct SustainedLoadInsight: InsightModel {
                 z: risingIsLoad ? channel.loadZ : -channel.loadZ))
         }
 
-        // **The caveat is not decoration.** Four autonomic signals move for
+        // **The caveat is not decoration.** The autonomic signals below move for
         // stress, illness, alcohol, heat, altitude, hard training and a bad
         // fortnight at work, and this card cannot tell those apart. Saying so is
         // the difference between a measurement and a diagnosis.
+        //
+        // ⚠️ **The count is derived, and it used to be the word "four".** This
+        // card runs on as few as two channels — `SustainedLoadModel.evaluate`
+        // guards on `channels.count >= 2` — so on a reader whose ring reports no
+        // respiratory rate the sentence claimed to have measured signals it had
+        // never seen. `explanation` two lines below always derived it correctly;
+        // this line did not, and the two disagreed on the same screen. Backlog
+        // D19, found by the lint written for it (`verify.sh`,
+        // "a hard-coded count inside reader-facing copy"), which is the second
+        // instance of exactly the fault `adca807` fixed on Mental Health.
         drivers.append(InsightDriver(
-            text: "This measures four signals that load moves — it cannot tell stress from illness, alcohol, heat or hard training. What it can say is that the shift has lasted weeks rather than days.",
+            text: "This measures \(out.channels.count) signals that load moves — it cannot tell stress from illness, alcohol, heat or hard training. What it can say is that the shift has lasted weeks rather than days.",
             isNotable: false))
 
         return InsightResult(

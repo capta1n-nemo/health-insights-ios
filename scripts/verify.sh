@@ -580,6 +580,155 @@ if [ -n "$unshaded" ]; then
     fail=1
 fi
 
+# --- Rule 5's other half: a bespoke section that is present but empty -------
+#
+# Backlog G-check-3. The reader's rule 5 is *every card gets a bespoke section*,
+# and `InsightDetailView.bespokeSection` is exhaustive over `InsightID`, so a new
+# card cannot ship without **a** branch. That is only half the rule: `EmptyView()`
+# closes a case, compiles, and renders nothing — so **a section nobody has
+# written yet is textually identical to a section deliberately drawn elsewhere.**
+#
+# That is not hypothetical. An audit on 2026-08-06 read this switch, found a bare
+# `EmptyView` on `.readiness`, and listed a card that *does* have a picture among
+# the cards with none. The screen and the switch disagreed and the switch won.
+#
+# So the deliberate absence has to declare itself:
+#     case .readiness:
+#         noBespokeSection(because: "…")
+# and a bare `EmptyView` inside this one property fails. `EmptyView` elsewhere in
+# the file is fine and is not touched — `projectionSection` and
+# `secondaryBespokeSection` both carry a `default:` arm, which is a switch over
+# *some* cards by design rather than a promise about all of them.
+bespokefile=HealthInsights/Features/Insights/InsightDetailView.swift
+if [ -f "$bespokefile" ]; then
+    # From the declaration to the closing brace at four-space indent — the same
+    # extraction `check_switch_covers` uses above.
+    bespokebody=$(awk '/var bespokeSection/,/^    }$/' "$bespokefile" 2>/dev/null)
+    if [ -z "$bespokebody" ]; then
+        note "verify.sh cannot find InsightDetailView.bespokeSection — the rule-5 check above is silently checking nothing. Fix the extraction, or move the check to wherever the switch now lives."
+        fail=1
+    elif printf '%s' "$bespokebody" | grep -nE 'EmptyView' \
+            | grep -qvE '^[0-9]+:[[:space:]]*(///|//|\*)'; then
+        note "A card's bespoke section is a bare EmptyView, which cannot be told from a section nobody has written (rule 5, backlog G-check-3). Draw something, or declare the absence: noBespokeSection(because: \"<why>\")"
+        printf '%s' "$bespokebody" | grep -nE 'EmptyView' \
+            | grep -vE '^[0-9]+:[[:space:]]*(///|//|\*)'
+        fail=1
+    fi
+fi
+
+# --- A hard-coded count inside reader-facing copy ---------------------------
+#
+# Backlog D19 / G-check-2. A section shipped saying *"All four sitting where they
+# usually sit"* on a card that was running on **three** signals, and Mental
+# Health's empty-state line named all four behaviours it watches including the
+# one it had no data for. Fixed once, in `adca807`, and pinned with a test on
+# that one card. Nothing stopped the next one.
+#
+# This is the repo's own ledger row *"a hard-coded count going stale"* — except
+# inside a sentence, where it is worse, because the sentence is a claim about
+# what the app looked at.
+#
+# ## What is checked, and why it is this narrow
+#
+# The obvious lint — any number word in any copy — was measured before it was
+# written: **139 hits, nearly all of them legitimate physiology** ("a broken
+# seven hours", "your own three-week baseline", "it can swing two kilograms").
+# A lint at that signal-to-noise ratio teaches people to ignore lints.
+#
+# What is actually checkable is narrower and is the real defect: **a spelled-out
+# number standing directly in front of one of the app's own collection nouns** —
+# four *signals*, seven *behaviours*, three *cards*. That is an assertion about
+# the size of something the code owns, and the code can change its size. A
+# back-reference ("the two differ", "of the two figures") is not that, so an
+# anaphoric determiner in front of a weak noun is skipped. That took 139 to 17.
+#
+# The two escape hatches, in order of preference:
+#   1. Derive it: `\(out.channels.count) signals`. Nothing to go stale.
+#   2. `// count-in-copy: exempt — <why>` on the line or the line above, when the
+#      count is structural (a two-term equation) or a threshold ("at least two
+#      signals") rather than the size of a collection.
+# `scripts/count-in-copy-reviewed.txt` is the third: the seventeen strings that
+# predate this lint, each reviewed on 2026-08-07 with a reason. It is a ledger of
+# what was checked, not a place to add new copy.
+if command -v python3 >/dev/null 2>&1; then
+    countcopy=$(python3 - <<'PYEOF'
+import os, re, sys
+
+WORDS = (r'(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
+         r'thirteen|fourteen|fifteen|sixteen|seventeen)')
+# Nouns naming a collection the code owns. A count in front of one of these is
+# an assertion about a size, even with a determiner ("the four cards").
+STRONG = (r'(?:signals?|behaviours?|behaviors?|channels?|markers?|cards?|vitals?|'
+          r'metrics?|models?|equations?|measures|sections?|inputs?|insights?|domains?)')
+# Nouns that are just as often anaphoric ("the two figures the equation
+# compares"). Flagged only when nothing points backwards.
+WEAK = (r'(?:things?|numbers?|figures?|terms?|factors?|components?|contributors?|'
+        r'readings?|scores?|sources?|series|items?|entries)')
+ANA = r'(?:the|these|those|other|any|your|its|our)'
+# At most two adjectives between the count and the noun, and none of them a
+# determiner or preposition — otherwise the gap walks across a clause boundary
+# and matches a noun in the *next* phrase.
+GAP = (r'(?:\s+(?!the\b|a\b|an\b|this\b|that\b|these\b|those\b|of\b|in\b|on\b|'
+       r'and\b|or\b|it\b|its\b|your\b|my\b)[a-z]+){0,2}?')
+
+strong_re = re.compile(r'(?<!\w)' + WORDS + r'\b' + GAP + r'\s+' + STRONG + r'\b', re.I)
+weak_re = re.compile(r'(?<!\w)(?:(' + ANA + r')\s+)?' + WORDS + r'\b' + GAP
+                     + r'\s+' + WEAK + r'\b', re.I)
+literal_re = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+reviewed = set()
+ledger = 'scripts/count-in-copy-reviewed.txt'
+if os.path.exists(ledger):
+    for raw in open(ledger, encoding='utf-8'):
+        raw = raw.strip()
+        if not raw or raw.startswith('#'):
+            continue
+        parts = raw.split('|')
+        if len(parts) >= 2:
+            reviewed.add((parts[0].strip(), parts[1].strip().lower()))
+
+hits = []
+for root in ('InsightKit/Sources', 'HealthInsights'):
+    for dirpath, _, files in os.walk(root):
+        for name in sorted(files):
+            if not name.endswith('.swift'):
+                continue
+            path = os.path.join(dirpath, name)
+            lines = open(path, encoding='utf-8').read().splitlines()
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                # A comment cannot reach the reader, and this file's own prose
+                # about the rule must not trip it.
+                if stripped.startswith(('//', '*', '/*')):
+                    continue
+                nearby = line + (lines[i - 1] if i else '')
+                if 'count-in-copy: exempt' in nearby:
+                    continue
+                for literal in literal_re.finditer(line):
+                    text = literal.group(1)
+                    # Short literals are identifiers, keys and format fragments.
+                    if len(text) < 20:
+                        continue
+                    found = [m.group(0) for m in strong_re.finditer(text)]
+                    found += [m.group(0) for m in weak_re.finditer(text)
+                              if not m.group(1)]
+                    for fragment in found:
+                        if (path, fragment.lower()) in reviewed:
+                            continue
+                        hits.append('%s:%d  "%s"  in: %s'
+                                    % (path, i + 1, fragment, text[:90]))
+
+for hit in hits:
+    print(hit)
+PYEOF
+    ) || countcopy=""
+    if [ -n "$countcopy" ]; then
+        note "Reader-facing copy states a count in words. Derive it from the collection — \"\\(out.channels.count) signals\" — or, where the count is structural rather than a collection size, mark the line '// count-in-copy: exempt — <why>'. Backlog D19: a section said \"All four\" on a card running on three signals.
+$countcopy"
+        fail=1
+    fi
+fi
+
 # --- The fertile window says it is not contraception ------------------------
 #
 # A fertile window presented as a way to *avoid* pregnancy is a regulated

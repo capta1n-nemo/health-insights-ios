@@ -1,0 +1,55 @@
+# Counts written out in words, in reader-facing copy, that predate the lint.
+#
+# Read `scripts/verify.sh` ▸ "A hard-coded count inside reader-facing copy"
+# first — it says what the rule is and why it is this narrow. This file is the
+# ledger of what already existed when the rule arrived: every string the lint
+# flagged on 2026-08-07, opened, checked against the code, and given a reason.
+#
+# ⚠️ **This is not where new copy goes.** New copy has two better answers, in
+# order: derive the count from the collection — `\(out.channels.count) signals`,
+# which cannot go stale — or, where the count is structural rather than the size
+# of something, put `// count-in-copy: exempt — <why>` on the line. Both keep the
+# reason next to the sentence, which is where the next reader will be. An entry
+# here is a reason living three directories away from the thing it explains, and
+# it is only defensible for strings that were already shipped.
+#
+# Format:  <path> | <matched fragment> | <why the count cannot go stale>
+# The fragment is matched case-insensitively and line numbers are deliberately
+# not used — they drift, and a ledger keyed on a drifting number silently stops
+# matching, which reads as "clean".
+#
+# ## What the 2026-08-07 sweep found
+#
+# Seventeen flagged strings. **One was a live instance of the defect the rule
+# was written for**: SustainedLoadInsight said "This measures four signals that
+# load moves" on a card that runs on as few as two. It was fixed rather than
+# entered here, which is what a first run of a lint should produce.
+#
+# Two more are the same *shape* and survive only because they are empty states,
+# where the card has read nothing at all and is describing its own design rather
+# than a reading — MentalHealthModel and HealthWatch below. Both enumerate their
+# channels by hand, so both go stale the day a channel is added. They are
+# entered, not fixed, because interpolating the count while leaving the names
+# hand-written would make the sentence *internally* inconsistent, which is worse
+# than the consistent staleness it has now. Fixing them properly means deriving
+# both the count and the names, and that is a copy change with a reader-visible
+# result rather than a lint's business.
+
+InsightKit/Sources/InsightKit/Insights/MentalHealthModel.swift | four ordinary things | Empty state, reached only when the model returns nil — nothing has been read, so this describes the card's design and the four names follow in the same sentence. Goes stale if `MentalHealthModel.channels` gains a fifth; the names would too.
+InsightKit/Sources/InsightKit/Insights/HealthWatch.swift | seven overnight signals | Empty state, same shape as Mental Health above: the radar has read nothing yet, and all seven are named in the clause that follows.
+InsightKit/Sources/InsightKit/Insights/HealthWatch.swift | two measures | Inside that same sentence, and structural rather than a collection: HRV has exactly two published measures (SDNN and RMSSD) and a third is not a thing that exists.
+InsightKit/Sources/InsightKit/Insights/SustainedLoadInsight.swift | two signals | A *threshold*, not a size — it mirrors `guard channels.count >= 2` in `SustainedLoadModel.evaluate`. A minimum does not go stale when the collection grows.
+InsightKit/Sources/InsightKit/Presentation/SectionCaveat.swift | two signals | The same kind of threshold: reconstructed days need at least two signals before they are drawn.
+InsightKit/Sources/InsightKit/Presentation/SectionPlaceholder.swift | two things | A definition, not a count: a pattern is a relationship between two things, and it would be one whatever the app held.
+InsightKit/Sources/InsightKit/Insights/AgeComparison.swift | two published equations | SCORE2 and ASCVD, and this branch is reached only on `heart.readings.count >= 2` — the code has already established that both ran.
+InsightKit/Sources/InsightKit/Insights/AgeComparison.swift | two risk equations | The other arm of that same `if`, and the sentence's whole point is that one of the two did not cover the reader's age.
+InsightKit/Sources/InsightKit/Insights/CardiovascularRiskInsight.swift | two validated models | Both are named by format argument in the same sentence, so the count and the list cannot drift apart.
+InsightKit/Sources/InsightKit/Insights/CalendarInsights.swift | two things | The two are spelled out in the clause before it — "how much work there was, and what your body did about it".
+InsightKit/Sources/InsightKit/Insights/MetabolismInsight.swift | two figures the equation | Structural: the card solves observed against predicted, and a ratio has exactly two terms.
+InsightKit/Sources/InsightKit/Insights/MetabolismInsight.swift | two terms this card | The same two terms, on the intake row.
+HealthInsights/Features/Insights/SymptomRadarWebCard.swift | two HRV measures | SDNN and RMSSD again, and the sentence exists precisely to say those two count once between them.
+HealthInsights/Features/Insights/ScoreComparisonDetailView.swift | four cards | ⚠️ The weakest entry here. It matches `.prefix(4)` in the same file, ~170 lines away, and nothing ties them together. If that prefix changes, this sentence lies. Left as copy rather than derived because the string is a caption with no access to the series builder; worth a `\(Self.drawnCards)` constant the day either is touched.
+HealthInsights/Features/Insights/ScoreComparisonDetailView.swift | two cards | A threshold — two series with eight points each is the floor for a comparison, and `series.count >= 2` is the guard.
+HealthInsights/Features/Insights/InsightsListView.swift | three cards | A threshold, and the reason is written in the doc comment directly above `tooFewScores`: two scores draw a line segment, which reads as a bug rather than a shape.
+HealthInsights/Features/Insights/InsightDetailView.swift | two other age models | Heart age and fitness age. A third would need a new estimate source, which is a change to this section rather than to a collection it reads.
+HealthInsights/Features/Metrics/MetricDetailView.swift | two readings | A dashed stretch joins exactly two readings across a gap. Two is what a gap has ends.

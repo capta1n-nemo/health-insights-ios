@@ -140,7 +140,9 @@ struct InsightDetailView: View {
         // bespoke section", which was true of the switch and false of the
         // screen — the cost of reading a `default:` instead of the card.
         case .readiness:
-            EmptyView()
+            noBespokeSection(because: "its picture is the seventeen-vital strip, "
+                                 + "which vitalDepartureSection already draws for "
+                                 + "every card and keeps at full width for this one")
         // Backlog §B6 C8, the reader's own words: *"I want to have a section in
         // both cards that shows the list of items from your calendar, and the
         // relevant details for each item, with an opportunity to correct them or
@@ -152,6 +154,31 @@ struct InsightDetailView: View {
         case .travelDrain:
             calendarReviewSection(buckets: [.travel], title: "Your travel events")
         }
+    }
+
+    /// **A card declaring that it has no bespoke section, and why.** Backlog
+    /// `G-check-3`.
+    ///
+    /// Rule 5 — *every card gets a bespoke section* — was only half enforced.
+    /// The switch above is exhaustive over all `InsightID` cases, so a new card
+    /// cannot ship without *a* branch; but `EmptyView()` satisfies the compiler
+    /// and says nothing, so **a section nobody has written yet and a section
+    /// deliberately drawn elsewhere are the same two words.** One of those is a
+    /// finished decision and the other is an open task, and the audit on
+    /// 2026-08-06 got them the wrong way round for Readiness — it read the
+    /// switch, saw a bare `EmptyView`, and listed a card that has a picture as a
+    /// card that has none.
+    ///
+    /// So the deliberate one declares itself. `verify.sh` fails on a bare
+    /// `EmptyView` anywhere inside `bespokeSection`, which leaves exactly two
+    /// ways to close a case: draw something, or say in one line why there is
+    /// nothing to draw.
+    ///
+    /// The reason is not rendered anywhere and is not meant to be. Its reader is
+    /// the next person to open this switch — and the lint, which will not accept
+    /// its absence.
+    @ViewBuilder private func noBespokeSection(because reason: String) -> some View {
+        EmptyView()
     }
 
     // MARK: - The calendar review list
