@@ -16,10 +16,21 @@ import InsightKit
 /// completeness did before `DataDomain` made it a compile error. So the
 /// convention is this scaffold, and it is enforced two ways:
 ///
-/// 1. **`DataTabView.detailPage(for:)` is exhaustive over `DataDomain`** — a new
-///    kind of data cannot ship without a detail page.
+/// 1. **`DataTabView.section(for:)` is exhaustive over `DataDomain`** — a new
+///    kind of data cannot ship without a Data-tab *section*.
 /// 2. **`verify.sh` requires every `*DataView` under `Features/Data` to be built
-///    with `DomainDataScaffold`** — so the page it ships has the shape below.
+///    with `DomainDataScaffold`**, and requires every branch of
+///    `section(for:)` to open a `NavigationLink` — so a domain cannot ship with
+///    a section that is a dead end.
+///
+/// ⚠️ **Rule 1 used to be written here as `detailPage(for:)`, and no such
+/// function has ever existed.** Backlog `D47`. The comment promised the next
+/// session a compiler guarantee it did not have: the exhaustive switch renders a
+/// *section*, and the detail page is reached by a `NavigationLink` written by
+/// hand inside each section body. A new domain could ship with a section and no
+/// page and every check would pass — which is worse than having no rule, because
+/// a reader who trusts this comment stops looking. The `verify.sh` half of
+/// rule 2 was added to make the claim true rather than to soften it.
 ///
 /// ## The shape
 ///

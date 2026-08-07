@@ -16,9 +16,22 @@
 # deliberately runs elsewhere still work: their own `cd` follows ours.
 #
 # Permission note: Claude Code splits compound commands on `&&` and checks
-# each part, so the prefix needs its own allow entry —
-# "Bash(cd /home/user/health-insights-ios)" in .claude/settings.json —
+# each part, so the prefix needs its own allow entry in .claude/settings.json,
 # and every existing rule keeps matching its original part.
+#
+# ⚠️ **The allow entry must match the prefix BYTE FOR BYTE, quotes included.**
+# This was wrong for two platforms at once until 2026-08-07. The single entry
+# was `Bash(cd /home/user/health-insights-ios)` — unquoted, and the Linux path
+# only. So: the Mac path had no entry at all (the whole of D31), *and* the
+# quoting fix below silently invalidated the Linux one too, because the hook
+# now emits `cd "…"` and the rule matched `cd …`. Nobody noticed, because the
+# failure mode of a missing allow entry is a permission prompt — friction, not
+# an error, and easy to click through session after session.
+#
+# `verify.sh` now derives the prefix from this script and fails when no allow
+# entry matches it, so the next path change or quoting change cannot repeat it.
+# Four entries are listed (Mac, Linux, and each one's worktrees) because the
+# worktree branch below rewrites `root` to a nested path.
 #
 # The prefix is *quoted*. On the user's Mac the repo lives in iCloud Drive,
 # under a path containing a space. ⚠️ The repo moved out of iCloud Drive on

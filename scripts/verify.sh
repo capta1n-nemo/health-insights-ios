@@ -348,6 +348,40 @@ if command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
         note "Hook commands in .claude/settings.json must be \$CLAUDE_PROJECT_DIR-absolute (they inherit the shell's drifted cwd and fail silently): $relative_hooks"
         fail=1
     fi
+
+    # --- The workdir hook's rewrite prefix has a matching allow entry -------
+    #
+    # `bash-workdir-hook.sh` rewrites every shell call to `cd "<root>" && …`,
+    # and Claude Code splits on `&&` and permission-checks each part — so the
+    # prefix needs its own allow entry or every shell call prompts.
+    #
+    # ⚠️ This was wrong for BOTH platforms at once until 2026-08-07, and it
+    # went unnoticed for sessions because the failure mode of a missing allow
+    # entry is a prompt, not an error. The single entry named the Linux path
+    # unquoted; the Mac path had none, and a later fix made the hook emit
+    # `cd "…"` with quotes, which silently stopped the Linux entry matching
+    # too. Two separate regressions, one invisible symptom.
+    #
+    # So the check derives the prefix from the hook itself rather than
+    # restating it: whatever quoting or path the hook emits, an allow entry
+    # has to cover it.
+    if [ -f scripts/bash-workdir-hook.sh ] && grep -q 'cd \\"' scripts/bash-workdir-hook.sh; then
+        # The hook emits a quoted prefix. Every root it can anchor to needs an
+        # entry: this repo, and its worktrees directory.
+        root_now=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+        missing=""
+        for want in "cd \"$root_now\"" "cd \"$root_now/.claude/worktrees/"; do
+            if ! jq -e --arg w "$want" \
+                '[.permissions.allow[]? | select(startswith("Bash(" + $w))] | length > 0' \
+                .claude/settings.json >/dev/null 2>&1; then
+                missing="$missing\n      Bash($want…)"
+            fi
+        done
+        if [ -n "$missing" ]; then
+            note "$(printf 'bash-workdir-hook.sh rewrites every shell call to `cd "<root>" && …`, and Claude Code permission-checks that prefix separately — but .claude/settings.json has no allow entry matching it, so every shell call prompts. Add:%b' "$missing")"
+            fail=1
+        fi
+    fi
 fi
 
 # --- Every input sheet is reachable from the master input list --------------
@@ -412,6 +446,53 @@ EOF
     if [ -n "$nonconforming" ]; then
         note "Data detail pages that skip DomainDataScaffold — every domain data page must use it (see docs/data-conventions.md):$nonconforming"
         fail=1
+    fi
+
+    # --- Every DataDomain section actually opens something -----------------
+    #
+    # Backlog D47. `DomainDataScaffold`'s own doc comment claimed
+    # "DataTabView.detailPage(for:) is exhaustive over DataDomain — a new kind
+    # of data cannot ship without a detail page". **No such function has ever
+    # existed.** The exhaustive switch is `section(for:)` and it renders a
+    # *section*; the page is reached by a NavigationLink written by hand in each
+    # section body. So a domain could ship with a section that is a dead end and
+    # every check passed.
+    #
+    # That is worse than having no rule: a reader who trusts the comment stops
+    # looking. This makes the claim true instead of softening it — each branch
+    # of `section(for:)` names a section body, and every one of those bodies has
+    # to contain a NavigationLink somewhere.
+    if [ -f HealthInsights/Features/Data/DataTabView.swift ] && command -v python3 >/dev/null 2>&1; then
+        # Brace-matched, because a line-range heuristic silently reads past the
+        # section into its neighbours and then every section looks fine.
+        deadends=$(python3 - <<'PYEOF'
+import re, pathlib, sys
+src = pathlib.Path('HealthInsights/Features/Data/DataTabView.swift').read_text().splitlines()
+sw = '\n'.join(src)
+m = re.search(r'func section\(for domain: DataDomain\).*?\n    \}', sw, re.S)
+names = re.findall(r'case \.\w+: *(\w+)\s*$', m.group(0), re.M) if m else []
+bad = []
+for n in names:
+    start = next((i for i, l in enumerate(src) if re.search(rf'var {n}\s*:', l)), None)
+    if start is None:
+        continue
+    depth = 0
+    for i in range(start, len(src)):
+        depth += src[i].count('{') - src[i].count('}')
+        if depth == 0 and i > start:
+            body = '\n'.join(src[start:i + 1])
+            # A section may declare itself a dead end on purpose, but it has to
+            # say why — same contract as the substance-shading exemption.
+            if 'NavigationLink' not in body and 'data-detail: exempt' not in body:
+                bad.append(n)
+            break
+print(' '.join(bad))
+PYEOF
+)
+        if [ -n "$deadends" ]; then
+            note "Data-tab sections that open no detail page — every DataDomain section must contain a NavigationLink to its page, or the Data tab shows a row that goes nowhere (backlog D47, docs/data-conventions.md). Add the page, or a '// data-detail: exempt — <why>' comment in the section:$deadends"
+            fail=1
+        fi
     fi
 
     # And a data page never hand-rolls a chart. The chart rules live in the

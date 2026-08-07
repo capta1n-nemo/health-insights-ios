@@ -379,6 +379,11 @@ struct DataTabView: View {
     /// Data tab's whole job — every kind of data the app holds, listed, newest
     /// first, with nothing derived.
     @ViewBuilder private var cycleSection: some View {
+        // data-detail: exempt — TEMPORARY, tracked as backlog D49. Cycles have
+        // a whole tab, so the reader can reach the detail; what they cannot do
+        // is reach it from here, which is the convention this section breaks.
+        // The exemption names a row on purpose: an exemption with no id is a
+        // permanent excuse, and this one is meant to be spent.
         let summary = model.cycleSummary
         if !model.cycleDays.isEmpty {
             Section {
@@ -406,6 +411,10 @@ struct DataTabView: View {
     /// The three categories the reader named, as three labelled groups under
     /// one heading — see `DataDomain.calendarEvents` for why it is one domain.
     @ViewBuilder private var calendarSection: some View {
+        // data-detail: exempt — TEMPORARY, tracked as backlog D49. The review
+        // list lives on the Work impact and Travel drain cards, so the events
+        // are reachable but not from the Data tab, which is where the reader
+        // asked for a consistent way in.
         let buckets = model.calendarBuckets
         if !model.calendarEvents.isEmpty {
             Section {
@@ -1059,6 +1068,11 @@ struct DataTabView: View {
     }
 
     @ViewBuilder private var otherDataSection: some View {
+        // data-detail: exempt — tracked as backlog D49, and this is the one of
+        // the three that may be correct rather than a gap: "unmodelled" is not
+        // one kind of data but ~158 raw identifiers, browsed by search in place.
+        // A single detail page for it would be a page of everything. Decide
+        // deliberately rather than inheriting this comment.
         let sections = fieldSections
         let titles = fieldTitles
         ForEach(sections) { section in
