@@ -520,6 +520,11 @@ final class DataStore {
     /// able to rewrite what the model was given, or the app would hold a training
     /// pair it never actually saw and would score its own accuracy against words
     /// that did not exist at the time.
+    ///
+    /// ⚠️ **It does not touch `changedAfterReviewAt` either.** This call is what
+    /// refreshes the snapshot, so it is the exact moment the drift comparison
+    /// goes quiet — clearing the flag here would make a re-judgement decide, on
+    /// the reader's behalf, that a correction about the old event still stands.
     func recordClassification(_ classification: CalendarEventClassification,
                               for event: CalendarEvent, now: Date = Date()) {
         guard let data = try? JSONEncoder().encode(classification) else { return }
@@ -549,6 +554,9 @@ final class DataStore {
     /// ⚠️ **It writes neither the classification nor the artifact.** Both belong
     /// to classification time; re-snapshotting the event here is the one thing
     /// that would make the correction record lie.
+    ///
+    /// It *does* clear `changedAfterReviewAt` — the "this changed since you
+    /// reviewed it" flag — because this call is the reader answering again.
     func recordReview(eventID: String, correction: CalendarEventClassification?,
                       confirmed: Bool, now: Date = Date()) {
         let descriptor = FetchDescriptor<CalendarJudgementRecord>(
@@ -557,7 +565,35 @@ final class DataStore {
         record.correctionData = correction.flatMap { try? JSONEncoder().encode($0) }
         record.isConfirmed = confirmed
         record.reviewedAt = now
+        // The reader has just looked at the event as it stands, so whatever it
+        // did since they last answered has now been answered for.
+        record.changedAfterReviewAt = nil
         try? context.save()
+    }
+
+    /// Note, against each of these events, that it changed after the reader had
+    /// already answered about it.
+    ///
+    /// ⚠️ **A flag, not a resolution.** The correction is untouched here as
+    /// everywhere; all this records is that the answer was given about a version
+    /// of the event that no longer exists, so the review row can say so instead
+    /// of the app quietly discarding their input. Rows the reader has never
+    /// reviewed get nothing — there is no answer to have gone stale, and those
+    /// are simply re-judged.
+    ///
+    /// Earliest-wins, so a nightly sync cannot keep resetting the instant to
+    /// "just now" and make a fortnight-old drift look like it happened today.
+    func markCalendarJudgementsChanged(_ eventIDs: [String], now: Date = Date()) {
+        guard !eventIDs.isEmpty else { return }
+        let wanted = Set(eventIDs)
+        var touched = false
+        for record in (try? context.fetch(FetchDescriptor<CalendarJudgementRecord>())) ?? []
+        where wanted.contains(record.eventID) {
+            guard record.reviewedAt != nil, record.changedAfterReviewAt == nil else { continue }
+            record.changedAfterReviewAt = now
+            touched = true
+        }
+        if touched { try? context.save() }
     }
 
     /// Disconnecting the calendar forgets everything it brought — including the

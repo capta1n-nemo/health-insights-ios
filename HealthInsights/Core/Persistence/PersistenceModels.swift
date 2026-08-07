@@ -363,16 +363,23 @@ final class CalendarJudgementRecord {
     var artifactData: Data?
     var isConfirmed: Bool
     var reviewedAt: Date?
+    /// When the event first changed under an answer the reader had already
+    /// given — see `CalendarEventJudgement.changedAfterReviewAt`. Optional and
+    /// additive, so this is a lightweight SwiftData migration and needs no
+    /// schema version, exactly like `artifactData` before it.
+    var changedAfterReviewAt: Date?
 
     init(eventID: String, classificationData: Data, correctionData: Data? = nil,
          artifactData: Data? = nil,
-         isConfirmed: Bool = false, reviewedAt: Date? = nil) {
+         isConfirmed: Bool = false, reviewedAt: Date? = nil,
+         changedAfterReviewAt: Date? = nil) {
         self.eventID = eventID
         self.classificationData = classificationData
         self.correctionData = correctionData
         self.artifactData = artifactData
         self.isConfirmed = isConfirmed
         self.reviewedAt = reviewedAt
+        self.changedAfterReviewAt = changedAfterReviewAt
     }
 
     var judgement: CalendarEventJudgement? {
@@ -387,7 +394,8 @@ final class CalendarJudgementRecord {
         }
         return CalendarEventJudgement(eventID: eventID, classification: classification,
                                       correction: correction, isConfirmed: isConfirmed,
-                                      reviewedAt: reviewedAt, artifact: artifact)
+                                      reviewedAt: reviewedAt, artifact: artifact,
+                                      changedAfterReviewAt: changedAfterReviewAt)
     }
 }
 

@@ -249,6 +249,21 @@ final class AppModel {
     private(set) var calendarEvents: [CalendarEvent] = []
     private(set) var calendarJudgements: [CalendarEventJudgement] = []
 
+    /// **Events that changed since the app judged them, waiting to be re-judged.**
+    ///
+    /// Ids rather than events, so a meeting renamed three times before the flush
+    /// is judged once, against whatever it finally says.
+    ///
+    /// `@ObservationIgnored` on purpose: nothing on screen reads the queue — the
+    /// review row reads `CalendarEventJudgement.needsRereview`, which is stored —
+    /// and an observed set would redraw both calendar cards on every sync that
+    /// found a renamed meeting.
+    ///
+    /// It does not survive a relaunch, and does not need to: re-judgement is what
+    /// refreshes the snapshot, so anything not flushed is simply found again by
+    /// the next sync's comparison.
+    @ObservationIgnored private var calendarReclassificationQueue: Set<String> = []
+
     private let interpreter = CalendarEventInterpreter()
 
     /// Every event with whatever the app and the reader between them concluded,
@@ -343,13 +358,22 @@ final class AppModel {
     /// no benefit. (Identity *changes* re-read stored occasions separately and
     /// cheaply — see `saveReaderIdentity`.)
     func syncCalendar() async {
+        // ⚠️ **The backstop, not the boundary.** The boundary is leaving the
+        // card — see `flushCalendarReclassification()`. This is here so a reader
+        // who never opens either calendar card does not accumulate stale guesses
+        // for ever, and it is bounded by what actually moved rather than by the
+        // size of the calendar: on the overwhelmingly common sync, where nothing
+        // changed, it returns immediately having done nothing.
+        await flushCalendarReclassification()
+
         guard let integration = registry.integration(withID: "calendar")
                 as? CalendarIntegration,
               let fetched = try? integration.fetchEvents(identity: readerIdentity)
         else { return }
         dataStore.mergeCalendarEvents(fetched)
 
-        let judged = Set(dataStore.loadCalendarJudgements().map(\.eventID))
+        let stored = dataStore.loadCalendarJudgements()
+        let judged = Set(stored.map(\.eventID))
         for event in fetched where !judged.contains(event.id) {
             let base = CalendarEventClassifier.classify(event, identity: readerIdentity)
             // The on-device model settles the two interpretive axes where it is
@@ -359,7 +383,100 @@ final class AppModel {
                 base, modelContext: reading?.context, modelFormality: reading?.formality)
             dataStore.recordClassification(final, for: event)
         }
+
+        // MARK: what changed since it was judged (backlog B8 R3, C4)
+        //
+        // Detection only. A pure struct comparison against each stored snapshot,
+        // costing a dictionary lookup per event — cheap enough to run every sync,
+        // which is the whole reason judging and noticing were separated. What it
+        // finds is queued and judged on a boundary, below.
+        //
+        // ⚠️ `stored` is read *before* the loop above deliberately: an event just
+        // classified for the first time cannot have drifted from a snapshot taken
+        // one line ago, and including it would re-judge every new event twice.
+        let drifted = CalendarEventClassifier.drifted(stored, events: fetched)
+        calendarReclassificationQueue.formUnion(drifted.map(\.id))
+        // Where the reader has already answered and the event moved underneath
+        // them, the row is flagged rather than silently re-decided. Their
+        // correction is untouched either way — `recordClassification` cannot see
+        // one — but an answer about words that no longer exist deserves saying so.
+        dataStore.markCalendarJudgementsChanged(drifted.map(\.id))
+
         reloadCalendar()
+        recompute()
+    }
+
+    /// **Re-judge everything that changed, on the way out of the card.**
+    ///
+    /// The reader's instruction, 2026-08-06: *"I want it to re-write the model,
+    /// and re-calculate, maybe only do it once they leave the card, or just
+    /// whatever is the most efficient way, that also will not completely slow
+    /// down or break the app."*
+    ///
+    /// ## The boundary chosen, and why it is this one
+    ///
+    /// **Leaving the insight detail view** (`InsightDetailView`'s body-level
+    /// `.onDisappear`), with the next sync as a backstop. Noticing a change is
+    /// free and happens on every sync; *judging* one is not — it is an on-device
+    /// language-model call per event — and the two calendar cards are the only
+    /// surface where the answer is visible. Doing the work as the reader walks
+    /// out means it is already done when they walk back in, and it happens with
+    /// nothing on screen waiting on it.
+    ///
+    /// ⚠️ **The trigger must be at body level, never on a section.**
+    /// `InsightDetailView.body` is a `ScrollView { LazyVStack { … } }` — lazy on
+    /// purpose, because a card is eleven-plus sections and several run real
+    /// models — so an `.onDisappear` attached to the calendar review section
+    /// fires every time that section scrolls out of view. That is a view update,
+    /// which is the first of the two alternatives rejected below.
+    ///
+    /// The two alternatives were both worse, and both are named because both were
+    /// nearly taken:
+    ///
+    /// - **Inside a view update.** It would run on every redraw, against a list
+    ///   the reader is in the middle of reading, and relabel rows under their
+    ///   thumb.
+    /// - **On the sync tick.** It would land inside the "Syncing your devices"
+    ///   pass the reader has already told us hangs their phone (2026-08-06), and
+    ///   for a card they may not be looking at.
+    ///
+    /// Either trigger empties the queue, so **nothing happens when nothing
+    /// moved** — which is what makes this a debounce rather than a schedule.
+    ///
+    /// ## ⚠️ The invariant
+    ///
+    /// This rewrites the **guess** and the **snapshot** and cannot reach the
+    /// reader's correction: `DataStore.recordClassification` does not take one
+    /// and has never had one in hand (backlog C4), and
+    /// `CalendarEventJudgement.reclassified(as:artifact:)` states the same thing
+    /// at value level, where it is tested. Where a correction exists and the
+    /// event moved under it, `markCalendarJudgementsChanged` has already flagged
+    /// the row, so the reader is told rather than overruled.
+    func flushCalendarReclassification() async {
+        guard !calendarReclassificationQueue.isEmpty else { return }
+        // Taken and cleared up front, so a sync landing mid-flush queues into an
+        // empty set rather than having its work dropped by the clear at the end.
+        let pending = calendarReclassificationQueue
+        calendarReclassificationQueue = []
+        let byID = Dictionary(dataStore.loadCalendarEvents().map { ($0.id, $0) },
+                              uniquingKeysWith: { first, _ in first })
+        var rejudged = 0
+        for id in pending {
+            guard let event = byID[id] else { continue }
+            let base = CalendarEventClassifier.classify(event, identity: readerIdentity)
+            let reading = await interpreter.interpret(event)
+            let final = CalendarEventClassifier.refined(
+                base, modelContext: reading?.context, modelFormality: reading?.formality)
+            // Guess and snapshot together, so the stored pair stays each other's.
+            dataStore.recordClassification(final, for: event)
+            rejudged += 1
+        }
+        guard rejudged > 0 else { return }
+        reloadCalendar()
+        // Both calendar cards read `loadHours`, which a re-judged occasion or
+        // formality moves. This is the existing path — the insight pass runs off
+        // the main actor behind its generation guard (`dab5399`); nothing
+        // synchronous is reintroduced here.
         recompute()
     }
 
