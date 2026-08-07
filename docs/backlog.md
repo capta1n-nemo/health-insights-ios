@@ -578,6 +578,26 @@ plus a new data source, plus a calendar-classifier change, plus a learning loop.
   **formal/casual/standard** selector are **not relevant** and should not show.
 - It **does** need a **severity of sickness** selector.
 
+### ⚠️ EVIDENCE WARNING added 2026-08-07 — read before building the inversion
+
+`docs/illness-detection-evidence-2026-08-07.md` surveyed 28 studies and two of
+its findings bear directly on this section:
+
+- **Roughly two-thirds of genuine infections never produce a clear
+  physiological signal** (only 36.4% of PCR-confirmed cases showed a ≥3 br/min
+  respiratory-rate rise; prospective PPV is 4–12%; the one RCT's physiological
+  arm returned **zero** confirmed infections from 26 alerts).
+- **The signal is non-specific systemic strain**, not illness — the same
+  pattern precedes RA and IBD flares, and is reproduced by alcohol, hard
+  training, poor sleep and travel.
+
+So *"your pattern does not look like illness"* is **not** evidence that someone
+was not ill — it is the expected reading for most real illness. **Recommendation:
+compute the inversion and store it for the model, but never surface it to a
+person as a judgement about honesty**, and hold it to a far higher bar than the
+forward direction. This does not block the feature; it constrains what the
+feature may *say*.
+
 ### ⚠️ The fake-sick-day problem — the reader's own scientific objection
 - *"I also need a way for us to reclassify if a 'sick' day, is actually a 'sick
   so I can get off work' kind of day.. because I don't want fake sick days to
