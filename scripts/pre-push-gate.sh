@@ -86,6 +86,34 @@ derived-data path, so nothing about this change has been checked either way.
 Wait for the other build to finish and push again. Do not work around this by
 skipping the gate: it has verified nothing, so a push now is unverified."
     fi
+    # **The same shape, one level down: the app-target tests (D63).**
+    #
+    # Below, the denial ends "Fix it and push again… if the failure is genuinely
+    # unrelated to this change, say so explicitly" — which is the right sentence
+    # for a broken diff and the wrong one for a test host that was killed under
+    # ten concurrent worktree builds. On 2026-08-07 that wording is what a
+    # session had to argue against, and it argued badly: three wrong diagnoses,
+    # the last of them "it is pre-existing, push past the gate".
+    #
+    # ⚠️ **Still a denial.** Nothing here lets an unverified push through — the
+    # tests did not run, so the diff is unchecked and the answer is still no.
+    # What changes is that the reader is told what to do about it (wait, re-run)
+    # rather than sent looking for a defect that is not in their code.
+    #
+    # Matches `verify.sh`/`app-test-report.sh`'s own words, for the reason the
+    # branch above records: the raw xcodebuild phrasing never reaches here.
+    # `verify.sh` has already retried once before printing either of these.
+    if printf '%s' "$output" | grep -qE 'This is the MACHINE, not your diff|Zero tests executed'; then
+        deny "$(printf '%s' "$output" | grep -B2 -A6 -E 'This is the MACHINE, not your diff|Zero tests executed' | head -24)
+
+The app-target tests did not report on your diff — and verify.sh already
+retried once. This is the machine (backlog D63), not your change.
+
+Nothing about this push has been checked, so it is still a no. Wait for the
+other agents' builds to finish and run ./scripts/verify.sh --tests again. Do
+not push past this: the gate being usually-environmental is exactly how a real
+failure gets pushed through."
+    fi
     # The tail is what a reader needs; the full run is long and mostly the test
     # roster scrolling past.
     detail=$(printf '%s' "$output" | grep -E 'error:|does not mention|Rules reference|half-done|stale|✗' | head -20)
