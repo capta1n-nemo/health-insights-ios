@@ -113,6 +113,7 @@ struct ViewAndAddHubView: View {
         case .screenTime: screenTimeSection(status)
         case .symptomLog: symptomSection(status)
         case .readerIdentity: readerIdentitySection(status)
+        case .supplementStack: supplementSection(status)
         }
     }
 
@@ -193,6 +194,15 @@ struct ViewAndAddHubView: View {
 
     private func bodyTypeSection(_ status: ContributionRouteStatus) -> some View {
         sectionBody(status, addAction: { activeInput = .bodyType })
+    }
+
+    // MARK: - Supplements
+
+    /// One button, opening the same sheet the master list and the `+` menu do.
+    /// The stack's own list — every product and what is in it — is on the
+    /// consolidated data screen at the top of this hub, like every other route.
+    private func supplementSection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(status, addAction: { activeInput = .supplement })
     }
 
     // MARK: - Screen time

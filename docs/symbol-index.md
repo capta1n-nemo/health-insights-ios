@@ -189,14 +189,14 @@ the place to look.
 - `Insights/IdealSleepWindow.swift`
   - `IdealSleepWindow` :57
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :195
-  - `InsightCadence` :153
-  - `InsightConfidence` :187
-  - `InsightDriver` :223
+  - `GroundingRequirement` :211
+  - `InsightCadence` :169
+  - `InsightConfidence` :203
+  - `InsightDriver` :239
   - `InsightID` :15
-  - `InsightModel` :512
-  - `InsightResult` :240
-  - `RequirementStatus` :211
+  - `InsightModel` :528
+  - `InsightResult` :256
+  - `RequirementStatus` :227
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -400,11 +400,11 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :388
-  - `InputGroup` :399
+  - `CardRequirement` :436
+  - `InputGroup` :447
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :65
+  - `InsightPalette` :66
 - `Presentation/InstrumentCoverage.swift`
   - `InstrumentCoverage` :100
   - `InstrumentReport` :34
@@ -564,6 +564,14 @@ the place to look.
   - `SymptomReconciliation` :46
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
+- `Substances/Nutrient.swift`
+  - `Nutrient` :30
+  - `NutrientAmount` :286
+  - `NutrientForm` :261
+  - `NutrientUnit` :218
+  - `UpperLimitBasis` :201
+- `Substances/NutrientUpperLimits.swift`
+  - `NutrientUpperLimits` :53
 - `Substances/Substance.swift`
   - `SubstanceClass` :12
   - `SubstanceEvent` :60
@@ -579,6 +587,17 @@ the place to look.
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
   - `SubstanceWindow` :967
+- `Substances/SupplementStack.swift`
+  - `DSLDReference` :228
+  - `IngredientAmount` :127
+  - `SupplementEntry` :165
+  - `SupplementFormatting` :249
+  - `SupplementIngredient` :100
+  - `SupplementProduct` :30
+- `Substances/SupplementStackInsight.swift`
+  - `SupplementStackInsight` :35
+- `Substances/SupplementStackModel.swift`
+  - `SupplementStackModel` :38
 - `Testing/SyntheticSeed.swift`
   - `SyntheticSeed` :52
 - `Text/CardStateExport.swift`
@@ -687,21 +706,22 @@ the place to look.
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
   - `BodyScanRecord` :84
-  - `CalendarEventRecord` :233
-  - `CalendarJudgementRecord` :349
-  - `CycleDayRecord` :199
-  - `DoseLogRecord` :523
-  - `FeedbackRecord` :461
+  - `CalendarEventRecord` :271
+  - `CalendarJudgementRecord` :387
+  - `CycleDayRecord` :237
+  - `DoseLogRecord` :561
+  - `FeedbackRecord` :499
   - `GroundingRecord` :9
-  - `HolidayEntry` :308
+  - `HolidayEntry` :346
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
-  - `MedicationRecord` :491
-  - `PredictionOutcomeRecord` :428
-  - `SideEffectRecord` :555
+  - `MedicationRecord` :529
+  - `PredictionOutcomeRecord` :466
+  - `SideEffectRecord` :593
   - `SubstanceEventRecord` :166
-  - `SuggestionDismissalRecord` :410
+  - `SuggestionDismissalRecord` :448
+  - `SupplementEntryRecord` :201
 - `Core/State/AppModel.swift`
   - `AppModel` :11
 - `DesignSystem/AgeHistoryChart.swift`
@@ -815,7 +835,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1481
+  - `OtherDataDetailView` :1541
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -837,6 +857,9 @@ the place to look.
   - `LabResultsDataView` :18
 - `Features/Data/SickDaysDataView.swift`
   - `SickDaysDataView` :30
+- `Features/Data/SupplementsDataView.swift`
+  - `SupplementProductDataView` :109
+  - `SupplementsDataView` :23
 - `Features/Data/TagsDataView.swift`
   - `TagRow` :126
   - `TagsDataView` :41
@@ -871,21 +894,21 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :277
+  - `GroundingKindList` :287
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :170
+  - `GroundedSummary` :179
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `BodyTypeSheet` :232
-  - `HolidayEntrySheet` :786
+  - `BodyTypeSheet` :237
+  - `HolidayEntrySheet` :791
   - `InputSheet` :129
-  - `PushedInSheet` :205
-  - `ReaderIdentitySheet` :659
-  - `ScreenTimeEntrySheet` :311
-  - `SideEffectEntrySheet` :845
+  - `PushedInSheet` :210
+  - `ReaderIdentitySheet` :664
+  - `ScreenTimeEntrySheet` :316
+  - `SideEffectEntrySheet` :850
 - `Features/Inputs/AddInputPicker.swift`
   - `AddInputPicker` :36
   - `AddInputToolbar` :132
@@ -955,6 +978,9 @@ the place to look.
   - `SoundExposureSection` :22
 - `Features/Insights/SubstanceEpisodesSection.swift`
   - `SubstanceEpisodesSection` :39
+- `Features/Insights/SupplementStackSection.swift`
+  - `SupplementProductsSection` :91
+  - `SupplementStackSection` :34
 - `Features/Insights/SymptomRadarWebCard.swift`
   - `RadarRingShape` :251
   - `RadarSpokeShape` :276
@@ -987,8 +1013,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :37
-  - `FullExport` :486
-  - `OtherDataListView` :499
+  - `FullExport` :491
+  - `OtherDataListView` :504
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73
@@ -1009,4 +1035,10 @@ the place to look.
   - `TroubleshootingView` :10
 - `Features/Substances/SubstanceLogView.swift`
   - `SubstanceLogView` :13
+- `Features/Substances/SupplementProductEditor.swift`
+  - `SupplementIngredientEditor` :140
+  - `SupplementProductEditor` :18
+- `Features/Substances/SupplementStackSheet.swift`
+  - `SupplementNutrientRow` :143
+  - `SupplementStackSheet` :27
 

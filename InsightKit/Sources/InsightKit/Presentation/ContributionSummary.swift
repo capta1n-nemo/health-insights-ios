@@ -313,6 +313,56 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// The reader's supplement stack — Q8 / B3-25.
+    ///
+    /// "Grounded" is having one product, not a target number of them: the sum
+    /// across a stack is what the card is for, but a single multivitamin is
+    /// already a list of ingredients worth weighing, and setting a bottle count
+    /// would be this view inventing a threshold the model does not have.
+    ///
+    /// ⚠️ **The figure names the unresolved ingredients whenever there are any**,
+    /// and that is the one thing this summary does that the others do not. A
+    /// stack with a proprietary blend in it can never be totalled exactly, and a
+    /// "3 products" figure beside a card reporting floors would be the more
+    /// reassuring of two true statements.
+    public static func supplementStack(products: Int, nutrients: Int,
+                                       unresolved: Int) -> ContributionSummary {
+        ContributionSummary(
+            isGrounded: products > 0,
+            figure: {
+                guard products > 0 else { return "None yet" }
+                let base = "\(products) \(SectionCaveat.plural(products, "product"))"
+                return unresolved > 0 ? base + " · \(unresolved) unstated" : base
+            }(),
+            guidance: {
+                guard products > 0 else {
+                    return "Nothing on this phone knows what is in a supplement "
+                        + "bottle, so this is the one thing the app can only get "
+                        + "from you. Type a Supplement Facts panel or scan it, "
+                        + "and everything you take is added up ingredient by "
+                        + "ingredient against the published upper intake limits."
+                }
+                let base = "\(products) \(SectionCaveat.plural(products, "product")) "
+                    + "recorded, covering \(nutrients) "
+                    + "\(SectionCaveat.plural(nutrients, "nutrient")) the app can "
+                    + "weigh against a published limit."
+                guard unresolved > 0 else {
+                    return base + " Every ingredient declares an amount, so the "
+                        + "totals are figures rather than floors."
+                }
+                return base + " \(unresolved) "
+                    + "\(SectionCaveat.plural(unresolved, "ingredient")) declare "
+                    + "no usable amount — a proprietary blend, or a unit that "
+                    + "needs the form named — so those totals are floors and are "
+                    + "shown as \"at least\"."
+            }(),
+            progress: nil,
+            addLabel: products == 0 ? "Add a supplement" : "View & add supplements",
+            detailLabel: products > 0
+                ? "All \(products) \(SectionCaveat.plural(products, "product")) and what is in them"
+                : nil)
+    }
+
     /// Standing profile facts: one target, one count.
     public static func facts(set: Int, of total: Int) -> ContributionSummary {
         let complete = total > 0 && set >= total

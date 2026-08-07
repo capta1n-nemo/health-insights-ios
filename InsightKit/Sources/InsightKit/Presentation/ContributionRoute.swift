@@ -76,6 +76,20 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// whose numbers that moves is where the reader will go looking.
     case readerIdentity
 
+    /// **The reader's supplement stack** — the bottles, their Supplement Facts
+    /// panels, and how many servings a day they take of each. Backlog Q8/B3-25.
+    ///
+    /// **One route, one input**, on the pattern `.medication` set: a product,
+    /// its ingredient list and its servings are one conversation, and splitting
+    /// them would put three near-identical buttons on one card while the reader
+    /// is holding one bottle.
+    ///
+    /// A route rather than a Settings-only affordance for the reason
+    /// `.fileImport` is one: this is the only input in the app that the app
+    /// cannot get any other way — nothing senses a supplement — so the card that
+    /// depends on it is exactly where the reader will look for it.
+    case supplementStack
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
@@ -103,6 +117,12 @@ public extension ContributionRoute {
         case .bodyMeasurements: return [.bodyMeasurements]
         case .screenTime: return [.screenTime]
         case .readerIdentity: return [.readerIdentity]
+        // **One kind, not two.** Adding a bottle and saying how much of it you
+        // take are the same act on the same screen — the same call
+        // `.bodyMeasurements` makes about a tape and a scan, and for the same
+        // reason: two near-identical rows on every surface would bury the one
+        // question the reader actually has.
+        case .supplementStack: return [.supplement]
         // Captured in Apple Health, not by an in-app sheet — no `InputKind`
         // exists or is added. The every-input-surface rule governs inputs the
         // *app* takes; this one it only receives.

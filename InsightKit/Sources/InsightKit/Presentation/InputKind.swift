@@ -95,6 +95,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// One period of leave, entered by hand — backlog B7 H4. Past or planned:
     /// *"I should also be able to input holidays that are planned manually."*
     case holiday
+<<<<<<< HEAD
     /// **Telling the app what a flagged half-hour actually was** — backlog P32.
     ///
     /// An input like any other, and it belongs on this list for the reason the
@@ -108,6 +109,22 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// agreeing and disagreeing is kept where it is measurable —
     /// `FlaggedEventJudgement`, which stores the guess and the answer apart.
     case eventConfirmation
+=======
+    /// **A supplement, its Supplement Facts panel, and how much you take** —
+    /// backlog Q8 / B3-25.
+    ///
+    /// ⚠️ **The one input in this whole enum with no alternative source.** Every
+    /// other row here is a fact the app could in principle receive some other
+    /// way — a file, a photograph, a connected provider. Nothing anywhere senses
+    /// a supplement: no wearable, no scale, and Apple Health has no concept of a
+    /// supplement product. The reader typing it is not a fallback, it is the
+    /// mechanism.
+    ///
+    /// One case for bottle, panel and servings, for the reason
+    /// `.bodyMeasurements` is one case for a tape and a scan: they are one
+    /// screen answering one question, and three rows would bury it.
+    case supplement
+>>>>>>> worktree-wf_acf822b0-d44-3
 
     public var id: String { rawValue }
 
@@ -128,7 +145,11 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyMeasurements: return "Body measurements"
         case .readerIdentity: return "Name & emails"
         case .holiday: return "Holiday or leave"
+<<<<<<< HEAD
         case .eventConfirmation: return "Confirm a flagged event"
+=======
+        case .supplement: return "Supplement"
+>>>>>>> worktree-wf_acf822b0-d44-3
         }
     }
 
@@ -166,8 +187,13 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Your name, work and personal emails. Lets the calendar tell whose meeting — and whose OOO block — an event is. Stays on this phone and is never exported."
         case .holiday:
             return "Time off, past or planned. Goes into one leave record beside what your calendar shows, so the app can know how long since you last had any."
+<<<<<<< HEAD
         case .eventConfirmation:
             return "The app flags stretches where your heart rate ran high with nothing moving to explain it, and guesses what they were. Tell it what actually happened — the guess and your answer are kept apart, so it can show you how often it's right."
+=======
+        case .supplement:
+            return "A bottle you take, and what its Supplement Facts panel says. Nothing senses a supplement, so this is the only way in — and once several are in, every ingredient is added up across them and shown against the published upper intake limits for your age."
+>>>>>>> worktree-wf_acf822b0-d44-3
         }
     }
 
@@ -188,7 +214,11 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .bodyMeasurements: return "figure.mixed.cardio"
         case .readerIdentity: return "person.crop.circle"
         case .holiday: return "beach.umbrella"
+<<<<<<< HEAD
         case .eventConfirmation: return "questionmark.bubble"
+=======
+        case .supplement: return "pills"
+>>>>>>> worktree-wf_acf822b0-d44-3
         }
     }
 
@@ -207,7 +237,12 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return .asItHappens
         // Identity is entered once and changed rarely — the profile's shape,
         // even though it is not a grounding fact.
-        case .medicationRegimen, .bodyType, .bodyMeasurements, .readerIdentity:
+        // A supplement is a standing fact about the reader — what they take,
+        // changed when a bottle changes — and not a dated event. Beside the
+        // medication regimen for the same reason it sits beside it everywhere
+        // else: both are "what am I on", entered once and revisited.
+        case .medicationRegimen, .bodyType, .bodyMeasurements, .readerIdentity,
+             .supplement:
             return .aboutYou
         // Typed values are dated entries like a cuff reading — logged when the
         // results arrive, not a standing fact about the reader.
@@ -228,6 +263,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
              .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
+<<<<<<< HEAD
              .bodyMeasurements, .readerIdentity, .holiday, .labResultManual,
              .ecgImport:
             return nil
@@ -244,6 +280,9 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         // (`AddDataView.isBlocked`), so a second conditional kind would have
         // been blocked by the *medication* test.
         case .eventConfirmation:
+=======
+             .bodyMeasurements, .readerIdentity, .holiday, .supplement:
+>>>>>>> worktree-wf_acf822b0-d44-3
             return nil
         }
     }
@@ -335,6 +374,7 @@ public extension InputKind {
         // `daysSinceLastLeave`, each with a `modelVersion` bump, and the card
         // offer belongs in that change — a card offering an input its model
         // ignores would be claiming a sensitivity it does not have.
+<<<<<<< HEAD
         // ⚠️ **Settings and the `+` menu only, and the reason is a date rather
         // than a principle** — the same call `.holiday` makes below.
         //
@@ -361,6 +401,14 @@ public extension InputKind {
                 + "yet, so a card offering the input would claim a sensitivity "
                 + "its model has not got. The feed is reached from the Data tab, "
                 + "the + menu and its own dismissible suggestions instead.")
+=======
+        // Prompted, and it is the one input where the prompt is the only way
+        // the reader would learn the feature exists. Every other input answers a
+        // question the app is visibly already asking; nothing on any screen
+        // hints that this app can add a stack of labels up, and a card the
+        // reader never opens cannot tell them.
+        case .supplement: return .offeredAndPrompted
+>>>>>>> worktree-wf_acf822b0-d44-3
         case .holiday:
             return .settingsOnly("No shipped card reads the holiday ledger yet "
                 + "(B7 H6). Offering the log on a card whose score ignores it "

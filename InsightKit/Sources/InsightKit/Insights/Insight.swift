@@ -145,6 +145,22 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// ⚠️ It prints no battery percentage. See
     /// `SocialBatteryModel.capacityRefusal`.
     case socialBattery
+    /// **What is actually in your supplement stack** — backlog Q8 / B3-25.
+    ///
+    /// The one card here whose entire input the reader types, because there is
+    /// no other source: no wearable senses a supplement and Apple Health has no
+    /// concept of one. The reader's own answer to *"worth the one-time
+    /// capture?"* was *"Yes? From where?"* — from them, off the label.
+    ///
+    /// ⚠️ **The capture is not the feature.** Every multivitamin is a list, and
+    /// the finding is the sum *across* the stack: two products can each be
+    /// unremarkable and together carry more zinc than the published Tolerable
+    /// Upper Intake Level. See `SupplementStackModel`.
+    ///
+    /// ⚠️ **It states numbers and gives no instruction.** Exceeding an upper
+    /// limit is information; this card names the total and the published figure
+    /// and stops.
+    case supplementStack
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

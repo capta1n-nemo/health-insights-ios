@@ -93,6 +93,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// ⚠️ Three agents raised the version to 6 on the same afternoon; it is one
     /// version carrying all four keys, not three separate bumps.
 <<<<<<< HEAD
+<<<<<<< HEAD
     /// 7 adds `flaggedEvents` (P32) — **and is subject to the same caveat**: if
     /// another agent in the same wave also lands a key at 7, it is one version
     /// carrying both, not two bumps. The number tracks the *shape* a file was
@@ -102,6 +103,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// confidence the reading was made at) and `ecgRecords` (I7 — an imported
     /// trace's metadata, never an interpretation).
 >>>>>>> worktree-wf_acf822b0-d44-2
+=======
+    /// 7 added `supplements` — the reader's stack, whole (Q8 / B3-25).
+>>>>>>> worktree-wf_acf822b0-d44-3
     public static let schemaVersion = 7
 
     public struct Medication: Codable, Equatable, Sendable {
@@ -686,6 +690,16 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// Imported but not yet modelled — the raw catalogue.
     public let unmodelled: [RawMetricSample]
     public let substances: [SubstanceEvent]
+    /// **The reader's supplement stack**, whole — every product, its declared
+    /// ingredient list including the lines that declare no amount, and how many
+    /// servings a day of each. Backlog Q8 / B3-25.
+    ///
+    /// Exported as the *entries* rather than as the computed totals, and
+    /// deliberately: a total is a function of a limit table that this app
+    /// compiles in and will revise, so a file carrying only totals would carry
+    /// figures a later table no longer stands behind. The labels do not change.
+    /// The derived shares reach the file too, through `generatedInsights`.
+    public let supplements: [SupplementEntry]
     /// The regimen the reader is on now, or `null` if none.
     public let medication: Medication?
     /// **Every regimen they were on before it**, newest first.
@@ -985,7 +999,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
 
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
-                substances: [SubstanceEvent], medication: Medication?,
+                substances: [SubstanceEvent],
+                supplements: [SupplementEntry] = [],
+                medication: Medication?,
                 previousMedication: [Medication] = [],
                 sideEffects: [SideEffect], symptoms: [SymptomEvent] = [],
                 bodyScans: [BodyScan] = [],
@@ -1027,6 +1043,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         self.samples = samples
         self.unmodelled = unmodelled
         self.substances = substances
+        self.supplements = supplements
         self.medication = medication
         self.previousMedication = previousMedication
         self.sideEffects = sideEffects
@@ -1085,6 +1102,21 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // measurement is how an archive gets to disagree with itself.
         case .metrics, .bloodPressure: return "samples"
         case .substances: return "substances"
+        // export-domain: supplements — owns "supplements"; `supplements:` is
+        // passed by DataExportView.buildFullExport(). Its own key rather than a
+        // share of "substances", because the shapes are nothing alike: a
+        // substance event is one dated row and a supplement entry is a product
+        // with a whole declared ingredient list hanging off it.
+        //
+        // ⚠️ **And it is the key most worth pooling, for the reason the reader
+        // gave for wanting the export at all** (*"for things that have no
+        // research, we are going to do the research and find the norms
+        // ourselves"*). Nobody publishes what a real stack adds up to: the
+        // Dietary Reference Intakes say what the limit is, and no dataset says
+        // how often anyone crosses it or which combination of ordinary products
+        // gets them there. That figure can only come from a pool of files like
+        // this one.
+        case .supplements: return "supplements"
         case .medication: return "medication"
         case .sideEffects: return "sideEffects"
         case .symptoms: return "symptoms"
@@ -1278,6 +1310,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
+        case supplements
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, sickDays
         case calendarEvents
@@ -1301,6 +1334,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(samples, forKey: .samples)
         try c.encode(unmodelled, forKey: .unmodelled)
         try c.encode(substances, forKey: .substances)
+        try c.encode(supplements, forKey: .supplements)
         try c.encode(medication, forKey: .medication)
         try c.encode(previousMedication, forKey: .previousMedication)
         try c.encode(sideEffects, forKey: .sideEffects)

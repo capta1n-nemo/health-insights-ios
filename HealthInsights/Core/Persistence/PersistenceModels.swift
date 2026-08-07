@@ -184,6 +184,44 @@ final class SubstanceEventRecord {
     }
 }
 
+/// **One supplement the reader takes**, with its whole label — backlog Q8/B3-25.
+///
+/// The ingredient list is JSON, on the `BodyScanRecord` pattern above and for
+/// the same reason: it is a nested value type with three amount shapes, one of
+/// which carries a nested optional, and modelling it as SwiftData relationships
+/// would trade a decoding failure that costs one row for a migration that costs
+/// the store.
+///
+/// ⚠️ **The queryable columns are exactly the ones a list needs** — name, dates,
+/// servings — so a Data-tab page never has to decode every payload to draw a
+/// row. Everything else lives in `payload`, and a row that will not decode is
+/// dropped rather than crashing, because a bottle entered by a later build and
+/// read by an older one must not cost the reader the rest of their stack.
+@Model
+final class SupplementEntryRecord {
+    @Attribute(.unique) var id: UUID = UUID()
+    var productName: String = ""
+    var servingsPerDay: Double = 1
+    var startedOn: Date = Date()
+    /// `nil` while they are still taking it.
+    var stoppedOn: Date?
+    /// A `SupplementEntry`, JSON-encoded.
+    var payload: Data?
+
+    init(entry: SupplementEntry) {
+        self.id = entry.id
+        self.productName = entry.product.name
+        self.servingsPerDay = entry.servingsPerDay
+        self.startedOn = entry.startedOn
+        self.stoppedOn = entry.stoppedOn
+        self.payload = try? JSONEncoder().encode(entry)
+    }
+
+    var entry: SupplementEntry? {
+        payload.flatMap { try? JSONDecoder().decode(SupplementEntry.self, from: $0) }
+    }
+}
+
 /// **One logged bleeding day.**
 ///
 /// Backlog #31. One row per day rather than one row per period, and the reason

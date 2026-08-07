@@ -215,6 +215,15 @@ final class AppModel {
         }
     }
 
+    /// **The reader's supplement stack** — backlog Q8 / B3-25.
+    ///
+    /// Stored and observed rather than computed off the store, which is the rule
+    /// `activeMedication` below states at length: a view reading only
+    /// `model.supplementEntries` establishes no SwiftUI dependency on a
+    /// `dataStore.load…()` call, so a bottle added on one screen would leave
+    /// every other screen stale until something unrelated happened to change.
+    private(set) var supplementEntries: [SupplementEntry] = []
+
     /// The active medication regimen and its doses, if the reader has one.
     ///
     /// **Stored and observed, not computed off the store.** It used to be a
@@ -837,6 +846,7 @@ final class AppModel {
             // reader has ever tried the input.
             case .holiday:
                 hasBeenUsed = !holidayEntries.isEmpty
+<<<<<<< HEAD
             // Having answered one flagged event counts. Never prompts through
             // this route (`.settingsOnly`) — `SuggestionEngine.eventsAwaitingReview`
             // raises the queue itself, carrying a count, which is a better-founded
@@ -845,6 +855,14 @@ final class AppModel {
             case .eventConfirmation:
                 hasBeenUsed = EventFeedModel.shared.feed.accuracy.scored > 0
                     || EventFeedModel.shared.feed.accuracy.answeredWithoutAGuess > 0
+=======
+            // One bottle counts. The question this answers is whether the reader
+            // has ever tried the input, and somebody who entered a multivitamin
+            // has — the sum across a stack is what the card is *for*, not what
+            // decides whether to keep nudging them about the feature.
+            case .supplement:
+                hasBeenUsed = !supplementEntries.isEmpty
+>>>>>>> worktree-wf_acf822b0-d44-3
             }
             if hasBeenUsed { used.insert(kind) }
         }
@@ -1344,6 +1362,7 @@ final class AppModel {
         // engine still held the empty log it was bound to at launch. Reload it
         // and the grounding profile explicitly.
         substanceEvents = dataStore.loadSubstanceEvents()
+        supplementEntries = dataStore.loadSupplementEntries()
         profile = dataStore.loadProfile()
         reloadLoggedData()
         recompute()
@@ -1793,6 +1812,7 @@ final class AppModel {
         // Small SwiftData reads only. `hydrate()` does the rest, off the main
         // actor and after the first frame — see the note on it.
         substanceEvents = dataStore.loadSubstanceEvents()
+        supplementEntries = dataStore.loadSupplementEntries()
         reloadLoggedData()
         suggestionDismissals = dataStore.loadSuggestionDismissals()
         // Decided here rather than in the view so there is no first frame where
@@ -1833,6 +1853,7 @@ final class AppModel {
         let manual = dataStore.loadManualSamples()
         let store = dataStore
         let engineNow = engine.withSubstanceLog(substanceEvents)
+            .withSupplements(supplementEntries)
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
         let profileNow = profile
         // The schedule is read here — a `Sendable` value, never the `@Model`
@@ -2436,7 +2457,8 @@ final class AppModel {
         timer.lap("per-metric counts")
         profile = dataStore.loadProfile()
         substanceEvents = dataStore.loadSubstanceEvents()
-        timer.lap("profile + substance log")
+        supplementEntries = dataStore.loadSupplementEntries()
+        timer.lap("profile + substance log + supplements")
         recompute()
         // The summary is written from `results`, so this one caller waits for
         // the pass it just started. The interface is free during the wait —
@@ -2639,6 +2661,7 @@ final class AppModel {
         // `reloadLoggedData()` above has just refreshed `activeMedication`, so
         // the schedule the radar sees is the one the reader sees.
         engine = engine.withSubstanceLog(substanceEvents)
+            .withSupplements(supplementEntries)
             .withSymptoms(symptoms, medication: activeMedication?.schedule)
             // Both calendar cards, in one call — see `withCalendar`.
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
@@ -3176,6 +3199,60 @@ final class AppModel {
         scoreHistories[.substanceImpact] = nil
         scoreHistoryTasks.remove(.substanceImpact)
         scoreHistoryQueue.removeAll { $0 == .substanceImpact }
+    }
+
+    // MARK: - Supplements
+
+    /// Add a bottle, or replace the one already stored under this id.
+    ///
+    /// Upsert rather than insert, and the reason is arithmetic rather than
+    /// tidiness: this card's whole job is a **sum across products**, so a second
+    /// row for a corrected label would double every ingredient in it.
+    func saveSupplementEntry(_ entry: SupplementEntry) {
+        dataStore.saveSupplementEntry(entry)
+        supplementEntries = dataStore.loadSupplementEntries()
+        recomputeSupplementStack()
+    }
+
+    func deleteSupplementEntry(id: UUID) {
+        dataStore.deleteSupplementEntry(id: id)
+        supplementEntries = dataStore.loadSupplementEntries()
+        recomputeSupplementStack()
+    }
+
+    /// Re-evaluate only what a supplement stack can change.
+    ///
+    /// The same shape as `recomputeSubstanceImpact` above and for the same
+    /// reason: exactly one model reads the stack, and a full `recompute()` would
+    /// re-evaluate every card and discard every derived cache to show the reader
+    /// the bottle they just typed.
+    private func recomputeSupplementStack() {
+        engine = engine.withSupplements(supplementEntries)
+        guard let updated = engine.result(for: .supplementStack, samples: samples,
+                                          profile: profile) else { return }
+        if let index = results.firstIndex(where: { $0.id == .supplementStack }) {
+            results[index] = updated
+        } else {
+            results.append(updated)
+        }
+        if let score = updated.score {
+            let weighted = updated.contributors.filter { $0.weight > 0 }.count
+            dataStore.recordScore(.supplementStack, score: score,
+                                  confidence: updated.confidence,
+                                  contributorCount: weighted > 0 ? weighted
+                                                                 : updated.contributors.count)
+        }
+        suggestionCache = nil
+        scoreHistories[.supplementStack] = nil
+        scoreHistoryTasks.remove(.supplementStack)
+        scoreHistoryQueue.removeAll { $0 == .supplementStack }
+    }
+
+    /// The stack as the card sums it — one place, so the Data tab, the card's
+    /// "View & add" row and the entry sheet cannot disagree about a total.
+    var supplementStackSummary: SupplementStackModel.Output? {
+        SupplementStackModel.evaluate(entries: supplementEntries, samples: samples,
+                                      profile: profile)
     }
 
     func result(for id: InsightID) -> InsightResult? {
