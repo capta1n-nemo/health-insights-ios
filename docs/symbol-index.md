@@ -637,7 +637,7 @@ the place to look.
 - `DesignSystem/ScoreHistoryChart.swift`
   - `ScoreHistoryChart` :12
 - `DesignSystem/ScrollableMetricChart.swift`
-  - `MetricYScale` :152
+  - `MetricYScale` :252
   - `ScrollableMetricChart` :13
 - `DesignSystem/ScrubIndicator.swift`
   - `ScrubIndicator` :24
@@ -752,11 +752,12 @@ the place to look.
 - `Features/Metrics/MetricDetailView.swift`
   - `MetricDetailView` :8
 - `Features/Metrics/MetricViewStrategy.swift`
-  - `CumulativeTotalSummary` :158
-  - `CumulativeTrendSummary` :39
-  - `FluctuatingRangeSummary` :107
+  - `CumulativeTotalSummary` :231
+  - `CumulativeTrendSummary` :94
+  - `FluctuatingRangeSummary` :176
   - `MetricDetailContext` :5
   - `MetricViewStrategy` :19
+  - `WindowSummaryCard` :60
 - `Features/Metrics/StaticAttributeCard.swift`
   - `StaticAttributeCard` :9
 - `Features/Onboarding/OnboardingView.swift`

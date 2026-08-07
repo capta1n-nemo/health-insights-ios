@@ -256,6 +256,108 @@ What it replaced: the shading was gated on the metrics
 chart would assert a relationship nothing had looked for. The narrower rule —
 *this marks when, not what it did* — is what makes it safe everywhere.
 
+## 9b. Nothing derived from the visible window may collapse
+
+**The user's standing rule, 2026-08-07:** *"I want this to be a rule for every
+graph in the app, add it to the graph building skill/rules."*
+
+The report that produced it: panning a metric chart past the end of the data
+made the **"Range over this period"** header *disappear*, and the page
+*"violently jumps to the top"*.
+
+**Those are one defect, not two**, and the second is caused by the first.
+
+### The mechanism — read this before "fixing the jump"
+
+A metric page is one `ScrollView` (`MetricDetailView.body`). The chart's
+`onVisibleRangeChange` writes page-level `@State` (`visibleRange`) on **every
+pan frame**, and its siblings above and below are computed from it. When the
+window empties, an `if let` removes a whole `Card`. Content height drops by
+~110pt *while the finger is still down*, the ScrollView clamps its offset to the
+shorter content, and the chart is yanked upward out from under the drag.
+
+So there is no separate "jump" to chase. **Stop the collapse and the jump goes
+with it.**
+
+### The banned shape
+
+```swift
+// ✗ BANNED — a window-derived optional gating the card that names it
+if let summary {                     // nil the moment the window empties
+    Card { Text("Range over this period") … }
+}
+```
+
+```swift
+// ✓ The card and its headline are unconditional; only the figures are optional
+WindowSummaryCard(title: "Range over this period",
+                  hasData: summary != nil,
+                  emptyMessage: emptyWindowHint) {
+    if let summary { … }
+}
+```
+
+`WindowSummaryCard` (`HealthInsights/Features/Metrics/MetricViewStrategy.swift`)
+has **no code path that renders nothing**, and the three metric summaries are
+its only constructors — that is what makes this hold by construction rather than
+by memory. It is the worked example; read it before writing a new one.
+
+The same rule caught two more collapses on the same screen, both keyed off the
+visible window rather than the history:
+
+| Was | Now |
+| --- | --- |
+| `if breakdown.sources.isEmpty { CardA } else { CardB }` | one `Card`; `SourceBreakdown` carries its own empty state |
+| `if breakdown.hasMultipleSources { statsCard }` + rows from the window | gated on `allData`, rows from the whole history, `"nothing in this period"` per absent source |
+
+That last one hid a second bug: `Theme.sourceColor(index)` is **positional** and
+`MultiSourceBreakdown.sources` is ordered *most-data-first*, so restricting to a
+window can **reorder** it and hand a device a different swatch from the one the
+chart drew it in. Anything colouring by index must index the full history.
+
+### Say *this period*, never a bare "no data"
+
+An empty window almost never means the metric is empty — it means you have
+panned off the data. The empty state names the way back:
+
+> Nothing was recorded in the period on screen. Swipe the chart sideways, tap the
+> arrows on its edges to jump to your nearest readings, or pick a longer
+> timeframe.
+
+### The `‹` `›` affordances are free
+
+**The user, same report:** *"when no data is visible, show a `<` on the left edge
+to auto-pan to the nearest data point to the left, and a `>` on the right edge
+for the nearest to the right."*
+
+`ScrollableMetricChart` draws them, so **a chart that wraps it needs no code** —
+exactly as with the substance shading in §9a. The search asks the wrapper's own
+`isEmpty(_:)` predicate, stepping one whole window at a time so the tiling has no
+gaps and the first hit really is the nearest window holding data. It is capped at
+400 probes and falls back to the scroll-domain edge, where `dataSpan` guarantees
+a reading.
+
+**What you owe it:** pass a real `isEmpty:` predicate. A wrapper that leaves the
+default (`{ _ in false }`) gets neither the empty message nor the chevrons, and
+looks like a chart that simply drew nothing. All thirteen wrappers pass one
+today; keep it that way.
+
+### The only exemption
+
+**A chart that cannot pan.** There are four raw `Chart` builders outside the
+wrapper, and none of them scrolls, so none can strand the reader in an empty
+window:
+
+- `EnergyCurveChart`
+- `NightSleepChart`
+- `FitnessProjectionChart` (also the §9a shading exemption — its x axis is months
+  *ahead*)
+- the inline `Chart(charted)` in `DataTabView` (~:1202)
+
+"It didn't look like it would happen" is not an exemption. Neither is "the chart
+already says it's empty" — the *header* is the thing the reader was reading, and
+the collapse is what moves the page.
+
 ## 10. Review checklist
 
 Run this against any chart being added or reviewed. Each line is a shipped defect.
@@ -275,3 +377,10 @@ Run this against any chart being added or reviewed. Each line is a shipped defec
 - [ ] Colour complaints were answered by measuring the pixel, not by guessing (§9).
 - [ ] The axis fits the data in the **visible window**, not a round number above
       it — and a stacked share chart still starts at zero.
+- [ ] **No header, card or figure derived from the visible window is gated on
+      that window having data** — `if let <window-derived> { Card { … } }` is the
+      banned shape; an empty window says *this period*, and the page's content
+      height does not change under the finger (§9b).
+- [ ] **A pannable chart passes a real `isEmpty:` predicate**, so the empty
+      message and the `‹` `›` jump-to-nearest-data affordances actually appear
+      (§9b).

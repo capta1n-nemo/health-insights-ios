@@ -17,6 +17,9 @@ struct MetricDetailContext {
 /// that re-renders every pan frame — or a generic parameter propagating out to
 /// every call site.
 enum MetricViewStrategy {
+    /// **Never returns nothing for a chart presentation.** Each of the three
+    /// builds a `WindowSummaryCard`, which has no code path that renders
+    /// nothing — see its doc comment for the defect that rule came from.
     @ViewBuilder
     static func summary(for context: MetricDetailContext) -> some View {
         switch context.subject.presentation {
@@ -28,11 +31,63 @@ enum MetricViewStrategy {
             CumulativeTotalSummary(context: context)
         case .discreteBivariate, .staticAttribute:
             // These presentations replace the whole screen rather than adding a
-            // card to the standard one.
+            // card to the standard one, and `MetricDetailView` branches before
+            // it ever asks — so this is unreachable rather than a collapse.
             EmptyView()
         }
     }
 }
+
+/// A figure computed from the visible window, in a card that **never
+/// disappears when the window empties**.
+///
+/// The reader, 2026-08-07: panning past the end of their data made the
+/// *"Range over this period"* header vanish, and the page *"violently jumps to
+/// the top"*. Those are one defect, not two. The summary is a sibling of the
+/// chart inside a single `ScrollView` (`MetricDetailView.body`), `visibleRange`
+/// is page-level `@State` fed on **every pan frame**, and the old
+/// `if let summary { Card { … } }` deleted ~110pt of content height while the
+/// finger was still down. The ScrollView clamps its offset to the shorter
+/// content, and the chart is yanked upward out from under the drag.
+///
+/// So the shape is inverted: the card and its headline are unconditional and
+/// only the figures inside are optional. A window with nothing in it *says so*,
+/// which is also the more honest answer — the metric has plenty of data, just
+/// not here.
+///
+/// **The banned shape is `if let <window-derived> { Card { … } }`.** See
+/// `.claude/skills/add-chart/SKILL.md` §9b; this file is its worked example.
+private struct WindowSummaryCard<Content: View>: View {
+    let title: String
+    /// Whether there is anything to describe. Passed in rather than inferred so
+    /// the caller computes its (often expensive) summary exactly once.
+    let hasData: Bool
+    /// Says *this period*, never a bare "no data" — the difference between
+    /// "you have none of this" and "none of it is on screen" is the whole point.
+    let emptyMessage: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title).font(.headline)
+                if hasData {
+                    content()
+                } else {
+                    Text(emptyMessage)
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// The one sentence every empty window ends with. Names both ways out, one of
+/// which is the chevrons `ScrollableMetricChart` now draws on an empty chart.
+private let emptyWindowHint =
+    "Nothing was recorded in the period on screen. Swipe the chart sideways, tap the arrows on its edges to jump to your nearest readings, or pick a longer timeframe."
 
 /// Start, current, change and how fast it's moving — the questions worth asking
 /// of a weight, which a min/max range would not answer.
@@ -55,22 +110,26 @@ private struct CumulativeTrendSummary: View {
     }
 
     var body: some View {
-        if let trend {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Change over this period").font(.headline)
-                    HStack(alignment: .top) {
-                        stat("Start", trend.start.value)
-                        Spacer()
-                        stat("Current", trend.current.value)
-                        Spacer()
-                        deltaStat(trend)
-                    }
-                    if let velocity = trend.velocityPerWeek, abs(velocity) > 0.001 {
-                        Text(velocityText(velocity))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+        // Bound once: `trend` re-derives a whole window's samples, and this is
+        // read from a `body` that re-runs on every pan frame.
+        let trend = self.trend
+        WindowSummaryCard(title: "Change over this period",
+                          hasData: trend != nil,
+                          emptyMessage: emptyWindowHint) {
+            if let trend {
+                HStack(alignment: .top) {
+                    stat("Start", trend.start.value)
+                    Spacer()
+                    stat("Current", trend.current.value)
+                    Spacer()
+                    deltaStat(trend)
                 }
+                // **Always a sentence, never nothing.** This line used to
+                // disappear whenever the window held one reading or a flat
+                // stretch, which is the same collapse one line down.
+                Text(velocityText(trend.velocityPerWeek))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -95,7 +154,17 @@ private struct CumulativeTrendSummary: View {
 
     /// Reported per week rather than per day: the figure people actually track,
     /// and steady enough to be meaningful.
-    private func velocityText(_ velocity: Double) -> String {
+    ///
+    /// Total rather than optional so the line is always there. `nil` velocity
+    /// means one reading in the window — which is a fact about the window worth
+    /// stating, not a reason to render nothing.
+    private func velocityText(_ velocity: Double?) -> String {
+        guard let velocity else {
+            return "Not enough readings in this period to say how fast it is moving."
+        }
+        guard abs(velocity) > 0.001 else {
+            return "Holding steady across this period."
+        }
         let direction = velocity > 0 ? "gaining" : "losing"
         let magnitude = formatMetric(abs(velocity), metric)
         return "Currently \(direction) about \(magnitude) \(metric.unit) a week, over the whole window."
@@ -117,23 +186,27 @@ private struct FluctuatingRangeSummary: View {
     }
 
     var body: some View {
-        if let summary {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Range over this period").font(.headline)
-                    HStack(alignment: .top) {
-                        stat("Low", summary.min)
-                        Spacer()
-                        stat("Average", summary.mean)
-                        Spacer()
-                        stat("High", summary.max)
-                    }
-                    Text("Most readings fall between \(formatMetric(summary.p10, metric)) and \(MetricValueFormatter.detailedString(summary.p90, metric)).")
+        // Bound once — `summary` sorts the window's samples and this body runs
+        // on every pan frame.
+        let summary = self.summary
+        WindowSummaryCard(title: "Range over this period",
+                          hasData: summary != nil,
+                          emptyMessage: emptyWindowHint) {
+            if let summary {
+                HStack(alignment: .top) {
+                    stat("Low", summary.min)
+                    Spacer()
+                    stat("Average", summary.mean)
+                    Spacer()
+                    stat("High", summary.max)
+                }
+                Text("Most readings fall between \(formatMetric(summary.p10, metric)) and \(MetricValueFormatter.detailedString(summary.p90, metric)).")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let latest = summary.latest, let percentile = summary.latestPercentile {
+                    Text(latestText(latest.value, percentile: percentile))
                         .font(.caption).foregroundStyle(.secondary)
-                    if let latest = summary.latest, let percentile = summary.latestPercentile {
-                        Text(latestText(latest.value, percentile: percentile))
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -173,22 +246,20 @@ private struct CumulativeTotalSummary: View {
 
     var body: some View {
         let daily = totals
-        if !daily.isEmpty {
+        WindowSummaryCard(title: "Daily totals",
+                          hasData: !daily.isEmpty,
+                          emptyMessage: emptyWindowHint) {
             let summary = DailyTotals.summary(daily)
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Daily totals").font(.headline)
-                    HStack(alignment: .top) {
-                        stat("Today", summary.today)
-                        Spacer()
-                        stat("Daily average", summary.dailyAverage)
-                        Spacer()
-                        stat("Best day", summary.best?.total)
-                    }
-                    Text("Counted from your most complete source, so a phone in your pocket and a watch on your wrist aren't added together.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+            HStack(alignment: .top) {
+                stat("Today", summary.today)
+                Spacer()
+                stat("Daily average", summary.dailyAverage)
+                Spacer()
+                stat("Best day", summary.best?.total)
             }
+            Text("Counted from your most complete source, so a phone in your pocket and a watch on your wrist aren't added together.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
