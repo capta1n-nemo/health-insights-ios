@@ -1,0 +1,2 @@
+/Users/runner/work/health-insights-ios/health-insights-ios/HealthInsights/Core/Persistence/DataStore.swift:102:13: error: invalid redeclaration of 'schema'
+** BUILD FAILED **
