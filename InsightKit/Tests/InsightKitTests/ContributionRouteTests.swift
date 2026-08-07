@@ -192,11 +192,37 @@ final class ContributionRouteTests: XCTestCase {
         XCTAssertTrue(result(primaryValue: nil, unmet: [.dateOfBirth]).isWorthShowing)
     }
 
-    /// A card with no number and nothing to add is not — this is what stops a
-    /// fresh install filling Today with dead "no data yet" cards, since the
-    /// daily insights declare no requirements at all.
-    func testACardWithNothingToShowAndNothingToAddIsHidden() {
-        XCTAssertFalse(result(primaryValue: nil, unmet: []).isWorthShowing)
+    /// ⚠️ **Inverted 2026-08-07 on the reader's ruling: *"No cards should ever
+    /// be hidden if there is not enough data."***
+    ///
+    /// The superseded assertion, kept verbatim because its reasoning was sound
+    /// about the job it was reasoning about:
+    ///
+    /// ```
+    /// /// A card with no number and nothing to add is not — this is what stops
+    /// /// a fresh install filling Today with dead "no data yet" cards, since
+    /// /// the daily insights declare no requirements at all.
+    /// func testACardWithNothingToShowAndNothingToAddIsHidden() {
+    ///     XCTAssertFalse(result(primaryValue: nil, unmet: []).isWorthShowing)
+    /// }
+    /// ```
+    ///
+    /// **What changed is the premise, not the taste.** When that was written a
+    /// card with nothing to say could only render "no data yet", so hiding it
+    /// was kinder than showing it. `CoverageGate` and `waitingOn` mean a card
+    /// can now say *what it is counting to* — and **"two more trips" is a
+    /// reason to keep going, where an absent card is not a reason at all.**
+    ///
+    /// It also cost a real card: Travel drain vanished on 2026-08-07 because a
+    /// correct fix set `invitesInput: false`, and the reader noticed within the
+    /// hour.
+    ///
+    /// ⚠️ **The obligation moved rather than vanished.** It now lives in
+    /// `CardVisibilityTests.testNoCardLeadsWithADeadEnd`: visibility is free, so
+    /// **an empty state that says nothing is the defect to guard against.**
+    func testACardWithNothingToShowIsStillShown() {
+        XCTAssertTrue(result(primaryValue: nil, unmet: []).isWorthShowing,
+                      "a card with no data must still appear and say what it is waiting for")
     }
 
     /// Every card that asks the user for something has a way to be asked.

@@ -252,23 +252,45 @@ public struct InsightResult: Sendable, Equatable {
     /// The same lines as plain text, which is all most callers want.
     public var drivers: [String] { driverLines.map(\.text) }
 
-    /// Whether a tab should list this card at all.
+    /// Whether a tab should list this card at all. **It always should.**
     ///
-    /// **One rule for both tabs.** Today filtered on `primaryValue != nil` and
-    /// Insights filtered on nothing, so an ungrounded trend insight showed an
-    /// "Add your details" placeholder while an ungrounded daily one silently
-    /// vanished — two answers to one question.
+    /// ⚠️ **Ruled by the reader, 2026-08-07: *"No cards should ever be hidden if
+    /// there is not enough data."*** This property is kept — rather than deleted
+    /// and its two call sites edited — so the rule has one place to be read, and
+    /// so anything reaching for a visibility filter finds this comment first.
     ///
-    /// The rule is not "whichever tab was right": it is that a card with no
-    /// number earns its place only when there is something the user can *do*
-    /// about it. Simply dropping Today's filter would have put up to seven dead
-    /// cards on a fresh install, because the daily insights declare no grounding
-    /// requirements at all — their empty state is "connect a wearable", which a
-    /// placeholder card cannot help with.
-    public var isWorthShowing: Bool {
-        primaryValue != nil || !unmetRequirements.isEmpty || isAwaitingTodaysData
-            || invitesInput
-    }
+    /// ## What it used to be, and why that was wrong
+    ///
+    /// ```
+    /// primaryValue != nil || !unmetRequirements.isEmpty
+    ///     || isAwaitingTodaysData || invitesInput
+    /// ```
+    ///
+    /// The reasoning was: *a card with no number earns its place only when there
+    /// is something the user can do about it* — because dropping Today's filter
+    /// would have put up to seven dead cards on a fresh install, whose empty
+    /// state was "connect a wearable", which a placeholder cannot help with.
+    ///
+    /// **That premise stopped being true.** `CoverageGate` and `waitingOn` now
+    /// let a card say *what it is counting to* — "two more trips", "ten more
+    /// reviewed events" — and **"not enough yet" is a reason to keep going,
+    /// while an absent card is not a reason at all.** The old rule optimised a
+    /// fresh install at the cost of every state after it.
+    ///
+    /// ## It cost a card the same day it was last touched
+    ///
+    /// Travel drain was changed on 2026-08-07 to stop telling a reader with a
+    /// connected calendar to connect their calendar. The waiting branch returns
+    /// `waitingOn`, which sets `invitesInput: false` **correctly** — a coverage
+    /// gate is not an invitation, there is nothing to give. All four terms above
+    /// then went false and **the card disappeared**. The reader found it within
+    /// the hour: *"Where is the travel card gone"*.
+    ///
+    /// ⚠️ **The obligation this moves, rather than removes**, is
+    /// `CardVisibilityTests.testNoCardLeadsWithADeadEnd`: a card that is always
+    /// visible must always have something worth reading. Visibility is free
+    /// now; **an empty state that says nothing is the defect to guard against.**
+    public var isWorthShowing: Bool { true }
     /// A daily card that has real history and is only waiting for today's sync.
     ///
     /// Readiness and Energy score *today*, so a morning on which the wearable
@@ -298,6 +320,9 @@ public struct InsightResult: Sendable, Equatable {
     /// only when there is something the reader can *do* — and grounding facts
     /// were simply not the only kind of "something". An input is the other.
     public let invitesInput: Bool
+    /// The card is withholding a figure and can name what it is counting to.
+    /// Set by `waitingOn`. Keeps the card on screen — see `isWorthShowing`.
+    public let isLearning: Bool
     /// The metrics that actually fed this result, emitted by the scoring code as
     /// it builds each component. This is what the detail screen charts, so it
     /// cannot drift from the maths the way a hand-written list does.
@@ -389,6 +414,7 @@ public struct InsightResult: Sendable, Equatable {
             unmetRequirements: unmetRequirements, contributors: contributors,
             weighting: weighting, otherFactors: otherFactors,
             isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput,
+            isLearning: isLearning,
             derivedOutputs: derivedOutputs)
     }
 
@@ -409,6 +435,7 @@ public struct InsightResult: Sendable, Equatable {
         otherFactors: [ScoreFactor] = [],
         isAwaitingTodaysData: Bool = false,
         invitesInput: Bool = false,
+        isLearning: Bool = false,
         derivedOutputs: [DerivedOutput] = []
     ) {
         self.init(id: id, title: title, primaryValue: primaryValue, headline: headline,
@@ -418,6 +445,7 @@ public struct InsightResult: Sendable, Equatable {
                   unmetRequirements: unmetRequirements, contributors: contributors,
                   weighting: weighting, otherFactors: otherFactors,
                   isAwaitingTodaysData: isAwaitingTodaysData, invitesInput: invitesInput,
+            isLearning: isLearning,
                   derivedOutputs: derivedOutputs)
     }
 
@@ -437,10 +465,12 @@ public struct InsightResult: Sendable, Equatable {
         otherFactors: [ScoreFactor] = [],
         isAwaitingTodaysData: Bool = false,
         invitesInput: Bool = false,
+        isLearning: Bool = false,
         derivedOutputs: [DerivedOutput] = []
     ) {
         self.derivedOutputs = derivedOutputs
         self.invitesInput = invitesInput
+        self.isLearning = isLearning
         self.subheadline = subheadline
         self.id = id
         self.title = title

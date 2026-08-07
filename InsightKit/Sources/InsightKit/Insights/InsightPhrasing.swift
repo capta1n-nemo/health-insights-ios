@@ -86,7 +86,8 @@ func waitingOn(_ id: InsightID, _ title: String,
                          headline: "Learning",
                          score: nil, confidence: .low,
                          explanation: "\(context) \(waiting)",
-                         drivers: [], unmetRequirements: [], invitesInput: false)
+                         drivers: [], unmetRequirements: [], invitesInput: false,
+                         isLearning: true)
 }
 
 func trendWord(recent: Double, baseline: Double, higherIsBetter: Bool) -> String {

@@ -171,7 +171,7 @@ the place to look.
   - `InsightConfidence` :170
   - `InsightDriver` :206
   - `InsightID` :15
-  - `InsightModel` :465
+  - `InsightModel` :495
   - `InsightResult` :223
   - `RequirementStatus` :194
 - `Insights/InsightEngine.swift`

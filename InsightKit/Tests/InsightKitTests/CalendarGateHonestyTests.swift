@@ -89,4 +89,46 @@ final class CalendarGateHonestyTests: XCTestCase {
         XCTAssertGreaterThan(text.count, 80,
                              "a bare fragment is not an explanation: \(text)")
     }
+
+    // MARK: - The card must still be ON SCREEN while it waits
+
+    /// ⚠️ **The defect the first fix caused, found by the reader within the hour:
+    /// *"Where is the travel card gone"*.**
+    ///
+    /// `waitingOn` correctly sets `invitesInput: false` — a coverage gate is not
+    /// an invitation, because there is nothing the reader can give. But
+    /// `isWorthShowing` was `primaryValue != nil || !unmetRequirements.isEmpty
+    /// || isAwaitingTodaysData || invitesInput`, so all four went false and the
+    /// card **vanished from the list**.
+    ///
+    /// `CardVisibilityTests.testEveryCardStaysOnScreenEvenWithNothingAtAll` did
+    /// not catch it, and the reason is worth keeping: with *nothing at all* the
+    /// model returns `.noCalendar`, which still invites input and is still
+    /// visible. **The invisible state needed a card that is connected and still
+    /// counting** — a fixture nobody had, because it is the state between the
+    /// two everybody tests.
+    func testACardWaitingOnCoverageIsStillOnScreen() {
+        let travel = TravelDrainInsight(events: oneEvent())
+            .evaluate(samples: [], profile: UserHealthProfile(), now: now)
+        let work = WorkImpactInsight(events: oneEvent(), judgements: [])
+            .evaluate(samples: [], profile: UserHealthProfile(), now: now)
+
+        XCTAssertTrue(travel.isWorthShowing,
+                      "Travel drain vanished while waiting — standing rule 2: every card shows, even with no data")
+        XCTAssertTrue(work.isWorthShowing, "Work impact vanished while waiting")
+        XCTAssertTrue(travel.isLearning, "the card should say it is still counting")
+        XCTAssertFalse(travel.invitesInput,
+                       "and it must NOT claim there is something to give — that was the original defect")
+    }
+
+    /// The flag has to survive the rebuild, because a field-by-field rebuild
+    /// silently dropping one is a defect this repo has shipped twice
+    /// (`invitesInput` in 2026-08-05, `subheadline` in D24).
+    func testTheLearningFlagSurvivesAppendingDriverLines() {
+        let card = TravelDrainInsight(events: oneEvent())
+            .evaluate(samples: [], profile: UserHealthProfile(), now: now)
+            .appending(driverLines: [InsightDriver(text: "extra", isNotable: false)])
+        XCTAssertTrue(card.isLearning, "appending(driverLines:) dropped isLearning")
+        XCTAssertTrue(card.isWorthShowing)
+    }
 }
