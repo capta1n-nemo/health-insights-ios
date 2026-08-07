@@ -54,6 +54,33 @@ BUNDLE_ID="com.jasonsalway.healthinsights"
 # during a session that also watched `fileproviderd` sit at 150% CPU.
 DERIVED="${SIM_DERIVED_DATA:-$HOME/Library/Caches/health-insights/simulator}"
 SHOTS="${SIM_SHOT_DIR:-build/simulator-shots}"
+
+# --- One slot per worktree, because agents genuinely do run in parallel -------
+#
+# ⚠️ **Found the hard way on 2026-08-07, and it fails SILENTLY.** Every worktree
+# shared one derived-data path, installed the same bundle id onto the same
+# simulator UDID, and named shots `<short-sha>-<time>.png` — and the sha is
+# identical across worktrees built from the same base commit. So agent A could
+# screenshot agent B's build with nothing in the output saying so.
+#
+# It cost a worktree agent several rounds: it verified its chevrons, then two
+# later screenshots showed them gone. The giveaway was a Blood Pressure card
+# still rendering `= No change`, a string that agent's own commit had already
+# replaced. **A screenshot that is confidently of the wrong build is worse than
+# no screenshot** — it is evidence pointing the wrong way, and this repo uses
+# screenshots precisely for the claims tests cannot make.
+#
+# `--git-dir` vs `--git-common-dir` is the canonical worktree test (matching
+# `verify.sh`): the same path in a main working tree, different in every linked
+# one. Pattern-matching for `/worktrees/` would be fooled by a checkout that
+# merely lives in a directory of that name.
+WORKTREE_TAG=""
+if [ "$(git rev-parse --git-dir 2>/dev/null)" \
+   != "$(git rev-parse --git-common-dir 2>/dev/null)" ]; then
+    wt_root=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+    WORKTREE_TAG="$(basename "$wt_root")"
+    DERIVED="${SIM_DERIVED_DATA:-$HOME/Library/Caches/health-insights/simulator-$WORKTREE_TAG}"
+fi
 # Overridable: `SIM_DEVICE="iPhone 16 Pro" ./scripts/simulator.sh run`
 DEVICE="${SIM_DEVICE:-}"
 
@@ -171,9 +198,28 @@ cmd_shot() {
     mkdir -p "$SHOTS"
     # Named by the caller, or by the commit being looked at — a screenshot with
     # no provenance is the same trap as a chart with no caption.
-    local out="${1:-$SHOTS/$(git rev-parse --short HEAD)-$(date +%H%M%S).png}"
+    local tag="${WORKTREE_TAG:+$WORKTREE_TAG-}"
+    local out="${1:-$SHOTS/$tag$(git rev-parse --short HEAD)-$(date +%H%M%S).png}"
     xcrun simctl io booted screenshot "$out"
     printf '\033[32mSaved:\033[0m %s\n' "$out"
+
+    # ⚠️ Say WHICH BUILD was on screen, rather than letting the reader infer it.
+    # The screenshot cannot show you that it is of somebody else's install; the
+    # binary's mtime can. A shot taken before your own build finished, or of a
+    # build another worktree installed, is now visible rather than deduced from
+    # noticing a string you thought you had changed.
+    local udid installed
+    udid=$(xcrun simctl list devices booted -j 2>/dev/null \
+        | python3 -c 'import json,sys;d=json.load(sys.stdin)["devices"];print(next((x["udid"] for v in d.values() for x in v if x.get("state")=="Booted"),""))' 2>/dev/null || true)
+    if [ -n "$udid" ]; then
+        installed=$(xcrun simctl get_app_container "$udid" "$BUNDLE_ID" app 2>/dev/null || true)
+        if [ -n "$installed" ] && [ -e "$installed" ]; then
+            printf 'Installed build: %s\n' \
+                "$(date -r "$installed" '+%Y-%m-%d %H:%M:%S')"
+            printf '  ⚠️ If that is older than your last build, you are looking at a\n'
+            printf '     different install — run `simulator.sh run` before believing it.\n'
+        fi
+    fi
     printf 'Read it with the Read tool — it renders images.\n'
 }
 
