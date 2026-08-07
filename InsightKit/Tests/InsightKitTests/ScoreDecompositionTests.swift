@@ -248,6 +248,162 @@ final class ScoreDecompositionTests: XCTestCase {
         }
     }
 
+    // MARK: - The floor, swept over the registry (backlog D25, 2026-08-07)
+
+    /// ⚠️ **No weighted row anywhere reports a share and nothing else.**
+    ///
+    /// Every test above pins one model's answer or one model's refusal, which is
+    /// exactly how four weighted sites sat for a month carrying a percentage and
+    /// four nils: no test asked the question of the **registry**. This one does.
+    ///
+    /// It is deliberately the weakest claim that still catches the defect — a
+    /// weighted row must carry either its own 0–100 or the reading it was built
+    /// from. *Which* of those is right is the model's business, and the tests
+    /// above decide it card by card; having neither is a card that cannot show
+    /// its working at all, and that is what this refuses to let back in.
+    ///
+    /// ⚠️ **Written as an equality against a named exemption list, not as a
+    /// blanket pass.** The first run of this sweep found a card the D25 audit
+    /// had missed entirely — Energy, three weighted rows at 43%, 30% and 7%,
+    /// each carrying a share and four nils. It is out of that session's scope
+    /// and is a backlog row of its own. An `XCTSkip` or a quiet `continue` would
+    /// hide it again; an equality means **fixing Energy fails this test**, which
+    /// is the reminder to delete the exemption and close the row.
+    func testNoWeightedRowReportsAShareAndNothingElse() {
+        // Energy's terms are deliberately without a `componentScore` — the blend
+        // discards its own score there and `scoreIsOwn` is false, pinned by
+        // `testEnergysReservoirLevelNeverPosesAsATermsOwnScore`. That is correct
+        // and is *not* what this records: the gap is `value`, the reading each
+        // term was built from, which nothing has ever explained leaving out.
+        let knownBare: Set<String> = ["Energy"]
+        let now = Date()
+        let samples = ContributorsFixture.fullCoverage(now: now)
+        let profile = ContributorsFixture.profile(now: now)
+        var scored = 0
+        var bare: Set<String> = []
+        for model in InsightEngine().models {
+            let result = model.evaluate(samples: samples, profile: profile, now: now)
+            guard result.score != nil else { continue }
+            scored += 1
+            for row in result.contributors.weighted
+            where row.componentScore == nil && row.value == nil {
+                bare.insert(result.title)
+            }
+        }
+        XCTAssertEqual(bare, knownBare,
+                       "cards whose weighted rows report a share and nothing else changed. "
+                           + "Newly listed: \(bare.subtracting(knownBare).sorted()) — give each "
+                           + "weighted row its own 0–100 or the reading it was built from. "
+                           + "No longer listed: \(knownBare.subtracting(bare).sorted()) — fixed, "
+                           + "so delete it from `knownBare` and close its backlog row.")
+        // A sweep that silently stops sweeping reads as a pass. Same guard as
+        // the fixture assertions above, for the same reason.
+        XCTAssertGreaterThanOrEqual(scored, 10,
+                                    "only \(scored) registered cards scored on the full "
+                                        + "fixture, so this swept almost nothing")
+    }
+
+    /// The illness radar scores a **pooled** excess through one curve
+    /// (`HealthWatchModel.score(excess:)`) and declares `.accumulative`, so it
+    /// makes the same refusal as Sustained Load, Gait and Mental Health — and
+    /// until D25 it made that refusal by carrying nothing at all, on seven
+    /// weighted signals, while `Signal` held all three numbers the whole time.
+    func testTheIllnessRadarShowsEachSignalsWindowBaselineAndDeparture() {
+        let now = Date()
+        let result = SymptomRadarInsight().evaluate(
+            samples: ContributorsFixture.fullCoverage(now: now),
+            profile: ContributorsFixture.profile(now: now), now: now)
+        let weighted = result.contributors.weighted
+        XCTAssertFalse(weighted.isEmpty, "the radar found no signals on the full fixture")
+        for row in weighted {
+            XCTAssertNil(row.componentScore,
+                         "\(row.metric.displayName) claims a per-signal 0–100 the pooled curve cannot support")
+            XCTAssertNotNil(row.value, "\(row.metric.displayName) hides its recent window")
+            XCTAssertNotNil(row.baseline, "\(row.metric.displayName) hides what it was judged against")
+            XCTAssertNotNil(row.z, "\(row.metric.displayName) hides its departure")
+        }
+    }
+
+    /// Substance Impact's severity **is** each signal's own 0–100 on the card's
+    /// own scale — the dial is `100 − deduction` and severity is what each
+    /// signal put into that pool. It was computed and dropped.
+    ///
+    /// The counterfactual stays refused regardless: the card declares
+    /// `.worstOffender`, and a pool set by its worst member is not linear in its
+    /// parts even when every part has a number. That separation — a sub-score
+    /// without a headroom — is the point of the test.
+    func testSubstanceImpactReportsEachSignalsOwnScoreButStillRefusesACounterfactual() throws {
+        // ⚠️ **The full-coverage fixture measures nothing here**, and a test
+        // written against it passes vacuously — its series carry no response
+        // tied to a logged night, so every severity is 0 and `weighted` is
+        // empty. So this builds the response instead: ten logged nights at 58
+        // against twenty clean ones averaging 54, which is deliberately a
+        // *partial* response (about 1.4 SD). A saturating one would score the
+        // row at exactly 0 and prove nothing about the field being real.
+        let now = TestClock.now
+        let useDays: Set<Int> = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+        let events = useDays.map {
+            SubstanceEvent(substance: .alcohol, timestamp: TestClock.hours(Double($0) * 24 + 6))
+        }
+        let samples = (0..<30).map { day in
+            HealthMetricSample(type: .restingHeartRate,
+                               value: useDays.contains(day) ? 58 : 50 + Double(day % 5) * 2,
+                               start: TestClock.hours(Double(day) * 24), source: .oura)
+        }
+        let result = SubstanceResponseAnalyzer.insightResult(
+            events: events, samples: samples, now: now)
+        let weighted = result.contributors.weighted
+        XCTAssertFalse(weighted.isEmpty, "the fixture measured no weighted response")
+        for row in weighted {
+            let score = try XCTUnwrap(row.componentScore,
+                                      "\(row.metric.displayName) carries a share of the deduction and no sub-score")
+            XCTAssertGreaterThan(score, 0, "\(row.metric.displayName) saturated — the fixture stopped being partial")
+            XCTAssertLessThan(score, 100, "\(row.metric.displayName) took nothing off yet carries a share")
+            // The after-use mean, the clean-night baseline, and the departure
+            // between them — signed as measured, so a rise in resting heart
+            // rate is positive whether or not a rise is welcome.
+            XCTAssertEqual(try XCTUnwrap(row.value), 58, accuracy: 0.001)
+            XCTAssertEqual(try XCTUnwrap(row.baseline), 54, accuracy: 0.001)
+            XCTAssertGreaterThan(try XCTUnwrap(row.z), 0,
+                                 "\(row.metric.displayName) rose after use and reports a negative departure")
+        }
+        let out = try XCTUnwrap(ScoreDecomposition.evaluate(result))
+        XCTAssertNotNil(out.refusal, "a worst-offender pool must still decline the counterfactual")
+        XCTAssertTrue(out.rows.allSatisfy { $0.headroom == nil },
+                      "a sub-score licensed headroom arithmetic on a model that cannot support it")
+    }
+
+    /// Blood pressure's two axes each own a published ladder, and
+    /// `score(systolic:diastolic:)` takes the **minimum** of the two — so each
+    /// axis has a genuine 0–100 that the min discards.
+    ///
+    /// The row must also quote the number the *dial* scored rather than the
+    /// newest sample: the card has three routes and only one of them reads
+    /// today's cuff.
+    func testBloodPressureAxesReportTheirOwnLadderScoreForTheNumberTheDialUsed() throws {
+        let now = Date()
+        let result = BloodPressureInsight().evaluate(
+            samples: ContributorsFixture.fullCoverage(now: now),
+            profile: ContributorsFixture.profile(now: now), now: now)
+        XCTAssertNotNil(result.score, "blood pressure did not score on the full fixture")
+        for metric in [MetricType.bloodPressureSystolic, .bloodPressureDiastolic] {
+            let row = try XCTUnwrap(result.contributors.first { $0.metric == metric },
+                                    "\(metric.displayName) lost its row")
+            let score = try XCTUnwrap(row.componentScore,
+                                      "\(metric.displayName) reports no ladder score")
+            let value = try XCTUnwrap(row.value, "\(metric.displayName) reports no reading")
+            let ladder = metric == .bloodPressureSystolic
+                ? BloodPressureEstimator.systolicLadder : BloodPressureEstimator.diastolicLadder
+            XCTAssertEqual(score, ScoreCurve.through(ladder, at: value), accuracy: 0.001,
+                           "\(metric.displayName)'s sub-score is not its own ladder read at its own value")
+            // The card's number is the lower of the two axes, so neither axis
+            // may score below it — that is what "minimum" means, and it is the
+            // cheapest check that the pair came from one route rather than two.
+            XCTAssertGreaterThanOrEqual(score, try XCTUnwrap(result.score) - 0.001,
+                                        "\(metric.displayName) scored under the dial it is a minimum of")
+        }
+    }
+
     /// A biological-age marker's own answer is an *age equivalent*, not a
     /// 0–100 — squeezing one into `componentScore` would invent the very
     /// calibration the card refuses. The observed reading, though, is the one

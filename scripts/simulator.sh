@@ -24,7 +24,9 @@
 #   ./scripts/simulator.sh build           # build for the simulator
 #   ./scripts/simulator.sh run             # build + boot + install + launch
 #   ./scripts/simulator.sh shot [file]     # screenshot the booted simulator
-#   ./scripts/simulator.sh logs [minutes]  # the app's own log lines
+#   ./scripts/simulator.sh logs [minutes] [--all]
+#                                          # the app's own diagnostic lines;
+#                                          # --all for the framework chatter too
 #   ./scripts/simulator.sh reset --yes     # erase the simulator's data
 #
 # WHAT IT CANNOT TELL YOU
@@ -175,13 +177,56 @@ cmd_shot() {
     printf 'Read it with the Read tool — it renders images.\n'
 }
 
+# The app's own diagnostic lines — not everything its process emits.
+#
+# ⚠️ **`process == "HealthInsights"` was the wrong predicate and it hid the
+# thing this command exists to show.** `DiagnosticsLog` has mirrored every entry
+# to the unified log since 2026-08-06 under the app's own subsystem, and this
+# command still could not find one: UIKit, CoreAnimation, RemoteTextInput and
+# the keyboard arbiter all log *inside the app's process*, at hundreds of lines
+# a second. A measured `logs 10` on a freshly launched app returned eighty lines
+# of keyboard geometry and zero from the app. The mirror was working; the filter
+# was not (backlog D26).
+#
+# So the default is the subsystem — which is exactly the set of lines
+# `DiagnosticsLog` writes, and nothing else. `--all` restores the old
+# process-wide firehose for the rarer case where the framework chatter is the
+# thing being read.
 cmd_logs() {
     require_darwin
-    local minutes="${1:-2}"
-    xcrun simctl spawn booted log show \
+    local minutes=2 predicate="subsystem == \"$BUNDLE_ID\"" what="the app's own diagnostics"
+    for arg in "$@"; do
+        case "$arg" in
+            --all) predicate="process == \"$SCHEME\""; what="everything in the app's process" ;;
+            *[!0-9]*) die "Unknown argument '$arg'. Usage: logs [minutes] [--all]" ;;
+            *) minutes="$arg" ;;
+        esac
+    done
+    note "Last ${minutes}m — $what"
+    local out
+    # ⚠️ **`--info` is not optional here, and leaving it off is the other half of
+    # why this command looked broken.** `DiagnosticsLog.mirrorToUnifiedLog` maps
+    # ok / null / info to `Logger.info` and only `fail` to `Logger.error`, and
+    # `log show` omits INFO-level messages unless asked. So the one command a
+    # session runs to read the app's diagnostics was, by construction, showing
+    # only the failures — and on a run where nothing failed, nothing at all.
+    out="$(xcrun simctl spawn booted log show \
         --last "${minutes}m" \
+        --info \
         --style compact \
-        --predicate "process == \"$SCHEME\"" 2>/dev/null | tail -80
+        --predicate "$predicate" 2>/dev/null | tail -80)"
+    # `log show` prints its header whatever happens, so "no output" looks the
+    # same as "one blank result" unless it is said out loud. A silent empty
+    # answer here is what makes a session start clicking through Settings.
+    if [ "$(printf '%s\n' "$out" | grep -cv '^Timestamp\|^$')" -eq 0 ]; then
+        printf '%s\n' "$out"
+        printf '\n\033[33mNo app diagnostic lines in the last %sm.\033[0m\n' "$minutes"
+        printf '%s\n' "Every launch writes one ('App: Launched — …'), so an empty answer here means"
+        printf '%s\n' "the app has not launched in that window. Widen it (./scripts/simulator.sh logs 30),"
+        printf '%s\n' "or relaunch with ./scripts/simulator.sh run. Add --all for framework chatter too."
+        return 0
+    fi
+    printf '%s\n' "$out"
 }
 
 cmd_reset() {
@@ -198,7 +243,7 @@ case "${1:-doctor}" in
     build)  cmd_build ;;
     run)    cmd_run ;;
     shot)   shift; cmd_shot "${1:-}" ;;
-    logs)   shift; cmd_logs "${1:-2}" ;;
+    logs)   shift; cmd_logs "$@" ;;
     reset)  shift; cmd_reset "${1:-}" ;;
     *)      die "Unknown command '$1'. One of: doctor build run shot logs reset" ;;
 esac

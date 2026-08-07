@@ -1442,25 +1442,64 @@ public struct SymptomRadarInsight: InsightModel {
             "\(MetricValueFormatter.string(signal.recent, signal.metric)) vs "
                 + "\(MetricValueFormatter.string(signal.reference, signal.metric)) usual"
         }
-        var out: [MetricContribution] = watch.signals.map { signal in
+        // **The decomposition fields, and why one of the four stays nil.**
+        //
+        // Backlog D25: a weighted row that reports no sub-score is a card whose
+        // deep dive cannot show its own working. Every one of these rows carried
+        // a share and nothing else — so the radar was the widest of the four
+        // weighted gaps, at seven signals.
+        //
+        // `componentScore` is **deliberately still nil**, and that is not the
+        // gap. The radar scores a *pooled* excess through a single curve
+        // (`HealthWatchModel.score(excess:)`), so no individual signal owns a
+        // 0–100; the card declares `.accumulative` for exactly that reason and
+        // `ScoreDecomposition` therefore refuses a counterfactual on it. Minting
+        // a per-signal 0–100 here would license arithmetic the curve cannot
+        // honour — the same refusal Sustained Load, Gait and Mental Health make
+        // (ScoreDecompositionTests ▸
+        // `testTheBaselineWindowModelsShowTheirWorkingAndDeclineASubScore`).
+        //
+        // What each signal *does* genuinely hold is now on the row: the recent
+        // window, the reference it was judged against, and the departure between
+        // them. `Signal` has carried all three since it was written — they were
+        // being formatted into `detail` and then thrown away, which also cost
+        // the Data tab a `componentDeparture` series per signal for free
+        // (`DerivedHarvest.series(from:)`).
+        func decomposed(_ signal: HealthWatchModel.Signal,
+                        weight: Double, detail: String) -> MetricContribution {
             MetricContribution(
                 metric: signal.metric,
                 higherIsBetter: direction(signal.metric),
-                weight: votingTotal > 0
-                    ? HealthWatchModel.weight(for: signal.metric) / votingTotal
-                    : 0,
-                detail: reading(signal))
+                weight: weight,
+                detail: detail,
+                value: signal.recent,
+                baseline: signal.reference,
+                // Signed as the metric is measured — `(recent − reference) / SD`
+                // — never as "good" or "bad", so a reader of the series can
+                // render direction themselves. `isConcerning` is the model's
+                // reading of that sign and is already on the row's wording.
+                z: signal.zScore)
+        }
+
+        var out: [MetricContribution] = watch.signals.map { signal in
+            decomposed(signal,
+                       weight: votingTotal > 0
+                           ? HealthWatchModel.weight(for: signal.metric) / votingTotal
+                           : 0,
+                       detail: reading(signal))
         }
         for signal in watch.discounted {
             let winner = watch.signals.first {
                 $0.metric.sharesMeasurementBasis(with: signal.metric)
             }?.metric
-            out.append(MetricContribution(
-                metric: signal.metric,
-                higherIsBetter: direction(signal.metric),
-                weight: 0,
-                detail: reading(signal) + " — counted once with "
-                    + (winner?.displayName ?? "its twin")))
+            // A collapse loser was evaluated in full and then folded into its
+            // twin's vote, so it has the same three numbers to show. Weight 0
+            // says it carries none of the score; nil there would say it was
+            // never looked at, which is the opposite statement this whole block
+            // exists to avoid.
+            out.append(decomposed(signal, weight: 0,
+                                  detail: reading(signal) + " — counted once with "
+                                      + (winner?.displayName ?? "its twin")))
         }
         return out
     }

@@ -785,6 +785,28 @@ public struct BloodPressureInsight: InsightModel {
         // Notes for the signals that feed a different number on this card than
         // the one on the dial — see the `contributors` block at the end.
         var contributorNotes: [MetricType: String] = [:]
+        // **The number each pressure axis was actually scored from, and what it
+        // scored** — backlog D25.
+        //
+        // The two weighted rows on this card carried a share and nothing else,
+        // so the deep dive could say systolic was 58% of the dial and never that
+        // it scored 40 out of 100. Both numbers exist already: `score(systolic:
+        // diastolic:)` is the *minimum* of two independent ladders, so each axis
+        // owns a genuine 0–100 that the min throws away.
+        //
+        // Recorded here, beside the weight, rather than recomputed in the
+        // `contributors` block, because **which** pair was scored differs by
+        // route — a fresh cuff, the experimental estimate, or a 30-day average —
+        // and the block at the end only knows the *latest* sample. Reading the
+        // ladder at the latest value while the dial read the average is exactly
+        // the sub-score-that-does-not-match-the-dial the field exists to end.
+        var contributorScored: [MetricType: (value: Double, score: Double)] = [:]
+        func scoreAxes(systolic: Double, diastolic: Double) {
+            contributorScored[.bloodPressureSystolic] =
+                (systolic, ScoreCurve.through(BloodPressureEstimator.systolicLadder, at: systolic))
+            contributorScored[.bloodPressureDiastolic] =
+                (diastolic, ScoreCurve.through(BloodPressureEstimator.diastolicLadder, at: diastolic))
+        }
 
         // Route one: a cuff reading from the last 24 hours. The two numbers are
         // scored against the published ACC/AHA bands, and both determine the
@@ -794,6 +816,7 @@ public struct BloodPressureInsight: InsightModel {
                                                               diastolic: freshPair.diastolic)
             contributorWeights[.bloodPressureSystolic] = shares.systolic
             contributorWeights[.bloodPressureDiastolic] = shares.diastolic
+            scoreAxes(systolic: freshPair.systolic, diastolic: freshPair.diastolic)
             weighting = .singleMeasure("the published ACC/AHA blood-pressure bands — "
                                        + "this is your own cuff reading from the last "
                                        + "24 hours, taken at face value")
@@ -890,6 +913,11 @@ public struct BloodPressureInsight: InsightModel {
                                                                     diastolic: est.diastolic)
                     contributorWeights[.bloodPressureSystolic] = cuff.systolic * calibrationShare
                     contributorWeights[.bloodPressureDiastolic] = cuff.diastolic * calibrationShare
+                    // The estimate is what the dial read, so the estimate is
+                    // what each axis is scored from here — the row would
+                    // otherwise report the ladder at a cuff reading the dial
+                    // deliberately declined to use.
+                    scoreAxes(systolic: est.systolic, diastolic: est.diastolic)
                     let nudge = SupportingSignal.collectiveShare
                     contributorWeights[.restingHeartRate] = est.restingHRShare * nudge
                     if let hrvShare = est.hrvShare {
@@ -943,6 +971,7 @@ public struct BloodPressureInsight: InsightModel {
                                                               diastolic: trend.diastolic)
             contributorWeights[.bloodPressureSystolic] = shares.systolic
             contributorWeights[.bloodPressureDiastolic] = shares.diastolic
+            scoreAxes(systolic: trend.systolic, diastolic: trend.diastolic)
             weighting = .singleMeasure("the published ACC/AHA blood-pressure bands, over an "
                                        + "average of \(trend.readingCount) cuff readings across "
                                        + "\(trend.spanDays) days")
@@ -1003,16 +1032,39 @@ public struct BloodPressureInsight: InsightModel {
                            .restingHeartRate, .heartRateVariabilityRMSSD,
                            .heartRateVariabilitySDNN]
                 .compactMap { metric in
-                    samples.latestValue(metric).map { value in
+                    samples.latestValue(metric).map { latest in
                         let weight = contributorWeights[metric] ?? 0
-                        let base = String(format: "%.0f %@", value, metric.unit)
+                        let scored = contributorScored[metric]
+                        // **The row quotes what the dial scored, not merely the
+                        // newest sample.** They are the same thing only on the
+                        // fresh-cuff route; on the estimate route the dial reads
+                        // a model, and on the average route it reads 30 days.
+                        // A row printing today's reading beside a sub-score
+                        // taken from a month's average is two claims about one
+                        // number, and the sub-score is the one the reader is
+                        // being asked to check.
+                        let shown = scored?.value ?? latest
+                        let base = String(format: "%.0f %@", shown, metric.unit)
                         let note = weight > 0 ? "" : (contributorNotes[metric] ?? "")
                         return MetricContribution(
                             metric: metric,
                             higherIsBetter: metric == .heartRateVariabilityRMSSD
                                 || metric == .heartRateVariabilitySDNN,
                             weight: weight,
-                            detail: base + note)
+                            detail: base + note,
+                            // Only the two pressure axes own a 0–100: each has
+                            // its own published ladder and `score(systolic:
+                            // diastolic:)` takes the *minimum* of the two, which
+                            // discards the one that lost. Resting heart rate and
+                            // HRV are predictors inside a regression — they have
+                            // no ladder and no sub-score, which is why the
+                            // estimate route declares `.fit`.
+                            componentScore: scored?.score,
+                            value: shown)
+                        // No `baseline`/`z`, deliberately: these rows are judged
+                        // against the published ACC/AHA bands, never against
+                        // this reader's own history, so a departure in SDs would
+                        // be a statistic nothing on this card computed.
                     }
                 },
             weighting: score == nil ? .unstated : weighting,

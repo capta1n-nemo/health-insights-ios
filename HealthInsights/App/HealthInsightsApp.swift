@@ -15,6 +15,12 @@ struct HealthInsightsApp: App {
             RootView()
                 .environment(model)
                 .tint(Theme.accent)
+                // One guaranteed diagnostic line per launch. See
+                // `DiagnosticsLog.recordLaunch()` — without it the app emits
+                // nothing to the unified log until a sync or an import runs,
+                // which on the simulator is never, and `simulator.sh logs`
+                // cannot be told apart from a broken mirror.
+                .task { DiagnosticsLog.shared.recordLaunch() }
                 // The share-sheet and "Open With" entry point. A shared file
                 // arrives as a URL the OS opens the app with, so this is the
                 // only hook that sees it — there is no callback and nothing to
