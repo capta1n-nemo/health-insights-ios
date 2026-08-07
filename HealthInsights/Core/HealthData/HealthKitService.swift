@@ -157,6 +157,18 @@ final class HealthKitService {
             // wearer as hypothermic, which is precisely the bug this change
             // exists to fix.
             (.appleSleepingWristTemperature, .skinTemperature, .degreeCelsius()),
+            // Promoted out of the raw pile on 2026-08-07 (backlog R33). The
+            // reader writes this by hand every morning through a Shortcut —
+            // 136 records over 124 days, 80 of the last 90 — and the app read
+            // it nowhere. It is now the symptom radar's thermal channel on
+            // every night the ring was not worn, which is exactly the night the
+            // radar used to go blind.
+            //
+            // ⚠️ Removed from `otherQuantityIdentifiers` below in the same
+            // change: a metric arriving through both routes is ingested twice
+            // and listed twice on the Data tab (the removal
+            // `appleExerciseTime` needed when it was promoted).
+            (.basalBodyTemperature, .basalBodyTemperature, .degreeCelsius()),
             (.bloodGlucose, .bloodGlucose,
              HKUnit.moleUnit(withMolarMass: HKUnitMolarMassBloodGlucose)
                 .unitDivided(by: .liter())),
@@ -226,7 +238,13 @@ final class HealthKitService {
         // device. Count the rows before building any UI on it.
         "HKQuantityTypeIdentifierAppleSleepingBreathingDisturbances",
         "HKQuantityTypeIdentifierForcedExpiratoryVolume1", "HKQuantityTypeIdentifierPeakExpiratoryFlowRate",
-        "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBasalBodyTemperature", "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
+        // ⚠️ `HKQuantityTypeIdentifierBasalBodyTemperature` was here until
+        // 2026-08-07 and moved to `readMap` above (backlog R33). Leaving it in
+        // both places would ingest every morning's reading twice, once
+        // canonical and once raw, and the Data tab would list it in two
+        // sections — the same duplication the gait triad and the micronutrients
+        // each had to have removed when they were promoted.
+        "HKQuantityTypeIdentifierInhalerUsage", "HKQuantityTypeIdentifierBloodAlcoholContent", "HKQuantityTypeIdentifierElectrodermalActivity",
         "HKQuantityTypeIdentifierInsulinDelivery", "HKQuantityTypeIdentifierNumberOfAlcoholicBeverages",
         // Body
         "HKQuantityTypeIdentifierBodyMassIndex", "HKQuantityTypeIdentifierWaistCircumference",

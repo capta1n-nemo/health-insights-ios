@@ -148,9 +148,9 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
-  - `SymptomRadarInsight` :1166
-  - `SymptomRadarModel` :429
-  - `SymptomRadarStatus` :374
+  - `SymptomRadarInsight` :1252
+  - `SymptomRadarModel` :515
+  - `SymptomRadarStatus` :460
 - `Insights/HeartAgeAnalyser.swift`
   - `HeartAgeAnalyser` :20
 - `Insights/HeartAgeHistory.swift`
@@ -399,7 +399,7 @@ the place to look.
   - `MetricExplanation` :11
 - `Presentation/MetricPresentation.swift`
   - `MetricFamily` :39
-  - `MetricPalette` :862
+  - `MetricPalette` :901
   - `MetricPresentation` :8
 - `Presentation/MetricReferenceRange.swift`
   - `MetricReferenceBand` :88
@@ -478,6 +478,8 @@ the place to look.
   - `NutritionLogging` :14
 - `Signals/OvernightCardiac.swift`
   - `OvernightCardiac` :49
+- `Signals/OvernightChange.swift`
+  - `OvernightChange` :38
 - `Signals/Pharmacokinetics.swift`
   - `ActiveCompoundPoint` :121
   - `AdministeredDose` :79
@@ -832,6 +834,8 @@ the place to look.
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
   - `MedicationSetupSheet` :285
+- `Features/Insights/OvernightChangeSection.swift`
+  - `OvernightChangeSection` :43
 - `Features/Insights/OvernightHRVSection.swift`
   - `OvernightCardiacReading` :22
   - `OvernightHRVSection` :85
@@ -870,8 +874,8 @@ the place to look.
 - `Features/Insights/SubstanceEpisodesSection.swift`
   - `SubstanceEpisodesSection` :39
 - `Features/Insights/SymptomRadarWebCard.swift`
-  - `RadarRingShape` :245
-  - `RadarSpokeShape` :270
+  - `RadarRingShape` :251
+  - `RadarSpokeShape` :276
   - `SymptomRadarWebCard` :35
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9

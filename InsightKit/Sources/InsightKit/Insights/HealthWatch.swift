@@ -127,9 +127,51 @@ public enum HealthWatchModel {
     /// Weights are not equal because the signals are not equally specific.
     /// Skin temperature rising is close to a thermometer; a slightly lower
     /// oxygen saturation happens for a dozen ordinary reasons.
+    /// ⚠️ **A metric listed here is a candidate, not a vote.** Everything in
+    /// one `MetricFamily` collapses to a single signal before scoring
+    /// (`collapsingDuplicates`), so the four thermal entries below are one
+    /// thermal channel between them and never four.
     static let watched: [(metric: MetricType, risingIsConcerning: Bool, weight: Double)] = [
         (.skinTemperatureDeviation, true, 1.0),
         (.skinTemperature, true, 1.0),
+        // **The reader's own morning thermometer, added 2026-08-07 (backlog
+        // R33) — and the reason it is worth having is the nights it covers,
+        // not the nights it duplicates.**
+        //
+        // The three thermal entries above all come off a wearable, so a night
+        // the ring spent on charge is a night this card has no temperature at
+        // all — and a card that loses its most specific channel exactly when
+        // somebody is too unwell to remember their ring is a card that goes
+        // quiet when it matters. The reader has been writing a waking
+        // temperature to Health through a Shortcut for months (136 records
+        // over 124 days, 80 of the last 90, read by nothing until now), and it
+        // does not care whether anything was worn.
+        //
+        // ⚠️ **It does not add a channel — it rescues one.** `.thermal`, so
+        // `collapsingDuplicates` folds it in with the wearable temperatures
+        // and keeps whichever leans harder. Letting it vote separately would
+        // count one morning's warmth twice in a statistic whose entire claim
+        // is *agreement between independent things*, and the null spread
+        // assumes an equicorrelation of 0.3 between surviving channels, which
+        // two thermometers on one body would badly violate.
+        //
+        // **The cost, stated rather than hidden:** on a morning when both the
+        // ring and the thermometer reported, the thermal channel is now a
+        // maximum over two z-scores instead of one, and selecting a maximum
+        // inflates the statistic. That is the same effect the decision
+        // interval was already moved from 5.0 to 6.0 for, and it is measured
+        // through the real path in `SymptomRadarTests
+        // .testTheAccumulationsRunLengthIsWhatItClaims` and
+        // `.testTheFalseAlarmBudgetIsWhatTheBandsClaim`, both of which now
+        // simulate this channel.
+        //
+        // Weight 1.0, the same as the other temperatures: weight here is
+        // *specificity for illness*, and a thermometer under the tongue at a
+        // fixed hour is at least as specific as a ring's nightly deviation.
+        // Its extra noise — a variable wake time, a variable technique — is
+        // already handled where noise belongs, in the denominator of its own
+        // z-score, which is computed against this series' own spread.
+        (.basalBodyTemperature, true, 1.0),
         (.restingHeartRate, true, 0.9),
         (.heartRateVariabilityRMSSD, false, 0.9),
         (.heartRateVariabilitySDNN, false, 0.8),
@@ -224,20 +266,64 @@ public enum HealthWatchModel {
                       zScore: z, isConcerning: concerning)
     }
 
-    /// One signal, one vote. Where a person has both HRV metrics or both thermal
-    /// ones, keep whichever is leaning hardest.
+    /// Metrics that are a **standby** for their family rather than a rival to
+    /// it: they hold the channel open on a day nothing else in it reported, and
+    /// they never take the channel off something that did.
+    ///
+    /// ⚠️ **This exists because "keep whichever leans hardest" is a maximum,
+    /// and a maximum is not the statistic the null assumes.** The measurement,
+    /// on 400,000 simulated well days through the real path, 2026-08-07: adding
+    /// the basal temperature to the thermal family as an ordinary member —
+    /// free to win the collapse — moved the 99.45th percentile of the joint
+    /// statistic from 3.35 to 3.74, took the strong band from about two false
+    /// alarms a year to **4.8**, and cut the accumulation's in-control run
+    /// length from over 300 days to **116**. Every one of `someSignsExcess`,
+    /// `strongSignsExcess` and `Memory.decisionInterval` would have had to move,
+    /// and the card would have ended up *less* sensitive than it is today in
+    /// exchange for a channel it only actually needs on the nights the ring was
+    /// off.
+    ///
+    /// **And max-selection buys almost nothing in return.** Under a real fever
+    /// both thermometers rise and the winner is at `channelCap` either way, so
+    /// the maximum is paying a null-distribution price for an alternative it
+    /// cannot exploit. A standby pays neither.
+    ///
+    /// The cost of the rule, stated rather than buried: on a morning when the
+    /// ring reported an ordinary temperature and the thermometer read half a
+    /// degree high, the ring's reading is the one that votes. The thermometer's
+    /// is not thrown away — it lands in `Output.discounted`, which is what the
+    /// radar web draws as an open dot, so "counted once" never renders as "not
+    /// looked at".
+    static let standbyMetrics: Set<MetricType> = [.basalBodyTemperature]
+
+    /// One signal, one vote. Where a person has both HRV metrics or several
+    /// thermal ones, keep whichever is leaning hardest — **except** that a
+    /// standby never displaces a first-choice instrument. See `standbyMetrics`.
     static func collapsingDuplicates(_ signals: [Signal]) -> [Signal] {
         var out: [Signal] = []
         for signal in signals {
             if let index = out.firstIndex(where: {
                 $0.metric.sharesMeasurementBasis(with: signal.metric)
             }) {
-                if abs(signal.zScore) > abs(out[index].zScore) { out[index] = signal }
+                if prefers(signal, over: out[index]) { out[index] = signal }
             } else {
                 out.append(signal)
             }
         }
         return out
+    }
+
+    /// Which of two same-basis signals holds the channel.
+    ///
+    /// Standby status first, `|z|` second. Ordering it the other way round
+    /// would make the rule cosmetic — the standby would still win whenever it
+    /// happened to be the louder of the two, which is precisely the maximum the
+    /// rule exists to avoid.
+    static func prefers(_ candidate: Signal, over incumbent: Signal) -> Bool {
+        let candidateIsStandby = standbyMetrics.contains(candidate.metric)
+        let incumbentIsStandby = standbyMetrics.contains(incumbent.metric)
+        if candidateIsStandby != incumbentIsStandby { return incumbentIsStandby }
+        return abs(candidate.zScore) > abs(incumbent.zScore)
     }
 
     /// The weighted mean one-sided departure, in SDs.

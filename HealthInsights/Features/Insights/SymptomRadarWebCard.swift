@@ -4,7 +4,7 @@ import InsightKit
 // substance-shading: exempt — no time axis; a single morning's deviations
 // against baseline.
 
-/// The radar itself: seven watched signals on a polar layout, each spoke
+/// The radar itself: the watched signals on a polar layout, each spoke
 /// showing how far the signal is leaning the way illness pushes it.
 ///
 /// ## Why this is not `ScrollableMetricChart`, and not Swift Charts at all
@@ -168,12 +168,18 @@ struct SymptomRadarWebCard: View {
 
     // MARK: - Labels
 
-    /// View-local short names — a rendering choice about seven fixed axes on a
-    /// phone-width circle, deliberately not a new InsightKit switch.
+    /// View-local short names — a rendering choice about a fixed ring of axes
+    /// on a phone-width circle, deliberately not a new InsightKit switch.
+    /// (No count in this comment on purpose: it said "seven" while `watched`
+    /// held eight.)
     private func shortName(_ metric: MetricType) -> String {
         switch metric {
         case .skinTemperatureDeviation: return "Temp dev"
         case .skinTemperature: return "Skin temp"
+        // The reader's morning thermometer (backlog R33). Short because it
+        // shares a circle with seven other labels — the display name is three
+        // words and would collide with its neighbours at phone width.
+        case .basalBodyTemperature: return "Waking temp"
         case .restingHeartRate: return "RHR"
         case .heartRateVariabilityRMSSD: return "HRV rMSSD"
         case .heartRateVariabilitySDNN: return "HRV SDNN"

@@ -167,6 +167,10 @@ public enum MetricExplainer {
             return MetricExplanation(
                 whatItIs: "How uneven your breathing was while you slept — an index your ring builds overnight from dips in blood oxygen and the movement that goes with interrupted breaths. Higher means a more disturbed night's breathing.",
                 soWhat: "Breathing that fragments during sleep undermines a night before it shortens it. This is an index on the maker's own scale, not an apnoea test — it cannot diagnose one, and no published threshold says what any given level means. What it can do honestly is trend: your own nights against your own nights, so a sustained change is visible and, if it persists, is something to raise with a clinician — the only place that question can actually be answered.")
+        case .basalBodyTemperature:
+            return MetricExplanation(
+                whatItIs: "Your temperature taken on waking, before you get out of bed — you record it yourself with a thermometer and a Shortcut writes it to Health. It is the one temperature here that does not come off a wearable.",
+                soWhat: "Taken at the same moment every morning it is the steadiest number your body produces, which is exactly why a shift of two or three tenths of a degree is worth seeing. Getting up first, a late night or a warm room will move it more than most illnesses do, so the reading is only as good as the routine around it — and a morning you skipped is a gap, never a low reading.")
         case .skinTemperature, .skinTemperatureDeviation, .bodyTemperature:
             return MetricExplanation(
                 whatItIs: "How warm you are overnight. Wearables usually report the change from your own normal rather than an absolute figure, because wrist and finger temperature depend heavily on the room.",

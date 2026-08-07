@@ -785,6 +785,7 @@ unused despite tens of thousands of samples.
 | oxygenSaturation | Readiness, Sleep Quality, Vitals Check |
 | respiratoryRate | Readiness, Sleep Quality, Vitals Check |
 | skinTemperatureDeviation | Readiness, Sleep Quality, Vitals Check |
+| basalBodyTemperature | **Symptom Radar only**, as the thermal channel's *standby* — backlog R33, 2026-08-07. The reader writes a waking thermometer reading through a Shortcut (136 records over 124 days, 80 of the last 90) and nothing read it. It shares the thermal family, so `collapsingDuplicates` folds it in with the wearable temperatures and it holds the channel open on a night the ring was off; `HealthWatchModel.standbyMetrics` stops it displacing one that reported. Deliberately **not** on Readiness: that card's contributors come from the vitals scan, and there is no `VitalSignsCheck.Spec` for a waking temperature — see "What changed while you slept" for the section that shows it |
 | sleepDurationHours | Readiness, Sleep Quality, Sleep Debt, Energy |
 | sleepOnset | Sleep Regularity — signed hours from midnight, branch cut at midday |
 | sleepEfficiency, sleepDeepMinutes, sleepRemMinutes | Sleep Quality — deep and REM scored as a *share of the night*, never a minute target |

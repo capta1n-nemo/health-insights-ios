@@ -251,8 +251,17 @@ final class SymptomRadarTests: XCTestCase {
                 * Foundation.cos(2 * .pi * uniform())
         }
 
+        // ⚠️ **Five metrics, three channels.** The thermal pair and the
+        // respiratory pair each collapse — `output(fromEvaluated:)` keeps
+        // whichever of a same-family pair leans harder — so this is the real
+        // morning and not a flattering four-channel one. The basal temperature
+        // joined the thermal pair on 2026-08-07 (backlog R33) and it is here
+        // because a channel that is a maximum over two draws is a channel with
+        // an inflated statistic, which is a cost to the false-alarm budget and
+        // has to be measured rather than argued about.
         let metrics: [(MetricType, Bool)] = [
-            (.skinTemperatureDeviation, true), (.restingHeartRate, true),
+            (.skinTemperatureDeviation, true), (.basalBodyTemperature, true),
+            (.restingHeartRate, true),
             (.respiratoryRate, true), (.oxygenSaturation, false)]
 
         // The budget at the design assumption, and what it costs to be wrong in
@@ -375,8 +384,13 @@ final class SymptomRadarTests: XCTestCase {
             (-2 * Foundation.log(uniform())).squareRoot()
                 * Foundation.cos(2 * .pi * uniform())
         }
+        // The same five metrics / three channels the false-alarm test uses, and
+        // for the same reason: the collapse selects a maximum, and a run length
+        // measured without the basal channel would be measuring a card the
+        // reader does not have.
         let metrics: [(MetricType, Bool)] = [
-            (.skinTemperatureDeviation, true), (.restingHeartRate, true),
+            (.skinTemperatureDeviation, true), (.basalBodyTemperature, true),
+            (.restingHeartRate, true),
             (.respiratoryRate, true), (.oxygenSaturation, false)]
         let dependence = HealthWatchModel.assumedDependence
 

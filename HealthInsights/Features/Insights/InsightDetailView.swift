@@ -112,6 +112,11 @@ struct InsightDetailView: View {
         // shape of last night, then the stretch, then what moves it.
         case .sleep:
             sleepNightCard
+            // S5, the reader's ask: what actually *moved* overnight, which is a
+            // different question from what the night was — and it sits here
+            // because it is still about last night. Own file, like everything
+            // else added on 2026-08-07.
+            OvernightChangeSection()
             SettlingSection()
             sleepTypicalNightCard
             sleepFortnightCard

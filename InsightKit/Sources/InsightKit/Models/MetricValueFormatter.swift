@@ -20,6 +20,10 @@ public enum MetricValueFormatter {
         case .bodyMass, .leanBodyMass, .muscleMass, .boneMass,
              .sleepDurationHours, .bodyTemperature, .skinTemperature,
              .skinTemperatureDeviation,
+             // One decimal, not the two the reader's own records carry: a
+             // consumer thermometer is specified to about ±0.1 °C, so printing
+             // 36.44 would render three digits of which the last is noise.
+             .basalBodyTemperature,
              .dayStrain,
              // One decimal like strain, and for the effort-intensity reason:
              // most nights sit in single digits, so the `default:` integer
