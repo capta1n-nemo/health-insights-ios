@@ -210,7 +210,7 @@ silently; count the enum before trusting the table.
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "When you settled" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Screen time and your sleep" + "Overnight HRV" + "Sleep apnoea indicator" (which *contains* "Breathing during sleep") | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** **+ "When it has spoken"** (S4 chart + the S3 nights-to-flag detail) | ● **"Your two symptom records"** (R28, hand-entered side effects against Health tags) | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
@@ -283,13 +283,39 @@ B18-4, B18-5 and P22) and each its own `@ViewBuilder` member:
 - **"Your fortnight"** (5f) — the bedtime strip.
 - **"How fast you fall asleep"** (5n) — nightly latency, its drift, and the four
   things the app can see that move it.
-- **"Breathing during sleep"** (5o): Oura's nightly breathing-disturbance index
-  promoted from the raw catalogue (backlog #30/S9), drawn with the shared
-  `MultiSourceChart` against the reader's own recent range and reported by the
-  model as a weight-0 contribution — trended, never scored, and its caveat says
-  outright that it is not an apnoea test. **Backlog B18-1 wants this contained
-  by a dedicated sleep-apnoea indicator section**, which does not exist yet;
-  when it is built, this is the section it wraps.
+- **"Sleep apnoea indicator"** (5o, `SleepApnoeaSection.swift`) — the dedicated
+  section backlog B18-1 asked for, and **it contains "Breathing during sleep"**
+  as a `NestedInsightSection` rather than leaving two headings about one
+  measurement. The index itself is Oura's, promoted from the raw catalogue
+  (backlog #30/S9), drawn with the shared `MultiSourceChart` against the
+  reader's own recent range and reported by the model as a weight-0
+  contribution. **What makes a section with this title safe is the refusal**:
+  `BreathingDisturbanceTrend.notAnApnoeaTest` opens it and `whatWouldAnswerIt`
+  closes it, both in InsightKit where they are tested, because no published work
+  maps a ring's composite onto a sleep study's event counts. It adds a drift
+  sentence (a direction only when the slope beats the scatter) and the latest
+  night's placement among the reader's own.
+- **"When you settled"** (5q, `SettlingSection.swift`) — backlog B3-20, and the
+  thing the competitive scan found nobody drawing: **the shape inside the
+  night**, not the nightly summary every wearable reports. Last night's heart
+  rate (or HRV) binned in twenty-minute medians from the moment sleep started,
+  against the middle half of the reader's own recent nights. The x axis is hours
+  since falling asleep — which is both its substance-shading exemption and why it
+  cannot strand a reader in an empty window. The band is fitted **without** the
+  night drawn over it.
+- **"Screen time and your sleep"** (5r, `SleepScreenTimeSection.swift`) —
+  backlog B18-2. `SleepOnsetModel` already asks *"is it tech time?"* of latency
+  alone; this asks it of the whole night and leads with a `CoverageGate`,
+  because iOS sandboxes Screen Time and there are twenty-six hand-supplied days
+  of it. Below `ScreenTimeSleepLink.minimumPairs` there is a scatter and **no
+  contrast** — a median split over six nights reads exactly like one over sixty.
+- **"Overnight HRV"** (5s, `OvernightHRVSection.swift`) — backlog S10, whose
+  case was one sentence: Sleep was the only card grading a night while reading
+  nothing from the heartbeat stream recorded during it. It now reads the HRV
+  that fell **inside the sleep window**, charts it nightly with the same
+  band-and-average shape as the onset chart, and says on screen why it is not
+  scored: five other cards already weight HRV, and nothing published grades a
+  person's own overnight variability.
 
 Keeping each in its own member is not tidiness. `card-map.sh` reads titles from
 a 4,000-character window per member and **fails open** past it (activeContext
@@ -731,7 +757,10 @@ map above.
 | 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
 | 5p | **A typical night** | Sleep | open (closed when empty) | ● `needsInput` — says "widen the timeframe" first | `n` nights · the timeframe | `estimated` — a mean; sources never pooled | `SleepStageAverageChart` |
 | 5n | How fast you fall asleep | Sleep | open (closed when empty) | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
-| 5o | Breathing during sleep | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| 5o | **Sleep apnoea indicator** (contains "Breathing during sleep") | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — `notAnApnoeaTest`, verbatim from InsightKit | `MultiSourceChart` |
+| 5q | **When you settled** | Sleep | open (closed when empty) | ● `needsInput` — a watch or ring worn to bed | settled after `n` min | `partial` — twenty-minute medians, band excludes the night drawn | raw `Chart` (hours-since-onset axis) |
+| 5r | **Screen time and your sleep** | Sleep | open (closed when nothing paired) | ● the `CoverageGate` line, always | `n` nights paired | `associationsNotCauses` | raw `Chart` (scatter, screen minutes axis) |
+| 5s | **Overnight HRV** | Sleep | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` — names SDNN or rMSSD, never pools them | `OvernightNightlyChart` |
 | 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
@@ -785,9 +814,13 @@ map above.
 | Fit | Where this is heading | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
 | Energy | Today | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
 | Sleep | Last night in stages | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
-| Sleep | Your fortnight | nested in the night card | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
-| Sleep | How fast you fall asleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
-| Sleep | Breathing during sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| Sleep | Your fortnight | open (closed when empty) — **standalone since 2026-08-07**, not nested | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| Sleep | How fast you fall asleep | open (closed when empty) — **standalone since 2026-08-07**, not nested | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| Sleep | When you settled | open (closed when empty) | ● `needsInput` | settled after `n` min | `partial` | raw `Chart` (hours-since-onset axis) |
+| Sleep | Screen time and your sleep | open (closed when nothing paired) | ● the `CoverageGate` line, always | `n` nights paired | `associationsNotCauses` | raw `Chart` (scatter) |
+| Sleep | Overnight HRV | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` | `OvernightNightlyChart` |
+| Sleep | Sleep apnoea indicator | open (closed when empty) | ● `needsInput` | latest index | `estimated` — `notAnApnoeaTest` | `MultiSourceChart` |
+| Sleep | …Breathing during sleep | **nested inside the apnoea indicator** (B18-1) | — | `n` nights | `estimated` — trended, never scored | `MultiSourceChart` |
 | Subst | Cardiovascular load | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | HH | How your heart responds | closed behind its preview either way | ● `needsInput` (a recorded workout, and the remedy says so — nothing under "View & add" can record one) | −`n` bpm in a minute | `approximate` (Cole et al., NEJM 1999) | — (recovery + autonomic rows) |
 | BodyC | What you're made of | open (closed when empty) | ● | total kg | `.none` | stacked bar |
@@ -933,10 +966,16 @@ a sweep ships having missed some.
 
 The census, as verified against the source:
 
-- **13 wrap `ScrollableMetricChart`** — the thirteen `●` rows below.
-- **4 build a raw `Chart` of their own**: `ScrollableMetricChart` itself,
-  `EnergyCurveChart` and `NightSleepChart` (both call `SubstanceShading`), and
-  `FitnessProjectionChart` (exempt, in writing).
+- **14 wrap `ScrollableMetricChart`** — the `●` rows below. `OvernightNightlyChart`
+  (Sleep ▸ "Overnight HRV") joined on 2026-08-07 with the §B18 sleep sections.
+- **6 build a raw `Chart` of their own**: `ScrollableMetricChart` itself,
+  `EnergyCurveChart` and `NightSleepChart` (both call `SubstanceShading`),
+  `FitnessProjectionChart` (exempt, in writing), and — added 2026-08-07 —
+  `SettlingSection` and `SleepScreenTimeSection`, both exempt in writing for the
+  same reason as each other: neither has a date on its x axis (hours since you
+  fell asleep, and minutes of screen time), so a window in which something was
+  logged has nowhere to land. Neither scrolls, so neither can strand a reader in
+  an empty window either (§9b's only exemption).
 - **1 more raw chart the lint cannot see** — the inline
   `Chart(charted) { point in … }` at `DataTabView.swift:1202`, the raw-identifier
   data page's own line-and-point plot. It wraps nothing, calls nothing and
@@ -961,12 +1000,15 @@ The census, as verified against the source:
 | `BodyCompositionTrendChart` | ● **2026-08-01** | ● | ● shared | ● |
 | `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
 | `SleepOnsetChart` (Sleep ▸ "How fast you fall asleep") | ● **missing from this table until 2026-08-07** | ● | ● shared, or the card's binding | ● takes `window`, and re-fits its band per visible window |
+| `OvernightNightlyChart` (Sleep ▸ "Overnight HRV") | ● **2026-08-07** | ● | ● own `selection` | ● takes `window`, and re-fits its band per visible window |
 | `MedicationCurveChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
 | `MedicationResponseChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
 | `DerivedSeriesChart` (Data ▸ Generated insights) | ● **missing from this table until 2026-08-07** | ● | ● own `selection` | — a data page, no timeframe picker: fixed 90-day default |
 | `EnergyCurveChart` | ○ calls `SubstanceShading` itself | ○ | ● shared **2026-08-01** | — within a single day |
 | `NightSleepChart` | ○ calls `SubstanceShading` itself | ○ | ● shared | — within a single night |
 | `FitnessProjectionChart` | ○ **exempt, in writing** | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
+| `SettlingSection`'s curve (Sleep ▸ "When you settled") | ○ **exempt, in writing** | ○ | ○ — a legend and a settled rule instead | — hours since you fell asleep |
+| `SleepScreenTimeSection`'s scatter | ○ **exempt, in writing** | ○ | ○ | — screen minutes against hours slept |
 | inline `Chart` at `DataTabView.swift:1202` | ○ ⚠️ **no shading, no exemption, invisible to the lint** | ○ | ○ | ● takes the page's own `timeframe` |
 | `PeerStandingStrip` | — hand-drawn | — | — | — position, not time |
 | `VitalDepartureStrip` | — hand-drawn | — | — | — position, not time |
