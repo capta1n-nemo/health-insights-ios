@@ -518,6 +518,194 @@ so the decision is deliberate rather than inherited. See
 
 ---
 
+## §B9 — New cards
+
+| # | Card | Notes |
+|---|---|---|
+| C1 | **Social battery** | New card. Scope not yet specified — needs a brief before building. |
+| C2 | **Screen time card** | *"based on all the new screen time data we are supporting"*. |
+
+---
+
+## §B10 — Screen time import via photo (OCR) — **two live bugs**
+
+| # | Bug | Detail |
+|---|---|---|
+| S1 | **Single-day import: the date is mostly wrong** | The OCR *"correctly OCRs the data, and says it recognises the actual day and time on phone"*, and the **time** at the top is right — but the **day/date is mostly wrong**. So the parse succeeds and the date attribution fails. |
+| S2 | **Whole-week scans are broken** | *"this is no longer working, the model says the numbers do not add up."* A regression — it worked before. |
+
+---
+
+## §B11 — Symptom radar: the Sick days section
+
+**The largest item in this brief.** A bespoke section on the symptom radar,
+plus a new data source, plus a calendar-classifier change, plus a learning loop.
+
+### The section itself
+- **Two views, switchable: log and calendar.**
+- **Log view** — every day flagged symptomatic, with that day's score.
+- **Calendar view** — a month at a time, skippable between months, each day
+  **coloured by symptom score** (green / yellow / orange / red).
+
+### The per-day page (reachable from either view)
+- The **radar for that day**.
+- An **AI summary for that day**.
+- **The graph of all contributing data sources**, so the reader can see how each
+  contributed.
+- An **estimated sickness**, derived from all the data, **which the reader can
+  correct** — sickness **type** and **severity** — *"similar to how you can
+  correct a work or travel event (same concept - then we can learn from it)"*.
+
+### It is a data source
+- *"since this 'sick day' is now a new data source, it should of course now be
+  stored in the data section too, so all of this can be viewed and changed from
+  the data section too."*
+
+### The learning loop — and the reader is explicit about scale
+- Log **both** confirmations and corrections into data-and-model-improvement.
+- ⚠️ *"it is important for it to include all meta data for every known possible
+  metric, for that day, so we can do full statistical analysis later and be able
+  to profile sickness more effectively. I am not too worried about the data
+  blowing up, because people do not get sick too often… but when they do, we
+  want ALL health data from that day."*
+  **So: a sick-day record captures the complete daily snapshot, deliberately.**
+
+### Calendar integration as a feed
+- The **calendar AI classifier must be able to classify a day as 'sick'**, in
+  the same dropdown as `meeting`, `reminder`, `travel`.
+- Misclassification must be correctable both ways — travel → sick, sick → work.
+- For a sick classification the **work/personal/not-sure** selector and the
+  **formal/casual/standard** selector are **not relevant** and should not show.
+- It **does** need a **severity of sickness** selector.
+
+### ⚠️ The fake-sick-day problem — the reader's own scientific objection
+- *"I also need a way for us to reclassify if a 'sick' day, is actually a 'sick
+  so I can get off work' kind of day.. because I don't want fake sick days to
+  accidentally break our science models later.. where they are not sick,
+  perfectly healthy, but a sick day is reported and we profile their healthy
+  metrics."*
+- A calendar sick day **may** be flagged to add more info; **not mandatory**.
+- ⚠️ **An unconfirmed calendar sick day still enters the training set as a
+  flagged sick day.**
+- **Then the inversion**: *"once we learn the correlation between a sick day
+  calendar day, sick profiles radar map patterns.. we could then tell if they
+  are not actually sick, and again flag it as a possible 'sick to get off work'
+  day."*
+
+### Weightings
+- **Symptoms must go into this card's weightings** — as must calendar sick days
+  and other derived symptom scores.
+- Oura tags considered contextually (a sickness flag, etc) once §B12 lands.
+
+### And
+- *"All of this derived data must go into the relevant data tab sections."*
+
+---
+
+## §B12 — Oura tags (and equivalents from other sources)
+
+- Import tags and **let them contribute to the relevant cards**: sickness or
+  symptoms → symptom radar; activity → fitness; mental health → mental health.
+- ⚠️ **Use AI to map them.** *"maybe we should put these tags through AI, to
+  determine their applicability. Like when they are imported, in the data
+  section we use AI to map them to relevant high-level categories."*
+- Worked example, the reader's own: a sport tag lives primarily in a **new
+  'Tags' data section**, and *"whatever it is (eg Kayaking) will have an
+  'applicability' of 'Activity & mobility'*".
+- Those activity-related tags then become **candidates for cards at the next
+  review** — not wired automatically.
+- ⚠️ **This must scale to tags never seen before** — Oura supports custom tags,
+  so a fixed lookup table is not an answer.
+
+---
+
+## §B13 — Chart behaviour when panned off the data — **a new universal rule**
+
+- **Bug**: panning to a region with no data makes the *"Range over this period"*
+  header **disappear**, and the UX **violently jumps to the top**.
+- **Required**: the header **never disappears**; it states that there is no data
+  in this period instead.
+- **Improvement**: when no data is visible, show a **`<`** on the left edge to
+  auto-pan to the nearest data point to the left, and a **`>`** on the right
+  edge for the nearest to the right.
+- ⚠️ *"I want this to be a rule for every graph in the app, add it to the graph
+  building skill/rules."* → **`.claude/skills/add-chart/SKILL.md`**
+
+---
+
+## §B14 — Show that a card opens
+
+- Add a **`>`** to the far right of **every card and every clickable section**,
+  to show it opens a sub-menu.
+- Explicitly includes the **small cards on Today** (BPM, HRV, cardio, weight,
+  sleep), not just the main cards.
+
+---
+
+## §B15 — Card trend indicators — **a new universal rule**
+
+- **Down** → down arrow + the negative number.
+- **Up** → up arrow + the `+` number.
+- **No change** → currently `= no change =`; must become a **flat arrow reading
+  "Stable", in grey**.
+- **Not enough data yet** → **"Learning trends", in grey**.
+- ⚠️ **On every card, on both Today and Insights.** *"Make this a requirement,
+  update the card building skill/rules."*
+  → this pairs with `CoverageGate` (D46) for the "Learning trends" state.
+
+---
+
+## §B16 — Card title, subtitle and description
+
+- **Title (line 1)** — constant. Never changes unless the card is renamed
+  ("Readiness", "Sleep").
+- **Subtitle (line 2)** — **words only, no numbers.** The reader's example: the
+  Energy card currently reads *"10 · Drained"* and should read **"Drained"**.
+- **Description (line 3)** — *"a non technical, high level summary of the entire
+  card's contents. Use AI. It should highlight the most important overall trend,
+  the number one thing they should take away if they read the whole card."*
+
+---
+
+## §B17 — The top section inside a card
+
+- **Bug**: the score bubble contains the score *and* the sub-menu text, and
+  *"often that sub menu text goes outside the bubble boundary and breaks the
+  effect."*
+- **Required**: title and sub-menu both sit **to the right of the score bubble**
+  — matching how the card looks on the Today and Insights lists. Today that
+  space inside the card is empty.
+- Also put the **card trend indicators inside the card**, as on the main card.
+
+---
+
+## §B18 — Sleep card: five sections, each standalone
+
+| Section | State |
+|---|---|
+| **Sleep apnoea indicator** — dedicated, and it **contains** "Breathing during sleep" | New |
+| **Screen time impact** — dedicated | New |
+| **Last night in stages** — must become **standalone** | Currently nested |
+| **Your fortnight** — its own section | Currently nested |
+| **How fast you fell asleep** — its own section | Currently nested in the night card |
+
+⚠️ Three of these are currently nested inside `sleepNightCard`, which
+`card-map.sh` reads with a **4,000-character window** and which **fails open**
+(backlog finding, 2026-08-06) — splitting them out should *help* that, but the
+generated block must be eyeballed rather than trusted to the exit code.
+
+---
+
+## §B19 — Energy card accuracy
+
+- *"The card doesn't seem accurate."* No further detail given — **needs a
+  diagnosis pass against the reader's real data before any change**, and
+  probably a question back about what looked wrong.
+- Related known fact: `EnergyModel.curve` cannot be verified on a simulator at
+  all (activeContext, 2026-08-05) — this one needs the phone.
+
+---
+
 ## F. Device-gated — need the phone, not the simulator
 
 Resting Heart Rate page cross-device defect · Body Composition after the hatch change · split-night proof from the next export · the ingestion pipeline · the cards on the phone · Phase 1 and Phase 2 sections · Heart Health on a young profile · Screen Time bar measurement · the share-sheet action extension (parked on signing)

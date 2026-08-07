@@ -105,6 +105,20 @@ public enum EffortIntensityModel {
     /// nothing this week" when what happened is that the watch was in a drawer,
     /// and on this reader's record that would be the answer for eight weeks in
     /// twelve.
+    /// **What the week is short of, when it is short.** `nil` once the gate is
+    /// met — see `CoverageGate`, and backlog D46 for why a withheld figure has
+    /// to say so rather than simply not appearing.
+    public static func coverage(samples: [HealthMetricSample], now: Date,
+                                calendar: Calendar = .current) -> CoverageGate? {
+        let window = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+        let days = Set(samples.samples(of: .physicalEffort)
+            .filter { $0.start >= window && $0.start <= now }
+            .map { calendar.startOfDay(for: $0.start) })
+        return .ifShort(
+            need: minimumRecordedDays, have: days.count, unit: "day",
+            unlocks: "this can total the week's effort against the guideline")
+    }
+
     public static func evaluate(samples: [HealthMetricSample], now: Date,
                                 calendar: Calendar = .current) -> Output? {
         let window = calendar.date(byAdding: .day, value: -7, to: now) ?? now

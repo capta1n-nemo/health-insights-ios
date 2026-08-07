@@ -14,6 +14,23 @@ public enum VO2Trajectory {
     /// weekly from a watch, so six weeks is the earliest a slope means anything.
     public static let minimumReadings = 4
     public static let minimumSpanDays: Double = 42
+
+    /// **What a trajectory is still waiting for.** `nil` once there are enough
+    /// readings — backlog D46, and `CoverageGate` for why a withheld figure has
+    /// to say what it is short of rather than simply not appearing.
+    ///
+    /// Counts readings only, not the six-week span: a reader can *do* something
+    /// about the count (wear the watch on an outdoor walk) and can do nothing
+    /// about the calendar. Telling them to wait six weeks is true and useless;
+    /// telling them two more readings are needed is actionable.
+    public static func coverage(samples: [HealthMetricSample],
+                                now: Date = Date()) -> CoverageGate? {
+        let readings = samples.samples(of: .vo2Max)
+            .filter { now.timeIntervalSince($0.start) <= staleAfter }
+        return .ifShort(
+            need: minimumReadings, have: readings.count, unit: "reading",
+            unlocks: "this can tell whether your fitness is climbing or slipping")
+    }
     /// A slope fitted to readings that stopped six months ago describes a fitness
     /// level the person may no longer have. Past this, there is history but no
     /// current trajectory, and saying so is more useful than extrapolating.

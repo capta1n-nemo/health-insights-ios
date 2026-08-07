@@ -332,6 +332,8 @@ the place to look.
   - `ContributionRoute` :14
 - `Presentation/ContributionSummary.swift`
   - `ContributionSummary` :21
+- `Presentation/CoverageGate.swift`
+  - `CoverageGate` :35
 - `Presentation/DailyHighlights.swift`
   - `DailyHighlights` :48
   - `ScoreBand` :9
