@@ -102,8 +102,14 @@ struct EventConfirmationFeedView: View {
         Section {
             if model.feed.pending.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label(model.hasRun ? "Nothing to ask about" : "Not looked yet",
-                          systemImage: model.hasRun ? "checkmark.circle" : "clock")
+                    // ⚠️ Three states, not two. Seen in the simulator on
+                    // 2026-08-07: a fresh install showed a green tick over
+                    // *"Nothing to ask about"* and then explained underneath
+                    // that it had no history to look at — which is the app
+                    // claiming a clean bill of health it had not looked for.
+                    // A gate that is not met is "not enough yet", never "all
+                    // clear".
+                    Label(emptyHeadline.text, systemImage: emptyHeadline.symbol)
                         .font(.subheadline.weight(.medium))
                     Text(model.feed.emptyMessage(access: model.access))
                         .font(.caption).foregroundStyle(.secondary)
@@ -205,6 +211,17 @@ struct EventConfirmationFeedView: View {
         } message: {
             Text("This really does delete your answers as well as the places — including the corrections the app learns from. It cannot get them back.")
         }
+    }
+
+    /// What the empty queue is actually saying. Ordered by how much the app
+    /// knows: it cannot have found nothing until it has had enough to look at.
+    private var emptyHeadline: (text: String, symbol: String) {
+        if model.feed.gate != nil {
+            return ("Not enough history yet", "hourglass")
+        }
+        return model.hasRun
+            ? ("Nothing to ask about", "checkmark.circle")
+            : ("Not looked yet", "clock")
     }
 
     private var anchorSentence: String {

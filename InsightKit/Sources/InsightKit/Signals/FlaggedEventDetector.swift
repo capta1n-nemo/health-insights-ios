@@ -206,8 +206,13 @@ public enum FlaggedEventDetector {
         return CoverageGate.ifShort(
             need: minimumReferenceDays,
             have: coverageDays(of: heart, calendar: calendar) ?? 0,
-            unit: "day of heart-rate history",
-            unlocks: "the app can tell an unusual half-hour from an ordinary one")
+            // ⚠️ **A bare noun, because `CoverageGate` pluralises by appending
+            // an "s".** This said "day of heart-rate history" and the simulator
+            // rendered *"14 day of heart-rate historys"* — the gate has no way
+            // to know which word in a phrase takes the plural. Whatever this
+            // unit is has to read correctly with an "s" on the end of it.
+            unit: "day",
+            unlocks: "the app can tell an unusual half-hour of heart rate from an ordinary one")
     }
 
     // MARK: - The reference

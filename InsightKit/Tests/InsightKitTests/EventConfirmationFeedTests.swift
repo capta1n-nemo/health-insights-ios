@@ -108,6 +108,33 @@ final class EventConfirmationFeedTests: XCTestCase {
         XCTAssertFalse(gate.isMet)
         let sentence = try! XCTUnwrap(gate.sentence)
         XCTAssertTrue(sentence.contains("14"), "the gate has to name the number it needs")
+        // ⚠️ `CoverageGate` pluralises by appending an "s", so the unit must be
+        // a bare noun. This shipped as "day of heart-rate history" and rendered
+        // *"14 day of heart-rate historys"* on the simulator — a phrase unit
+        // cannot be pluralised by a suffix.
+        XCTAssertFalse(sentence.contains("historys"))
+        XCTAssertTrue(sentence.contains("14 days"))
+    }
+
+    /// Every gate this feature produces has to survive the same suffix.
+    func testEveryGateUnitPluralisesByAddingAnS() {
+        let gates: [CoverageGate?] = [
+            FlaggedEventDetector.referenceGate(samples: [], now: now, calendar: calendar),
+            FlaggedEventAccuracy.measure([]).gate,
+            PlaceAnchorSet().gate]
+        for gate in gates {
+            let unit = try! XCTUnwrap(gate).unit
+            XCTAssertFalse(unit.contains(" of "),
+                           "\"\(unit)\" is a phrase; the pluraliser will put the s on the wrong word")
+            // A consonant before a final "y" takes -ies ("history" → "histories"),
+            // which a suffix cannot produce. A vowel before it is fine — "day"
+            // → "days" — so the check is the consonant, not the "y".
+            let tail = unit.suffix(2)
+            let takesIES = tail.count == 2 && tail.hasSuffix("y")
+                && !"aeiou".contains(tail.first!)
+            XCTAssertFalse(takesIES,
+                           "\"\(unit)\" pluralises to \"\(unit)s\", which is not a word")
+        }
     }
 
     func testAMetGateSaysNothing() {

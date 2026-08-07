@@ -814,8 +814,8 @@ the place to look.
   - `EventConfirmationSheet` :210
 - `Features/Events/EventConfirmationFeedView.swift`
   - `EventConfirmationFeedView` :29
-  - `FlaggedEventRow` :224
-  - `LocationExplanation` :274
+  - `FlaggedEventRow` :241
+  - `LocationExplanation` :291
 - `Features/Events/EventPlaceMap.swift`
   - `EventPlaceMap` :17
 - `Features/Grounding/AddBloodPressureView.swift`
