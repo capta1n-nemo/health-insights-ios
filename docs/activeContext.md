@@ -51,26 +51,51 @@ research — came from agents with no filesystem dependency at all.
 
 ### Next session, in order
 
-1. **The calendar-drift patch is apply-ready** — 706 lines with tests, at
-   `…/scratchpad/calendar-drift-patch.md` if it survives, otherwise re-derive
-   from D-row. It needs one anchor checked in `InsightDetailView.body`: the
-   `.onDisappear` must attach at body level, **not** to the section, or a
-   `LazyVStack` fires it on scroll.
-2. **§B9–§B19**, the reader's brief. The cheap high-value ones are §B15 (trend
-   indicators — pairs with `CoverageGate` for "Learning trends") and §B14 (the
-   `>` affordance).
-3. **§B11's inversion is constrained, not blocked** — compute and store, never
-   surface as a judgement about honesty. The evidence doc says why.
-4. `docs/watch-capture-setup.md` has three things **the reader must do on their
-   devices** before daylight or falls can record anything.
+**Do not work from a list written here. Run `./scripts/backlog.sh --next`.**
+It orders by wave and batches by the model tier each item needs. What follows is
+context for the first two batches, not a substitute for the command.
 
-### ⚠️ Docs debt, now overdue
+1. **`w0` blockers, all `mech`** — 14 ready. Three are costing work right now:
+   `D31` (`.claude/settings.json` allows the hook's `cd` prefix only for the
+   Linux path, so the Mac and worktree prefixes prompt), `D32` (concurrent
+   worktree agents collide on shared scratchpad filenames — two agents have
+   already lost commits), and `AC3`/`D38` (prune this file; it is 4,222 lines
+   and read in full at every session start, and the protocol has now instructed
+   this **three** times).
+2. **⚠️ `AC1` is on a clock.** The calendar-drift patch — 706 lines with tests —
+   **is not lost**, contrary to what this section used to say. It survives in
+   the *abandoned* iCloud checkout's session scratchpad, and `/private/tmp` does
+   not survive a reboot. **Copy it into the repo before anything else touches
+   it.** Its anchor is confirmed real: `InsightDetailView.swift:423–429` is a
+   `LazyVStack`, so the `.onDisappear` must attach at body level or it fires on
+   scroll. It is designed but **never compiled or tested**.
+3. **`w1` — things already on the phone that are currently wrong.** The
+   screen-time OCR pair (`B10-1` date attribution, `B10-2` a regression, so
+   bisect before rewriting), `B13-1` the collapsing chart header, `F1` the
+   resting-heart-rate cross-device defect.
+4. **`w2` quick wins are genuinely quick.** `B16-2` is one line
+   (`Energy.swift:538` is the only interpolated-number headline in InsightKit);
+   `B14` is two sites; `B15-1`/`B15-2` are the two states of a chip whose other
+   halves already ship.
+5. **`AC2` needs the reader, not a build** — three settings on their own devices
+   before daylight or falls can record anything, and every day it is not done is
+   a day of history that cannot be backfilled.
+6. **`B11`'s inversion is constrained, not blocked** — compute and store, never
+   surface as a judgement about honesty. `docs/illness-detection-evidence-2026-08-07.md`
+   says why.
 
-`activeContext.md` is past 4,100 lines across 29 sessions and is read at every
-session start. The handover protocol has instructed archiving superseded
-sections since 2026-08-06 and **it has not been done twice running**. The next
-session should move sessions 24–27 to `docs/archive/activeContext-history.md`
-before adding to it.
+### ⚠️ Docs debt, now overdue — and now on the list
+
+`activeContext.md` is 4,222 lines across 29 sessions and is read at every session
+start. The handover protocol has instructed archiving superseded sections since
+2026-08-06 and **it has not been done three times running**. Sessions 24–27
+should move to `docs/archive/activeContext-history.md`.
+
+⚠️ **The lesson is the repeat, not the debt.** An instruction that has been
+ignored three times is not made to hold by writing it a fourth time — that is
+this repo's own rule, and it is why `unbuilt-asks.sh` became a command and why
+`backlog.sh` hard-errors instead of warning. This is now `AC3`/`D38` on the one
+list, at `w0`, so it surfaces in `--next` rather than in a paragraph.
 
 ## ⚠️ The repo moved out of iCloud Drive — 2026-08-07
 
@@ -451,61 +476,34 @@ itself by saying what it is. One of the three also had to become a *subset*
 rather than an equality — a card reporting nothing under full coverage must be
 log-driven, but the converse is false.
 
-### What the reader has asked for and has NOT got — read this first next session
+### What the reader has asked for and has NOT got — now a command
 
-`docs/backlog.md` §B2 and §B5 are the authority. **Six things they explicitly
-reversed a refusal on are still unbuilt**, and this list existing at the top of
-the file is the mechanical answer to a three-session repeat (sessions 25, 27, 28
-each ended with the reader asking where their work was):
+⚠️ **Moved 2026-08-07.** This section used to be a hand-maintained table, and it
+had gone stale: it listed the Fitness sections (§B5 #34/#35), sound exposure
+(#33) and breathing disturbance (#30) as unstarted when all three had shipped.
+A hand-written summary of a list that long is stale the first time somebody
+ticks a box, which is the whole argument for generating it.
 
-| | Asked for | State |
-|---|---|---|
-| §B5 #34 | **Physical-effort intensity as a Fitness section, feeding the Fitness score** | Not started. ⚠️ The score half is *new work*, not a relocation, and needs `Feedback.swift`'s `"fitness-v1"` bumped or every recorded Fitness score becomes silently non-comparable |
-| §B5 #35 | **Steps / distance / flights as Fitness sections** | Not started. Needs 3 new `MetricType`s **and their removal from `HealthKitService.otherQuantityIdentifiers`**, or every sample ingests twice |
-| §B5 #33 | **Total sound exposure** | Not started. Store the *dose*, never the level |
-| §B5 #30 | **Sleep apnoea** | Only the two HealthKit identifiers are requested, so the data is now *measurable*. **Count the rows before building anything** |
-| §B5 #37 | **Daylight, spirometry, mood, oral health, falls** | Not started, and the difficulty is unchanged: all **zero rows**, so what has to be built is the *capture*, not a card |
-| ~~§B5 #31~~ | ✅ **The cycle tab's fertile window and phase model** | Both slices built. ⚠️ **One thing is deliberately left**: the phase-aware baselines exist and are tested but are **not wired into `HealthWatchModel`** — doing so moves the denominator of every radar z-score and its thresholds are calibrated, so the wiring and the recalibration are one commit or neither. Named TODO at `PhaseAwareBaseline.swift:29`; full reasoning in `docs/backlog.md` §A3 |
+```bash
+./scripts/backlog.sh --asks
+```
 
-**And from §A**: Q6 location feed, Q7 bloods (manual *and* OCR), Q8 supplements,
-Q13 delete-everything, Q15 ARKit body capture, and the four remaining export
-fields (Q10's token half is done). **Q11 notifications is deferred by decision**,
-not forgotten: there is no `BGTaskScheduler` anywhere, the reader chose to build
-background delivery first, and that has not started.
+That prints **63** things the reader asked for in their own words and has not
+got, every one with an id, a wave, a complexity tier and a gate. The old
+`unbuilt-asks.sh` printed **two** — it parsed two hard-coded headings and could
+not see §B7 or §B9–§B19 at all.
 
-### The next session's build list
+### The next session's build list — now a command
 
-`docs/backlog.md` §0 carries the ordered list. **Shipped since this section was
-first written**: every card's bespoke section (S1), score decomposition in the
-deep dive (#38), the radar's own scorecard (#36), and the token guarantee half
-of Q10.
+```bash
+./scripts/backlog.sh --next
+```
 
-**Unstarted, in order:**
-
-1. **The cycle tab** — blocked on the single-user question above.
-2. **The Fitness sections** (#34/#35). Two commits: promote `.physicalEffort`,
-   `.flightsClimbed` and `.distanceWalkingRunning` through the eleven metric
-   switches (**and remove them from `HealthKitService.otherQuantityIdentifiers`
-   as they are added, or every sample ingests twice**), then the intensity model
-   feeding the Fitness score — which is new work, not a relocation, and needs
-   `Feedback.swift`'s `"fitness-v1"` bumped to v2 or every recorded Fitness
-   score becomes silently non-comparable. `.fitness` is taken in
-   `bespokeSection`; `secondaryBespokeSection` is free.
-3. **Breathing disturbance** (#30 / S9). The data already arrives — Oura's
-   index, ~107 nights — and promotion is declarative in `PromotionRules.swift`,
-   so no parser changes. See finding 3 above before touching `sleepNightCard`.
-4. **The rest of Q10** (four export fields), **Q13 delete-everything** (which
-   must come *after* the cycle tab, or the wipe silently misses two new
-   `@Model` types), then sound exposure and the calendar.
-
-⚠️ **Q11 notifications is deferred and needs an answer, not code.** There is no
-`BGTaskScheduler`, no `BackgroundTasks` import and no `UIBackgroundModes`
-anywhere in the repo, so anything built today fires **only while the app is
-foregrounded** — a radar episode opening at 3am cannot notify. Shipping a
-notification system that mostly does not fire is worse than not shipping one.
-
-**Session 26 (2026-08-05) — two ingestion defects closed, one of them silent
-for the life of the feature. ⚠️ Nothing is pushed; see the blocker below.**
+Ordering lives in each backlog row's wave (`w0` blockers · `w1` shipped but
+wrong · `w2` quick wins · `w3` substantial builds · `w4` complex, last) and the
+batch is grouped by the model tier it needs, so a session changes model once and
+then grinds. **Say the model out loud when the tier changes** — the reader's own
+instruction, so that long sessions do not stop to ask.
 
 ### ⚠️ Read first: this session could not push, so nothing reached the phone
 

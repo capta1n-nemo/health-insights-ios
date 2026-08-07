@@ -26,10 +26,40 @@ has now happened four times in this repo's history.
    re-decided, **move it to `docs/archive/activeContext-history.md`** — move,
    never delete, so the audit survives — and leave one line behind only if a
    conclusion is still load-bearing.
-3. Update `docs/progress.md` task statuses, then run
-   **`./scripts/roadmap-table.sh`** — the open-items table at the top of that
-   file is generated from the boxes below it, and `handover-check.sh` fails
-   while the two disagree.
+3. **Update `docs/backlog.md` — it is the ONE list — then run
+   `./scripts/backlog.sh`.**
+
+   ⚠️ **There is one list. Do not start a second one.** Until 2026-08-07 there
+   were three — the roadmap table in `progress.md`, the backlog, and two hand
+   tables in `activeContext.md` — and a ground-truth pass found they disagreed
+   in twenty places, with fifteen rows describing work that had already
+   shipped. Maintaining them cost a session's budget every handover and still
+   lost things. `docs/progress.md` now keeps only the historical shipped
+   narrative; `docs/activeContext.md` keeps the current state and next steps in
+   prose. **Neither records open work.**
+
+   Three things, every handover:
+
+   - **Every item this session closed gets its row marked `✅` with the
+     commit.** Not deleted — nothing is ever deleted from the backlog, only
+     marked. A removed row is how a backlog starts lying.
+   - **Every finding gets a NEW row**, with an id, a wave, a stream, a tier and
+     a gate. *A finding without a row is a finding lost* — that is what the
+     three-list era did to six symptom-radar rows and to thirty of the reader's
+     own asks.
+   - **Run `./scripts/backlog.sh`** to regenerate the index. `handover-check.sh`
+     runs `--check` and a session cannot close while the index and the rows
+     disagree — and `backlog.sh` **hard-errors** on a row it cannot parse, or on
+     a section carrying table rows but no backlog rows. That second rule exists
+     because `unbuilt-asks.sh` parsed two hard-coded headings, could not see
+     §B7 or §B9–§B19, and reported two open asks when about thirty were open.
+
+   **Every row carries a `tier`** saying what model and effort it needs —
+   `mech` (Opus 5 · medium), `build` (Opus 5 · high), `hard` (Opus 5 ·
+   xhigh/max), `ultra` (Opus 5 + ultracode workflow), `design` (Fable 5). Set it
+   honestly when you add a row: it is what lets a later session batch a tier and
+   grind without stopping to ask, and it is the reader's own request. Say the
+   model out loud when starting a batch whose tier differs from the one running.
 4. **Carry the tooling forward, not just the prose.** If this session learnt a
    rule, hit a trap, or built a shortcut, put it where the *next* session will
    trip over it rather than only in the narrative:
@@ -138,11 +168,14 @@ cheaper, and that we can *tell* whether it did rather than assuming.
     ```
 
     It verifies — rather than asserts — that the tree is clean, HEAD is pushed,
-    CI is green on *this* commit, the lint passes, all three docs were actually
-    touched this session, and the efficiency log's red-CI count matches
-    `refs/ci/failed`. **If it exits non-zero, the session is not done. Do not
-    tell the user otherwise.** It also prints the open-roadmap count, which is
-    the number to read back to them.
+    CI is green on *this* commit, the lint passes, `docs/backlog.md` parses and
+    its index is current, all three docs were actually touched this session
+    (`activeContext.md`, **`backlog.md`**, `efficiency-log.md`), and the
+    efficiency log's red-CI count matches `refs/ci/failed`. **If it exits
+    non-zero, the session is not done. Do not tell the user otherwise.** It also
+    prints the open count **broken out by tier**, and how many of those are
+    things the reader asked for in their own words — those are the numbers to
+    read back to them, and the asked-for one goes first.
 
 ## Part 3 — tell the user, out loud
 

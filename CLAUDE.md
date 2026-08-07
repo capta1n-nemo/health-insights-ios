@@ -160,8 +160,9 @@ symbol twice.
 
 **Nothing carries between chats except this repo.** Every session starts with an
 empty context, and `/handover` exists precisely so the expensive thinking
-survives: `docs/activeContext.md` and `docs/progress.md` are the *audited* state
-of this codebase, written by a session that spent real budget establishing it.
+survives: `docs/backlog.md` (what is open) and `docs/activeContext.md` (where
+things stand) are the *audited* state of this codebase, written by sessions that
+spent real budget establishing it.
 
 So:
 
@@ -179,23 +180,45 @@ So:
   it. The audit is cumulative.
 
 ## Memory Router
-- `docs/backlog.md` -> **START HERE. The exhaustive list**: every open question,
-  every card ever mentioned (built, requested, proposed, refused), every section,
-  every integration, every quality gap, and the reader's standing rules. Written
-  2026-08-06 because the roadmap's own structure had begun hiding things — a
-  nested item was invisible to its generator, and six symptom-radar rows sat open
-  for hours after shipping. **Nothing is ever deleted from it, only marked**;
-  removing a row is how a backlog starts lying. `progress.md` remains the
-  historical roadmap and keeps its generated table.
+- `docs/backlog.md` -> ⚠️ **THE list. There is only one, and this is it.** Every
+  open item, every card ever mentioned (built, requested, proposed, refused),
+  every section, integration, defect and quality gap, and the reader's standing
+  rules. **Nothing is ever deleted from it, only marked** — removing a row is how
+  a backlog starts lying.
+
+  **Do not read it to find out what is open — run `./scripts/backlog.sh`.**
+
+  ```bash
+  ./scripts/backlog.sh --asks    # what the reader asked for and has NOT got
+  ./scripts/backlog.sh --next    # the next batch, and the model it needs
+  ./scripts/backlog.sh --tier mech
+  ```
+
+  Every row is one rigid line — id, status, wave, stream, **tier**, gate — with
+  its reasoning in free prose underneath. The tier says what model and effort the
+  item needs (`mech` Opus 5 · medium, `build` Opus 5 · high, `hard` Opus 5 ·
+  xhigh/max, `ultra` Opus 5 + ultracode, `design` Fable 5), so work is batched by
+  complexity rather than picked one at a time. **Say the model out loud before
+  starting a batch whose tier differs from the one you are running.**
+
+  ⚠️ **Consolidated 2026-08-07, and the reason is a rule.** There used to be
+  three lists — this one, a generated table in `progress.md`, and two hand tables
+  in `activeContext.md`. They disagreed in twenty places and fifteen rows
+  described work that had already shipped. Worse, `unbuilt-asks.sh` — written to
+  stop a three-session *"where is my work?"* repeat — parsed two hard-coded
+  headings and could not see §B7 or §B9–§B19, so it reported **two** open asks
+  while about thirty were open. **A parser that silently returns nothing reads as
+  "nothing outstanding".** `backlog.sh` therefore hard-errors on a row it cannot
+  parse, and on a section carrying table rows but no backlog rows. If you find
+  yourself starting a second list, that is the mistake this paragraph exists to
+  stop.
 - `docs/architecture.md` -> Core data pipeline, BYO-Key API client, and Swift patterns.
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.
-- `docs/progress.md` -> Feature roadmap checklist. **It opens with a table of
-  every open item** — what is still outstanding, which section it lives in, and
-  whether it needs the phone, a build or a decision. Read that instead of
-  grepping for `- [ ]`. The table is generated: run
-  `./scripts/roadmap-table.sh` after ticking or adding a box, and
-  `handover-check.sh` fails while it disagrees with the list below it.
+- `docs/progress.md` -> **History only, since 2026-08-07.** What shipped, when,
+  and what found it — session by session. It no longer carries open work and no
+  longer has a generated table; `docs/backlog.md` is the one list. Read this when
+  you want to know *how* something came to be the way it is, not what is left.
 - `docs/planned-modules.md` -> **Designed, not built.** The architecture of
   record for the four modules from the 2026-08-02 brief — dynamic
   weighting/velocity, GLP-1 pharmacokinetics, LiDAR dimensions + BMI override,

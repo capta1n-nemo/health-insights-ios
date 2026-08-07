@@ -85,7 +85,12 @@ if [ -n "$BASE" ]; then
         warn "No changes between $BASE and HEAD — is the base right?"
     else
         code_changed=$(printf '%s\n' "$changed" | grep -cE '\.swift$' || true)
-        for doc in docs/activeContext.md docs/progress.md docs/efficiency-log.md; do
+        # ⚠️ `docs/backlog.md`, not `docs/progress.md`, since 2026-08-07. There is
+        # ONE list now. progress.md keeps the historical shipped narrative and is
+        # no longer where open work is recorded, so requiring a session to touch
+        # it would be asking for a ritual edit to a file it had no reason to
+        # change — and a ritual edit is how a doc starts lying.
+        for doc in docs/activeContext.md docs/backlog.md docs/efficiency-log.md; do
             if printf '%s\n' "$changed" | grep -qx "$doc"; then
                 ok "$doc updated this session"
             elif [ "$code_changed" -gt 0 ]; then
@@ -178,31 +183,39 @@ if [ -x scripts/card-map.sh ]; then
     fi
 fi
 
-# --- 7c. The open-items table still matches the roadmap --------------------
-# `docs/progress.md` opens with a table of every unticked box below it. A
-# session that ticks one and leaves the table alone hands the next session a
-# summary that disagrees with the list it summarises — the same failure the
-# card map exists to stop, one document over. Generated, so it is a command
-# rather than care.
-if [ -x scripts/roadmap-table.sh ]; then
-    if scripts/roadmap-table.sh --check >/dev/null 2>&1; then
-        ok "docs/progress.md's open-items table matches the roadmap"
+# --- 7c. The backlog parses, and its index matches its rows ----------------
+# ⚠️ This replaced the `roadmap-table.sh --check` on 2026-08-07, when three
+# open-item lists became one. It does strictly more than the old check: as well
+# as catching a stale index, `backlog.sh` hard-errors on any row whose shape it
+# cannot read, and on any section carrying table rows but no backlog rows.
+#
+# That second rule is the one worth keeping. `unbuilt-asks.sh` matched two
+# hard-coded headings, so §B7 and §B9–§B19 — about thirty of the reader's own
+# asks — were invisible to it, and it reported two. A parser that silently
+# returns nothing reads as "nothing outstanding".
+if [ -x scripts/backlog.sh ]; then
+    if backlog_out=$(scripts/backlog.sh --check 2>&1); then
+        ok "docs/backlog.md parses and its index is current"
     else
-        bad "docs/progress.md's open-items table is out of date."
-        printf '    Run ./scripts/roadmap-table.sh.\n'
+        bad "docs/backlog.md does not parse, or its index is stale."
+        printf '%s\n' "$backlog_out" | sed 's/^/    /'
     fi
 fi
 
-# --- 8. Roadmap items are still countable ----------------------------------
-# Not a pass/fail — a number to read back to the user, so "nothing is missed" is
-# a count they can check rather than a claim they have to take on trust.
-if [ -f docs/progress.md ]; then
-    # `grep -c` prints 0 and exits 1 when nothing matches, so `|| echo 0` used to
-    # append a second zero and the line rendered as "0\n0 partially done".
-    open_items=$(grep -c '^- \[ \]' docs/progress.md || true)
-    partial=$(grep -c '^- \[~\]' docs/progress.md || true)
-    printf '\n\033[1m%s open roadmap items, %s partially done\033[0m — list them to the user.\n' \
-        "$open_items" "$partial"
+# --- 8. Open items are still countable, per tier ---------------------------
+# Not a pass/fail — numbers to read back to the user, so "nothing is missed" is
+# a count they can check rather than a claim they have to take on trust. Broken
+# out by tier because that is how work is now batched: a session picks a tier,
+# states the model it needs, and grinds.
+if [ -x scripts/backlog.sh ]; then
+    printf '\n'
+    scripts/backlog.sh 2>/dev/null | tail -1
+    for tier in mech design build hard ultra; do
+        n=$(scripts/backlog.sh --tier "$tier" 2>/dev/null | grep -c '^  w[0-4]' || true)
+        [ "$n" -gt 0 ] && printf '  %-7s %s open\n' "$tier" "$n"
+    done
+    asked=$(scripts/backlog.sh --asks 2>/dev/null | grep -c '^  w[0-4]' || true)
+    printf '\n\033[1m%s of those are things the reader asked for in their own words\033[0m — lead with these.\n' "$asked"
 fi
 
 if [ "$fail" -eq 0 ]; then

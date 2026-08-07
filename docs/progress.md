@@ -10,162 +10,34 @@ what decides the order is which data is already arriving and which questions the
 reader is actually asking. See "Every domain of health" under Next for what is
 already in the export and unread.
 
-## ⚠️ Outstanding from the 2026-08-04 Mac session — READ THIS FIRST
+## ⚠️ This file is HISTORY. It no longer lists open work.
 
-**Thirty-nine tracked items, seventeen done, twenty-two open** (2026-08-05:
-#26 closed, #27 halved, #35–#39 added; #19 closed). These are the
-reader's own requests plus defects found by loading their real export. They are
-**not** in the generated table below — that table indexes the older roadmap.
-Nothing here is speculative: every item is either something the reader asked for
-in their own words, or a defect diagnosed to a file and line.
+**Consolidated 2026-08-07.** There used to be three open-item lists — a
+generated table at the top of this file, `docs/backlog.md`, and two hand-written
+tables in `docs/activeContext.md`. A ground-truth pass across all three found
+they **disagreed in twenty places**, with **fifteen rows describing work that
+had already shipped**. Three lists is three chances to be wrong and three
+handovers' worth of effort to keep in step.
 
-### Diagnosed to the line, not yet built
+**`docs/backlog.md` is the one list now**, and it is read by a script rather
+than by grepping:
 
-| # | Item | Where the diagnosis is |
-| --- | --- | --- |
-| ~~26~~ | ~~**Two day-stamp conventions**~~ **Done 2026-08-05 (`4128ab3`) — and the row above overstated it.** `DayStamp.local` is the rule; the two UTC-pinned ingestion formatters are gone and `verify.sh` bans the pin. ⚠️ **Do not report a sensitivity gain from it.** Measured against the real export: bucketed by the device's own calendar the value-identical pairs already align at **lag 0**, median absolute difference exactly zero (74/75, 92/92, 107/108). The "+0.79 at one day's lag" is a true statement about the export *analysed in a UTC frame*, not about what the cards saw at UTC+8. What was really wrong: the two conventions reconciled **by accident** — `startOfDay(midnightUTC(D))` is `D` at a non-negative offset and `D−1` at a negative one — so the reader's first flight west would have sheared the lanes one day apart, silently | `~/HealthSeed/research/illness-detection.md` |
-| 27 | **Ingestion defects — two of four remain.** ~~Duplicate feeds~~ (`525582c`). ~~Exact zeros as "missing"~~ — **re-scoped, see #36.** Still open: **sleep fragments** (median ~11 min alongside full nights; filtering cuts HR noise 21%, sleep-efficiency noise 59%; `SleepSegment.Kind` at `SleepNights.swift:17` is a *stage* vocabulary — `case core, deep, rem, unspecified, inBed, awake` — with no fragment concept, and `guard asleepSeconds > 0` at `:140` is the only substance floor on the whole path), and **cross-device averaging** (`VitalReader.swift:153-161` pools per-source day buckets through `Baseline.mean`; line 138's own comment says "merged across devices". Confirmed unrefuted by two independent verifiers, and **visible on the device** — see the Resting Heart Rate detail note below) | same |
-| 35 | **The BP card states two different ± and two different cuff ages, in one screen.** Seen on the simulator with the real export, 2026-08-05. The headline reads "±14, fitted to 23 of your own readings" (`BloodPressureEstimator.swift:845`, today's fit) while the drift note directly below reads "against the ±13 it is judged on" (`:1076`, the uncertainty stored *with that check*, floored at `:1049`). Both are defensible in isolation and read as a contradiction together. Same screen: "Your last cuff reading is over a day old" (`:845`) beside "At your last cuff reading (2 days ago)" (`:1076`). **This is a presentation decision, not a bug to silently pick** — either show one ± and say which, or say plainly that the fit has moved since that reading was graded | this session, on screen |
-| 36 | **Exact zeros as "missing" — the fix needs rework before building.** One temperature series uses exact 0 for missing on 26% of records. A verifier refuted the obvious fix: keying on the **unit** (`degC`) is wrong because `HKQuantityTypeIdentifierWaterTemperature` is in the same raw lane (`HealthKitService.swift:146`) and a 0 °C cold plunge is a real reading; because `store.preferredUnits(for:)` returns the *reader's* preferred unit, so the key breaks under a Fahrenheit preference; and because Oura's `temperature_deviation` raw rows carry `"°C"` (`MetricType.swift:257`) where zero means *at baseline* and censoring it would be the same dishonesty pointed at a different series. Key on **identifier**, not unit. Also unscoped in the original plan: `RawMetricGroup.latest` is rendered at `DataTabView.swift:473` and `DataExportView.swift:338` and would still read 0 | this session's workflow |
-| 15 | **BP accuracy section + 30-day projection** — headline done (`f6c85ae`). Missing: `HoldOutCheck` series type (the residual series already exists inside `drift()` and is discarded), capture-at-sync, ledger fields, and the projection. ⚠️ **Fix the estimator's "current resting HR" input first** — it is a ~2-year mean, so the estimate is near-constant by construction, and any ledger recorded before that grades a constant | `~/HealthSeed/research/card-defect-diagnosis.md` |
-| ~~18~~ | ~~**All-providers age chart**~~ **Done 2026-08-05** — `AgeComparison`, rendered as Cardiovascular Risk's second bespoke section. Built as a **comparison, not a chart**, and the reason is the competitive scan: Whoop sells a "WHOOP Age" and Oura prints a cardiovascular age, and neither publishes what its number is worth. So every row names who computed it and states its error, and **the errors are derived rather than cited** — the fitness age from the slope of the very norm table it inverts, the heart age from how far apart the two published risk equations land on the reader's own numbers. Where a vendor publishes a number bare, the row says so, and that is the most useful sentence in the section. Where they disagree by more than their errors allow, the disagreement is the finding. ⚠️ **Open question Q6 is still open** — does the norm-anchor table hold below VO₂ 36? It is shared with `HeartHealthScore.vo2Score`, so changing it moves two cards, and it now also moves the fitness age's stated error | same |
-| ~~19~~ | ~~**Micronutrients into Nutrition**~~ **Done 2026-08-05 (`342f00d`)** — all eleven promoted, mg/mcg decided per vitamin and pinned in three places. `referenceRange` nil for all eleven with one stated reason (sex- and age-specific, and upper limits as often as floors); the bands belong in the Nutrition card table. Still unscored by any card — that is the follow-on. Original note: — reader decided: promote all 11 to first-class `MetricType`s. Needs the `add-metric-type` skill's eight switches each, plus a mg-vs-mcg unit decision per vitamin | same |
-| 31 | **New/Deprecated data types** — **not derivable today.** No import clock exists on samples; `FieldCatalogue` stamps with the *sample's* date and its plumbed-in `now` is never used. Deriving "new" from earliest sample date is wrong for 202 of 203 identifiers (every connector backfills). "Deprecated" is self-erasing because rolling windows drop quiet identifiers entirely. Needs a `TypeSightingLedger` sidecar seeded with `seededFromHistory` | same |
-| 22 | **Timeframe-aware sleep chart** — the Oura time axis (`f971541`) and Apple stages (`8ab542e`) are fixed. The third part, per-stage averages across sources obeying the page timeframe, is not started | — |
-| ~~38~~ | ~~**`VitalReader.reading` has no reference gap**~~ **Half fixed 2026-08-05 (`9c22745`).** The dominant term was not the gap but the *spread*: a standard deviation has a breakdown point of zero, so one excursion inflated it and the same value fell back under the bar without moving. The flagging path measures with median/MAD now. ⚠️ **The gap itself is still absent** — only today is dropped — and the robust scale removes the dominant term, not that one. Also: robustness is opt-in, because applied to *scoring* it made `ReadinessScore` fall across a month of improving HRV | this session |
-| 40 | **The export is missing four things, and one is a security question.** Not in any key: connector connection state, suggestion dismissals, the feedback ledger, prediction outcomes. ⚠️ **"Connector configuration" includes OAuth tokens** — an export is a file the reader may email themselves, and this repo is public. Connection *status* and last-sync are safe and should ship; credentials must be structurally impossible to include, not merely omitted today | `docs/activeContext.md` |
-| 37 | **The radar's score is a step function at z = 1.0, and a lone outlier outranks four signals agreeing.** Measured 2026-08-05: four signals *all* leaning the illness way at z = 0.95 score exactly 100 "Nothing stirring", because `guard signal.isLeaning` discards everything below the bar. And the ramp saturates at z = 2, so one signal at z = 3.0 scores **55** while four at z = 1.2 score **64** — the opposite of what `HealthWatchModel.score`'s own doc comment says it does ("four signals at z = 1.2 should worry you considerably more than one at z = 3"). Both are fixed by the same change as #28: a continuous one-sided joint statistic instead of a thresholded count | this session, replayed on the real export |
-| 38 | **`VitalReader.reading` has no reference gap at all.** The radar has a 4-day one (`referenceGapDays`); `VitalReader.reading` drops only today, so on **every other card** yesterday's excursion is inside the baseline judging today. Whether that is right is per-card — a trend card may want it — but it is currently accidental rather than decided | same |
-| 39 | **The substance card's confirmation design is refuted at n=3 and needs a different shape.** Independent review on the reader's own record: `heartRate`'s apparent effect falls from min|z| 0.91 to **0.03** once same-day step count is in the model; three of four "confirmed" are welcome-direction and two of those are the same measurement (r = 0.912); the permutation null is ~2× anti-conservative; BH is invalid under the measured negative dependence (r = −0.795) and needs BY or Westfall-Young; and the whole finding set flips on the day boundary (3 confirm at UTC+8, 1 at UTC, 0 at UTC−5). **The honest card at three episodes is per-episode deltas, the named alternative explanation on each row, no score, and "nothing has happened the same way often enough to tell it from an ordinary run."** Needs a decision on whether to ship that or wait for more episodes | `docs/activeContext.md` |
-| 28 | **Re-found Health Watch on the research** — 4 channels not many, one combined cardiac axis (HR/HRV correlate −0.93 from one stream), illness-direction only, sequential accumulation (CUSUM), threshold from the personal empirical null at a stated budget, hard reset on dose/device change. `Baseline` needs median and MAD added | `docs/research-notes.md` |
+```bash
+./scripts/backlog.sh --asks    # what the reader asked for and has NOT got
+./scripts/backlog.sh --next    # the next batch, and the model it needs
+```
 
-### Asked for, not started
+Everything that used to be listed here is there, with an id, a wave, a stream, a
+complexity tier and a gate. The rows that lived **only** here — the
+"Outstanding from the 2026-08-04 Mac session" tables and the roadmap table —
+were moved into §H of the backlog, keeping their numbers (`#27` → `P27`,
+roadmap row 14 → `R14`), so nothing was lost in the move.
 
-| # | Item |
-| --- | --- |
-| ~~14~~ | ~~**Today summary → highlights**~~ **Done 2026-08-05 (`1de5f70`)** — selects at most three (anything in the poor band leads, then the best, then the weakest still unmentioned) instead of enumerating nine. Phrasing bug fixed structurally: headlines attach with a dash, because `"\(title.lowercased()) is \(headline)"` assumes every headline is a predicate and several are values. Two rules landed with it — **a detector is never the good news** (the radar at 100 means nothing was *detected*, and that card says quiet is not an all-clear, so it can lead but never congratulate), and **the LLM no longer ranks** — selection moved to InsightKit where it is testable and the model only phrases what it is handed. Original note: Reader: "what you're doing very well and very poorly, and any overall insights that are most important. like, hey! looks like you're about to get sick." Currently enumerates all ten cards. Also fix "body composition is Body fat 30.6%" phrasing |
-| 16 | **Substance card, three parts** — score everything currently "charted, not scored"; a recovery-time section (single vs several close together vs a big weekend); and a per-substance good-vs-bad section. ⚠️ Real data is 16 events, 15 stimulant + 1 cannabis, in ~25 days → **4 exposure episodes**. A per-substance stimulant panel will near-duplicate the pooled card; cannabis at n=1 is unattributable and must show an honest empty state |
-| ~~17~~ | ~~**Energy card**~~ **Done 2026-08-05 (`0ca012d`)** — "How this works" and "So what?" under the Today curve, both written from the reader's own numbers. Two rules held by tests: the unit is a 0–100 model and must say it is not calories, and the copy may never give advice. ⚠️ **Not yet seen on screen with a live curve** — the loaded export ends before "today", so Energy sits in its waiting state and the section does not render. Needs a simulator day with current data, or the phone |
-| 21 | **Readiness bespoke section** — research-driven, creative licence granted |
-| 23 | **Signal audit** — every card × every available signal, with justified weightings, against the 45 modelled types and 320,913 raw rows |
-| 32 | **Event confirmation feed** — the app flags an event ("heart rate spiked 30 mins this evening — sexual activity?") and the reader confirms or corrects. GPS map, time, why it was flagged. ⚠️ **Location is a new permission surface and a serious privacy decision — needs an explicit ruling before any code** |
-| 33 | **In-app Research section** — why each card decides as it does. Source: `docs/research-notes.md` (publishable) only |
-| ~~34~~ | ~~**HRV and every other term in plain language**~~ **First pass done 2026-08-05 (`818ac62`, `7b8ac78`)** — `MetricExplainer` carries what-it-is and so-what for every jargon metric, exhaustive so a new one forces the decision, and `yours` places today's value in the reader's **own** p10–p90, returning nil below ten readings rather than inventing a range. Reads one instrument, not a pool — pooling watch and ring would dress a 13 bpm device gap as the reader's own variability. Rendered on the metric detail page. **Still to do: the derived figures the reader also named — TDEE and cardiovascular load — are not `MetricType`s and have no home here yet, and the card sections (Readiness, Sleep, Fitness) still use the terms without linking to the explanation.** Original note: — reader: "what even is HRV… am i about to die?" Three parts everywhere: what it is, what *mine* means (own baseline, never a population table), and so-what. Applies to rMSSD/SDNN, VO₂max, SpO2, sleep efficiency, latency, vascular age, TDEE, cardiovascular load |
-| 20 | **Web time-slider + DeepDive** — banding, grey underlay, dots and the legend are done. The morph slider with granularity selection, and renaming "Over time" → DeepDive with life-wide trends, are not |
-| 5 | **Apple Health `export.xml` converter** — scope confirmed: keep everything. The *app's own* export loads today (`32e6ce1`); Apple's raw XML does not |
-| 8 | **Body scanner capture** — the mesh renders (`2dfde08`) but **ARKit capture does not exist at all**. No camera, LiDAR or guided flow anywhere in the repo |
-| 24/25 | **Model accuracy screen** — per-card prediction-vs-actual over time |
-
-### Decisions the reader has already made — do not re-ask
-
-**Ruled 2026-08-05, in answer to a direct list:**
-
-- **The substance card ships the honest version — "always".** At three episodes
-  the reader's record supports zero confirmations, so the card shows per-episode
-  deltas, the named alternative explanation beside each row, no score, and says
-  plainly that nothing has happened the same way often enough to tell it from an
-  ordinary run. **This is a standing preference, not a one-off ruling**: the
-  reader's word was "Honest version, always!"
-- **Micronutrients get scored.** Bands are sex- and age-specific, so the profile
-  is required: take it from Apple Health, **make it mandatory during setup**, and
-  if it is missing require it — plus a reminder on the front page.
-- **Location for the event-confirmation feed is approved**, with an onboarding
-  step that explains why before prompting, and a dismissible front-page
-  suggestion when the permission is absent.
-
-
-- Fitness projection: **show both** (fitness-age years with VO₂max secondary)
-- BP estimator input: **fix it, but show old and new side by side for a while**
-- Oura mirror: **collapse — one instrument, one vote** ✅ done
-- Micronutrients: **promote all 11**
-- Converter scope: **keep everything**
-- Real data on the managed Mac: **acceptable**
-- Crowd-shared substance data: **effect-estimate form** ("cannabis raised my resting HR by ~4 bpm for 2 days"), never raw readings
-- LLM: **free only** — Apple on-device first, then Private Cloud Compute behind a visible opt-in (WWDC 2026 opened it free under 2M downloads), then deterministic prose. **PCC is off-device and the app promises "no health data leaves your phone", so it needs a toggle stating exactly what leaves**
-
-## Open items at a glance
-
-Every unticked box in this file, in the order it appears below. **Generated —
-run `./scripts/roadmap-table.sh` after ticking or adding one**;
-`handover-check.sh` runs `--check` and a session cannot close while the table
-and the roadmap disagree. Nothing here is new information: it is an index, and
-the paragraph under each item below it is the part worth reading before picking
-one up.
-
-The **gate** column says what kind of open an item is, which is decided by the
-section it sits in rather than by judgement:
-
-- **loose end** — an unfinished clause inside a `## Shipped` section. The
-  session that shipped the rest left it, deliberately, and said why.
-- **device** — the code is on the phone and only the phone can falsify it.
-  Cheap to close: look, and tick or report.
-- **next** — not built. Some are a build, some are a decision, some are blocked
-  on something the app cannot see yet (an event source, a Developer Program
-  membership, Apple exposing a field).
-
-<!-- ROADMAP-TABLE:BEGIN — generated by scripts/roadmap-table.sh, do not edit -->
-
-| # | Open item | Section | Gate |
-|---|---|---|---|
-| 1 | `walkingSpeed` reads 0 days in the last 90 in the simulator | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 2 | The cycle tab is blocked on a question, not on code: the app is structurally… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 3 | Q11 notifications is deferred — no `BGTaskScheduler` anywhere, so anything bu… | Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built | loose end |
-| 4 | Not yet device-verified: the bar measurement is the half CI cannot check | Retrospective Screen Time import | loose end |
-| 5 | The share-sheet *action* extension is parked on signing | The screenshot-review session — 2026-08-02 | loose end |
-| 6 | Give Heart Health's new section a second look on a young profile | In progress / not yet device-verified | device |
-| 7 | Phase 2's five new sections on the phone | In progress / not yet device-verified | device |
-| 8 | The Resting Heart Rate detail page is the cross-device defect, drawn | In progress / not yet device-verified | device |
-| 9 | Phase 1 of the card-consistency work | In progress / not yet device-verified | device |
-| 10 | The nine cards on the phone | In progress / not yet device-verified | device |
-| 11 | The ingestion pipeline on the phone | In progress / not yet device-verified | device |
-| 12 | The split-night fix, proved from the next export | In progress / not yet device-verified | device |
-| 13 | On the phone, the Body Composition card after the hatch change | In progress / not yet device-verified | device |
-| 14 | Hume Band direct API (today flows in via Apple Health only) | Integrations | next |
-| 15 | Ultrahuman, Garmin, Fitbit | Integrations | next |
-| 16 | Camera-based input (AI + LiDAR) is still the open half | The master add button | next |
-| 17 | Foundation Models structured extraction for arbitrary lab analytes | Unstructured data | next |
-| 18 | ECG photo/PDF import with metadata… | Unstructured data | next |
-| 19 | The ARKit capture and guided flow — the largest remaining piece, and device-o… | Body scanner — the engine, the section and the data | next |
-| 20 | A 3D mesh instead of the silhouette | Body scanner — the engine, the section and the data | next |
-| 21 | Travel drain | Three insight cards the user asked for | next |
-| 22 | Stress card | Three insight cards the user asked for | next |
-| 23 | Work impact | Three insight cards the user asked for | next |
-| 24 | The medication panel — still open | Metabolism speed — the card the user asked for | next |
-| 25 | Composition-aware kcal/kg, later | Metabolism speed — the card the user asked for | next |
-| 26 | The relationships from the reader's own history | Nutrition — capture everything, then the card | next |
-| 27 | Meal photo → nutrition | Nutrition — capture everything, then the card | next |
-| 28 | Reconcile the symptom log against the hand-entered side effects | Every domain of health — the direction, and what is already arriving | next |
-| 29 | Hearing — the one with real data | Every domain of health — the direction, and what is already arriving | next |
-| 30 | Daylight and UV. Zero rows. `TimeInDaylight` and `UVExposure` are not among t… | Every domain of health — the direction, and what is already arriving | next |
-| 31 | Respiratory function. Zero rows. No FVC, no FEV1, no peak flow, no inhaler us… | Every domain of health — the direction, and what is already arriving | next |
-| 32 | Mind. Zero rows for both mindful minutes and mood changes | Every domain of health — the direction, and what is already arriving | next |
-| 33 | Cycle and reproductive health — one real asset, and it is not the cycle | Every domain of health — the direction, and what is already arriving | next |
-| 34 | Falls and balance. `NumberOfTimesFallen` is zero rows and the walking-steadin… | Every domain of health — the direction, and what is already arriving | next |
-| 35 | Oral health. Zero rows. Toothbrushing has never been written | Every domain of health — the direction, and what is already arriving | next |
-| 36 | Phase 1 — the log and the tab | Cycle tracking — the fifth tab | next |
-| 37 | Phase 2 — prediction from the calendar | Cycle tracking — the fifth tab | next |
-| 38 | Phase 3 — the physiology, which is the point | Cycle tracking — the fifth tab | next |
-| 39 | Phase 4 — phase-aware baselines everywhere else | Cycle tracking — the fifth tab | next |
-| 40 | Phase 4b — cycle × metabolism and × energy availability | Cycle tracking — the fifth tab | next |
-| 41 | Phase 5 — the content layer | Cycle tracking — the fifth tab | next |
-| 42 | Decision — does the tab draw a fertile window at all? | Cycle tracking — the fifth tab | next |
-| 43 | Decision — surface the tirzepatide/oral-contraceptive labelling? | Cycle tracking — the fifth tab | next |
-| 44 | Decision — who is the tab for? | Cycle tracking — the fifth tab | next |
-| 45 | Settle the privacy posture first | Cycle tracking — the fifth tab | next |
-| 46 | First, check MyFitnessPal already works | Food and supplement capture — scanner, AI, and vitamins | next |
-| 47 | The barcode scanner, with the lookup on-device | Food and supplement capture — scanner, AI, and vitamins | next |
-| 48 | Supplements — the ingredient problem, which is the real ask | Food and supplement capture — scanner, AI, and vitamins | next |
-| 49 | Sum the ingredients across the stack, against published upper limits | Food and supplement capture — scanner, AI, and vitamins | next |
-| 50 | The AI estimate, last | Food and supplement capture — scanner, AI, and vitamins | next |
-| 51 | Camera + LiDAR guided body scan | The delta from the ten-item feedback — re-read against the code | next |
-| 52 | Nothing leaves the phone today, and that must stay true until the user opts i… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 53 | A distribution needs a denominator before it means anything | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 54 | Aggregate on the server, never share rows | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 55 | Say which kind of norm a row rests on | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 56 | Decide whether a user contributes automatically once they consume, or whether… | Crowd-sourced norms — "How you compare" for the signals nobody has published | next |
-| 57 | Core ML personal anomaly detection once enough history exists | On-device ML | next |
-
-<!-- ROADMAP-TABLE:END -->
+⚠️ **What this file is still for, and it is worth keeping:** the shipped record
+below is the only place that says *how* something came to be the way it is, and
+what found it. Several entries below still carry `- [ ]` boxes — **those are
+historical**, a record of what a given session left open at the time, not a live
+list. Do not work from them.
 
 ## Shipped
 

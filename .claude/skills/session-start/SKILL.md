@@ -36,9 +36,13 @@ is expected and CI remains the gate for the app target.
 
 ## 2. Read the two audited documents — and do not re-derive them
 
+- `docs/backlog.md` — **the one list.** Every open item, with a tier saying what
+  model it needs. Do not read it to find out what is open; run `backlog.sh`.
 - `docs/activeContext.md` — the current state, written by a session that spent
   real budget establishing it.
-- `docs/progress.md` — the roadmap checklist.
+
+(`docs/progress.md` is history only since 2026-08-07 — what shipped and what
+found it. It no longer holds open work.)
 
 **These are findings, not notes.** A claim with a file reference has already been
 verified against the code. Spot-check one you are about to build on; sweeping the
@@ -57,26 +61,38 @@ rather than a pointer at a file.
 
 ```bash
 ./scripts/handover-check.sh
-./scripts/unbuilt-asks.sh          # what the reader asked for and has NOT got
-grep -n '^- \[ \]' docs/progress.md
+./scripts/backlog.sh --asks        # what the reader asked for and has NOT got
+./scripts/backlog.sh --next        # the next batch, and the model it needs
 ```
 
-⚠️ **`unbuilt-asks.sh` is the important one and it is new (2026-08-06).** Three
-sessions in a row — 25, 27 and 28 — ended with the reader asking *"where are all
-the things I asked for?"*, and each time the cause was identical: the session did
-good work on what it found interesting and left the reader's *named* asks
-unstarted. `docs/backlog.md` §B2 and §B5 already held that list; nobody read it
-at the start. **A rule that has failed three times is not made to hold by writing
-it more firmly**, so it is a command now. Run it, and say what it prints.
+⚠️ **`--asks` is the important one.** Three sessions in a row — 25, 27 and 28 —
+ended with the reader asking *"where are all the things I asked for?"*, and each
+time the cause was identical: the session did good work on what it found
+interesting and left the reader's *named* asks unstarted.
+
+**Then it happened a fourth time, inside the countermeasure.**
+`scripts/unbuilt-asks.sh` was written to stop exactly that, and on 2026-08-07 it
+printed **two** items while about thirty of the reader's asks were open — it
+matched two hard-coded headings and could not see §B7 or §B9–§B19 at all. **A
+parser that silently returns nothing reads as "nothing outstanding."** So
+`backlog.sh` refuses to run when a row does not parse, rather than quietly
+skipping it, and it is now the only reader of the only list.
 
 The gate reports whether the previous session actually closed cleanly — a red
 answer here is the previous session's unfinished business and is worth naming
-before adding to it. The grep is the open list.
+before adding to it.
 
 **Tell the user what is open, unprompted — and lead with what they asked for.**
-They should not have to ask what is outstanding; they have had to three times,
-and it is the most expensive row in the efficiency ledger. The roadmap count is
-context; `unbuilt-asks.sh` is the answer to the question they actually have.
+They should not have to ask what is outstanding; they have had to four times, and
+it is the most expensive row in the efficiency ledger. The tier counts are
+context; `--asks` is the answer to the question they actually have.
+
+**Work is batched by tier, not picked one at a time.** `--next` hands back a
+batch and names the model it needs (`mech` Opus 5 · medium, `build` Opus 5 ·
+high, `hard` Opus 5 · xhigh/max, `ultra` Opus 5 + ultracode workflow, `design`
+Fable 5). **Say the model out loud before starting a batch whose tier differs
+from the one you are running** — that is the reader's own instruction, and it is
+what lets a session run long without stopping to ask.
 
 ## The rules most likely to bite, in one place
 
