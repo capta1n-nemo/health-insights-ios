@@ -196,32 +196,25 @@ struct CycleTabView: View {
     private var calendarCard: some View {
         Card {
             VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
-                HStack {
-                    Button {
-                        month = calendar.date(byAdding: .month, value: -1, to: month) ?? month
-                    } label: { Image(systemName: "chevron.left") }
-                    Spacer()
-                    Text(month.formatted(.dateTime.month(.wide).year()))
-                        .font(.headline)
-                    Spacer()
-                    Button {
-                        month = calendar.date(byAdding: .month, value: 1, to: month) ?? month
-                    } label: { Image(systemName: "chevron.right") }
-                    // Forward now runs to the month holding the predicted
-                    // period, and no further.
-                    //
-                    // ⚠️ **It used to stop at the current month, and that would
-                    // have hidden the feature it now has.** A fertile window
-                    // falling after the 1st was simply unreachable. The reason
-                    // for the old limit — "a cycle log is a record of what
-                    // happened, and offering to log next Tuesday invites a
-                    // guess into a dataset every length is computed from" — is
-                    // still right and is still enforced, by `.disabled(isFuture)`
-                    // on the cell itself. Seeing a future day is not logging one.
-                    .disabled(!canGoForward)
+                // Forward runs to the month holding the predicted period, and no
+                // further.
+                //
+                // ⚠️ **It used to stop at the current month, and that would have
+                // hidden the feature it now has.** A fertile window falling
+                // after the 1st was simply unreachable. The reason for the old
+                // limit — "a cycle log is a record of what happened, and
+                // offering to log next Tuesday invites a guess into a dataset
+                // every length is computed from" — is still right and is still
+                // enforced, by `.disabled(isFuture)` on the cell itself. Seeing
+                // a future day is not logging one.
+                MonthStepper(month: $month, calendar: calendar,
+                             canGoForward: canGoForward)
+                // The grid, the weekday header and the reader's own first
+                // weekday all live in `MonthGrid` now — shared with the symptom
+                // radar's calendar rather than copied into it (§B11-1).
+                MonthGrid(month: month, calendar: calendar) { day in
+                    dayCell(day)
                 }
-                weekdayHeader
-                monthGrid
                 legend
             }
         }
@@ -240,52 +233,6 @@ struct CycleTabView: View {
               let limit = calendar.dateInterval(of: .month, for: forwardLimit)?.start
         else { return false }
         return next <= limit
-    }
-
-    private var weekdayHeader: some View {
-        HStack(spacing: 2) {
-            ForEach(orderedWeekdaySymbols, id: \.self) { symbol in
-                Text(symbol)
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    /// Weekday initials starting on the reader's own first weekday — Sunday in
-    /// the US, Monday across most of Europe. Hard-coding Monday would put every
-    /// logged day in the wrong column for half the world.
-    private var orderedWeekdaySymbols: [String] {
-        let symbols = calendar.veryShortStandaloneWeekdaySymbols
-        let first = calendar.firstWeekday - 1
-        return Array(symbols[first...] + symbols[..<first])
-    }
-
-    private var monthGrid: some View {
-        let days = monthDays
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2),
-                                        count: 7), spacing: 4) {
-            ForEach(days.indices, id: \.self) { index in
-                if let day = days[index] {
-                    dayCell(day)
-                } else {
-                    Color.clear.frame(height: 34)
-                }
-            }
-        }
-    }
-
-    /// The month's days, padded with nils so the first lands under its weekday.
-    private var monthDays: [Date?] {
-        guard let interval = calendar.dateInterval(of: .month, for: month),
-              let count = calendar.range(of: .day, in: .month, for: month)?.count
-        else { return [] }
-        let firstWeekday = calendar.component(.weekday, from: interval.start)
-        let leading = (firstWeekday - calendar.firstWeekday + 7) % 7
-        let days: [Date?] = (0..<count).map {
-            calendar.date(byAdding: .day, value: $0, to: interval.start)
-        }
-        return Array(repeating: nil, count: leading) + days
     }
 
     @ViewBuilder private func dayCell(_ day: Date) -> some View {

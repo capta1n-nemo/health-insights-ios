@@ -676,6 +676,9 @@ the place to look.
   - `MetricOverlayChart` :18
 - `DesignSystem/MetricOverlayLegend.swift`
   - `MetricOverlayLegend` :11
+- `DesignSystem/MonthGrid.swift`
+  - `MonthGrid` :28
+  - `MonthStepper` :107
 - `DesignSystem/MultiSourceChart.swift`
   - `MultiSourceChart` :37
 - `DesignSystem/NightSleepChart.swift`
@@ -835,6 +838,8 @@ the place to look.
   - `ScoreComparisonDetailView` :20
 - `Features/Insights/SettlingSection.swift`
   - `SettlingSection` :43
+- `Features/Insights/SickDaysCalendarSection.swift`
+  - `SickDaysCalendarSection` :53
 - `Features/Insights/SickDaysSection.swift`
   - `NightsToFlagDetail` :423
   - `RadarHistoryChart` :239
