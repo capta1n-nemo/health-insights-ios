@@ -209,6 +209,83 @@ public enum RawFieldPresentation {
         return total >= 60 ? "\(total / 60)h \(total % 60)m" : "\(total)m"
     }
 
+    // MARK: - What this is
+
+    /// **A raw field's "what this is" sentence**, or nil where the app has
+    /// nothing honest to say about it.
+    ///
+    /// Standing rule 9 gives every data entry a description, and
+    /// `MetricExplainer.explanation(for:)` delivers it for canonical metrics
+    /// over a non-optional exhaustive switch. This one is optional on purpose
+    /// and the difference is not laziness: `MetricType` is a closed set this
+    /// app defined, while the raw catalogue is ~158 identifiers **a connector
+    /// chose**, and a non-optional answer over an open set could only be met by
+    /// inventing one. An invented explanation of a health field is worse than
+    /// none. So: the fields the app has actually looked into get a sentence,
+    /// the rest fall back to the group's own blurb plus their provenance, and
+    /// this table is the place to grow.
+    ///
+    /// ⚠️ **Every vendor composite says whose number it is.** Oura's readiness,
+    /// stress and resilience scores have undisclosed formulas; backlog N1's
+    /// rule for them is relay, never merge, and a sentence describing one as
+    /// though this app measured it would be the first half of a merge.
+    static let pathExplanations: [String: String] = [
+        // Oura — stress & resilience (backlog D28, N1's free comparison material)
+        "oura.daily_stress.stress_high":
+            "How much of the day Oura read as stressful, from your skin temperature, heart rate, heart-rate variability and movement in five-minute periods. Oura's own reading of the day, relayed as sent — this app does not compute a stress figure.",
+        "oura.daily_stress.recovery_high":
+            "How much of the day Oura read as restorative, measured the same way and in the same five-minute periods as the stressed time above.",
+        "oura.daily_stress.day_summary":
+            "Oura's one-word verdict on the day — restored, normal or stressful — from the balance of the two times above.",
+        "oura.daily_resilience.level":
+            "Oura's view of how well you are coping over recent weeks, from limited through adequate, solid and strong to exceptional. A long-run figure, so it moves slowly and one hard day should not shift it.",
+        "oura.daily_resilience.contributors.sleep_recovery":
+            "One of the three pieces behind Oura's resilience level, scored 0–100: how much recovery it read during your nights.",
+        "oura.daily_resilience.contributors.daytime_recovery":
+            "One of the three pieces behind Oura's resilience level, scored 0–100: how much restorative time it read during your days.",
+        "oura.daily_resilience.contributors.stress":
+            "One of the three pieces behind Oura's resilience level, scored 0–100. Higher is better here: it is the *absence* of sustained stress, not the amount of it.",
+        // Oura — readiness
+        "oura.daily_readiness.score":
+            "Oura's own daily readiness score out of 100, from the contributors listed beside it. Relayed as sent: the formula is Oura's and is not published. This app's Readiness card is a separate figure worked out from your own measurements, so the two can disagree.",
+        "oura.daily_readiness.temperature_deviation":
+            "How far your skin temperature sat from your own overnight baseline, in °C. A real measurement rather than a score — and zero means exactly at your baseline, not missing.",
+        // Withings — how a reading was taken, not what it says
+        "withings.measure.attrib":
+            "How the reading was taken: measured by the scale itself, or typed in by hand. Not a measurement — it describes one.",
+        "withings.measure.category":
+            "Whether Withings recorded the row as a real measurement or as a goal you set. Every row you have is a real measurement.",
+        "withings.measure.model":
+            "The name of the device that took the reading.",
+        "withings.measure.modelid":
+            "Withings' internal number for that device. It identifies the hardware and says nothing about you, which is why the list shows no value beside it.",
+        "withings.measure.8":
+            "Fat mass in kilograms, as the scale estimated it from bioelectrical impedance. An estimate, not a measurement — hydration alone moves it.",
+        "withings.measure.170":
+            "Withings' visceral fat index — its estimate of fat around the organs, on its own unitless scale rather than in kilograms. Comparable with your own past readings, not with anyone else's.",
+        "withings.measure.226":
+            "Basal metabolic rate in kcal/day: the energy the scale estimates your body spends at complete rest. Estimated from your weight, composition, age and sex, never measured.",
+        "withings.measure.227":
+            "Withings' metabolic age — the age its model would guess from your body composition. A presentation of the composition figures above, not a separate measurement, and not a clinical assessment.",
+    ]
+
+    /// Leaf-level explanations for recording details, which arrive under
+    /// several providers' paths and mean the same thing under each.
+    static let recordingDetailExplanations: [String: String] = [
+        "deviceid": "Which device sent the reading. Not a measurement — it describes one.",
+        "hash_deviceid": "Which device sent the reading, as an anonymised code. Not a measurement — it describes one.",
+        "sleep_algorithm_version": "Which version of the provider's sleep-staging algorithm produced the night. Worth keeping: a change here can move your numbers without anything about you changing.",
+        "sleep_analysis_reason": "Why the provider analysed the night the way it did. Not a measurement — it describes one.",
+        "type": "The provider's own code for what kind of record this row is. Not a measurement — it describes one.",
+        "period": "Which numbered period within the record this row belongs to. Not a measurement — it describes one.",
+    ]
+
+    public static func explanation(forPath path: String) -> String? {
+        if let known = pathExplanations[path] { return known }
+        guard let leaf = path.split(separator: ".").last else { return nil }
+        return recordingDetailExplanations[String(leaf).lowercased()]
+    }
+
     public static func title(forPath path: String) -> String {
         let parts = path.split(separator: ".").map(String.init)
         guard let leaf = parts.last else { return path }

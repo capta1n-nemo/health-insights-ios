@@ -315,4 +315,41 @@ final class RawFieldPresentationTests: XCTestCase {
         XCTAssertEqual(titles["oura.daily_stress.stress_high"], "Time stressed")
         XCTAssertEqual(titles["oura.daily_stress.day_summary"], "Day summary")
     }
+
+    // MARK: - What this is (standing rule 9, D27/D28)
+
+    /// **Every field D28 named has a sentence, and every one of them says the
+    /// number is Oura's.** N1's rule for these is relay, never merge; an
+    /// explanation that described one as something this app measures would be
+    /// the first half of a merge.
+    func testTheStressAndReadinessFieldsAreExplainedAndAttributed() {
+        for path in ["oura.daily_stress.stress_high", "oura.daily_stress.recovery_high",
+                     "oura.daily_stress.day_summary", "oura.daily_resilience.level",
+                     "oura.daily_readiness.score"] {
+            let explanation = RawFieldPresentation.explanation(forPath: path)
+            XCTAssertNotNil(explanation, "\(path) is surfaced and unexplained")
+            XCTAssertTrue(explanation?.contains("Oura") == true,
+                          "\(path) does not say whose number it is")
+        }
+    }
+
+    /// A recording detail explains that it **describes** a reading rather than
+    /// being one — the sentence half of the fix that stopped "Device model ID —
+    /// 16" printing a value at all.
+    func testRecordingDetailsExplainThatTheyAreNotMeasurements() {
+        XCTAssertNotNil(RawFieldPresentation.explanation(forPath: "withings.measure.attrib"))
+        // Matched on the leaf, so the same field explains itself under whatever
+        // provider path it arrives on.
+        XCTAssertEqual(RawFieldPresentation.explanation(forPath: "oura.sleep.type"),
+                       RawFieldPresentation.explanation(forPath: "withings.measure.type"))
+    }
+
+    /// ⚠️ **Optional on purpose, and the reason matters.** The raw catalogue is
+    /// an open set a connector chose, not a closed one this app defined, so a
+    /// non-optional answer could only be met by inventing one — and an invented
+    /// explanation of a health field is worse than none. The caller falls back
+    /// to the group's blurb, which is true of every member by construction.
+    func testAnUnknownFieldIsNotGivenAnInventedExplanation() {
+        XCTAssertNil(RawFieldPresentation.explanation(forPath: "some.future.connector.thing"))
+    }
 }

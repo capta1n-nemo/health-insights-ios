@@ -25,7 +25,63 @@ final class DataTabSortingTests: XCTestCase {
         ("oura.daily_activity.contributors.stay_active", .activityScore),
         ("oura.daily_cardiovascular_age.pulse_wave_velocity", .heartEvents),
         ("HKCategoryTypeIdentifierDizziness", .mind),
+        // Backlog D28: named in the row, and each was in "Not yet sorted" or
+        // under the wrong heading when it was written.
+        ("oura.daily_readiness.score", .readiness),
+        ("oura.daily_readiness.temperature_deviation", .readiness),
+        ("oura.daily_stress.day_summary", .stressResilience),
+        ("oura.daily_resilience.level", .stressResilience),
     ]
+
+    /// ⚠️ **A container is not a subject.** `contains(".contributors.")` sent
+    /// every score's workings to `.activityScore`, and Oura publishes the
+    /// components of *each* daily score under the same `contributors` key — so
+    /// on the reader's own screen their readiness contributors (HRV balance,
+    /// body temperature, activity balance) and their sleep contributors sat
+    /// under a heading reading "Activity score components". Seen in the
+    /// simulator, not by a test: the old rule was self-consistent and wrong.
+    ///
+    /// The collection one component to the left is the subject, and these pin
+    /// that each score's workings file with that score.
+    func testEachScoresContributorsFileWithThatScoreAndNotWithActivity() {
+        let cases: [(String, RawFieldGrouping.Group)] = [
+            ("oura.daily_readiness.contributors.hrv_balance", .readiness),
+            ("oura.daily_readiness.contributors.body_temperature", .readiness),
+            ("oura.daily_readiness.contributors.activity_balance", .readiness),
+            ("oura.daily_sleep.contributors.efficiency", .sleepDetail),
+            ("oura.daily_sleep.contributors.latency", .sleepDetail),
+            ("oura.daily_activity.contributors.stay_active", .activityScore),
+            // `.sleep_` in the leaf, and not sleep detail — the reason the
+            // resilience rows are tried before the generic sleep catch.
+            ("oura.daily_resilience.contributors.sleep_recovery", .stressResilience),
+        ]
+        for (identifier, expected) in cases {
+            XCTAssertEqual(RawFieldGrouping.group(for: identifier), expected,
+                           "\(identifier) was filed under the wrong score")
+        }
+    }
+
+    /// **Standing rule 9 reaches the raw catalogue.** Thirteen bare headings
+    /// and one sentence at the bottom of the tab is not a description of
+    /// anything: "Time restored — 0m" named its subject and explained nothing.
+    /// Non-optional so a new group cannot ship without one.
+    func testEveryGroupSaysWhatItHolds() {
+        for group in RawFieldGrouping.Group.allCases {
+            XCTAssertGreaterThan(group.blurb.count, 40,
+                                 "\(group) has no real description")
+            XCTAssertNotEqual(group.blurb, group.title)
+        }
+    }
+
+    /// ⚠️ **A vendor's composite says whose number it is.** Backlog N1's rule
+    /// for Oura's scores is relay, never merge; a blurb that described one as
+    /// something this app measures would be the first half of a merge.
+    func testVendorCompositeGroupsNameTheVendorInBothHeadingAndBlurb() {
+        for group in [RawFieldGrouping.Group.readiness, .stressResilience, .activityScore] {
+            XCTAssertTrue(group.title.contains("Oura"), "\(group) heading hides whose number it is")
+            XCTAssertTrue(group.blurb.contains("Oura"), "\(group) blurb hides whose number it is")
+        }
+    }
 
     func testEveryRuleLandsWhereItShould() {
         for (identifier, expected) in realIdentifiers {
@@ -192,9 +248,14 @@ final class DataTabSortingTests: XCTestCase {
         // It was lost for one commit when this file's merge conflict resolved
         // to the sound-dose branch's copy, which predates the group. Caught by
         // this test, which is the whole reason it is a closed set.
+        // `.readiness` (backlog D28) is homeless for the same reason as
+        // `.stressResilience`: Oura's readiness score is a vendor composite,
+        // and the app's own Readiness card is a *different* figure from the
+        // reader's own measurements. Filing the vendor's under a canonical
+        // section would invite the two to be read as one.
         let homeless: Set<RawFieldGrouping.Group> = [
-            .daylight, .mind, .environment, .activityScore, .stressResilience,
-            .unsorted,
+            .daylight, .mind, .environment, .activityScore, .readiness,
+            .stressResilience, .unsorted,
         ]
         for group in RawFieldGrouping.Group.allCases {
             XCTAssertEqual(group.canonicalCategory == nil, homeless.contains(group),
