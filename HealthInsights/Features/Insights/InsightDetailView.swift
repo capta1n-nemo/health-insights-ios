@@ -403,6 +403,29 @@ struct InsightDetailView: View {
                 }
             }
 
+            // ⚠️ **Surfaced, never resolved** (backlog C4). A re-judgement
+            // rewrites the app's guess and cannot touch the reader's answer — but
+            // an answer given about a meeting that has since been renamed,
+            // lengthened or moved may simply no longer be about the same thing.
+            // Silently discarding it would destroy their input; silently keeping
+            // it would present a stale answer as current. So the row says so and
+            // leaves the decision where it belongs.
+            //
+            // ⚠️ **Belt-and-braces today, load-bearing later.**
+            // `CalendarIntegration.fetchEvents` folds the occurrence's start into
+            // the identifier, so *dragging* a meeting mints a new
+            // `CalendarEvent.id` and the old judgement is orphaned rather than
+            // found to have drifted — this row will not fire for a moved event
+            // until that id scheme changes. It fires today for the edits that
+            // keep the id: a rename, a re-titled location, an attendee added, a
+            // longer meeting. See `CalendarEventArtifact.start`.
+            if judgement.needsRereview {
+                Label("This event changed after you reviewed it — check the labels still fit.",
+                      systemImage: "exclamationmark.arrow.circlepath")
+                    .font(.caption2).foregroundStyle(Theme.warn)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             // Three states, deliberately distinguishable at a glance: an
             // untouched guess awaiting review, an edit not yet saved, and a
             // settled row. A reader scanning the list has to be able to see
@@ -682,6 +705,21 @@ struct InsightDetailView: View {
         .navigationTitle(result?.title ?? "Insight")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $groundingKind) { GroundingSheet(kind: $0) }
+        // The debounce boundary the reader asked for: *"maybe only do it once
+        // they leave the card"*. Detection is free and happens on sync; judging
+        // costs an on-device model call, so it waits until nothing on screen
+        // depends on it. Detached rather than awaited — the view is going away
+        // and has nothing to wait for; the cards redraw when `recompute()`'s
+        // observed results land.
+        //
+        // ⚠️ **BODY LEVEL, NOT ON `calendarReviewSection`.** The stack above is a
+        // `LazyVStack` on purpose, so a section's own `.onDisappear` fires every
+        // time it scrolls out of view — which would run the classifier from
+        // inside a view update, against a list the reader is mid-scroll through.
+        // This one is on the whole card and fires when the card is left.
+        .onDisappear {
+            Task { await model.flushCalendarReclassification() }
+        }
     }
 
     /// The score, and everything that qualifies it, beside the dial.

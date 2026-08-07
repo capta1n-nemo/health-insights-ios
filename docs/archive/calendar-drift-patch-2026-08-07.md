@@ -9,10 +9,15 @@
 >    duplicate id. `uniquingKeysWith: { first, _ in first }` instead, matching
 >    `mergeCalendarEvents`. A crash in a pure comparison fed a caller-supplied
 >    array is not worth the terseness.
-> 2. §7 (`InsightDetailView.swift`) was **not applied** — another agent owned
->    that file in the same batch. `AppModel.flushCalendarReclassification()` and
->    `CalendarEventJudgement.needsRereview` exist and are tested; the review row
->    and the body-level `.onDisappear` are the wiring still outstanding.
+> 2. §7 (`InsightDetailView.swift`) was applied **second, in a later wave** —
+>    another agent owned that file when the other eight parts landed. It is in
+>    now: the `needsRereview` row sits immediately above the three-state
+>    `draft != nil` block in `calendarReviewRow`, and the `.onDisappear` is at
+>    **body level**, after `.sheet(item: $groundingKind)` on the modifier chain
+>    hanging off the `ScrollView` — *not* on `calendarReviewSection`, because the
+>    stack inside is a `LazyVStack` and a section-level `.onDisappear` would fire
+>    on every scroll. The anchor §7b called "the one anchor not read" is read and
+>    the hazard was real.
 > 3. Two tests added beyond the file in §8: a pre-upgrade snapshot with no
 >    `start` cannot report a move, and the flag round-trips through JSON.
 
