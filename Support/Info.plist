@@ -115,7 +115,7 @@
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Most flagged moments happen while the app is closed. Allowing this lets iOS pass on arrivals at places you stop even then — the same coarse data, rounded the same way, kept only until you answer the question. Health Insights never tracks your movement and never builds a location history. Nothing leaves your device.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Health Insights uses the camera to scan a blood-test report so the values can be read on your device. The pages are read and discarded — no photo is saved, and nothing is uploaded.</string>
+    <string>Health Insights uses the camera two ways: to scan a blood-test report so the values can be read on your device, and to take a body scan for your measurements. Both are processed on this phone and nothing is uploaded. Report pages are read and discarded; what a body scan keeps is yours to choose in Settings ▸ Body scans, and it keeps no photographs unless you turn that on.</string>
 
     <!-- Custom URL scheme used as the OAuth redirect target for Oura/Withings.
          Credentials are entered in-app and stored in the Keychain; there is no

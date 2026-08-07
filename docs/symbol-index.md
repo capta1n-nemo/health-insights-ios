@@ -491,6 +491,20 @@ the place to look.
   - `ScanConditions` :124
 - `Signals/BodyScanCadence.swift`
   - `BodyScanCadence` :13
+- `Signals/BodyScanCaptureFlow.swift`
+  - `BodyScanCaptureAvailability` :147
+  - `BodyScanCaptureBlock` :83
+  - `BodyScanCaptureFlow` :719
+  - `BodyScanConsentBrief` :218
+  - `BodyScanDeviceCapability` :30
+  - `CameraAuthorization` :64
+  - `CaptureFailure` :637
+  - `CaptureReading` :438
+  - `CaptureStation` :384
+  - `HoldTimer` :589
+  - `PoseCheck` :521
+  - `PoseProblem` :473
+  - `ScanSetupTarget` :310
 - `Signals/BodyScanPolicy.swift`
   - `BodyScanAsset` :6
   - `BodyScanPolicy` :79
@@ -635,6 +649,14 @@ the place to look.
   - `SyncActivityPill` :83
 - `Core/Background/BackgroundRefresh.swift`
   - `BackgroundRefresh` :47
+- `Core/Capture/BodyScanCaptureDriver.swift`
+  - `ARBodyScanCaptureDriver` :140
+  - `ARFrameReader` :236
+  - `BodyScanCapture` :398
+  - `BodyScanCaptureDriver` :25
+  - `BodyScanMeasuring` :86
+  - `CameraPermission` :92
+  - `UnavailableBodyScanCaptureDriver` :376
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
@@ -934,7 +956,17 @@ the place to look.
   - `AddInputToolbar` :132
 - `Features/Inputs/BodyMeasurementsSheet.swift`
   - `BodyMeasurementsSheet` :27
-  - `BodyScanParserVersion` :182
+  - `BodyScanParserVersion` :234
+- `Features/Inputs/BodyScanCaptureView.swift`
+  - `ARSessionPreview` :470
+  - `BodyScanCaptureModel` :107
+  - `BodyScanCaptureView` :33
+  - `CameraPreview` :453
+  - `ConsentBriefView` :287
+  - `FinishedView` :489
+  - `LiveCaptureView` :384
+  - `OutcomeView` :523
+  - `SetUpView` :328
 - `Features/Insights/BodyOverTimeSection.swift`
   - `BodyOverTimeSection` :24
 - `Features/Insights/IdealSleepWindowSection.swift`
