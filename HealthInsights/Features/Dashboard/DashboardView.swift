@@ -429,6 +429,7 @@ struct InsightCard: View {
         case .mentalHealth: return "person.crop.circle"
         case .workImpact: return "briefcase"
         case .travelDrain: return "airplane"
+        case .socialBattery: return "person.2"
         case .nutrition: return "carrot"
         case .metabolism: return "flame"
         case .heartHealth: return "heart.fill"

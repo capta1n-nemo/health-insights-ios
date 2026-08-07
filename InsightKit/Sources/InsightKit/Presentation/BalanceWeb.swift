@@ -342,6 +342,21 @@ public extension InsightID {
         // reads at all.
         case .workImpact, .travelDrain:
             return true
+        // **On the web.** Same reasoning as its two calendar neighbours: it is a
+        // 0–100 of the same kind, it is not a detector, and it is not a
+        // composite of other spokes.
+        //
+        // ⚠️ It is worth saying why the mental-health exclusion does *not* catch
+        // it, because the shapes look alike. That card is off the web because
+        // its top band means "these four numbers did not move" — silence
+        // rendered as excellence. This card's top band means something happened
+        // and the body took it well, or that the reader spent a quiet fortnight
+        // *and their own nights say quiet suits them*. Both are readings, not
+        // absences: a reader who saw nobody and whom company restores scores
+        // *low* on the exposure side, which is exactly the opposite of the
+        // failure mode that keeps mental health off the chart.
+        case .socialBattery:
+            return true
         case .symptomRadar:
             return false
         // **Off the web, and for the reason the mental-health card is.** Its
@@ -386,6 +401,7 @@ public extension InsightID {
         case .nutrition: return "Food"
         case .metabolism: return "Burn"
         case .symptomRadar: return "Radar"
+        case .socialBattery: return "Social"
         }
     }
 }

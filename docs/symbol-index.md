@@ -166,14 +166,14 @@ the place to look.
 - `Insights/IdealSleepWindow.swift`
   - `IdealSleepWindow` :57
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :178
-  - `InsightCadence` :136
-  - `InsightConfidence` :170
-  - `InsightDriver` :206
+  - `GroundingRequirement` :195
+  - `InsightCadence` :153
+  - `InsightConfidence` :187
+  - `InsightDriver` :223
   - `InsightID` :15
-  - `InsightModel` :495
-  - `InsightResult` :223
-  - `RequirementStatus` :194
+  - `InsightModel` :512
+  - `InsightResult` :240
+  - `RequirementStatus` :211
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -237,6 +237,10 @@ the place to look.
   - `SleepInfluences` :67
 - `Insights/SleepInsight.swift`
   - `SleepInsight` :21
+- `Insights/SocialBatteryInsight.swift`
+  - `SocialBatteryInsight` :27
+- `Insights/SocialBatteryModel.swift`
+  - `SocialBatteryModel` :65
 - `Insights/SoundExposureInsight.swift`
   - `SoundExposureInsight` :333
   - `SoundExposureModel` :73
@@ -377,7 +381,7 @@ the place to look.
   - `InputGroup` :280
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :64
+  - `InsightPalette` :65
 - `Presentation/InstrumentCoverage.swift`
   - `InstrumentCoverage` :100
   - `InstrumentReport` :34
@@ -855,6 +859,10 @@ the place to look.
   - `SleepScreenTimeSection` :38
 - `Features/Insights/SleepTravelSection.swift`
   - `SleepTravelSection` :47
+- `Features/Insights/SocialBatterySection.swift`
+  - `SignedIntervalRow` :357
+  - `SocialBatterySection` :28
+  - `SocialContactChart` :427
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Insights/SoundExposureSection.swift`
