@@ -149,6 +149,8 @@ struct InsightDetailView: View {
             // S4 (when it has spoken, and how a finding builds) and S3 (the
             // nights-to-flag sheet), in their own file — see SickDaysSection.
             SickDaysSection()
+            // B11-1: the same six months as a log or a month grid — own file.
+            SickDaysCalendarSection()
             // R28. This card's ledger reads Apple Health tags alone, so a reader
             // who logs side effects in a tracker has a second record it has
             // never seen. Same file.
