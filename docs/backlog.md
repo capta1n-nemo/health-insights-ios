@@ -2322,6 +2322,30 @@ so the decision is deliberate rather than inherited. See
       calendar exclusion has to be argued rather than silent. Same contract as
       the substance-shading and data-detail exemptions.
 
+      ✅ **RULED AND BUILT 2026-08-07.** The reader: *"if they have full sharing
+      your corrections enabled, it will be enabled for that future feature
+      (server) and the export."*
+
+      So `calendarEvents` now owns its own export key and is **the only
+      tier-conditional key in the file**: the whole calendar — including the
+      events never reviewed — travels at `.full` and at no other tier. Gated by
+      the same switch that already governs `improvements`, deliberately: the
+      reader made one choice and it has to mean one thing everywhere.
+
+      ⚠️ **The risk assessment that justified the old exclusion is unchanged and
+      still true** — titles and locations remain the most identifying strings
+      this app holds, and the original reasoning is kept verbatim at the site.
+      What changed is **who decides**. An unconditional exclusion was the app
+      overruling a choice it had just handed the reader in `R5`.
+
+      ⚠️ **The key is written even when empty.** An empty array reads as *"you
+      have this turned off"*; an absent key reads as *"this app does not export
+      calendars"*. Different sentences, and
+      `testAnEmptyBundleStillCarriesEveryKey` is what holds the difference.
+
+      The structural half — a lint so a future domain cannot ship with a key and
+      no data — landed with the same row earlier.
+
 - `D49` ✅ `w2` `data` `build` `gate:none` — **Three Data-tab sections open nothing — found by D47's new lint on its first run**
       `cycleSection`, `calendarSection` and `otherDataSection` in
       `DataTabView.swift` render a summary and contain **no `NavigationLink`**.

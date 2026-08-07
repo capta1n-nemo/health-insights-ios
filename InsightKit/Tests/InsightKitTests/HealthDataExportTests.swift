@@ -168,6 +168,17 @@ final class HealthDataExportTests: XCTestCase {
             cycles: [CycleDay(day: now, flow: .medium)],
             holidays: [.init(firstDay: now, lastDay: now.addingTimeInterval(6 * 86_400),
                              label: "Leave", source: "entered")],
+            // D50. A phone holding one of everything holds a calendar event, and
+            // this fixture is what `testEveryDataDomainsKeyIsPopulated…` reads —
+            // so the key cannot be present-and-empty here. ⚠️ The tier gate that
+            // decides whether it travels lives in `DataExportView`, which no
+            // InsightKit test can reach; this pins only that the type carries it.
+            calendarEvents: [CalendarEvent(
+                id: "evt-1", start: now, end: now.addingTimeInterval(3600),
+                isAllDay: false, timeZoneIdentifier: "Australia/Sydney",
+                calendarName: "Work", kind: .timed, title: "Quarterly review",
+                location: "Level 3", hasVideoLink: false,
+                organizerIsReader: true, attendeeCount: 4)],
             // §B11-4. A detected spell, so `label` is nil exactly as the ledger
             // produces it — the fixture has to hold the shape that actually
             // ships, or the encoder's nil handling goes untested.
@@ -710,5 +721,50 @@ final class HealthDataExportTests: XCTestCase {
         let tier = try XCTUnwrap(section["tier"] as? String)
         XCTAssertNotNil(SharingTier(rawValue: tier),
                         "\"\(tier)\" is not a closed tier value, so tier carries free text")
+    }
+
+    // MARK: - The calendar is the one tier-conditional key (D50)
+
+    /// ⚠️ **The reader's ruling, 2026-08-07:** *"if they have full sharing your
+    /// corrections enabled, it will be enabled for that future feature (server)
+    /// and the export."*
+    ///
+    /// So `calendarEvents` carries the whole calendar at `.full` and nothing at
+    /// any other tier. **The key is present either way** — an empty array says
+    /// "you have this turned off", where an absent key would say "this app does
+    /// not export calendars", and those are different sentences.
+    ///
+    /// The gate itself lives in `DataExportView`, which no InsightKit test can
+    /// reach; what this pins is that the *type* carries what it is handed and
+    /// re-decides nothing.
+    func testTheCalendarKeyIsAlwaysPresentAndCarriesWhatItIsHanded() throws {
+        let now = TestClock.now
+        let event = CalendarEvent(id: "evt-1", start: now, end: now.addingTimeInterval(3600),
+                                  isAllDay: false, timeZoneIdentifier: "Australia/Sydney",
+                                  calendarName: "Work", kind: .timed,
+                                  title: "Quarterly review", location: "Level 3",
+                                  hasVideoLink: false, organizerIsReader: true,
+                                  attendeeCount: 4)
+
+        let withCalendar = try HealthDataExport.decoded(from: bundle().json())
+        XCTAssertNotNil(withCalendar.calendarEvents,
+                        "the key must exist so an empty one reads as 'turned off'")
+
+        let full = HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [], substances: [],
+            medication: nil, sideEffects: [], profile: UserHealthProfile(),
+            derivedScores: [], calendarEvents: [event])
+        let decoded = try HealthDataExport.decoded(from: full.json())
+        XCTAssertEqual(decoded.calendarEvents.count, 1)
+        XCTAssertEqual(decoded.calendarEvents.first?.title, "Quarterly review",
+                       "at .full the words travel — that is what the reader ruled")
+
+        let off = HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [], substances: [],
+            medication: nil, sideEffects: [], profile: UserHealthProfile(),
+            derivedScores: [], calendarEvents: [])
+        XCTAssertTrue(try HealthDataExport.decoded(from: off.json()).calendarEvents.isEmpty)
+        XCTAssertTrue(String(decoding: try off.json(), as: UTF8.self).contains("calendarEvents"),
+                      "the key stays in the file even when empty")
     }
 }

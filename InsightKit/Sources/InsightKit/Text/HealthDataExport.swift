@@ -737,6 +737,13 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// exports**, and it can only do so because detection strips titles; see
     /// `Holiday`.
     public let holidays: [Holiday]
+    /// **The calendar, at `.full` only.** Empty at every other tier.
+    ///
+    /// ⚠️ The reader's ruling, 2026-08-07: *"if they have full sharing your
+    /// corrections enabled, it will be enabled for that future feature (server)
+    /// and the export."* `DataExportView` is where the tier is read; this type
+    /// only carries what it was handed, so **nothing here re-decides it**.
+    public let calendarEvents: [CalendarEvent]
     /// The merged sick-day ledger — §B11-4. Dates, the reader's own labels, the
     /// grade where anybody gave one, and which source each period came from.
     public let sickDays: [SickDay]
@@ -828,6 +835,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 derivedScores: [DerivedScore],
                 cycles: [CycleDay] = [],
                 holidays: [Holiday] = [],
+                calendarEvents: [CalendarEvent] = [],
                 sickDays: [SickDay] = [],
                 generatedInsights: [DerivedSeries] = [],
                 tags: [HealthTag] = [],
@@ -841,6 +849,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         self.improvements = improvements
         self.cycles = cycles
         self.holidays = holidays
+        self.calendarEvents = calendarEvents
         self.sickDays = sickDays
         self.generatedInsights = generatedInsights
         self.tags = tags
@@ -934,18 +943,26 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // place and attendee count under Full, and nothing but the guess → truth
         // move under Metadata only.
         //
-        // What still emits nothing here is the **un-reviewed** calendar: every
-        // event the reader has never looked at, which is most of them. Nobody
-        // has ruled on those, and a bulk dump of a person's whole calendar is
-        // not something to decide inside a switch statement. **It is left as it
-        // was, deliberately** — D50 asked for the decision to be surfaced, not
-        // flipped, and this comment plus the declaration below is the surfacing.
-        // Ask the reader before changing it.
+        // ✅ **And the reader ruled on the last quarter, 2026-08-07:** *"if they
+        // have full sharing your corrections enabled, it will be enabled for
+        // that future feature (server) and the export."*
         //
-        // export-domain: calendarEvents — shares "unmodelled" and emits nothing
-        // there. Reviewed events reach the file as `improvements` corrections
-        // under the reader's R5 tier; un-reviewed events are an open decision.
-        case .calendarEvents: return "unmodelled"
+        // So the **un-reviewed** calendar — every event they have never looked
+        // at, which is most of them — travels **at `.full` and at no other
+        // tier**. Not at `.metadataOnly`, not with sharing off. The gate is the
+        // same switch that already governs corrections, which is the point: the
+        // reader made one choice and it means one thing everywhere.
+        //
+        // ⚠️ **The risk assessment above is unchanged and still true** — titles
+        // and locations remain the most identifying strings this app holds. What
+        // changed is **who decides**. An unconditional exclusion was the app
+        // overruling a choice it had just handed the reader in `R5`.
+        //
+        // export-domain: calendarEvents — owns "calendarEvents", conditional on
+        // the sharing tier. **The only tier-conditional key in this switch**, so
+        // `DataExportView` passes `[]` for it below `.full` rather than omitting
+        // the argument — an absent key and a withheld one must not look alike.
+        case .calendarEvents: return "calendarEvents"
         case .cycles: return "cycles"
         // Reader-entered (and date-only detected) leave genuinely exports —
         // unlike the events above, because the ledger holds no titles.
@@ -1063,6 +1080,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, sickDays
+        case calendarEvents
         case generatedInsights, tags
         case connections, suggestionDismissals, feedback, predictionOutcomes
         case reports, improvements
@@ -1092,6 +1110,11 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
         try c.encode(sickDays, forKey: .sickDays)
+        // ⚠️ Always written, even when empty — an empty array reads as "the
+        // reader has full sharing turned off", where an absent key would read as
+        // "this app does not export calendars". Different sentences, and
+        // `testAnEmptyBundleStillCarriesEveryKey` is what holds the difference.
+        try c.encode(calendarEvents, forKey: .calendarEvents)
         try c.encode(generatedInsights, forKey: .generatedInsights)
         try c.encode(tags, forKey: .tags)
         try c.encode(connections, forKey: .connections)

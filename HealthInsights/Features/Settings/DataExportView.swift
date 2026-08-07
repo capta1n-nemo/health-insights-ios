@@ -352,6 +352,23 @@ struct DataExportView: View {
                 HealthDataExport.Holiday(firstDay: $0.firstDay, lastDay: $0.lastDay,
                                          label: $0.label, source: $0.source.rawValue)
             },
+            // ⚠️ **The one tier-conditional key in the file, on the reader's own
+            // ruling (2026-08-07, D50):** *"if they have full sharing your
+            // corrections enabled, it will be enabled for that future feature
+            // (server) and the export."*
+            //
+            // So the whole calendar — including the events they never reviewed —
+            // travels at `.full` and at no other tier. **Gated by the same
+            // switch that governs `improvements` above**, deliberately: the
+            // reader made one choice and it has to mean one thing everywhere.
+            //
+            // ⚠️ **`[]` rather than omitting the argument.** The key is always
+            // present, so a reader opening the file sees an empty array and can
+            // tell "I have this turned off" from "this app does not export
+            // calendars" — and `verify.sh`'s export lint keeps seeing it passed.
+            calendarEvents: model.sharingPreferences.effectiveTier == .full
+                ? model.calendarEvents : [],
+
             // The merged sick-day ledger (§B11-4), on exactly the terms the
             // holiday ledger travels on: dates and grades, never an event's
             // title. A sick day is *what the reader said*, and whoever reads
@@ -425,7 +442,7 @@ struct DataExportView: View {
             improvements: HealthDataExport.Improvements.build(
                 tier: model.sharingPreferences.effectiveTier,
                 judgements: model.calendarJudgements,
-                outcomes: outcomes))
+                outcomes: outcomes),)
         // Detached: the JSON encode runs to tens of megabytes, and it used
         // to run synchronously on the main thread behind a button that
         // gave no sign anything was happening.
