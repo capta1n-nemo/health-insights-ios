@@ -85,6 +85,13 @@ the place to look.
   - `PredictionOutcome` :33
   - `Telemetry` :79
   - `TelemetryEvent` :65
+- `Feedback/ModelAccuracy.swift`
+  - `AccuracyEvidence` :503
+  - `CalibrationReport` :231
+  - `GradedPrediction` :209
+  - `ModelAccuracy` :57
+  - `ModelAccuracyEntry` :536
+  - `VerdictTally` :475
 - `Feedback/NormContribution.swift`
   - `NormContribution` :47
   - `NormContributionBuilder` :150
@@ -813,6 +820,8 @@ the place to look.
   - `NightSleepChart` :20
 - `DesignSystem/PeerStandingStrip.swift`
   - `PeerStandingStrip` :28
+- `DesignSystem/PredictionVersusActualChart.swift`
+  - `PredictionVersusActualChart` :35
 - `DesignSystem/RecoveryScale.swift`
   - `RecoveryScale` :22
 - `DesignSystem/ScoreBalanceWeb.swift`
@@ -1067,6 +1076,9 @@ the place to look.
   - `DataExportView` :37
   - `FullExport` :491
   - `OtherDataListView` :504
+- `Features/Settings/ModelAccuracyView.swift`
+  - `ModelAccuracyReportView` :258
+  - `ModelAccuracyView` :35
 - `Features/Settings/NotificationSettingsView.swift`
   - `NotificationSettingsView` :17
 - `Features/Settings/ResearchView.swift`
@@ -1075,9 +1087,9 @@ the place to look.
   - `ResearchTopic` :113
   - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :395
-  - `IntegrationRow` :294
-  - `IntegrationSummaryRow` :351
+  - `DisclaimerView` :404
+  - `IntegrationRow` :303
+  - `IntegrationSummaryRow` :360
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12
