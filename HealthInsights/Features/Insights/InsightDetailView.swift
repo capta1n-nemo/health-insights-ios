@@ -108,6 +108,9 @@ struct InsightDetailView: View {
             sleepBreathingSection
         case .substanceImpact:
             substanceLoadCard
+            // The occasion, shown — and never scored. See
+            // `SubstanceEpisodesSection` for why there is no number on it.
+            SubstanceEpisodesSection()
         // Heart Health and Readiness used to own "How you compare" and "How far
         // from your normal" as their bespoke sections. Both are universal now —
         // every card's inputs can be placed against a population and against
@@ -2871,6 +2874,9 @@ struct InsightDetailView: View {
         switch insightID {
         case .bodyComposition:
             MedicationSection(window: window(spanning: nil))
+            // Intake versus expenditure, and every signal folded onto
+            // days-since-dose. Its own file, and its own two refusals.
+            MedicationPanelSection()
         // ⚠️ **Moved off the risk card 2026-08-06, at the reader's instruction.**
         // It sat there because heart age was the app's *first* age estimate and
         // the risk equations are what produce it — the section grew where its
