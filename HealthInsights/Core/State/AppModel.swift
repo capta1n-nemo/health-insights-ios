@@ -366,6 +366,7 @@ final class AppModel {
         calendarEvents = dataStore.loadCalendarEvents()
         calendarJudgements = dataStore.loadCalendarJudgements()
         holidayEntries = dataStore.loadHolidayEntries()
+        illnessJudgements = dataStore.loadIllnessJudgements()
         labResults = dataStore.labResults()
         ecgRecords = dataStore.ecgRecords()
     }
@@ -476,15 +477,84 @@ final class AppModel {
     /// the reader retagging a day on the Work impact review list changes what
     /// the Data tab shows on the next pass.
     ///
-    /// ⚠️ **Detected only, today.** There is no hand-entered half yet — no
-    /// `InputKind`, no sheet — so a sick day the reader never put in a calendar
-    /// cannot be recorded. That is a real gap and it is written down as one
-    /// rather than papered over; the `entered:` half of `SickDayLedger` exists
-    /// and takes the second source the day an input surface does.
+    /// ✅ **Both halves, since B11-2 (2026-08-08).** The gap this comment used
+    /// to record — *"no `InputKind`, no sheet, so a sick day the reader never
+    /// put in a calendar cannot be recorded"* — is closed by the per-day sick
+    /// page: a reader who corrects the app's estimate to anything other than
+    /// "not ill" has said they were ill on that day, and that statement is the
+    /// `entered:` source this ledger has always had room for.
+    ///
+    /// ⚠️ **`.notIll` writes nothing, and does not erase a detected period.** A
+    /// reader saying "that was a hangover" is answering about the *app's guess*,
+    /// not deleting a calendar block somebody else may have entered — the place
+    /// to change a detected period is still the event's classification, which is
+    /// what `SickDaysDataView` tells them. Suppressing a detected day from here
+    /// would make one answer silently overwrite another record.
     var sickDayLedger: SickDayLedger {
         SickDayLedger(
             detected: SickDayLedger.detected(events: calendarEvents,
-                                             judgements: calendarJudgements))
+                                             judgements: calendarJudgements),
+            entered: illnessJudgements.compactMap { judgement in
+                // The *correction* only. An unanswered estimate is the app's
+                // own guess, and letting it into the ledger would feed the
+                // radar its own output — the loop `DerivedDependencies` exists
+                // to forbid, one level up.
+                guard let correction = judgement.correction,
+                      correction.kind != .notIll else { return nil }
+                return .init(firstDay: judgement.day, lastDay: judgement.day,
+                             label: nil, severity: correction.severity ?? .unstated,
+                             source: .entered)
+            })
+    }
+
+    /// **Six months of the radar, replayed once and shared** — the same memo key
+    /// `SickDaysSection` and `SickDaysCalendarSection` already use, so the three
+    /// readers of this computation pay for it once between them. The cache
+    /// clears with every other derived one when the samples change, so a hit can
+    /// never be stale.
+    ///
+    /// Lives here rather than being copied into a fourth view because
+    /// `SickDayDetailView` is reachable from the `+` menu, where there is no
+    /// list holding a replay to hand down.
+    var radarHistory: [SymptomRadarModel.DayHistory] {
+        memoized("radarHistory") {
+            SymptomRadarModel.history(over: SymptomRadarModel.timeline(
+                samples: samples, days: SymptomRadarModel.historyDays,
+                endingAt: Date(), calendar: .current))
+        }
+    }
+
+    // MARK: - Illness judgements (B11-2)
+
+    /// **What the app guessed each day was, and what the reader answered.**
+    ///
+    /// A stored, reloaded property rather than a live read from the store —
+    /// `docs/data-conventions.md`'s observation trap, and the same rule
+    /// `sideEffects` and `activeMedication` were fixed for.
+    private(set) var illnessJudgements: [IllnessJudgement] = []
+
+    /// The reader's answer about one day, where they gave one.
+    func illnessJudgement(on day: Date, calendar: Calendar = .current)
+        -> IllnessJudgement? {
+        let start = calendar.startOfDay(for: day)
+        return illnessJudgements.first { calendar.isDate($0.day, inSameDayAs: start) }
+    }
+
+    /// Record the reader's answer about one day.
+    ///
+    /// ⚠️ **`estimate` is the app's guess and is stored only the first time.**
+    /// Re-estimating a day somebody has already answered would move the artifact
+    /// under their answer, so the stored pair would stop being a training
+    /// example — `DataStore.recordIllnessReview` holds that line.
+    func recordIllnessReview(day: Date, estimate: IllnessEstimate,
+                             correction: IllnessAssessment?, confirmed: Bool) {
+        dataStore.recordIllnessReview(day: day, estimate: estimate,
+                                      correction: correction, confirmed: confirmed)
+        illnessJudgements = dataStore.loadIllnessJudgements()
+        // A correction changes what the sick-day ledger and the radar read, so
+        // the cards behind this page have to be re-evaluated rather than left
+        // showing the answer the reader has just disagreed with.
+        recompute()
     }
 
     /// Record one period of leave, past or planned.
@@ -860,10 +930,29 @@ final class AppModel {
             // decides whether to keep nudging them about the feature.
             case .supplement:
                 hasBeenUsed = !supplementEntries.isEmpty
+            // Having answered about one day counts — confirmed or corrected,
+            // since both are answers. Never prompts through this route
+            // (`.settingsOnly`), so this is only ever read as "stop suggesting";
+            // and nagging somebody to say whether they were ill is the one
+            // nudge this app must not send.
+            case .illnessCorrection:
+                hasBeenUsed = illnessJudgements.contains { $0.isAnswered }
             }
             if hasBeenUsed { used.insert(kind) }
         }
         return used
+    }
+
+    /// The side-effect log in the shape InsightKit takes it — the value type
+    /// `SymptomReconciliation` already defines, because a `@Model` cannot cross
+    /// into the package and a second near-identical struct would be one more
+    /// thing to keep in step.
+    ///
+    /// Safe to read from a view only because `sideEffects` is a stored,
+    /// reloaded property — the observation trap `docs/data-conventions.md`
+    /// documents.
+    var reportedSideEffects: [SymptomReconciliation.LoggedEffect] {
+        sideEffects.map { .init(name: $0.name, severity: $0.severity, date: $0.date) }
     }
 
     /// The same records tallied by symptom, worst average first.
@@ -1910,6 +1999,13 @@ final class AppModel {
         // record — because the symptoms it is bound beside only exist once the
         // detached task has loaded the raw catalogue.
         let schedule = dataStore.loadActiveMedication()?.schedule
+        // **B11-8, read on the main actor for the same reason the schedule is.**
+        // Both are `Sendable` values derived from `@Model` rows, and both feed
+        // the radar's reported channel — the ledger is what the reader (or their
+        // calendar) said about being ill, and the log is the symptom record the
+        // radar's ledger has never been able to see.
+        let sickDaysNow = sickDayLedger
+        let loggedEffects = reportedSideEffects
 
         // Off the main actor: the JSON decode, the sanitiser, the temperature
         // reconstruction and the whole insight pass. Every input is `Sendable`
@@ -1935,7 +2031,8 @@ final class AppModel {
             // task just loaded — binding `engineNow` on the main actor would
             // have raced the load it depends on.
             let engineBound = engineNow.withSymptoms(
-                SymptomPromotion.events(from: other), medication: schedule)
+                SymptomPromotion.events(from: other), medication: schedule,
+                sickDays: sickDaysNow, sideEffects: loggedEffects)
             let results = engineBound.evaluateAll(samples: samples, events: events,
                                                   profile: profileNow)
             return HydratedState(samples: samples, other: other, results: results,
@@ -2764,7 +2861,9 @@ final class AppModel {
         // the schedule the radar sees is the one the reader sees.
         engine = engine.withSubstanceLog(substanceEvents)
             .withSupplements(supplementEntries)
-            .withSymptoms(symptoms, medication: activeMedication?.schedule)
+            .withSymptoms(symptoms, medication: activeMedication?.schedule,
+                          // B11-8 — the reader's own two records join the tags.
+                          sickDays: sickDayLedger, sideEffects: reportedSideEffects)
             // Both calendar cards, in one call — see `withCalendar`.
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
 

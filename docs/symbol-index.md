@@ -178,7 +178,7 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
-  - `SymptomRadarInsight` :1252
+  - `SymptomRadarInsight` :1308
   - `SymptomRadarModel` :515
   - `SymptomRadarStatus` :460
 - `Insights/HeartAgeAnalyser.swift`
@@ -241,6 +241,8 @@ the place to look.
   - `ReadinessScore` :15
 - `Insights/RecoveryTracker.swift`
   - `RecoveryTracker` :49
+- `Insights/ReportedIllness.swift`
+  - `ReportedIllness` :71
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
 - `Insights/ScoreBlend.swift`
@@ -261,6 +263,9 @@ the place to look.
 - `Insights/ScoreWeighting.swift`
   - `ScoreFactor` :152
   - `ScoreWeighting` :31
+- `Insights/SickDayReport.swift`
+  - `IllnessEstimator` :279
+  - `SickDayReport` :46
 - `Insights/SleepDebt.swift`
   - `SleepDebtModel` :25
 - `Insights/SleepInfluences.swift`
@@ -341,6 +346,13 @@ the place to look.
   - `TagSummary` :238
 - `Models/HolidayLedger.swift`
   - `HolidayLedger` :39
+- `Models/IllnessJudgement.swift`
+  - `IllnessAccuracy` :270
+  - `IllnessArtifact` :162
+  - `IllnessAssessment` :126
+  - `IllnessEstimate` :188
+  - `IllnessJudgement` :217
+  - `IllnessKind` :54
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
   - `BucketSize` :9
@@ -424,8 +436,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :420
-  - `InputGroup` :431
+  - `CardRequirement` :465
+  - `InputGroup` :476
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :66
@@ -747,6 +759,8 @@ the place to look.
   - `WithingsProvider` :8
 - `Core/Intelligence/CalendarEventInterpreter.swift`
   - `CalendarEventInterpreter` :50
+- `Core/Intelligence/DaySummarizer.swift`
+  - `DaySummarizer` :30
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Intelligence/TagApplicabilityModel.swift`
@@ -778,6 +792,7 @@ the place to look.
   - `FeedbackRecord` :499
   - `GroundingRecord` :9
   - `HolidayEntry` :346
+  - `IllnessJudgementRecord` :631
   - `InsightScoreRecord` :125
   - `IntegrationRecord` :152
   - `ManualSampleRecord` :27
@@ -971,13 +986,13 @@ the place to look.
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `BodyTypeSheet` :234
-  - `HolidayEntrySheet` :788
+  - `BodyTypeSheet` :251
+  - `HolidayEntrySheet` :805
   - `InputSheet` :129
-  - `PushedInSheet` :207
-  - `ReaderIdentitySheet` :661
-  - `ScreenTimeEntrySheet` :313
-  - `SideEffectEntrySheet` :847
+  - `PushedInSheet` :224
+  - `ReaderIdentitySheet` :678
+  - `ScreenTimeEntrySheet` :330
+  - `SideEffectEntrySheet` :864
 - `Features/Inputs/AddInputPicker.swift`
   - `AddInputPicker` :36
   - `AddInputToolbar` :132
@@ -994,6 +1009,8 @@ the place to look.
   - `LiveCaptureView` :384
   - `OutcomeView` :523
   - `SetUpView` :328
+- `Features/Inputs/IllnessCorrectionSheet.swift`
+  - `IllnessCorrectionSheet` :37
 - `Features/Inputs/MeasurementSystemControl.swift`
   - `MeasurementSystemStorage` :23
   - `MeasurementUnitToggle` :42
@@ -1033,6 +1050,8 @@ the place to look.
   - `ScoreComparisonDetailView` :39
 - `Features/Insights/SettlingSection.swift`
   - `SettlingSection` :43
+- `Features/Insights/SickDayDetailView.swift`
+  - `SickDayDetailView` :43
 - `Features/Insights/SickDaysCalendarSection.swift`
   - `SickDaysCalendarSection` :53
 - `Features/Insights/SickDaysSection.swift`
@@ -1098,8 +1117,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :37
-  - `FullExport` :491
-  - `OtherDataListView` :504
+  - `FullExport` :499
+  - `OtherDataListView` :512
 - `Features/Settings/ModelAccuracyView.swift`
   - `ModelAccuracyReportView` :258
   - `ModelAccuracyView` :35

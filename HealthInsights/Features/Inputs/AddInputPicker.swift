@@ -261,6 +261,18 @@ extension AppModel {
             // published limit on a menu row would be an alarm with no context.
             let count = supplementEntries.count
             return count == 0 ? nil : "\(count) \(SectionCaveat.plural(count, "product"))"
+        case .illnessCorrection:
+            // **How many days have been answered, and nothing about how many
+            // are waiting.** `.eventConfirmation` above leads with its queue
+            // because a pending flagged moment is a question the app raised and
+            // may fairly chase. This one must not: every unanswered day is
+            // "waiting", so a count would grow forever, and a row nagging
+            // somebody about whether they have said they were ill is the one
+            // prompt `docs/illness-detection-evidence-2026-08-07.md` rules out.
+            // Nil until the reader has answered one, so a fresh install shows
+            // the row without a figure rather than a reproachful zero.
+            let count = illnessJudgements.filter(\.isAnswered).count
+            return count == 0 ? nil : "\(count) \(SectionCaveat.plural(count, "day")) answered"
         }
     }
 }

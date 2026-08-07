@@ -63,7 +63,74 @@ struct SickDaysDataView: View {
                 ForEach(periods) { period in
                     row(period)
                 }
+                answeredDays
             })
+    }
+
+    // MARK: - B11-9: the days the reader answered about
+
+    /// **What the app guessed each day was, and what the reader said back** —
+    /// backlog `B11-9`: *"All of this derived data must go into the relevant
+    /// data tab sections."*
+    ///
+    /// Here rather than in a domain of its own, and the reason is
+    /// `DataDomain`'s own rule that a domain is a *shape*: an answered day is a
+    /// statement about being ill on a date, which is exactly the shape this page
+    /// already renders. A second domain would split one subject across two
+    /// pages and leave the reader to work out which held what.
+    ///
+    /// ⚠️ **The guess stays visible after a correction.** Hiding it is how a
+    /// learning loop stops being auditable, and the reader's whole reason for
+    /// asking was *"then we can learn from it"*.
+    ///
+    /// ⚠️ **The hit rate is printed only above a stated floor of answers**
+    /// (`IllnessAccuracy.minimumAnswers`). This is the last page in the app that
+    /// should print noise with a percent sign attached.
+    @ViewBuilder private var answeredDays: some View {
+        let judgements = model.illnessJudgements.filter(\.isAnswered)
+        Section {
+            if judgements.isEmpty {
+                Text("Nothing answered yet. Open a day from the symptom radar's "
+                     + "day-by-day section and tell the app what it was — its "
+                     + "guess and your answer are kept apart, so it can show you "
+                     + "how often it was right.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(judgements) { judgement in
+                    answeredRow(judgement)
+                }
+            }
+        } header: {
+            Text("Days you answered about")
+        } footer: {
+            let accuracy = IllnessAccuracy.over(model.illnessJudgements)
+            if let rate = accuracy.rate {
+                Text("The app's guess matched your answer on \(Int((rate * 100).rounded()))% "
+                     + "of the \(accuracy.answered) days you have answered. Days you "
+                     + "have not answered are not counted as agreement.")
+            } else {
+                Text("A hit rate appears once you have answered "
+                     + "\(IllnessAccuracy.minimumAnswers) days. Fewer than that is "
+                     + "noise with a percent sign on it, and this is the last page "
+                     + "in the app that should print one.")
+            }
+        }
+    }
+
+    private func answeredRow(_ judgement: IllnessJudgement) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(judgement.day.formatted(date: .abbreviated, time: .omitted))
+                Text(judgement.wasCorrected
+                     ? "it guessed \(judgement.estimate.assessment.summary.lowercased())"
+                     : "you confirmed its guess")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(judgement.effective.summary)
+                .font(.subheadline).foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
     }
 
     private var standing: String {

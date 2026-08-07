@@ -272,6 +272,17 @@ struct SickDaysCalendarSection: View {
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
+                // **B11-2's way in from the calendar.** A `NavigationLink` on
+                // the readout rather than on the square itself: the square's tap
+                // already means "select this day", and making it navigate as
+                // well would take the reader off the month every time they
+                // browsed it.
+                NavigationLink {
+                    SickDayDetailView(day: selected, history: history)
+                } label: {
+                    Text("Open day")
+                        .font(.caption2.weight(.medium))
+                }
             }
             .font(.caption2)
         } else {
@@ -375,8 +386,21 @@ struct SickDaysCalendarSection: View {
         }
     }
 
+    /// **B11-2's way in from the log.** Every row navigates: unlike a calendar
+    /// square, a log row has no other meaning for a tap, so the whole row is the
+    /// target rather than a word at the end of it.
     private func logRow(_ entry: SymptomRadarModel.DayHistory,
                         in span: SymptomRadarModel.FlaggedSpan) -> some View {
+        NavigationLink {
+            SickDayDetailView(day: entry.day, history: history)
+        } label: {
+            logRowLabel(entry, in: span)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func logRowLabel(_ entry: SymptomRadarModel.DayHistory,
+                             in span: SymptomRadarModel.FlaggedSpan) -> some View {
         let carried = entry.output?.status == .quiet
         return HStack(spacing: 6) {
             Circle().fill(fill(for: entry) ?? .clear).frame(width: 7, height: 7)
@@ -394,8 +418,14 @@ struct SickDaysCalendarSection: View {
             Text(entry.dailyScore.map { "\(Int($0.rounded()))" } ?? "—")
                 .font(.caption.weight(.medium)).monospacedDigit()
                 .foregroundStyle(.secondary)
+            // The row navigates, so it has to look like it does — a tappable
+            // row with no affordance is a feature reachable only by accident.
+            Image(systemName: "chevron.right")
+                .font(.caption2).foregroundStyle(.tertiary)
         }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this day in full")
     }
 
     private func rangeLabel(_ span: SymptomRadarModel.FlaggedSpan) -> String {

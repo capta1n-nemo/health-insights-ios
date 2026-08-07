@@ -240,6 +240,101 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// so — `docs/illness-detection-evidence-2026-08-07.md` has the numbers, and
     /// self-tagged illness is exactly the weak reference standard that makes
     /// every vendor's published accuracy figure unusable.
+    /// **One day the app guessed about, and what the reader answered** —
+    /// backlog `B11-2`/`B11-9`.
+    ///
+    /// The guess, the answer and the numbers the guess was made from are three
+    /// separate things here exactly as they are in `IllnessJudgement`, and for
+    /// the same reason: merged, a pool could never measure how often the model
+    /// was right, which is the only thing this record is for.
+    ///
+    /// ⚠️ **No free text and no symptom names.** The artifact is numbers only —
+    /// `docs/privacy-and-ip.md`'s rule is the shape of a finding, never the
+    /// reading, and an illness record is the sharpest case of it in this file.
+    public struct IllnessAnswer: Codable, Equatable, Sendable {
+        public let day: Date
+        /// `IllnessKind`'s raw value — the app's own guess, untouched by the
+        /// answer.
+        public let guessedKind: String
+        /// `"unstated"`, `"mild"`, `"moderate"`, `"severe"`, or null.
+        public let guessedSeverity: String?
+        /// What the reader said, or null where they confirmed the guess rather
+        /// than correcting it. **Null and a matching correction are different
+        /// records** and both are kept.
+        public let correctedKind: String?
+        public let correctedSeverity: String?
+        public let isConfirmed: Bool
+        public let reviewedAt: Date?
+        /// The day as it stood when the guess was made, in null SDs.
+        public let physiologicalExcess: Double
+        public let accumulatedStatistic: Double
+        public let reportedExcess: Double
+        public let leaningSignals: Int
+        public let wasJudged: Bool
+
+        public init(day: Date, guessedKind: String, guessedSeverity: String?,
+                    correctedKind: String?, correctedSeverity: String?,
+                    isConfirmed: Bool, reviewedAt: Date?,
+                    physiologicalExcess: Double, accumulatedStatistic: Double,
+                    reportedExcess: Double, leaningSignals: Int, wasJudged: Bool) {
+            self.day = day
+            self.guessedKind = guessedKind
+            self.guessedSeverity = guessedSeverity
+            self.correctedKind = correctedKind
+            self.correctedSeverity = correctedSeverity
+            self.isConfirmed = isConfirmed
+            self.reviewedAt = reviewedAt
+            self.physiologicalExcess = physiologicalExcess
+            self.accumulatedStatistic = accumulatedStatistic
+            self.reportedExcess = reportedExcess
+            self.leaningSignals = leaningSignals
+            self.wasJudged = wasJudged
+        }
+
+        /// Straight from the stored judgement, so the file and the phone cannot
+        /// disagree about what was answered.
+        public init(_ judgement: IllnessJudgement) {
+            self.init(day: judgement.day,
+                      guessedKind: judgement.estimate.assessment.kind.rawValue,
+                      guessedSeverity: judgement.estimate.assessment.severity?.rawValue,
+                      correctedKind: judgement.correction?.kind.rawValue,
+                      correctedSeverity: judgement.correction?.severity?.rawValue,
+                      isConfirmed: judgement.isConfirmed,
+                      reviewedAt: judgement.reviewedAt,
+                      physiologicalExcess: judgement.estimate.artifact.physiologicalExcess,
+                      accumulatedStatistic: judgement.estimate.artifact.accumulatedStatistic,
+                      reportedExcess: judgement.estimate.artifact.reportedExcess,
+                      leaningSignals: judgement.estimate.artifact.leaningSignals,
+                      wasJudged: judgement.estimate.artifact.wasJudged)
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops nil optionals, and "they confirmed the guess"
+        /// must be distinguishable from "the exporter forgot corrections".
+        enum CodingKeys: String, CodingKey {
+            case day, guessedKind, guessedSeverity, correctedKind, correctedSeverity
+            case isConfirmed, reviewedAt
+            case physiologicalExcess, accumulatedStatistic, reportedExcess
+            case leaningSignals, wasJudged
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(day, forKey: .day)
+            try c.encode(guessedKind, forKey: .guessedKind)
+            try c.encode(guessedSeverity, forKey: .guessedSeverity)
+            try c.encode(correctedKind, forKey: .correctedKind)
+            try c.encode(correctedSeverity, forKey: .correctedSeverity)
+            try c.encode(isConfirmed, forKey: .isConfirmed)
+            try c.encode(reviewedAt, forKey: .reviewedAt)
+            try c.encode(physiologicalExcess, forKey: .physiologicalExcess)
+            try c.encode(accumulatedStatistic, forKey: .accumulatedStatistic)
+            try c.encode(reportedExcess, forKey: .reportedExcess)
+            try c.encode(leaningSignals, forKey: .leaningSignals)
+            try c.encode(wasJudged, forKey: .wasJudged)
+        }
+    }
+
     public struct SickDay: Codable, Equatable, Sendable {
         /// First and last day ill, both inclusive — `SickDayLedger.Period`'s
         /// convention, so the file round-trips without an off-by-one.
@@ -876,6 +971,10 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// The merged sick-day ledger — §B11-4. Dates, the reader's own labels, the
     /// grade where anybody gave one, and which source each period came from.
     public let sickDays: [SickDay]
+    /// **Every day the reader answered the app's illness guess about** —
+    /// backlog `B11-2`. The guess, the answer and the numbers behind the guess,
+    /// kept apart so accuracy stays measurable off the phone as well as on it.
+    public let illnessAnswers: [IllnessAnswer]
     /// **Every figure the app has derived, day by day** — the fitness ages, the
     /// weekly doses, and each contributor's own 0–100 and departure in SD.
     ///
@@ -1005,6 +1104,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 holidays: [Holiday] = [],
                 calendarEvents: [CalendarEvent] = [],
                 sickDays: [SickDay] = [],
+                illnessAnswers: [IllnessAnswer] = [],
                 generatedInsights: [DerivedSeries] = [],
                 tags: [HealthTag] = [],
                 flaggedEvents: [FlaggedEventExport] = [],
@@ -1024,6 +1124,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         self.holidays = holidays
         self.calendarEvents = calendarEvents
         self.sickDays = sickDays
+        self.illnessAnswers = illnessAnswers
         self.generatedInsights = generatedInsights
         self.tags = tags
         self.flaggedEvents = flaggedEvents
@@ -1307,6 +1408,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case supplements
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, sickDays
+        case illnessAnswers
         case calendarEvents
         case generatedInsights, tags, flaggedEvents
         case connections, suggestionDismissals, feedback, predictionOutcomes
@@ -1339,6 +1441,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
         try c.encode(sickDays, forKey: .sickDays)
+        try c.encode(illnessAnswers, forKey: .illnessAnswers)
         // ⚠️ Always written, even when empty — an empty array reads as "the
         // reader has full sharing turned off", where an absent key would read as
         // "this app does not export calendars". Different sentences, and

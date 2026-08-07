@@ -148,11 +148,21 @@ public struct InsightEngine: Sendable {
     /// The same registry with the symptom radar bound to the reader's tags and
     /// regimen. Idempotent — replaces rather than appends — so the app applies
     /// it on every recompute. Same pattern, same reason as `withSubstanceLog`.
+    ///
+    /// ⚠️ **`sickDays` and `sideEffects` default to empty and that is a real
+    /// state, not a placeholder** (backlog `B11-8`). A caller that does not pass
+    /// them gets a radar with nothing recorded, which scores exactly what it
+    /// scored before this channel existed — so every existing call site, fixture
+    /// and test stays correct rather than quietly half-wired.
     public func withSymptoms(_ symptoms: [SymptomEvent],
-                             medication: MedicationSchedule?) -> InsightEngine {
+                             medication: MedicationSchedule?,
+                             sickDays: SickDayLedger = SickDayLedger(),
+                             sideEffects: [SymptomReconciliation.LoggedEffect] = [])
+        -> InsightEngine {
         InsightEngine(models: models.map { model in
             model is SymptomRadarInsight
-                ? SymptomRadarInsight(symptoms: symptoms, medication: medication)
+                ? SymptomRadarInsight(symptoms: symptoms, medication: medication,
+                                      sickDays: sickDays, sideEffects: sideEffects)
                 : model
         })
     }
