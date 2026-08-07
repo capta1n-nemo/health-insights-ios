@@ -81,6 +81,40 @@ final class DataStore {
         try? context.save()
     }
 
+    /// Remove every stored value for one grounding kind.
+    ///
+    /// **Exists so "Clear seeded data" is not a one-way door.** The synthetic
+    /// seed writes a whole profile — a card like Cardiovascular Risk cannot show
+    /// a number without one — and the empty state is the state two cards shipped
+    /// invisible in on 2026-08-03, so it has to stay reachable without wiping
+    /// the simulator. Deleting by kind rather than by date because a grounding
+    /// row carries no provenance: there is nothing on it that says a fixture
+    /// wrote it.
+    ///
+    /// ⚠️ Also drops the `ManualSampleRecord`s that `saveGrounding` mirrors for
+    /// the two cuff kinds — those are written with `MetricSource.manual`, which
+    /// the seed's own clear loop (which deletes `.shortcuts`) cannot reach.
+    func deleteGrounding(kind: GroundingKind) {
+        let raw = kind.rawValue
+        let records = (try? context.fetch(FetchDescriptor<GroundingRecord>(
+            predicate: #Predicate { $0.kindRaw == raw }))) ?? []
+        for record in records { context.delete(record) }
+
+        let mirrored: MetricType?
+        switch kind {
+        case .cuffSystolic: mirrored = .bloodPressureSystolic
+        case .cuffDiastolic: mirrored = .bloodPressureDiastolic
+        default: mirrored = nil
+        }
+        if let metric = mirrored?.rawValue {
+            let manual = MetricSource.manual.id
+            let samples = (try? context.fetch(FetchDescriptor<ManualSampleRecord>(
+                predicate: #Predicate { $0.metricRaw == metric && $0.sourceID == manual }))) ?? []
+            for sample in samples { context.delete(sample) }
+        }
+        try? context.save()
+    }
+
     private func mostRecentGrounding(_ kind: GroundingKind) -> GroundingRecord? {
         let raw = kind.rawValue
         let descriptor = FetchDescriptor<GroundingRecord>(

@@ -77,6 +77,122 @@ final class SyntheticSeedTests: XCTestCase {
         XCTAssertLessThan(bpDays, 35, "a cuff reading every day is not what this data looks like")
     }
 
+    // MARK: - Exhaustiveness
+
+    /// **The rule the reader asked for, 2026-08-07.** *"each time we make a new
+    /// feature, we should be updating the simulate data feature to support it…
+    /// i see lots of data fields that have no data."*
+    ///
+    /// `MetricType.syntheticSeedPlan` makes that a compile error rather than a
+    /// discovery — but only if `samples(days:)` actually honours it. This is the
+    /// half a switch cannot hold: a plan that says `daily` must put readings on
+    /// the chart.
+    func testEveryMetricEitherHasSeededDataOrSaysWhyNot() {
+        let samples = SyntheticSeed.samples(days: 120, endingOn: TestClock.now, calendar: cal)
+        let present = Set(samples.map(\.type))
+        for type in MetricType.allCases {
+            switch type.syntheticSeedPlan {
+            case .notSeeded(let reason):
+                XCTAssertFalse(present.contains(type),
+                               "\(type) is declared unseeded but the generator wrote it anyway")
+                XCTAssertGreaterThan(reason.count, 30,
+                                     "\(type) is unseeded with no usable reason — an empty chart with no explanation is the state this rule exists to stop")
+            case .daily, .onWeekdays, .once:
+                XCTAssertTrue(present.contains(type),
+                              "\(type) has a seed plan but produced nothing — every value it generated was outside its own plausibleRange and got dropped")
+            }
+        }
+    }
+
+    /// A daily plan has to be *daily*, and a weekly one has to be sparse.
+    /// Without this the difference between the two is a comment.
+    func testTheCadenceOfAPlanIsWhatTheChartActuallyGets() {
+        let days = 120
+        let samples = SyntheticSeed.samples(days: days, endingOn: TestClock.now, calendar: cal)
+        let byType = Dictionary(grouping: samples, by: \.type)
+        for type in MetricType.allCases {
+            let count = byType[type]?.count ?? 0
+            switch type.syntheticSeedPlan {
+            case .daily:
+                XCTAssertEqual(count, days, "\(type) is declared daily")
+            case .onWeekdays(let weekdays, _):
+                let expected = Double(days) * Double(weekdays.count) / 7
+                XCTAssertEqual(Double(count), expected, accuracy: 2,
+                               "\(type) is declared on \(weekdays.count) weekday(s)")
+            case .once:
+                XCTAssertEqual(count, 1, "\(type) is a static attribute")
+            case .notSeeded:
+                XCTAssertEqual(count, 0)
+            }
+        }
+    }
+
+    /// **Adding a metric must not move any other series.** The generator used to
+    /// draw every metric for a day from one stream in declaration order, so a new
+    /// case shifted everything after it and quietly invalidated every screenshot
+    /// taken before — which defeats the one property that makes this fixture
+    /// worth having. Per-metric salts fix it; this holds them.
+    func testEachMetricDrawsFromItsOwnStream() {
+        let salts = MetricType.allCases.map(\.syntheticSeedSalt)
+        XCTAssertEqual(Set(salts).count, MetricType.allCases.count,
+                       "two metrics share a noise stream, so they will move together for no physiological reason")
+        // Stable between processes, unlike `hashValue` — the property that makes
+        // today's screenshot comparable with next week's.
+        XCTAssertEqual(MetricType.bodyMass.syntheticSeedSalt,
+                       MetricType.bodyMass.syntheticSeedSalt)
+    }
+
+    // MARK: - The seeded profile
+
+    /// Several cards cannot produce a number from measurements alone, so a
+    /// simulator with full vitals and an empty profile still shows them asking
+    /// for details. `GroundingKind.syntheticSeedFact` is exhaustive; this checks
+    /// what it produces is a profile the models can actually use.
+    func testTheSeededProfileAnswersEveryGroundingKind() throws {
+        let profile = SyntheticSeed.profile(asOf: TestClock.now)
+        for kind in GroundingKind.allCases {
+            switch kind.syntheticSeedFact(asOf: TestClock.now) {
+            case .value:
+                XCTAssertNotNil(profile.value(kind), "\(kind) is declared seeded but is not in the profile")
+                XCTAssertTrue(try XCTUnwrap(profile.input(kind)).isFresh(asOf: TestClock.now),
+                              "\(kind) is seeded stale, so the card will still prompt for it")
+            case .notSeeded(let reason):
+                XCTAssertNil(profile.value(kind))
+                XCTAssertGreaterThan(reason.count, 30, "\(kind) is unseeded with no usable reason")
+            }
+        }
+        let age = try XCTUnwrap(profile.age(asOf: TestClock.now))
+        XCTAssertEqual(age, 41, accuracy: 0.1, "the risk models have age floors at 40")
+        XCTAssertNotNil(profile.sex)
+        XCTAssertNotNil(profile.weightGoal, "a weight rate has no meaning without a direction someone wanted")
+    }
+
+    /// **The card-level rule, asserted in both directions.**
+    ///
+    /// A card declared `scores` that stops scoring is a regression. A card
+    /// declared `needsMore` that starts scoring is a *stale excuse* — and a stale
+    /// excuse is worse than none, because it tells the next reader an empty card
+    /// is expected when it no longer is.
+    func testEveryCardEitherScoresOnASeededSimulatorOrSaysWhatItIsWaitingFor() throws {
+        let samples = SyntheticSeed.samples(days: 120, endingOn: TestClock.now, calendar: cal)
+        let profile = SyntheticSeed.profile(asOf: TestClock.now)
+        let results = InsightEngine().models.map {
+            $0.evaluate(samples: samples, profile: profile, now: TestClock.now)
+        }
+        for id in InsightID.allCases {
+            let result = try XCTUnwrap(results.first { $0.id == id }, "\(id) is not registered")
+            switch id.syntheticSeedExpectation {
+            case .scores:
+                XCTAssertNotNil(result.primaryValue,
+                                "\(id) is declared to score on a seeded simulator and does not — \"\(result.headline)\". Either the seed is missing something it reads, or the card is broken, and an empty card on screen cannot tell those apart.")
+            case .needsMore(let reason):
+                XCTAssertNil(result.primaryValue,
+                             "\(id) now scores on a seeded simulator, so its stated reason is stale: \(reason)")
+                XCTAssertGreaterThan(reason.count, 40, "\(id) needs a usable reason")
+            }
+        }
+    }
+
     // MARK: - The cycle log
 
     /// The seeded log must survive `CycleModel`'s own arithmetic: the right

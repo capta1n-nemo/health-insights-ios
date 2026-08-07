@@ -38,6 +38,17 @@ import Foundation
 /// Deterministic on purpose: the same `days` and `seed` give the same series, so
 /// a screenshot taken today can be compared against one taken next week and any
 /// difference is the code rather than the fixture.
+///
+/// ## Exhaustive since 2026-08-07
+///
+/// The shapes above no longer live in this file's `for` loop. They live in
+/// `MetricType.syntheticSeedPlan`, an **exhaustive switch**, so a new metric
+/// does not compile until it has either a series or a written reason for having
+/// none. `SyntheticSeedPlan.swift` says why that rule was needed; the short
+/// version is that this generator had drifted to covering 25 of 77 metrics and
+/// nothing could tell anyone which 52 were missing. The card-level equivalent is
+/// `InsightID.syntheticSeedExpectation`, and the profile's is
+/// `SyntheticSeed.profileFacts`.
 public enum SyntheticSeed {
 
     /// A day's worth of generated samples for every metric group.
@@ -70,7 +81,6 @@ public enum SyntheticSeed {
             let isWeekend = weekday == 1 || weekday == 7
             // 0 at the oldest day, 1 at the newest, so a trend runs forwards.
             let t = Double(days - 1 - offset) / Double(max(days - 1, 1))
-            var r = Noise(seed: offset)
 
             // Nought outside the luteal phase, and outside a seeded cycle log.
             let isLuteal = summary.map {
@@ -89,54 +99,27 @@ public enum SyntheticSeed {
                                               start: stamp, source: .shortcuts))
             }
 
-            // Cardiovascular. Resting heart rate eases down, HRV rises — the
-            // relationship the cards actually read, so a seeded profile does not
-            // present the models with a pattern no body produces.
-            add(.restingHeartRate, 58 - 3 * t + r.next(spread: 6))
-            add(.heartRateVariabilityRMSSD, 42 + 8 * t + r.next(spread: 14))
-            add(.respiratoryRate, 14.2 + r.next(spread: 1.6))
-            add(.oxygenSaturation, 97 + r.next(spread: 2))
-            add(.vo2Max, 41 + 3 * t + r.next(spread: 1.2))
-            // The ring's nocturnal temperature channel. Flat here and biphasic
-            // once a cycle log is seeded — it is the strongest phase marker the
-            // app receives, so a cycle fixture without it would leave
-            // `PhaseAwareBaseline`'s best input untested on the simulator.
-            add(.skinTemperatureDeviation, r.next(spread: 0.12))
-
-            // Sleep. Longer at weekends, which is what makes the consistency
-            // terms have anything to say.
-            add(.sleepDurationHours, (isWeekend ? 8.1 : 7.1) + r.next(spread: 1.8))
-            add(.sleepEfficiency, 88 + r.next(spread: 10))
-            add(.sleepDeepMinutes, 72 + r.next(spread: 36))
-            add(.sleepRemMinutes, 96 + r.next(spread: 40))
-            add(.sleepLatencyMinutes, 17 + r.next(spread: 18))
-
-            // Activity.
-            add(.stepCount, (isWeekend ? 6200 : 9400) + r.next(spread: 4200))
-            add(.activeEnergyBurned, (isWeekend ? 380 : 620) + r.next(spread: 300))
-            add(.exerciseMinutes, (isWeekend ? 18 : 34) + r.next(spread: 26))
-
-            // Body. ~0.35 kg/week down under a ±0.55 kg water swing — the wobble
-            // is the point, since smoothing and the change-confidence ramp are
-            // what it exercises.
-            add(.bodyMass, 92.0 - 0.05 * Double(days) * t + r.next(spread: 1.1))
-            add(.bodyFatPercentage, 26.5 - 3.2 * t + r.next(spread: 1.0))
-
-            // Intake, a little under maintenance.
-            add(.dietaryEnergy, 2050 + r.next(spread: 700))
-            add(.dietaryProtein, 145 + r.next(spread: 50))
-            add(.dietaryCarbohydrates, 190 + r.next(spread: 90))
-            add(.dietaryFat, 76 + r.next(spread: 30))
-            add(.dietarySugar, 48 + r.next(spread: 36))
-            add(.dietaryFibre, 27 + r.next(spread: 14))
-            add(.dietaryWater, 2.4 + r.next(spread: 1.2))
-
-            // A cuff reading is something the reader does, not something that
-            // happens — twice a week, so the "0 of 5 in the last 30 days"
-            // gating has a realistic count to work with.
-            if weekday == 2 || weekday == 5 {
-                add(.bloodPressureSystolic, 128 - 5 * t + r.next(spread: 10))
-                add(.bloodPressureDiastolic, 82 - 3 * t + r.next(spread: 8))
+            // **Exhaustive, by construction.** Every metric is asked what it
+            // wants; a new one cannot be forgotten because `syntheticSeedPlan`
+            // will not compile without it. `allCases` order is the declaration
+            // order of `MetricType`, so the output ordering is stable.
+            for type in MetricType.allCases {
+                // Each metric draws from its own stream, so adding one does not
+                // shift the series of any other — see `syntheticSeedSalt`.
+                var r = Noise(seed: offset, salt: type.syntheticSeedSalt)
+                switch type.syntheticSeedPlan {
+                case .notSeeded:
+                    continue
+                case .once(let value):
+                    // Newest day only: a static attribute has no trend, and
+                    // charting one would invent a story.
+                    if offset == 0 { add(type, value) }
+                case .daily(let recipe):
+                    add(type, recipe.value(t: t, days: days, isWeekend: isWeekend, noise: &r))
+                case .onWeekdays(let days_, let recipe):
+                    guard days_.contains(weekday) else { continue }
+                    add(type, recipe.value(t: t, days: days, isWeekend: isWeekend, noise: &r))
+                }
             }
         }
         return out
@@ -265,15 +248,23 @@ public enum SyntheticSeed {
     /// has to be reproducible, so a screenshot can be compared against one taken
     /// a week later and the difference blamed on the code. A linear congruential
     /// step is plenty — this is dressing a chart, not modelling anything.
-    private struct Noise {
+    struct Noise {
         private var state: UInt64
 
-        init(seed: Int) {
+        /// - Parameter salt: A per-metric constant, so each metric draws from
+        ///   its own stream and adding one changes nothing that already existed.
+        ///   See `MetricType.syntheticSeedSalt`.
+        init(seed: Int, salt: UInt64 = 0) {
             // Offset so day 0 is not a degenerate seed.
             state = UInt64(truncatingIfNeeded: seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407)
+            state ^= salt
+            // One step before anything is drawn, so two nearby salts do not
+            // produce two nearby first values.
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
         }
 
-        /// The next value in `-spread/2 ... +spread/2`.
+        /// The next value in `-spread/2 ... +spread/2`. A `spread` of nought
+        /// returns nought and still advances the stream.
         mutating func next(spread: Double) -> Double {
             state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
             let unit = Double((state >> 33) & 0x7FFF_FFFF) / Double(0x7FFF_FFFF)

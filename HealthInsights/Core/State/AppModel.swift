@@ -1133,6 +1133,19 @@ final class AppModel {
                                            on: calendar.startOfDay(for: first.start),
                                            with: group)
         }
+        // **The grounding facts, or several cards stay empty with full vitals.**
+        // A cardiovascular risk needs an age, a sex and a lipid panel; a
+        // biological age needs an age to compare against; a weight rate has no
+        // meaning without a goal. None of that can be sensed, so a simulator
+        // with every metric seeded and an empty profile still shows a row of
+        // cards asking for details — which is the "cards where there is no
+        // data" the reader reported on 2026-08-07.
+        // `GroundingKind.syntheticSeedFact` is exhaustive, so a new fact cannot
+        // be forgotten here.
+        for (kind, value) in SyntheticSeed.profileFacts() {
+            dataStore.saveGrounding(kind: kind, value: value)
+        }
+        profile = dataStore.loadProfile()
         samples = dataStore.loadManualSamples().partitionedVitals().kept
         recompute()
     }
@@ -1281,6 +1294,15 @@ final class AppModel {
         for entry in SyntheticSeed.seededCycleDays(calendar: calendar) {
             dataStore.clearCycleDay(entry.day, calendar: calendar)
         }
+        // ⚠️ And the seeded grounding facts, for the same reason: a grounding
+        // row carries no provenance, so the loop above cannot find it either.
+        // Leaving them behind would mean "clear seeded data" produced a
+        // simulator with no readings and a full profile — a state no reader has
+        // ever been in, and the wrong thing to screenshot an empty state from.
+        for kind in SyntheticSeed.profileFacts().keys {
+            dataStore.deleteGrounding(kind: kind)
+        }
+        profile = dataStore.loadProfile()
         samples = dataStore.loadManualSamples().partitionedVitals().kept
         recompute()
     }
