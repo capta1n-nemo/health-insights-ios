@@ -168,7 +168,32 @@ final class HealthDataExportTests: XCTestCase {
             cycles: [CycleDay(day: now, flow: .medium)],
             holidays: [.init(firstDay: now, lastDay: now.addingTimeInterval(6 * 86_400),
                              label: "Leave", source: "entered")],
-            generatedInsights: HealthDataExport.derivedSeries(from: store))
+            generatedInsights: HealthDataExport.derivedSeries(from: store),
+            reports: .init(inventory: "# Inventory\nbodyMass · 1 reading",
+                           cardOutputs: "# Cards\ncardiovascularRisk 72",
+                           modelInternals: "# Internals\nbaseline n=1",
+                           diagnostics: "[2026-08-07] OK · Sync: imported 1"),
+            improvements: HealthDataExport.Improvements.build(
+                tier: .full,
+                judgements: [Self.correctedJudgement(at: now)],
+                outcomes: []))
+    }
+
+    /// One reviewed calendar event with all three layers — the app's guess, the
+    /// reader's correction, and the artifact it judged.
+    private static func correctedJudgement(at now: Date) -> CalendarEventJudgement {
+        CalendarEventJudgement(
+            eventID: "evt-1",
+            classification: .init(context: .work, occasion: .meeting,
+                                  presence: .inPerson, formality: .formal, hours: 1.5),
+            correction: .init(context: .personal, occasion: .meeting,
+                              presence: .inPerson, formality: .casual, hours: 1.5),
+            isConfirmed: true, reviewedAt: now,
+            artifact: .init(title: "Quarterly review with Northwind",
+                            location: "Level 3, 200 Example St", attendeeCount: 6,
+                            durationHours: 1.5, isAllDay: false, calendarName: "Work",
+                            hasVideoLink: true, organizerIsReader: false,
+                            capturedAt: now))
     }
 
     /// **The check the D39 defect asked for.** `testEveryDataDomainHasAKeyThat
@@ -273,6 +298,8 @@ final class HealthDataExportTests: XCTestCase {
         XCTAssertEqual(decoded.cycles, original.cycles)
         XCTAssertEqual(decoded.holidays, original.holidays)
         XCTAssertEqual(decoded.generatedInsights, original.generatedInsights)
+        XCTAssertEqual(decoded.reports, original.reports)
+        XCTAssertEqual(decoded.improvements, original.improvements)
         XCTAssertEqual(decoded.schemaVersion, HealthDataExport.schemaVersion)
         XCTAssertEqual(decoded, original)
     }
@@ -497,5 +524,180 @@ final class HealthDataExportTests: XCTestCase {
         XCTAssertTrue(json.contains("\"primaryValue\""),
                       "a card's own units — a risk % — are not its 0–100 dial")
         XCTAssertTrue(json.contains("\"schemaVersion\""))
+    }
+
+    // MARK: - One export, containing everything (backlog B20)
+
+    /// **The four side files are really in the one file.**
+    ///
+    /// Settings ▸ Export my data offered five surfaces until 2026-08-07 and the
+    /// reader wanted one — *"just have one export option that contains
+    /// everything. This should also include troubleshooting, and the data &
+    /// model improvements."* Collapsing the buttons is the easy half; this is
+    /// the half that can silently not happen, because a `Reports` of four empty
+    /// strings encodes to four present keys and looks identical.
+    func testTheFourProseReportsTravelInsideTheOneFile() throws {
+        let object = try JSONSerialization.jsonObject(with: fullyPopulated().json())
+        let payload = try XCTUnwrap(object as? [String: Any])
+        let reports = try XCTUnwrap(payload["reports"] as? [String: Any],
+                                    "the folded-in reports are not in the export at all")
+        for key in ["inventory", "cardOutputs", "modelInternals", "diagnostics"] {
+            let text = try XCTUnwrap(reports[key] as? String, "missing report \"\(key)\"")
+            XCTAssertFalse(text.isEmpty,
+                           "\"\(key)\": \"\" on a bundle that was handed one — the key is "
+                               + "present and the report is not, which is the D39 shape")
+        }
+    }
+
+    /// An empty phone still carries all four keys, so "this build had nothing to
+    /// say" reads differently from "the exporter dropped the reports".
+    func testTheReportKeysArePresentWhenEmpty() throws {
+        let json = try XCTUnwrap(String(data: bundle(empty: true).json(), encoding: .utf8))
+        for key in ["reports", "inventory", "cardOutputs", "modelInternals", "diagnostics"] {
+            XCTAssertTrue(json.contains("\"\(key)\""), "\(key) vanishes when empty")
+        }
+    }
+
+    // MARK: - The correction record reaches the export (backlog R4)
+
+    /// **All three layers, in the file.** The guess, the correction, and the
+    /// artifact that was judged.
+    ///
+    /// `R3` shipped the three-layer record itself and nothing carried it into an
+    /// export — the reader's *"there is no way to export Data and model
+    /// improvement data"*. Two layers alone make a tally: the app can say it was
+    /// wrong fourteen times and nothing about what it was wrong *about*.
+    func testTheCorrectionRecordCarriesGuessCorrectionAndArtifact() throws {
+        let json = try XCTUnwrap(String(data: fullyPopulated().json(), encoding: .utf8))
+        XCTAssertTrue(json.contains("\"improvements\""))
+        XCTAssertTrue(json.contains("\"work\""), "the app's guess did not travel")
+        XCTAssertTrue(json.contains("\"personal\""), "the reader's correction did not travel")
+        XCTAssertTrue(json.contains("Quarterly review with Northwind"),
+                      "the artifact did not travel, so the record is a tally rather "
+                          + "than a training pair")
+        XCTAssertTrue(json.contains("Level 3, 200 Example St"))
+    }
+
+    /// The export honours the reader's own two-tier ruling (`R5`) rather than
+    /// inventing a second answer to a question they have already answered.
+    ///
+    /// Under `.metadataOnly` the before/after move survives whole — it is a
+    /// change between cases of a closed enum the app defined — and every word
+    /// the reader's calendar holds is gone.
+    func testMetadataOnlyStripsTheArtifactsWordsFromTheExport() throws {
+        let now = TestClock.now
+        let export = HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [],
+            substances: [], medication: nil, sideEffects: [],
+            profile: UserHealthProfile(), derivedScores: [],
+            improvements: HealthDataExport.Improvements.build(
+                tier: .metadataOnly,
+                judgements: [Self.correctedJudgement(at: now)],
+                outcomes: []))
+        let json = try XCTUnwrap(String(data: export.json(), encoding: .utf8))
+        XCTAssertFalse(json.contains("Quarterly review with Northwind"),
+                       "an event's title left the phone under a tier the reader set to "
+                           + "carry no content")
+        XCTAssertFalse(json.contains("Level 3, 200 Example St"))
+        XCTAssertTrue(json.contains("\"metadataOnly\""))
+        XCTAssertTrue(json.contains("\"personal\""),
+                      "the correction itself is a move between app categories and is the "
+                          + "whole substance of the metadata tier")
+    }
+
+    /// **Both tiers off is a refusal, not an absence**, and the file has to say
+    /// which. An empty `corrections` array with no tier beside it reads exactly
+    /// like a person who has never corrected anything.
+    func testBothTiersOffIsRecordedAsANullTierRatherThanAnEmptyList() throws {
+        let now = TestClock.now
+        let improvements = HealthDataExport.Improvements.build(
+            tier: nil, judgements: [Self.correctedJudgement(at: now)], outcomes: [])
+        XCTAssertNil(improvements.tier)
+        XCTAssertTrue(improvements.corrections.isEmpty)
+
+        let export = HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [],
+            substances: [], medication: nil, sideEffects: [],
+            profile: UserHealthProfile(), derivedScores: [],
+            improvements: improvements)
+        let payload = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: export.json()) as? [String: Any])
+        let section = try XCTUnwrap(payload["improvements"] as? [String: Any])
+        XCTAssertTrue(section["tier"] is NSNull,
+                      "the tier key vanished, so \"both switched off\" is indistinguishable "
+                          + "from \"nothing has ever been corrected\"")
+    }
+
+    /// An unreviewed judgement is not a correction, and shipping it as one would
+    /// inflate any accuracy figure computed downstream.
+    func testAnUnreviewedJudgementIsNotExportedAsACorrection() {
+        let now = TestClock.now
+        let untouched = CalendarEventJudgement(
+            eventID: "evt-2",
+            classification: .init(context: .work, occasion: .meeting,
+                                  presence: .inPerson, formality: .formal, hours: 1))
+        let improvements = HealthDataExport.Improvements.build(
+            tier: .full, judgements: [untouched, Self.correctedJudgement(at: now)],
+            outcomes: [])
+        XCTAssertEqual(improvements.corrections.count, 1,
+                       "an event nobody has looked at was exported as a correction")
+    }
+
+    /// Newest first, and undated rows last rather than at the top — a correction
+    /// record with no order is a set of anecdotes.
+    func testCorrectionsAreOrderedNewestFirstWithUndatedRowsLast() {
+        let now = TestClock.now
+        let older = CalendarEventJudgement(
+            eventID: "old",
+            classification: .init(context: .work, occasion: .meeting,
+                                  presence: .inPerson, formality: .formal, hours: 1),
+            isConfirmed: true, reviewedAt: now.addingTimeInterval(-86_400))
+        let undated = CalendarEventJudgement(
+            eventID: "undated",
+            classification: .init(context: .work, occasion: .meeting,
+                                  presence: .inPerson, formality: .formal, hours: 1),
+            isConfirmed: true, reviewedAt: nil)
+        let improvements = HealthDataExport.Improvements.build(
+            tier: .full, judgements: [older, undated, Self.correctedJudgement(at: now)],
+            outcomes: [])
+        XCTAssertEqual(improvements.corrections.map(\.recordedAt),
+                       [now, now.addingTimeInterval(-86_400), nil])
+    }
+
+    /// Prediction outcomes reach the improvement section too — the reader's own
+    /// example for the metadata tier is one of these, not a calendar event.
+    func testEstimateErrorsAreCorrectionsAsWell() throws {
+        let now = TestClock.now
+        let outcome = PredictionOutcome(
+            id: UUID(), insightID: .bloodPressure, metric: .bloodPressureSystolic,
+            predicted: 131, actual: 118, modelVersion: "bp-estimator-v2",
+            cohort: Cohort(sex: "male", ageBand: "40-49",
+                           ethnicity: "white_or_other", region: "low"),
+            recordedAt: now)
+        let improvements = HealthDataExport.Improvements.build(
+            tier: .metadataOnly, judgements: [], outcomes: [outcome])
+        let correction = try XCTUnwrap(improvements.corrections.first)
+        XCTAssertEqual(correction.record.kind, .estimateError)
+        XCTAssertTrue(correction.record.readings.isEmpty,
+                      "an absolute reading travelled under the metadata tier")
+        XCTAssertEqual(correction.summary, correction.record.summary,
+                       "the stored sentence and the shaped record disagree, so the file "
+                           + "says something the payload does not")
+    }
+
+    /// **The credential rule, restated over the new keys.** `improvements`
+    /// carries an app-shaped record and `reports` carries rendered prose, and
+    /// neither may become a route for a token — the reader's one condition on
+    /// this file.
+    func testTheNewSectionsCarryNoCredentialShapedField() throws {
+        let payload = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: fullyPopulated().json()) as? [String: Any])
+        let section = try XCTUnwrap(payload["improvements"] as? [String: Any])
+        XCTAssertEqual(Set(section.keys), ["tier", "corrections"],
+                       "the improvement section grew a field — a free-text field here is "
+                           + "where a provider's error body, and with it a token, arrives")
+        let tier = try XCTUnwrap(section["tier"] as? String)
+        XCTAssertNotNil(SharingTier(rawValue: tier),
+                        "\"\(tier)\" is not a closed tier value, so tier carries free text")
     }
 }

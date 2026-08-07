@@ -56,6 +56,19 @@ import Foundation
 /// compares whole values, so a field added later is compared without anyone
 /// remembering to add it to a list.
 ///
+/// ## Why it is now the *only* export (2026-08-07, backlog B20)
+///
+/// Settings ▸ Export my data used to offer five surfaces: this JSON and four
+/// separate text files. The reader: *"I hate having all these different export
+/// options … just have one export option that contains everything. This should
+/// also include troubleshooting, and the data & model improvements."*
+///
+/// So there is one button and one file. The four text reports are folded in as
+/// `reports` — see that type for why each of them earns its place rather than
+/// being deleted — and the correction record, which had no export path at all,
+/// is `improvements`. Nothing about a question a reader has should require them
+/// to have picked the right file before they asked it.
+///
 /// ## The one exclusion, and why it is a compile error rather than a rule
 ///
 /// **Credentials.** The reader approved the four remaining fields with one
@@ -73,8 +86,10 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// Bumped when a field is added or renamed, so an export can be read
     /// against the shape it was written with. 3 added `holidays`;
     /// 4 added `generatedInsights`; 5 added `connections`,
-    /// `suggestionDismissals`, `feedback` and `predictionOutcomes`.
-    public static let schemaVersion = 5
+    /// `suggestionDismissals`, `feedback` and `predictionOutcomes`;
+    /// 6 added `reports` and `improvements` — the four side files folded in and
+    /// the correction record, so this file is the *only* export (backlog B20/R4).
+    public static let schemaVersion = 6
 
     public struct Medication: Codable, Equatable, Sendable {
         public struct Dose: Codable, Equatable, Sendable {
@@ -410,6 +425,192 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         }
     }
 
+    // MARK: - The four side files, folded in (backlog B20)
+
+    /// **The prose reports, as named sections of the one file.**
+    ///
+    /// The reader, 2026-08-07: *"I hate having all these different export
+    /// options in the 'Export my Data', just have one export option that
+    /// contains everything. This should also include troubleshooting, and the
+    /// data & model improvements."*
+    ///
+    /// Until then Settings ▸ Export my data offered **five** surfaces — this
+    /// JSON plus four separate text files — and choosing between them was left
+    /// to a reader who cannot be expected to know which one answers a question
+    /// they have not been asked yet. They are folded in here rather than
+    /// deleted, because each of them earns its place:
+    ///
+    /// - `inventory` — one line per signal: how many readings, over what dates,
+    ///   from which device, and the range of values. **The most useful single
+    ///   artefact this app produces**, and the reason `DataInventory` exists:
+    ///   a bedtime sat recorded as unavailable for several sessions while it
+    ///   was in every payload, being discarded at ingest.
+    /// - `cardOutputs` — every card as the reader actually sees it, with its
+    ///   drivers, weighted shares and which declared inputs have data. Built as
+    ///   a diagnosis instrument and found a live defect on first use.
+    /// - `modelInternals` — what the cards judge *against*: the personal
+    ///   baselines behind every "vs your normal", the comparison pools and
+    ///   their sizes. Same story.
+    /// - `diagnostics` — the troubleshooting log, `DiagnosticsLog.exportText()`.
+    ///
+    /// ⚠️ **Strings, deliberately.** These are rendered reports meant for a
+    /// person (or a session) to read, not structured data to be pooled — every
+    /// *quantity* in them is already a first-class key elsewhere in this file.
+    /// Re-encoding them as JSON would duplicate the numbers in a second,
+    /// drift-prone shape; keeping them as text keeps them honest about being a
+    /// rendering.
+    ///
+    /// An empty string means "this build had nothing to say", never "the
+    /// exporter forgot" — the keys are always present, same contract as every
+    /// hand-written encoder in this file.
+    public struct Reports: Codable, Equatable, Sendable {
+        public let inventory: String
+        public let cardOutputs: String
+        public let modelInternals: String
+        public let diagnostics: String
+
+        public init(inventory: String = "", cardOutputs: String = "",
+                    modelInternals: String = "", diagnostics: String = "") {
+            self.inventory = inventory
+            self.cardOutputs = cardOutputs
+            self.modelInternals = modelInternals
+            self.diagnostics = diagnostics
+        }
+
+        /// For a bundle built by something other than the app's own exporter.
+        public static let empty = Reports()
+    }
+
+    /// **What the app guessed, what the reader said, and the thing it judged.**
+    ///
+    /// The reader's *"data & model improvement"*, which had no export path at
+    /// all until now (backlog R4). `R3` shipped the three-layer record itself —
+    /// `CalendarEventJudgement` keeps the classification, the correction and a
+    /// snapshot of the event as it stood when it was classified — and `R5` ruled
+    /// how much of it may travel. Nothing carried any of it into a file.
+    ///
+    /// ## Why this is tier-shaped when nothing else in the file is
+    ///
+    /// Every other key here is the personal export at full fidelity, because a
+    /// reader handing back their own data has already decided. A correction is
+    /// different in one respect that decides it: **it carries the whole
+    /// artifact's words** — an event's title, its location, who was invited —
+    /// which are the most identifying strings this app holds, and which is
+    /// exactly why `exportKey(for: .calendarEvents)` emits nothing.
+    ///
+    /// The reader has already ruled on those words, in `R5`: **Full** is *"the
+    /// artifact plus the before/after categories"*, **Metadata only** is *"the
+    /// correction metadata (e.g. Blood pressure estimate is 13 BP above actual
+    /// cuff)"*, and both are on by default. So this key honours that ruling
+    /// rather than inventing a second answer to a question the reader has
+    /// already answered — and it does it by going through
+    /// `SharingTier.shape(kind:changes:fields:)` like every other shaped record,
+    /// so a reader who turns Full off sees the difference in their own export.
+    ///
+    /// ⚠️ **`tier` is `null` where the reader has switched both tiers off**, and
+    /// that is the whole reason it is a stored field: an empty `corrections`
+    /// array otherwise reads identically to "this person has never corrected
+    /// anything", and those are opposite findings.
+    public struct Improvements: Codable, Equatable, Sendable {
+
+        /// One correction, dated.
+        ///
+        /// `SharedRecord` carries no timestamp — it is a payload shape, not a
+        /// ledger row — and a correction record with no order is a set of
+        /// anecdotes. `recordedAt` is the judgement's `reviewedAt` or the
+        /// outcome's `recordedAt`, and it is `null` for the pre-`R3` rows that
+        /// never recorded one rather than being invented from today.
+        public struct Correction: Codable, Equatable, Sendable {
+            public let recordedAt: Date?
+            public let record: SharedRecord
+            /// The one-sentence rendering, assembled by `SharedRecord.summary`
+            /// **from the shaped fields only** — so it can never name something
+            /// the tier has already dropped. Stored rather than computed so a
+            /// reader of the file gets it without reimplementing the assembly.
+            public let summary: String
+
+            public init(recordedAt: Date?, record: SharedRecord) {
+                self.recordedAt = recordedAt
+                self.record = record
+                self.summary = record.summary
+            }
+
+            /// Hand-written for the reason every encoder in this file is: a nil
+            /// `recordedAt` is a real state (a row written before the reviewed
+            /// timestamp existed) and must not read as a dropped field.
+            enum CodingKeys: String, CodingKey {
+                case recordedAt, record, summary
+            }
+
+            public func encode(to encoder: any Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(recordedAt, forKey: .recordedAt)
+                try c.encode(record, forKey: .record)
+                try c.encode(summary, forKey: .summary)
+            }
+        }
+
+        /// The tier in force when the file was written, or `null` where the
+        /// reader has both switched off — which is a refusal, not an absence.
+        public let tier: SharingTier?
+        /// Newest first, nils last.
+        public let corrections: [Correction]
+
+        public init(tier: SharingTier?, corrections: [Correction]) {
+            self.tier = tier
+            self.corrections = corrections
+        }
+
+        /// For a bundle built by something other than the app's own exporter.
+        public static let empty = Improvements(tier: nil, corrections: [])
+
+        /// Hand-written so a nil `tier` is an explicit null. "Both tiers off"
+        /// is the one state this key exists to make visible.
+        enum CodingKeys: String, CodingKey { case tier, corrections }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(tier, forKey: .tier)
+            try c.encode(corrections, forKey: .corrections)
+        }
+
+        /// **Build the improvement record from the two ledgers that hold one.**
+        ///
+        /// Lives in InsightKit rather than in the app target for the reason
+        /// `derivedSeries(from:)` does: the app target has no test host, so a
+        /// mapping written there is a mapping nothing checks. The caller is one
+        /// line and has nowhere to go wrong.
+        ///
+        /// A `nil` tier is the reader having switched both off, and it returns
+        /// the refusal — tier `null`, no corrections — rather than silently
+        /// emitting an empty list that reads as "never corrected anything".
+        public static func build(tier: SharingTier?,
+                                 judgements: [CalendarEventJudgement],
+                                 outcomes: [PredictionOutcome]) -> Improvements {
+            guard let tier else { return Improvements(tier: nil, corrections: []) }
+            var corrections: [Correction] = []
+            for judgement in judgements {
+                guard let record = judgement.sharedRecord(under: tier) else { continue }
+                corrections.append(Correction(recordedAt: judgement.reviewedAt, record: record))
+            }
+            for outcome in outcomes {
+                guard let record = outcome.sharedRecord(under: tier) else { continue }
+                corrections.append(Correction(recordedAt: outcome.recordedAt, record: record))
+            }
+            // Newest first, undated last — the order a person reading the file
+            // wants, and stable so two exports of the same phone compare.
+            corrections.sort {
+                switch ($0.recordedAt, $1.recordedAt) {
+                case let (a?, b?): return a > b
+                case (nil, _?): return false
+                case (_?, nil): return true
+                case (nil, nil): return false
+                }
+            }
+            return Improvements(tier: tier, corrections: corrections)
+        }
+    }
+
     public let schemaVersion: Int
     public let generatedAt: Date
     public let build: String
@@ -532,6 +733,13 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// either.
     public let predictionOutcomes: [PredictionOutcome]
 
+    /// The four prose reports that used to be four separate files. See `Reports`.
+    public let reports: Reports
+
+    /// The correction record — guess, correction and artifact — shaped by the
+    /// reader's sharing tier. See `Improvements`.
+    public let improvements: Improvements
+
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
                 substances: [SubstanceEvent], medication: Medication?,
@@ -546,7 +754,11 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 connections: [Connection] = [],
                 suggestionDismissals: [SuggestionDismissal] = [],
                 feedback: [Feedback] = [],
-                predictionOutcomes: [PredictionOutcome] = []) {
+                predictionOutcomes: [PredictionOutcome] = [],
+                reports: Reports = .empty,
+                improvements: Improvements = .empty) {
+        self.reports = reports
+        self.improvements = improvements
         self.cycles = cycles
         self.holidays = holidays
         self.generatedInsights = generatedInsights
@@ -578,9 +790,44 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// `HealthDataExportTests` checks the key it names is really in the encoded
     /// JSON. Between them a connector cannot be added and silently left out of
     /// "export my data".
+    ///
+    /// ## Naming a key is not the same as having one (backlog D50)
+    ///
+    /// Three things are enforced when a new domain lands. It must render a
+    /// Data-tab section (`DataTabView.section(for:)`, exhaustive — compiler). It
+    /// must **name** an export key (this switch, exhaustive — compiler). And
+    /// `scripts/verify.sh` checks the caller passes every argument
+    /// `HealthDataExport.init` has.
+    ///
+    /// ⚠️ **The third only ever covered arguments that already existed.**
+    /// Nothing required a domain to *have* one — so a domain could ship with a
+    /// section (forced), a key (forced) and no data in the file (not forced),
+    /// which is exactly what the reader reported on 2026-08-07: new data types
+    /// *"aren't making it into exports by default"*.
+    ///
+    /// `verify.sh` now closes it: a domain's key must be an initialiser argument
+    /// the caller passes, and **where two domains share a key, each must carry a
+    /// declaration** —
+    ///
+    ///     // export-domain: <case> — <why it has no argument of its own>
+    ///
+    /// A shared key is the shape the hole takes: at most one of the domains
+    /// sharing it owns the argument, and nothing else in the codebase can tell
+    /// whether the others' data is really in the file. There are four below, and
+    /// each is a real decision rather than an oversight — which is the point of
+    /// writing them down where the switch is.
     public static func exportKey(for domain: DataDomain) -> String {
         switch domain {
         // Cuff readings are canonical samples like everything else measured.
+        //
+        // export-domain: metrics — owns "samples"; it is the canonical measured
+        // series and `samples:` is passed by DataExportView.buildFullExport().
+        // export-domain: bloodPressure — shares "samples" with `metrics` and has
+        // no argument of its own on purpose: a cuff reading is a
+        // `HealthMetricSample` like any other, filed under
+        // `.bloodPressureSystolic` / `.bloodPressureDiastolic`. A separate key
+        // would put the same readings in the file twice, and two copies of one
+        // measurement is how an archive gets to disagree with itself.
         case .metrics, .bloodPressure: return "samples"
         case .substances: return "substances"
         case .medication: return "medication"
@@ -594,11 +841,37 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // the export was that it must not carry credentials. The same reasoning
         // applies here with more force: an export is a file that leaves the
         // device. The events stay on the phone.
+        //
+        // ⚠️ **That is now only three-quarters true, and the reader is the one
+        // who changed it.** `R5`'s two-tier sharing, both tiers on by default,
+        // defines **Full** as *"the artifact plus the before/after
+        // categories"* — so the reader has already ruled that an event they
+        // have *reviewed* may travel, words and all. Since B20/R4 those reach
+        // the file through `improvements`, shaped by
+        // `SharingTier.shape(kind:changes:fields:)`: the artifact's title,
+        // place and attendee count under Full, and nothing but the guess → truth
+        // move under Metadata only.
+        //
+        // What still emits nothing here is the **un-reviewed** calendar: every
+        // event the reader has never looked at, which is most of them. Nobody
+        // has ruled on those, and a bulk dump of a person's whole calendar is
+        // not something to decide inside a switch statement. **It is left as it
+        // was, deliberately** — D50 asked for the decision to be surfaced, not
+        // flipped, and this comment plus the declaration below is the surfacing.
+        // Ask the reader before changing it.
+        //
+        // export-domain: calendarEvents — shares "unmodelled" and emits nothing
+        // there. Reviewed events reach the file as `improvements` corrections
+        // under the reader's R5 tier; un-reviewed events are an open decision.
         case .calendarEvents: return "unmodelled"
         case .cycles: return "cycles"
         // Reader-entered (and date-only detected) leave genuinely exports —
         // unlike the events above, because the ledger holds no titles.
         case .holidays: return "holidays"
+        // export-domain: unmodelled — owns "unmodelled"; `unmodelled:` is passed
+        // by DataExportView.buildFullExport() and carries the whole raw
+        // catalogue. It shares the key only because `calendarEvents` points at
+        // it while emitting nothing.
         case .unmodelled: return "unmodelled"
         // ⚠️ **Reversed 2026-08-06, hours after it was written.** The
         // superseded reasoning, kept verbatim because it is sound about the
@@ -654,10 +927,16 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// feedback ledger and prediction outcomes. None is a `DataDomain` — the
     /// Data tab does not show any of them — so the domain switch above cannot
     /// speak for them and this list is what holds them in the file.
+    ///
+    /// The last two are B20's and R4's: the four folded-in prose reports, and
+    /// the correction record. Neither is a `DataDomain` either — the Data tab
+    /// shows no report and no correction ledger — so the domain switch cannot
+    /// speak for them and this list is what holds them in the file.
     public static let additionalKeys = ["profile", "derivedScores",
                                         "schemaVersion", "generatedAt", "build",
                                         "connections", "suggestionDismissals",
-                                        "feedback", "predictionOutcomes"]
+                                        "feedback", "predictionOutcomes",
+                                        "reports", "improvements"]
 
     public func json() throws -> Data {
         let encoder = JSONEncoder()
@@ -689,6 +968,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, generatedInsights
         case connections, suggestionDismissals, feedback, predictionOutcomes
+        case reports, improvements
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -719,5 +999,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(suggestionDismissals, forKey: .suggestionDismissals)
         try c.encode(feedback, forKey: .feedback)
         try c.encode(predictionOutcomes, forKey: .predictionOutcomes)
+        try c.encode(reports, forKey: .reports)
+        try c.encode(improvements, forKey: .improvements)
     }
 }
