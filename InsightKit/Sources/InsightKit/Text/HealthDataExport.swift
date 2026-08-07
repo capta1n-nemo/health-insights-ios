@@ -92,7 +92,11 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// — plus `sickDays` (§B11-4) and `tags` (§B12), which landed in parallel.
     /// ⚠️ Three agents raised the version to 6 on the same afternoon; it is one
     /// version carrying all four keys, not three separate bumps.
-    public static let schemaVersion = 6
+    /// 7 adds `flaggedEvents` (P32) — **and is subject to the same caveat**: if
+    /// another agent in the same wave also lands a key at 7, it is one version
+    /// carrying both, not two bumps. The number tracks the *shape* a file was
+    /// written with; two keys added the same afternoon share a shape.
+    public static let schemaVersion = 7
 
     public struct Medication: Codable, Equatable, Sendable {
         public struct Dose: Codable, Equatable, Sendable {
@@ -737,6 +741,117 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// exports**, and it can only do so because detection strips titles; see
     /// `Holiday`.
     public let holidays: [Holiday]
+    /// **One flagged half-hour, its guess and its answer** — backlog P32.
+    ///
+    /// ⚠️ **The privacy design is the absence of fields, not the discipline of
+    /// whoever fills them in.** There is no coordinate property, no note
+    /// property and no timestamp finer than a day, so a future caller cannot put
+    /// one there by accident — the same construction that lets `Connection`
+    /// exist without a credential. `exportKey(for: .flaggedEvents)` says why each
+    /// omission is the right call.
+    ///
+    /// What is left is what a pooled dataset could actually build a norm from,
+    /// and it is a norm nobody has: **how often a guess at the cause of an
+    /// unexplained heart-rate elevation turns out to be right**. There is no
+    /// published figure for that, because it needs labels only the person can
+    /// supply. This is that labelled set, built one honest answer at a time.
+    ///
+    /// ⚠️ **`guess` and `answer` are separate keys and must stay separate.** A
+    /// file that merged them would be a file in which the app was never wrong.
+    public struct FlaggedEventExport: Codable, Equatable, Sendable {
+        /// The day it happened. **Not the time** — see the key comment.
+        public let day: Date
+        public let minutes: Int
+        /// `FlagTrigger.rawValue`.
+        public let trigger: String
+        /// How far above the reader's own typical level the peak sat, in their
+        /// own robust standard deviations. The measured quantity.
+        public let departures: Double
+        /// How many days of their own history that reference was built from. A
+        /// departure travels with its reference depth or it is not a departure.
+        public let referenceDays: Int
+        /// Steps in the window, where any were recorded. Null and zero are
+        /// different records: null is a watch that was off, zero is a person
+        /// sitting still.
+        public let stepsInWindow: Double?
+        /// `PlaceFamiliarity.rawValue` — one of four words, never a position.
+        public let placeFamiliarity: String
+        /// `EventCause.rawValue`, or null where the app offered nothing.
+        public let guess: String?
+        /// What the reader said, or null while they have not looked.
+        public let answer: String?
+        /// True where they looked and agreed. Distinct from an absent answer.
+        public let confirmed: Bool
+        /// The detector that produced the guess, so a judgement made against one
+        /// version is never pooled as evidence about another.
+        public let modelVersion: String
+
+        public init(day: Date, minutes: Int, trigger: String, departures: Double,
+                    referenceDays: Int, stepsInWindow: Double?,
+                    placeFamiliarity: String, guess: String?, answer: String?,
+                    confirmed: Bool, modelVersion: String) {
+            self.day = day
+            self.minutes = minutes
+            self.trigger = trigger
+            self.departures = departures
+            self.referenceDays = referenceDays
+            self.stepsInWindow = stepsInWindow
+            self.placeFamiliarity = placeFamiliarity
+            self.guess = guess
+            self.answer = answer
+            self.confirmed = confirmed
+            self.modelVersion = modelVersion
+        }
+
+        /// Built from the **stored judgement**, which is what survives when the
+        /// event stops being detected — the artifact carries the measurement, so
+        /// an answered event exports whether or not today's detector still finds
+        /// it. A row built from the live event instead would silently drop
+        /// exactly the corrections that taught the app most.
+        ///
+        /// Returns nil for a judgement with no artifact: there is nothing to say
+        /// about the measurement, and inventing it from today's detector is the
+        /// history-rewrite the snapshot exists to prevent.
+        public init?(_ judgement: FlaggedEventJudgement,
+                     calendar: Calendar = .current) {
+            guard let artifact = judgement.artifact else { return nil }
+            self.init(day: calendar.startOfDay(for: artifact.start),
+                      minutes: Int((artifact.end.timeIntervalSince(artifact.start) / 60).rounded()),
+                      trigger: artifact.trigger.rawValue,
+                      departures: artifact.evidence.departures,
+                      referenceDays: artifact.evidence.referenceDays,
+                      stepsInWindow: artifact.evidence.stepsInWindow,
+                      placeFamiliarity: artifact.placeFamiliarity.rawValue,
+                      guess: judgement.guess?.rawValue,
+                      answer: judgement.correction?.rawValue,
+                      confirmed: judgement.isConfirmed,
+                      modelVersion: artifact.modelVersion)
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops nil optionals, and "the app had no guess" must
+        /// be distinguishable from "the exporter forgot guesses".
+        enum CodingKeys: String, CodingKey {
+            case day, minutes, trigger, departures, referenceDays, stepsInWindow
+            case placeFamiliarity, guess, answer, confirmed, modelVersion
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(day, forKey: .day)
+            try c.encode(minutes, forKey: .minutes)
+            try c.encode(trigger, forKey: .trigger)
+            try c.encode(departures, forKey: .departures)
+            try c.encode(referenceDays, forKey: .referenceDays)
+            try c.encode(stepsInWindow, forKey: .stepsInWindow)
+            try c.encode(placeFamiliarity, forKey: .placeFamiliarity)
+            try c.encode(guess, forKey: .guess)
+            try c.encode(answer, forKey: .answer)
+            try c.encode(confirmed, forKey: .confirmed)
+            try c.encode(modelVersion, forKey: .modelVersion)
+        }
+    }
+
     /// **The calendar, at `.full` only.** Empty at every other tier.
     ///
     /// ⚠️ The reader's ruling, 2026-08-07: *"if they have full sharing your
@@ -779,6 +894,14 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// title describes *other people* as much as the reader. A tag's free-form
     /// *comment* is not here at all: `TagPromotion` never reads it.
     public let tags: [HealthTag]
+
+    /// **Every half-hour the app asked about, what it guessed, and what the
+    /// reader said it was** — backlog P32.
+    ///
+    /// See `exportKey(for: .flaggedEvents)` for the full list of what this
+    /// deliberately cannot carry. The short version: no coordinate, no note, no
+    /// timestamp finer than the day.
+    public let flaggedEvents: [FlaggedEventExport]
 
     // MARK: - The four that were in no key at all (backlog Q10)
     //
@@ -839,6 +962,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 sickDays: [SickDay] = [],
                 generatedInsights: [DerivedSeries] = [],
                 tags: [HealthTag] = [],
+                flaggedEvents: [FlaggedEventExport] = [],
                 connections: [Connection] = [],
                 suggestionDismissals: [SuggestionDismissal] = [],
                 feedback: [Feedback] = [],
@@ -853,6 +977,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         self.sickDays = sickDays
         self.generatedInsights = generatedInsights
         self.tags = tags
+        self.flaggedEvents = flaggedEvents
         self.connections = connections
         self.suggestionDismissals = suggestionDismissals
         self.feedback = feedback
@@ -986,6 +1111,35 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // none of the classification, which is the part with no published norm
         // and therefore the part worth pooling.
         case .tags: return "tags"
+        // export-domain: flaggedEvents — owns "flaggedEvents"; passed by
+        // DataExportView.buildFullExport().
+        //
+        // ⚠️ **The measurement travels; the place and the reader's own words do
+        // not.** `FlaggedEventExport` has no field a coordinate or a note could
+        // occupy, which is the same construction that lets `Connection` exist
+        // without a credential — a rule enforced by the absence of a slot is
+        // enforced, and one enforced by remembering to blank a field is not.
+        //
+        // What is in it is exactly what a pooled dataset would need to build the
+        // norm this app has no published basis for: how far above a personal
+        // reference an unexplained elevation ran, how long it lasted, what the
+        // app guessed and what the person said it was. **That last pair is the
+        // whole point** — there is no published accuracy figure for guessing an
+        // activity from a heart-rate trace, because nobody has a labelled set,
+        // and this is one being built honestly.
+        //
+        // What is left out, and why each:
+        // - **the coordinate** — `PlaceContext` explains at length; a coordinate
+        //   history re-identifies from four points and no coarsening survives
+        //   that. Only `placeFamiliarity`, one of four words, travels.
+        // - **the reader's note** — free text about what somebody was doing
+        //   during a flagged half-hour. Unlike a holiday label it routinely
+        //   describes *other people*, which is the same test
+        //   `exportKey(for: .calendarEvents)` applies to an event title.
+        // - **the exact timestamps** — `day` only. A start time to the second,
+        //   beside a duration and a familiarity, is a behavioural fingerprint;
+        //   the day is what a norm would ever be aggregated over anyway.
+        case .flaggedEvents: return "flaggedEvents"
         // ⚠️ **Reversed 2026-08-06, hours after it was written.** The
         // superseded reasoning, kept verbatim because it is sound about the
         // job it was reasoning about:
@@ -1081,7 +1235,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, sickDays
         case calendarEvents
-        case generatedInsights, tags
+        case generatedInsights, tags, flaggedEvents
         case connections, suggestionDismissals, feedback, predictionOutcomes
         case reports, improvements
     }
@@ -1117,6 +1271,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(calendarEvents, forKey: .calendarEvents)
         try c.encode(generatedInsights, forKey: .generatedInsights)
         try c.encode(tags, forKey: .tags)
+        try c.encode(flaggedEvents, forKey: .flaggedEvents)
         try c.encode(connections, forKey: .connections)
         try c.encode(suggestionDismissals, forKey: .suggestionDismissals)
         try c.encode(feedback, forKey: .feedback)

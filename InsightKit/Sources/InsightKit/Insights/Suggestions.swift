@@ -98,6 +98,20 @@ public enum SuggestionEngine {
                                    /// Nil means never, which this list leaves to
                                    /// `unusedInputs` — see `bodyScanDue`.
                                    lastBodyScan: Date? = nil,
+                                   /// How many flagged events are waiting for an
+                                   /// answer — backlog P32. Named for the
+                                   /// quantity rather than for the row it feeds,
+                                   /// which also keeps it from shadowing
+                                   /// `eventsAwaitingReview(count:)` below.
+                                   pendingEventCount: Int = 0,
+                                   /// What the app is allowed to observe about
+                                   /// place. **The reader's own condition on
+                                   /// building the location feature at all** —
+                                   /// see `locationPermission` below. Defaults
+                                   /// to `.always` so no existing caller starts
+                                   /// emitting a permission row it never asked
+                                   /// for.
+                                   locationAccess: LocationAccess = .always,
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
@@ -110,6 +124,8 @@ public enum SuggestionEngine {
         out += substanceResponse(events: substanceEvents, samples: samples, now: now)
         out += unlocks(results: results, profile: profile, now: now)
         out += unusedInputs(used: usedInputs)
+        out += eventsAwaitingReview(count: pendingEventCount)
+        out += locationPermission(access: locationAccess)
         out += bodyScanDue(lastScan: lastBodyScan, now: now, calendar: calendar)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
@@ -404,6 +420,76 @@ public enum SuggestionEngine {
                     insight: nil, metric: nil,
                     strength: 0.15)
             }
+    }
+
+    /// **Questions the app has asked and nobody has answered** — backlog P32.
+    ///
+    /// A row about the reader's own data rather than about a feature they have
+    /// not tried, which is why it does not go through `unusedInputs`: it carries
+    /// a count and names something that actually happened. `.unlockAnInsight`
+    /// rather than `.yourOwnData` all the same — the finding is that the app has
+    /// a gap in what it knows, not that it has learnt something about the
+    /// reader. That ordering keeps it below every convergence and every
+    /// personal-history contrast, which is right: an unanswered question is
+    /// never more urgent than four signals leaning the same way.
+    ///
+    /// **One row for the whole queue**, deliberately. A row per pending event
+    /// would push everything else off Today the first busy week, and this list
+    /// is capped at five.
+    static func eventsAwaitingReview(count: Int) -> [Suggestion] {
+        guard count > 0 else { return [] }
+        let events = count == 1 ? "1 flagged moment" : "\(count) flagged moments"
+        return [Suggestion(
+            // Stable across counts, so waving it away once does not have to be
+            // done again the moment a second event arrives — the dismissal is
+            // about the prompt, not about a particular tally.
+            id: "flagged-events-awaiting",
+            title: "\(events) waiting for you",
+            detail: "Your heart rate ran high with nothing moving to explain it. The app has a guess and it is often wrong — telling it what was actually going on is the only way it gets better, and it keeps its guess and your answer apart so it can show you how often it's right.",
+            basis: .unlockAnInsight,
+            insight: nil, metric: nil,
+            // Above `unusedInputs` (0.15) because something measurable actually
+            // happened, and below every grounding gap for the reason those
+            // outrank everything here: a card that cannot produce a number is a
+            // stronger claim than a question going unanswered. More waiting
+            // nudges it up, saturating at ten so a long absence cannot dominate.
+            strength: Swift.min(0.45, 0.20 + 0.025 * Double(count)))]
+    }
+
+    /// **The dismissible row the reader made a condition of building any of
+    /// this** — backlog Q6.
+    ///
+    /// Their ruling was *"just build the whole thing"* with two conditions
+    /// attached: an onboarding step that explains why **before** the system
+    /// prompt, and *"a dismissible front-page suggestion when the permission is
+    /// absent"*. This is the second. The first is `OnboardingView`'s location
+    /// step, and neither is optional — the prompt without the explanation is not
+    /// what was approved.
+    ///
+    /// ⚠️ **Silent unless asking could change something.** `.denied` emits
+    /// nothing: iOS will not show the prompt again, so a row the reader cannot
+    /// act on is a nag, and this app's whole ranking exists to avoid being one.
+    /// The feed still says what it is missing (`LocationAccess.sentence`) — that
+    /// is transparency on a screen they opened, which is a different thing from
+    /// a prompt on a screen they did not.
+    ///
+    /// ⚠️ **It never says the feature needs location.** It does not: events are
+    /// flagged from vitals alone and the whole feed works without it. Claiming
+    /// otherwise to win a permission is how apps get their permissions, and it
+    /// is not how this one will.
+    static func locationPermission(access: LocationAccess) -> [Suggestion] {
+        guard access.isWorthAsking else { return [] }
+        return [Suggestion(
+            id: "location-for-flagged-events",
+            title: "Add a place to your flagged moments",
+            detail: "When the app flags a stretch it can't explain, knowing roughly where you were often jogs the memory. It uses the coarsest thing iOS offers — arrivals at places you stop, rounded to a few hundred metres — keeps a rough position only until you answer, and never builds a location history. Everything works without it; you just won't get the map.",
+            basis: .unlockAnInsight,
+            insight: nil, metric: nil,
+            // The weakest row in the list, below even "a feature you haven't
+            // tried". It asks for a permission rather than reporting a finding,
+            // and this app does not let a permission ask outrank anything about
+            // the reader's own data.
+            strength: 0.10)]
     }
 
     /// **The body-scan interval, finally said out loud.**

@@ -307,6 +307,19 @@ struct DataTabView: View {
             return matches(domain.title, "tag", "label", "note")
                 || model.tags.contains { matches($0.name) }
                 || model.tags.contains { matches($0.mapping.applicability.rawValue) }
+        case .flaggedEvents:
+            // The words a reader types for this, plus the causes they have
+            // actually recorded — somebody looking for "alcohol" should find the
+            // evening they said was alcohol without knowing the app files these
+            // under "Flagged events".
+            let feed = EventFeedModel.shared.feed
+            let answered = feed.answered + feed.needingRereview
+            guard !feed.pending.isEmpty || !answered.isEmpty else { return false }
+            return matches(domain.title, "flagged", "event", "moment", "spike",
+                           "unexplained", "heart rate")
+                || answered.contains {
+                    matches($0.judgement.effective?.displayName ?? "")
+                }
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
         case .generatedInsights:
@@ -611,6 +624,7 @@ struct DataTabView: View {
         case .sickDays: sickDaysSection
         case .cycles: cycleSection
         case .tags: tagsSection
+        case .flaggedEvents: flaggedEventsSection
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection
         }
@@ -642,6 +656,40 @@ struct DataTabView: View {
                 Text(DataDomain.generatedInsights.title)
             } footer: {
                 Text(DataDomain.generatedInsights.summary)
+            }
+        }
+    }
+
+    /// The flagged-moment feed's row — backlog P32.
+    ///
+    /// Leads with what is **waiting**, because that is the reason to tap it; the
+    /// total is the fallback for a caught-up phone. Both, rather than a bare
+    /// count, for the reason `holidayStanding` gives one: a number with no word
+    /// beside it makes the reader open the page to find out what it counted.
+    @ViewBuilder private var flaggedEventsSection: some View {
+        let feed = EventFeedModel.shared.feed
+        let answered = feed.answered.count + feed.needingRereview.count
+        if !feed.pending.isEmpty || answered > 0 {
+            Section {
+                NavigationLink {
+                    FlaggedEventDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(feed.pending.isEmpty
+                                 ? "Answered moments" : "Waiting for an answer")
+                            Spacer()
+                            Text("\(feed.pending.isEmpty ? answered : feed.pending.count)")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text("Guessed by this app, answered by you")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.flaggedEvents.title)
+            } footer: {
+                Text(DataDomain.flaggedEvents.summary)
             }
         }
     }

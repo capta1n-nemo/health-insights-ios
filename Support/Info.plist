@@ -62,6 +62,17 @@
     <string>Health Insights can save the readings you log, such as blood-pressure measurements, back to Apple Health.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Health Insights reads the times of your calendar events — never their titles, notes, attendees or locations — to work out how busy a day was and when you changed time zone. Nothing about your calendar leaves your device.</string>
+    <!-- Backlog Q6/P32. Both keys are required: iOS shows the When-In-Use
+         string for the onboarding ask and the Always string for the separate,
+         later upgrade made from inside the flagged-moments list. The app never
+         calls requestTemporaryFullAccuracyAuthorization, so there is no
+         NSLocationTemporaryUsageDescriptionDictionary — every fix is rounded to
+         a ~250 m cell before it is stored and precise accuracy would buy
+         nothing it could keep. See HealthInsights/Core/Location/. -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>When Health Insights flags a stretch where your heart rate ran high with nothing moving to explain it, it can note roughly where you were so you can remember what was going on. It uses arrivals at places you stop, rounded to a few hundred metres, keeps that rough position only until you answer, and never builds a location history. Nothing leaves your device, and everything works without this.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Most flagged moments happen while the app is closed. Allowing this lets iOS pass on arrivals at places you stop even then — the same coarse data, rounded the same way, kept only until you answer the question. Health Insights never tracks your movement and never builds a location history. Nothing leaves your device.</string>
     <key>NSCameraUsageDescription</key>
     <string>Health Insights uses the camera to scan a blood-test report so the values can be read on your device. The pages are read and discarded — no photo is saved, and nothing is uploaded.</string>
 

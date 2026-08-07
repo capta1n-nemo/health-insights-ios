@@ -829,6 +829,14 @@ final class AppModel {
             // reader has ever tried the input.
             case .holiday:
                 hasBeenUsed = !holidayEntries.isEmpty
+            // Having answered one flagged event counts. Never prompts through
+            // this route (`.settingsOnly`) — `SuggestionEngine.eventsAwaitingReview`
+            // raises the queue itself, carrying a count, which is a better-founded
+            // row than "a feature you have not tried" — so this is only ever read
+            // as "stop suggesting".
+            case .eventConfirmation:
+                hasBeenUsed = EventFeedModel.shared.feed.accuracy.scored > 0
+                    || EventFeedModel.shared.feed.accuracy.answeredWithoutAGuess > 0
             }
             if hasBeenUsed { used.insert(kind) }
         }
@@ -1543,7 +1551,16 @@ final class AppModel {
                                                  // ordering ever changes, and a
                                                  // scan can be entered for a
                                                  // date after the newest row.
-                                                 lastBodyScan: bodyScans.map(\.capturedAt).max())
+                                                 lastBodyScan: bodyScans.map(\.capturedAt).max(),
+                                                 // P32 — the queue of flagged
+                                                 // moments nobody has answered.
+                                                 pendingEventCount: EventFeedModel.shared.pendingCount,
+                                                 // Q6 — the reader's own
+                                                 // condition on this feature was
+                                                 // a dismissible front-page row
+                                                 // while the permission is
+                                                 // absent. This is what feeds it.
+                                                 locationAccess: EventFeedModel.shared.access)
         suggestionCache = built
         return built
     }
@@ -2562,6 +2579,12 @@ final class AppModel {
             .withSymptoms(symptoms, medication: activeMedication?.schedule)
             // Both calendar cards, in one call — see `withCalendar`.
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
+
+        // The flagged-event feed moves with the data rather than only when
+        // somebody opens it — otherwise the dismissible suggestion below would
+        // be counting a queue nothing had refreshed. Cheap next to the insight
+        // pass: one filter and one grouping over the heart-rate series.
+        EventFeedModel.shared.detect(samples: samples, substanceEvents: substanceEvents)
 
         // ⚠️ **The insight pass is off the main actor, and the reader found
         // out the hard way.** *"When it says 'Syncing your devices' it hangs

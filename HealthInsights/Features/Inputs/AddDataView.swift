@@ -166,6 +166,20 @@ private struct InputSheet: View {
             ReaderIdentitySheet()
         case .holiday:
             HolidayEntrySheet()
+        // The whole feed, not one event: which moment to answer is the first
+        // question, and a sheet that picked one for the reader would be choosing
+        // on their behalf. It opens with nothing waiting too — its empty state
+        // says what the detector is short of (rule 7).
+        //
+        // ⚠️ The per-event form is `EventAnswerSheet`, named here on purpose.
+        // `verify.sh` requires every `…Sheet` under `Features/` to appear in
+        // this file, because the failure that rule was written for was an input
+        // no list knew about. This one is *reached through* the sheet above
+        // rather than opened directly — a reader picks a moment first — so it
+        // gets a mention rather than a case. A case would put "answer a flagged
+        // event" on the `+` menu and the Settings list twice.
+        case .eventConfirmation:
+            EventConfirmationSheet()
         }
     }
 
