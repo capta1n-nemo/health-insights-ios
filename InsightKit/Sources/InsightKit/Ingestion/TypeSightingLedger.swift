@@ -26,6 +26,37 @@ import Foundation
 /// with `seededFromHistory` and can never be called new.
 public struct TypeSightingLedger: Codable, Sendable, Equatable {
 
+    /// What became of the most recent arrival once the sanitiser had seen it.
+    ///
+    /// ⚠️ **The ledger observes before the sanitiser runs, and that order is
+    /// deliberate** (backlog D43, ruled 2026-08-07). A reading outside its
+    /// metric's `plausibleRange` is a real arrival that produced no data, and
+    /// the two halves of that sentence are separately worth knowing: observing
+    /// *after* sanitising would make a metric arriving persistently out of range
+    /// look identical to nothing arriving at all, which is exactly the state a
+    /// reader needs to see when a device starts sending garbage.
+    ///
+    /// So the sighting stands and this says what happened to it.
+    public enum ArrivalOutcome: String, Codable, Sendable, Equatable {
+        /// At least one reading survived and became data.
+        case usable
+        /// Everything that arrived sat outside the metric's plausible range.
+        case outsidePlausibleRange
+        /// Everything that arrived was zero or negative for a metric that
+        /// cannot legitimately be either — a provider placeholder.
+        case notPositive
+
+        /// How the Data tab says this beside the type's name. `nil` for a
+        /// sighting that became data, which needs no qualifier.
+        public var rowNote: String? {
+            switch self {
+            case .usable: return nil
+            case .outsidePlausibleRange: return "arrived, but outside the plausible range"
+            case .notPositive: return "arrived, but every reading was zero or below"
+            }
+        }
+    }
+
     public struct Sighting: Codable, Sendable, Equatable {
         /// Wall-clock instant the app first ingested this identifier.
         public var firstImported: Date
@@ -35,11 +66,20 @@ public struct TypeSightingLedger: Codable, Sendable, Equatable {
         /// actual first sighting, so its `firstImported` is "when the ledger
         /// began" rather than "when this arrived".
         public var seededFromHistory: Bool
+        /// What the sanitiser did with the most recent arrival, where anything
+        /// judged it. `nil` for a raw field (nothing sanitises those) and for
+        /// any sighting written before D43 shipped — a missing key decodes to
+        /// nil, which is why this is optional rather than defaulted to
+        /// `.usable`. "Not judged" and "judged fine" are different answers and
+        /// the row must not print the second when it has the first.
+        public var outcome: ArrivalOutcome?
 
-        public init(firstImported: Date, lastImported: Date, seededFromHistory: Bool) {
+        public init(firstImported: Date, lastImported: Date, seededFromHistory: Bool,
+                    outcome: ArrivalOutcome? = nil) {
             self.firstImported = firstImported
             self.lastImported = lastImported
             self.seededFromHistory = seededFromHistory
+            self.outcome = outcome
         }
     }
 
@@ -66,6 +106,23 @@ public struct TypeSightingLedger: Codable, Sendable, Equatable {
             sightings[identifier] = Sighting(firstImported: now, lastImported: now,
                                              seededFromHistory: false)
         }
+    }
+
+    /// Record what the sanitiser did with an identifier's most recent arrival.
+    ///
+    /// A no-op for an identifier the ledger has never seen: an outcome without
+    /// a sighting is a verdict on something that never arrived.
+    public mutating func record(_ outcome: ArrivalOutcome, for identifier: String) {
+        guard var existing = sightings[identifier] else { return }
+        existing.outcome = outcome
+        sightings[identifier] = existing
+    }
+
+    /// Why the most recent arrival of `identifier` produced no data — `nil`
+    /// when it did, and `nil` when nothing has judged it.
+    public func discardedOutcome(for identifier: String) -> ArrivalOutcome? {
+        guard let outcome = sightings[identifier]?.outcome, outcome != .usable else { return nil }
+        return outcome
     }
 
     /// Write every identifier the app already holds as pre-existing.
@@ -138,5 +195,50 @@ public struct TypeSightingLedger: Codable, Sendable, Equatable {
             return known
         }
         return identifier
+    }
+}
+
+// MARK: - What the sanitiser did with an arrival (D43)
+
+public extension TypeSightingLedger {
+
+    /// Fold one sync's sanitiser verdict into the ledger.
+    ///
+    /// ⚠️ **`kept` and `dropped` must be the partition of what arrived in *this
+    /// sync*, not of the merged store.** The merged partition includes the
+    /// retained cache and the reader's manual entries, and a cached sample
+    /// rejected on this run was not an arrival — blaming its type would put
+    /// "arrived, but outside the plausible range" on a row that is delivering
+    /// perfectly well today.
+    ///
+    /// A type is only marked as discarded when **nothing** it delivered this
+    /// sync survived. One good reading among bad ones means the type produced
+    /// data, and that is what the row should say.
+    ///
+    /// Marking the survivors `.usable` is not redundant: it is what clears a
+    /// note from a metric that has recovered, so the qualifier describes the
+    /// last arrival rather than the worst one ever seen.
+    mutating func recordSanitisation(kept: [HealthMetricSample],
+                                     dropped: [HealthMetricSample]) {
+        let survived = Set(kept.map(\.type))
+        for type in survived { record(.usable, for: type.rawValue) }
+
+        let lost = Dictionary(grouping: dropped.filter { !survived.contains($0.type) },
+                              by: \.type)
+        for (type, samples) in lost {
+            record(Self.outcome(forDropped: samples, of: type), for: type.rawValue)
+        }
+    }
+
+    /// Which of the sanitiser's two refusals to name.
+    ///
+    /// `.notPositive` only when *every* rejected reading was a placeholder zero,
+    /// because that is the claim the row makes. A single genuinely out-of-range
+    /// value among them is the more informative fault and the more honest note:
+    /// a provider sending 1e9 is not sending nothing.
+    static func outcome(forDropped samples: [HealthMetricSample],
+                        of type: MetricType) -> ArrivalOutcome {
+        let allPlaceholders = samples.allSatisfy { type.requiresPositiveValue && $0.value <= 0 }
+        return allPlaceholders ? .notPositive : .outsidePlausibleRange
     }
 }

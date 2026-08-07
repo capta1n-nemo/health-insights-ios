@@ -45,6 +45,45 @@ public struct LegendCaption: Sendable, Equatable {
     /// three separate answers, not the clauses of one sentence.
     public var text: String { "\(direction) · \(judgement) · \(weighting)" }
 
+    // MARK: - Naming the question (backlog D45)
+    //
+    // ⚠️ **A true statement can still read as a contradiction.** On Work impact,
+    // Sleep Duration's legend said "Holding steady" while the card's own driver
+    // line said sleep ran worse on the reader's busier working days — 6.7
+    // against 7.4, 0.2 SD worse. Both true. One is the metric's trend across the
+    // chart window; the other is a busy-versus-quiet contrast. Side by side and
+    // with neither naming its question, the reader read a bug, and a card that
+    // looks like it is arguing with itself takes every figure near it down with
+    // it.
+    //
+    // Ruled 2026-08-07: the chip names its question. Not "drop the chip on
+    // contrast cards" — that fixes one screen, and the same collision waits on
+    // every card whose detail answers a *different* question from its legend.
+    // A direction phrase that says which window it was measured over cannot be
+    // mistaken for an answer to a contrast, whatever the contrast turns out to
+    // be, so the fix travels with the caption rather than with the card.
+    //
+    // The window is passed in rather than derived from the series: the points
+    // span whatever data exists inside the reader's chosen timeframe, so
+    // measuring it would print "27-day trend" for a month the reader selected
+    // and 30 days of which they can see. The picker is what they chose, so the
+    // picker is what the caption names.
+
+    /// Sentence case for a phrase that is no longer the start of the line.
+    ///
+    /// Only the first character, and left alone entirely when the second is
+    /// uppercase too — "HRV is up" is an acronym rather than a capitalised
+    /// sentence, and a blanket `lowercased()` (or an unconditional first-letter
+    /// one) would mangle it. Nothing here says "HRV" today; the phrases are one
+    /// small edit away from doing so, and this is cheaper than the defect.
+    static func continuing(_ phrase: String) -> String {
+        guard let first = phrase.first, first.isUppercase else { return phrase }
+        let second = phrase.dropFirst().first
+        guard second == nil || !(second!.isUppercase) else { return phrase }
+        return phrase.replacingCharacters(in: ...phrase.startIndex,
+                                          with: first.lowercased())
+    }
+
     // MARK: - Building one
 
     /// For a signal that has readings in this window.
@@ -58,15 +97,20 @@ public struct LegendCaption: Sendable, Equatable {
     ///     real answer for a deviation metric that is best near zero.
     ///   - weight: the renormalised share of the score, 0 for a signal that is
     ///     charted but not weighed into it.
+    ///   - window: the question the direction answers, e.g. `"30-day trend"` —
+    ///     `Timeframe.trendLabel`. `nil` leaves the bare phrase, which is right
+    ///     only where nothing else on the surface answers a different question
+    ///     about the same metric. See the D45 note above.
     public static func series(trendPerWeek: Double?,
                               higherIsBetter: Bool?,
                               weight: Double,
+                              over window: String? = nil,
                               minimumSlope: Double = PatternFinder.minimumSlope) -> LegendCaption {
         // Only a signal that is actually moving gets a verdict on its movement;
         // the rest get the metric's own preference, which is the same question
         // one step earlier. Named `movement` rather than `direction` because
         // shadowing a function with a local of the same name has bitten here.
-        let movement = direction(trendPerWeek, minimumSlope: minimumSlope)
+        let movement = direction(trendPerWeek, minimumSlope: minimumSlope, over: window)
         let judgement: String
         if let slope = trendPerWeek, abs(slope) >= minimumSlope {
             judgement = verdict(rising: slope > 0, higherIsBetter: higherIsBetter)
@@ -94,8 +138,12 @@ public struct LegendCaption: Sendable, Equatable {
     /// "tracked, not scored · neither direction is better" on every row of the
     /// card, which are two findings no model produced.
     public static func unreported(trendPerWeek: Double?,
+                                  over window: String? = nil,
                                   minimumSlope: Double = PatternFinder.minimumSlope) -> LegendCaption {
-        LegendCaption(direction: direction(trendPerWeek, minimumSlope: minimumSlope),
+        // Named too, and for a sharper reason than on a scored row: this is the
+        // *only* fact the row carries, so an unqualified trend here has nothing
+        // beside it to say what it is a trend of.
+        LegendCaption(direction: direction(trendPerWeek, minimumSlope: minimumSlope, over: window),
                       judgement: unknownPreference,
                       weighting: unknownShare)
     }
@@ -115,6 +163,19 @@ public struct LegendCaption: Sendable, Equatable {
         guard let slope = trendPerWeek else { return "Too few days to call a direction" }
         guard abs(slope) >= minimumSlope else { return "Holding steady" }
         return slope > 0 ? "Trending up" : "Trending down"
+    }
+
+    /// The same answer, with the question it answers in front of it (D45).
+    ///
+    /// The window qualifies every state, including "too few days to call a
+    /// direction" — *how few* is a property of the window, and a reader who has
+    /// selected a week and a reader who has selected a year are being told two
+    /// different things by the same sentence.
+    static func direction(_ trendPerWeek: Double?, minimumSlope: Double,
+                          over window: String?) -> String {
+        let phrase = direction(trendPerWeek, minimumSlope: minimumSlope)
+        guard let window else { return phrase }
+        return "\(window): \(continuing(phrase))"
     }
 
     /// Where the signal is actually moving, so the verdict is about *this*

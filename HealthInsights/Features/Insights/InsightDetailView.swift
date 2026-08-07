@@ -3472,7 +3472,7 @@ struct InsightDetailView: View {
                 Divider()
                 MetricOverlayLegend(
                     series: series, contributions: contributions,
-                    missing: missing,
+                    missing: missing, timeframe: timeframe,
                     selection: Binding(
                         get: { chartSelection ?? OverlaySelection.defaultSelection(series) },
                         set: { chartSelection = $0 }))

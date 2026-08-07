@@ -1151,7 +1151,8 @@ struct DataTabView: View {
                 jump(to: target, proxy: proxy)
             } label: {
                 HStack {
-                    Label(typeName(identifier), systemImage: icon)
+                    ArrivalRowLabel(title: typeName(identifier), icon: icon,
+                                    note: arrivalNote(identifier))
                     Spacer()
                     // Says what the tap does before it is tapped. Down, because
                     // this section is pinned above the whole catalogue, so the
@@ -1164,8 +1165,15 @@ struct DataTabView: View {
             // row stops looking like the rows either side of it.
             .buttonStyle(.plain)
         } else {
-            Label(typeName(identifier), systemImage: icon)
+            ArrivalRowLabel(title: typeName(identifier), icon: icon,
+                            note: arrivalNote(identifier))
         }
+    }
+
+    /// What became of this type's most recent arrival, where it became nothing.
+    /// See `ArrivalRowLabel` and backlog D43.
+    private func arrivalNote(_ identifier: String) -> String? {
+        model.sightingLedger.discardedOutcome(for: identifier)?.rowNote
     }
 
     @ViewBuilder private func whatChangedSection(_ proxy: ScrollViewProxy) -> some View {

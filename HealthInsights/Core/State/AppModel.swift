@@ -169,6 +169,16 @@ final class AppModel {
     /// **Only what arrived**, never the retained cache — a type kept alive from
     /// last week's cache did not arrive today, and observing it would make the
     /// "no longer arriving" half permanently silent.
+    ///
+    /// ⚠️ **This runs *before* `partitionedVitals()` sanitises, on purpose**
+    /// (backlog D43, ruled 2026-08-07). A reading outside its metric's
+    /// `plausibleRange` really did arrive, and announcing it is the honest
+    /// signal that a source has started sending something. Observing after
+    /// sanitising would make a metric arriving persistently out of range look
+    /// identical to nothing arriving at all — which hides a real device fault.
+    /// What the order used to cost was a "New since you last looked" row for
+    /// data the app then threw away with no explanation; `recordArrivalOutcomes`
+    /// below closes that by storing *why* it was dropped, so the row can say so.
     private func observeArrivals(_ identifiers: some Sequence<String>,
                                  now: Date = Date()) {
         var changed = false
@@ -177,6 +187,26 @@ final class AppModel {
             changed = true
         }
         if changed { saveSightingLedger() }
+    }
+
+    /// The second half of D43: what became of what we just announced.
+    ///
+    /// **Partitioned over the freshly-arrived samples only**, deliberately, and
+    /// not over the `(manual + nonManual)` set the store is built from. That set
+    /// carries the retained cache and the reader's own entries; a cached sample
+    /// rejected on this run was not an arrival, and letting it write the note
+    /// would put "arrived, but outside the plausible range" on a type that
+    /// delivered perfectly good data this morning.
+    ///
+    /// Only canonical metrics get a verdict. Nothing sanitises the raw
+    /// catalogue, so a raw field's sighting keeps a `nil` outcome — which is the
+    /// difference between "not judged" and "judged fine", and the Data-tab row
+    /// prints a qualifier for neither.
+    private func recordArrivalOutcomes(of fresh: [HealthMetricSample]) {
+        guard !fresh.isEmpty else { return }
+        let (kept, dropped) = fresh.partitionedVitals()
+        sightingLedger.recordSanitisation(kept: kept, dropped: dropped)
+        saveSightingLedger()
     }
     private(set) var substanceEvents: [SubstanceEvent] = [] {
         didSet {
@@ -2232,6 +2262,10 @@ final class AppModel {
         // don't render as "0 bpm" tiles or poison multi-source averages/graphs.
         let (merged, dropped) = (manual + nonManual).partitionedVitals()
         logSanitiserDrops(dropped, diag: diag)
+        // …and record the same verdict against the sightings written above, so
+        // an arrival that became nothing says so instead of sitting in "New
+        // since you last looked" with no data behind it (D43).
+        recordArrivalOutcomes(of: freshSamples)
         // Creative reconstruction: turn wearable skin-temperature *deviations*
         // (Oura/Hume) into absolute *skin*-temperature samples so they can be
         // trended and charted. Deliberately not body temperature: these are skin
