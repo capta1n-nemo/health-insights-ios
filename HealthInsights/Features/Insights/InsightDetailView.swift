@@ -101,10 +101,13 @@ struct InsightDetailView: View {
         // has always allowed; `secondaryBespokeSection` exists for Body
         // Composition's *two* and would not have stretched to four.
         //
-        // ⚠️ **The four added on 2026-08-07 afternoon live in their own files**
-        // (backlog B18-1/B18-2/S9/S10/B3-20). This file is ~3,700 lines and a
-        // section written into it is a section every other change has to merge
-        // around; `BodyOverTimeSection` set the convention and these follow it.
+        // ⚠️ **Everything added on 2026-08-07 lives in its OWN FILE** — B18-1,
+        // B18-2, B18-6, B18-7, B18-8, S9, S10, S11 and B3-20 between them. This
+        // member is ~3,700 lines and a section written inline is another merge
+        // conflict for the next agent; `BodyOverTimeSection` set the convention
+        // and all of these follow it. Two parallel agents added sleep sections
+        // here on the same afternoon and both landed cleanly because of it.
+        //
         // The order is the subject's, not the build's: last night, then the
         // shape of last night, then the stretch, then what moves it.
         case .sleep:
@@ -118,7 +121,12 @@ struct InsightDetailView: View {
             // B18-1: the dedicated apnoea-indicator section **contains**
             // "Breathing during sleep", which used to be `sleepBreathingSection`
             // here. One measurement, one heading — see `SleepApnoeaSection`.
+            // ⚠️ That is why the other branch's `sleepBreathingSection` line is
+            // deliberately absent: keeping both would render the index twice.
             SleepApnoeaSection(timeframe: timeframe)
+            SleepDebtSection(window: window(spanning: nightsSpan(model.sleepOnsetNights())))
+            IdealSleepWindowSection()
+            SleepInfluencesSection()
         case .substanceImpact:
             substanceLoadCard
             // The occasion, shown — and never scored. See

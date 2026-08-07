@@ -11,10 +11,13 @@ import Foundation
 /// unchanged and still have their own tests; this card calls them as components,
 /// exactly as it already called `VitalReader` and `Baseline`.
 ///
-/// Consistency and regularity are deliberately **both** here and are not the
-/// same thing: consistency is the spread of how *long* you sleep, regularity the
-/// spread of *when* you start. A shift worker with an iron seven hours has one
-/// and not the other.
+/// Consistency and regularity used to be **both** here as separate terms — the
+/// spread of how *long* you sleep, and the spread of *when* you start. Since
+/// 2026-08-07 (backlog S11) they are one term, `SleepRegularityIndex`, which
+/// measures the thing both were proxies for: whether you were asleep at the same
+/// clock times as the day before. It carries the sum of their two coefficients
+/// and not a point more. The night-length spread is still produced and trended;
+/// it is no longer scored.
 public struct SleepInsight: InsightModel {
     public let id: InsightID = .sleep
     public let title = "Sleep"
@@ -85,8 +88,21 @@ public struct SleepInsight: InsightModel {
         // are the card's only window on a different system.
         static let duration = 0.27
         static let debt = 0.12
-        static let consistency = 0.08
-        static let regularity = 0.10
+        /// ⚠️ **Zero since 2026-08-07 (backlog S11), and kept rather than
+        /// deleted.** Night-length spread was 0.08 of this card and bedtime
+        /// spread 0.10, and both were crude proxies for one thing: whether the
+        /// body is asked the same question each day. `SleepRegularityIndex`
+        /// measures that directly and beat sleep *duration* head-to-head for
+        /// mortality in UK Biobank (n = 88,975), so it takes both coefficients
+        /// and not a point more — `regularity` below is 0.08 + 0.10.
+        ///
+        /// The constant stays at zero because `derivedFactors` still declares
+        /// the night-length spread as a produced figure: it is a real quantity
+        /// about the reader, it is charted and trended, and it is no longer
+        /// scored. Deleting the name would only move the zero somewhere less
+        /// visible.
+        static let consistency = 0.0
+        static let regularity = 0.18
         static let efficiency = 0.13
         static let restorative = 0.10
         static let latency = 0.05
@@ -282,7 +298,7 @@ public struct SleepInsight: InsightModel {
         let debt = SleepDebtModel.evaluate(samples: samples, now: now)
         let debtScore = debt.map { SleepDebtModel.score(debtHours: $0.debtHours) } ?? 75
 
-        // When you go to bed, not how long for. Scores the *spread* and never
+        // When you go to bed, not how long for. Scores *regularity* and never
         // the hour — chronotype is largely constitutional and shift work is a
         // job, and there is a test sweeping three very different bedtimes to
         // keep it that way.
@@ -292,13 +308,37 @@ public struct SleepInsight: InsightModel {
         // replayed samples do not reach, contribute its neutral 75 to every
         // replayed day, and quietly flatten the history.
         let regularity = CircadianConsistencyModel.evaluate(samples: samples, now: now)
-        let regularityScore = regularity.map {
-            CircadianConsistencyModel.score(spreadHours: $0.spreadHours)
-        } ?? 75
+
+        // **The Sleep Regularity Index, since 2026-08-07 (backlog S11).**
+        //
+        // It replaces two estimators rather than joining them: the spread of
+        // bedtimes (which is blind to wake times) and the spread of night
+        // lengths (which is blind to placement). SRI asks the question both were
+        // proxies for — were you asleep at the same clock times as yesterday —
+        // and carries the sum of their two coefficients.
+        //
+        // ⚠️ **No fallback estimator.** Where there are not enough consecutive
+        // nights the term sits at the neutral 75 every other absent term here
+        // uses. Reinstating the old spread score "just for thin data" would put
+        // two different regularity answers in one card, which is the state this
+        // change exists to end.
+        //
+        // Ninety days rather than the fortnight the old spread used: SRI is a
+        // count of agreeing epochs, so a longer window is a tighter estimate of
+        // the same quantity, where a fortnight's standard deviation was the
+        // fortnight's own.
+        let regularityIndex = SleepRegularityIndex.evaluate(samples: samples, days: 90,
+                                                            now: now)
+        let regularityScore = regularityIndex
+            .map { SleepRegularityIndex.score(index: $0.index) } ?? 75
 
         // The coefficients live in `Weight`, which the contributors below read
         // too — one statement, so the chart cannot drift from the score. Why
         // each term earns what it does is argued at the table itself.
+        // `Weight.consistency` is zero since S11 and the term is left in the
+        // expression rather than deleted: the constant is what the produced
+        // figure's row reads to say "tracked, not scored", and an expression
+        // that no longer mentions it would be free to disagree with that row.
         let score = durationScore * Weight.duration + debtScore * Weight.debt
             + consistencyScore * Weight.consistency + regularityScore * Weight.regularity
             + efficiencyScore * Weight.efficiency + restorativeScore * Weight.restorative
@@ -324,9 +364,19 @@ public struct SleepInsight: InsightModel {
                 score: debtScore))
         }
         if let regularity {
-            var line = String(format: "Bedtime: %@, varying by about %.1f h",
-                              MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
-                              regularity.spreadHours)
+            var line: String
+            if let regularityIndex {
+                line = String(format: "Sleep regularity: %.0f/100 (%@) — asleep at the "
+                              + "same clock times as the day before on %.0f%% of the "
+                              + "last %d nights compared. Typical bedtime %@",
+                              regularityIndex.index, regularityIndex.band,
+                              (regularityIndex.index + 100) / 2, regularityIndex.pairs,
+                              MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset))
+            } else {
+                line = String(format: "Bedtime: %@ typically — not enough consecutive "
+                              + "nights yet to measure how regular that is",
+                              MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset))
+            }
             if let jetlag = regularity.socialJetlagHours, abs(jetlag) >= 0.5 {
                 line += String(format: " (weekends %.1f h %@)", abs(jetlag),
                                jetlag > 0 ? "later" : "earlier")
@@ -405,14 +455,24 @@ public struct SleepInsight: InsightModel {
             componentScore: durationScore,
             value: lastNight)]
         if let regularity {
-            // No `value`: the score judges the *spread* of bedtimes, which is
-            // not a quantity in sleepOnset's own unit (a clock time), and the
-            // detail already carries both figures as words.
+            // No `value`: the score judges *regularity*, which is not a quantity
+            // in sleepOnset's own unit (a clock time), and the detail already
+            // carries the figures as words.
+            //
+            // The row is gated on there being recorded bedtimes at all, not on
+            // the index being computable — so a reader a week into recording
+            // still sees where the 18% went, held neutral and saying so, rather
+            // than a card whose weights silently stop summing to what "How this
+            // is weighted" claims.
             contributors.append(.init(
                 metric: .sleepOnset, higherIsBetter: nil, weight: Weight.regularity,
-                detail: String(format: "%@ ± %.1f h",
-                               MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
-                               regularity.spreadHours),
+                detail: regularityIndex.map {
+                    String(format: "regularity %.0f/100 over %d nights, typical bedtime %@",
+                           $0.index, $0.pairs,
+                           MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset))
+                } ?? String(format: "typical bedtime %@ — regularity needs %d consecutive nights",
+                            MetricValueFormatter.string(regularity.typicalOnset, .sleepOnset),
+                            SleepRegularityIndex.minimumPairs),
                 componentScore: regularityScore))
         }
         if let latest = efficiencyReading?.value {
@@ -498,7 +558,8 @@ public struct SleepInsight: InsightModel {
                                               regularity: regularity),
             derivedOutputs: Self.derivedOutputs(debt: debt,
                                                 durationSpread: durationSpread,
-                                                regularity: regularity))
+                                                regularity: regularity,
+                                                regularityIndex: regularityIndex))
     }
 
     // MARK: - What this card works out (2026-08-06)
@@ -528,10 +589,13 @@ public struct SleepInsight: InsightModel {
     static let spreadKey = "nightLengthSpread"
     static let bedtimeSpreadKey = "bedtimeSpread"
     static let socialJetlagKey = "socialJetlag"
+    static let regularityIndexKey = "sleepRegularityIndex"
 
     static func derivedOutputs(debt: SleepDebtModel.Output?,
                                durationSpread: Double?,
-                               regularity: CircadianConsistencyModel.Output?) -> [DerivedOutput] {
+                               regularity: CircadianConsistencyModel.Output?,
+                               regularityIndex: SleepRegularityIndex.Output?)
+        -> [DerivedOutput] {
         var series: [DerivedOutput] = []
         if let debt {
             series.append(.init(key: debtKey, displayName: "Sleep debt",
@@ -557,6 +621,14 @@ public struct SleepInsight: InsightModel {
             series.append(.init(key: spreadKey, displayName: "How much your nights vary",
                                 unit: "h", value: durationSpread,
                                 higherIsBetter: false, precision: 2))
+        }
+        // **The scored regularity figure**, and the one series on this card that
+        // has an outcome study behind it rather than a scale this app chose.
+        if let regularityIndex {
+            series.append(.init(key: regularityIndexKey,
+                                displayName: "Sleep regularity index",
+                                unit: "", value: regularityIndex.index,
+                                higherIsBetter: true, precision: 0))
         }
         if let regularity {
             series.append(.init(key: bedtimeSpreadKey, displayName: "How much your bedtime varies",
@@ -605,12 +677,18 @@ public struct SleepInsight: InsightModel {
                 detail: String(format: "Not worked out yet — it needs a run of nights. The term is held at a neutral %.0f meanwhile, which counts neither for nor against you.",
                                debtScore)))
         }
-        rows.append(.derived(
+        // ⚠️ **Unweighted since S11 (2026-08-07).** Night-length spread carried
+        // 8% of this card and bedtime spread 10%; both were proxies for
+        // regularity, and `SleepRegularityIndex` — which beat sleep duration
+        // head-to-head for mortality in UK Biobank — now carries the pair's
+        // coefficient on the bedtime row above. The spread is still a real
+        // quantity about the reader, so it stays a produced figure, trendable
+        // and charted; it is simply no longer scored twice under two names.
+        rows.append(.producedFigure(
             DerivedSeriesID(.sleep, spreadKey), name: "How much your nights vary",
-            weight: Weight.consistency,
             detail: durationSpread.map {
-                String(format: "%d/100 — your nights sit ±%.1f h apart over the last fortnight", Int(consistencyScore), $0)
-            } ?? "Not enough nights yet — held at a neutral \(Int(consistencyScore))/100"))
+                String(format: "Your nights sit ±%.1f h apart over the last fortnight. Tracked, not scored — sleep regularity above measures whether your nights land at the same times, which is what this was standing in for.", $0)
+            } ?? "Not enough nights yet to say how much your nights vary. Tracked, not scored."))
         if let regularity, regularity.socialJetlagHours != nil {
             rows.append(.producedFigure(
                 DerivedSeriesID(.sleep, socialJetlagKey), name: "Social jet lag",

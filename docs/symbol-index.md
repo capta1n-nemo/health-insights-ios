@@ -159,6 +159,8 @@ the place to look.
   - `HeartHealthScore` :13
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
+- `Insights/IdealSleepWindow.swift`
+  - `IdealSleepWindow` :57
 - `Insights/Insight.swift`
   - `GroundingRequirement` :164
   - `InsightCadence` :122
@@ -223,8 +225,10 @@ the place to look.
   - `ScoreWeighting` :31
 - `Insights/SleepDebt.swift`
   - `SleepDebtModel` :25
+- `Insights/SleepInfluences.swift`
+  - `SleepInfluences` :67
 - `Insights/SleepInsight.swift`
-  - `SleepInsight` :18
+  - `SleepInsight` :21
 - `Insights/SuggestionVisibility.swift`
   - `SuggestionDismissal` :4
   - `SuggestionVisibility` :43
@@ -471,6 +475,8 @@ the place to look.
   - `SleepOnset` :23
 - `Signals/SleepOnsetModel.swift`
   - `SleepOnsetModel` :38
+- `Signals/SleepRegularityIndex.swift`
+  - `SleepRegularityIndex` :45
 - `Signals/SleepStageAverages.swift`
   - `SleepStageAverages` :41
 - `Signals/Somatotype.swift`
@@ -755,6 +761,8 @@ the place to look.
   - `BodyScanParserVersion` :182
 - `Features/Insights/BodyOverTimeSection.swift`
   - `BodyOverTimeSection` :24
+- `Features/Insights/IdealSleepWindowSection.swift`
+  - `IdealSleepWindowSection` :42
 - `Features/Insights/InsightDetailView.swift`
   - `AuxInput` :7
   - `InsightDetailView` :28
@@ -784,6 +792,10 @@ the place to look.
   - `SymptomReconciliationSection` :158
 - `Features/Insights/SleepApnoeaSection.swift`
   - `SleepApnoeaSection` :38
+- `Features/Insights/SleepDebtSection.swift`
+  - `SleepDebtSection` :29
+- `Features/Insights/SleepInfluencesSection.swift`
+  - `SleepInfluencesSection` :63
 - `Features/Insights/SleepScreenTimeSection.swift`
   - `SleepScreenTimeSection` :38
 - `Features/Insights/SomatotypeCard.swift`

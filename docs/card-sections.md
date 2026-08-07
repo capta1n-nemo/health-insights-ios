@@ -211,6 +211,7 @@ silently; count the enum before trusting the table.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "When you settled" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Screen time and your sleep" + "Overnight HRV" + "Sleep apnoea indicator" (which *contains* "Breathing during sleep") | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" + "Sleep debt" + "Your best bedtime" + "What's impacting your sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** **+ "When it has spoken"** (S4 chart + the S3 nights-to-flag detail) | ● **"Your two symptom records"** (R28, hand-entered side effects against Health tags) | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
@@ -316,12 +317,63 @@ B18-4, B18-5 and P22) and each its own `@ViewBuilder` member:
   band-and-average shape as the onset chart, and says on screen why it is not
   scored: five other cards already weight HRV, and nothing published grades a
   person's own overnight variability.
+- **"Breathing during sleep"** (5o): Oura's nightly breathing-disturbance index
+  promoted from the raw catalogue (backlog #30/S9), drawn with the shared
+  `MultiSourceChart` against the reader's own recent range and reported by the
+  model as a weight-0 contribution — trended, never scored, and its caveat says
+  outright that it is not an apnoea test. **Backlog B18-1 wants this contained
+  by a dedicated sleep-apnoea indicator section**, which does not exist yet;
+  when it is built, this is the section it wraps.
+- **"Sleep debt"** (5q, backlog B18-7) — the balance, the nights that put it
+  there, and **the baseline said out loud**. The need is the reader's own
+  habitual unconstrained duration (the upper quartile of their last ninety
+  nights), never a published figure and never the duration on their best days;
+  the argument for that choice is `SleepDebtModel.NeedBasis` in InsightKit and
+  the section renders `basis.sentence` unconditionally. The published 7–9 h band
+  is shown beside it for context and is never what the shortfall is measured
+  from. Own file, `SleepDebtSection.swift`.
+- **"Your best bedtime"** (5r, backlog B18-8) — which bedtimes preceded the
+  reader's own better days. **The proxy for "feeling best" is next-day
+  Readiness**, chosen in the section (not the model) and printed on screen: not
+  Energy, which carries its own sleep term and would close a circle; not the
+  feedback ledger, which is dense only on unusual days. **The weekend is folded
+  out before anything is compared** — the outcome is de-meaned within its day
+  type using `CircadianConsistencyModel`'s own weekend split — and where nothing
+  separates the half-hour bins, the section says so rather than naming a window.
+  Own file, `IdealSleepWindowSection.swift`.
+- **"What's impacting your sleep"** (5s, backlog B18-6) — **the first section in
+  the app built out of other cards' derived outputs.** Candidates are the
+  `.modelOutput` tier of `DerivedSeriesStore` from every card except Sleep, plus
+  screen time, caffeine and food energy. The statistics are `SleepInfluences` in
+  InsightKit and every part of them answers a fault the substance-card review
+  found: the day's activity is a covariate in every test (a driver that is
+  activity in other units is refused outright by a tolerance floor), the day
+  boundary is fixed before any data is read, the null is a **circular block**
+  permutation, and multiplicity is **max-statistic Westfall–Young**, which is
+  valid under the negative dependence that made BH invalid there. *"Nothing
+  stands out"* is a rendered finding with the number of candidates beside it.
+  Own file, `SleepInfluencesSection.swift`.
 
 Keeping each in its own member is not tidiness. `card-map.sh` reads titles from
 a 4,000-character window per member and **fails open** past it (activeContext
 finding 3), and `sleepNightCard` was at 3,124 characters while holding all five
 — one added paragraph from silently dropping a title from the generated map.
 Split, the largest of them is well under half the window.
+
+⚠️ **The last three go one step further and live in their own files**, and that
+is now the convention for anything new on any card: `InsightDetailView.swift` is
+~3,700 lines, thirteen agents were editing it in one wave, and a section added
+inline is a merge conflict for every one of them. `BodyOverTimeSection`,
+`MedicationSection` and `SomatotypeCard` set the precedent; `SleepDebtSection`,
+`IdealSleepWindowSection` and `SleepInfluencesSection` follow it, and the
+`.sleep` arm of `bespokeSection` is three lines that name them.
+
+**One consequence to know about:** `card-map.sh` reads titles out of
+`InsightDetailView.body`, so a section in its own file is invisible to it. The
+generated ordering block is unaffected — it enumerates the universal slots, and
+the bespoke slot is one of them however many views it renders — but the four
+hand-written tables below are the only record of these three, which makes
+bringing this file forward in the same commit load-bearing rather than tidy.
 
 It was five until 2026-08-01. Heart Health and Readiness had their centile strip
 and their departure panel nested under "How this is weighted", which was their
@@ -761,6 +813,10 @@ map above.
 | 5q | **When you settled** | Sleep | open (closed when empty) | ● `needsInput` — a watch or ring worn to bed | settled after `n` min | `partial` — twenty-minute medians, band excludes the night drawn | raw `Chart` (hours-since-onset axis) |
 | 5r | **Screen time and your sleep** | Sleep | open (closed when nothing paired) | ● the `CoverageGate` line, always | `n` nights paired | `associationsNotCauses` | raw `Chart` (scatter, screen minutes axis) |
 | 5s | **Overnight HRV** | Sleep | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` — names SDNN or rMSSD, never pools them | `OvernightNightlyChart` |
+| 5o | Breathing during sleep | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| 5q | **Sleep debt** | Sleep | open (closed when empty) | ● | h behind / clear | `estimated` — a decaying sum of shortfalls, not a measure of tiredness | `ScrollableMetricChart` |
+| 5r | **Your best bedtime** | Sleep | open when a window is named, else closed behind it | ● two reasons | the window | `associationsNotCauses` + `replayedHistory` | raw `Chart` — bedtime bins (shading-exempt: x is a clock time) |
+| 5s | **What's impacting your sleep** | Sleep | open when something is found, else closed behind it | ● four reasons | `n` of `m` stood out | `associationsNotCauses` + `replayedHistory` | raw `Chart` — effect sizes (shading-exempt: x is hours per SD) |
 | 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
@@ -821,6 +877,12 @@ map above.
 | Sleep | Overnight HRV | open (closed when empty) | ● `needsMore` | `n` ms median | `partial` | `OvernightNightlyChart` |
 | Sleep | Sleep apnoea indicator | open (closed when empty) | ● `needsInput` | latest index | `estimated` — `notAnApnoeaTest` | `MultiSourceChart` |
 | Sleep | …Breathing during sleep | **nested inside the apnoea indicator** (B18-1) | — | `n` nights | `estimated` — trended, never scored | `MultiSourceChart` |
+| Sleep | Your fortnight | nested in the night card | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| Sleep | How fast you fall asleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| Sleep | Breathing during sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| Sleep | Sleep debt | open (closed when empty) | ● | h behind / clear | `estimated` | `ScrollableMetricChart` |
+| Sleep | Your best bedtime | open when a window is named | ● two reasons | the window | `associationsNotCauses` + `replayedHistory` | raw `Chart` (shading-exempt) |
+| Sleep | What's impacting your sleep | open when something is found | ● four reasons | `n` of `m` stood out | `associationsNotCauses` + `replayedHistory` | raw `Chart` (shading-exempt) |
 | Subst | Cardiovascular load | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | HH | How your heart responds | closed behind its preview either way | ● `needsInput` (a recorded workout, and the remedy says so — nothing under "View & add" can record one) | −`n` bpm in a minute | `approximate` (Cole et al., NEJM 1999) | — (recovery + autonomic rows) |
 | BodyC | What you're made of | open (closed when empty) | ● | total kg | `.none` | stacked bar |
