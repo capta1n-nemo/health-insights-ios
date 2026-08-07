@@ -191,6 +191,7 @@ final class HealthDataExportTests: XCTestCase {
             // exactly what the reader said would not scale.
             tags: [HealthTag(name: "Kayaking", code: nil, date: now, source: .oura,
                              mapping: TagLexicon.classify(name: "Kayaking"))],
+<<<<<<< HEAD
             // P32. One flagged moment the reader answered — and **corrected**,
             // so the fixture holds the shape that actually carries information:
             // a guess and an answer that disagree. Built through the judgement
@@ -199,6 +200,39 @@ final class HealthDataExportTests: XCTestCase {
             // with the guess.
             flaggedEvents: [Self.answeredFlaggedEvent(at: now)]
                 .compactMap { HealthDataExport.FlaggedEventExport($0) },
+=======
+            // Q7. A machine-read value rather than a typed one, deliberately:
+            // the fixture has to hold the shape that carries `evidence`, or the
+            // one field that distinguishes an OCR'd number from a typed one
+            // goes untested in the file.
+            labResults: [LabResult(
+                analyte: LabAnalyteCatalog.entry(forKey: "hba1c")!.analyte,
+                value: 38, unit: "mmol/mol",
+                referenceRange: LabReferenceRange(low: 20, high: 41,
+                                                  printed: "20 - 41"),
+                collectedAt: now, collectedAtIsExact: true, source: .pdf,
+                evidence: LabExtractionEvidence(
+                    rawLabel: "HbA1c", rawValueText: "38",
+                    rawLine: "HbA1c   38 mmol/mol   (20 - 41)",
+                    method: .deterministic,
+                    checks: [.unitRecognised("mmol/mol"), .plausibleMagnitude,
+                             .insidePrintedRange]),
+                isConfirmedByReader: true)],
+            // I7. With a printed finding *and* its provenance, because the
+            // attribution is the part that must never travel without the
+            // quotation — a classification in a file with nobody's name on it
+            // reads as this app's own, and this app produces none.
+            ecgRecords: [ECGRecord(recordedAt: now, recordedAtIsExact: true,
+                                   source: .pdf, leads: .singleLead,
+                                   durationSeconds: 30,
+                                   printedAverageHeartRate: 62,
+                                   deviceDescription: "Apple Watch",
+                                   printedFinding: "Sinus Rhythm",
+                                   findingProvenance: .recordingDevice,
+                                   readerNote: nil, pageCount: 1,
+                                   attachmentFileName: "ecg-1.pdf",
+                                   transcription: nil)],
+>>>>>>> worktree-wf_acf822b0-d44-2
             reports: .init(inventory: "# Inventory\nbodyMass · 1 reading",
                            cardOutputs: "# Cards\ncardiovascularRisk 72",
                            modelInternals: "# Internals\nbaseline n=1",

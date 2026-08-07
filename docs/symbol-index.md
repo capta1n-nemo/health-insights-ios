@@ -44,8 +44,31 @@ the place to look.
 - `Derived/DerivedSeriesStore.swift`
   - `DerivedBackfill` :137
   - `DerivedSeriesStore` :9
+- `Documents/ECGMetadataParser.swift`
+  - `ECGMetadataParser` :25
+- `Documents/ECGRecord.swift`
+  - `ECGField` :222
+  - `ECGFindingProvenance` :160
+  - `ECGLeadConfiguration` :134
+  - `ECGRecord` :32
+  - `ECGSource` :108
+  - `ECGTranscriptionEvidence` :197
+- `Documents/LabAnalyte.swift`
+  - `LabAnalyte` :31
+  - `LabAnalyteCatalog` :149
+  - `LabPanel` :469
+- `Documents/LabModelVerifier.swift`
+  - `LabModelVerifier` :39
 - `Documents/LabReportParser.swift`
-  - `LabReportParser` :12
+  - `LabReportParser` :39
+- `Documents/LabResult.swift`
+  - `LabConfidence` :170
+  - `LabExtractionEvidence` :361
+  - `LabExtractionMethod` :416
+  - `LabReferenceRange` :134
+  - `LabResult` :14
+  - `LabResultSource` :95
+  - `LabValueCheck` :244
 - `Documents/ScreenTimeChartGeometry.swift`
   - `BarChartMask` :15
   - `ScreenTimeChartGeometry` :59
@@ -377,8 +400,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :330
-  - `InputGroup` :341
+  - `CardRequirement` :388
+  - `InputGroup` :399
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :65
@@ -587,9 +610,14 @@ the place to look.
   - `MainThreadWatchdog` :69
 - `Core/Diagnostics/RefreshPhaseTimer.swift`
   - `RefreshPhaseTimer` :41
+- `Core/Documents/DocumentImportService.swift`
+  - `DocumentAttachmentStore` :150
+  - `DocumentImportService` :32
 - `Core/Documents/DocumentScanService.swift`
   - `DocumentScanService` :18
   - `ScreenTimeWeekScan` :89
+- `Core/Documents/LabAnalyteExtractor.swift`
+  - `LabAnalyteExtractor` :42
 - `Core/Documents/ScreenTimeChartReader.swift`
   - `ImageCaptureDate` :183
   - `ScreenTimeChartReader` :35
@@ -652,6 +680,9 @@ the place to look.
   - `PlaceAnchorStore` :18
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :8
+- `Core/Persistence/DocumentRecords.swift`
+  - `ECGRecordEntry` :87
+  - `LabResultRecord` :30
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
@@ -784,7 +815,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1414
+  - `OtherDataDetailView` :1481
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -794,12 +825,16 @@ the place to look.
   - `SideEffectDataView` :186
   - `SubstanceDataView` :17
   - `SymptomDataView` :326
+- `Features/Data/ECGDataView.swift`
+  - `ECGDataView` :18
 - `Features/Data/FlaggedEventDataView.swift`
   - `FlaggedEventDataView` :23
 - `Features/Data/GeneratedInsightsDataView.swift`
   - `GeneratedCardDataView` :57
   - `GeneratedInsightsDataView` :11
   - `GeneratedSeriesDataView` :129
+- `Features/Data/LabResultsDataView.swift`
+  - `LabResultsDataView` :18
 - `Features/Data/SickDaysDataView.swift`
   - `SickDaysDataView` :30
 - `Features/Data/TagsDataView.swift`
@@ -807,8 +842,15 @@ the place to look.
   - `TagsDataView` :41
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
+- `Features/Documents/ECGImportSheet.swift`
+  - `ECGImportSheet` :22
 - `Features/Documents/ImportLabView.swift`
-  - `ImportLabView` :11
+  - `ImportLabView` :30
+- `Features/Documents/LabResultEntrySheet.swift`
+  - `LabResultEntrySheet` :16
+- `Features/Documents/LabResultRow.swift`
+  - `LabConfidenceBadge` :73
+  - `LabResultRow` :16
 - `Features/Events/EventAnswerSheet.swift`
   - `EventAnswerSheet` :23
   - `EventConfirmationSheet` :210
@@ -837,13 +879,13 @@ the place to look.
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `BodyTypeSheet` :228
-  - `HolidayEntrySheet` :782
+  - `BodyTypeSheet` :232
+  - `HolidayEntrySheet` :786
   - `InputSheet` :129
-  - `PushedInSheet` :201
-  - `ReaderIdentitySheet` :655
-  - `ScreenTimeEntrySheet` :307
-  - `SideEffectEntrySheet` :841
+  - `PushedInSheet` :205
+  - `ReaderIdentitySheet` :659
+  - `ScreenTimeEntrySheet` :311
+  - `SideEffectEntrySheet` :845
 - `Features/Inputs/AddInputPicker.swift`
   - `AddInputPicker` :36
   - `AddInputToolbar` :132
@@ -945,8 +987,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :37
-  - `FullExport` :479
-  - `OtherDataListView` :492
+  - `FullExport` :486
+  - `OtherDataListView` :499
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73

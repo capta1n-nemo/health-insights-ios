@@ -92,10 +92,16 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// — plus `sickDays` (§B11-4) and `tags` (§B12), which landed in parallel.
     /// ⚠️ Three agents raised the version to 6 on the same afternoon; it is one
     /// version carrying all four keys, not three separate bumps.
+<<<<<<< HEAD
     /// 7 adds `flaggedEvents` (P32) — **and is subject to the same caveat**: if
     /// another agent in the same wave also lands a key at 7, it is one version
     /// carrying both, not two bumps. The number tracks the *shape* a file was
     /// written with; two keys added the same afternoon share a shape.
+=======
+    /// 7 added `labResults` (backlog Q7 — every analyte from a report, with the
+    /// confidence the reading was made at) and `ecgRecords` (I7 — an imported
+    /// trace's metadata, never an interpretation).
+>>>>>>> worktree-wf_acf822b0-d44-2
     public static let schemaVersion = 7
 
     public struct Medication: Codable, Equatable, Sendable {
@@ -941,6 +947,35 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// either.
     public let predictionOutcomes: [PredictionOutcome]
 
+    /// **Every blood-test analyte the reader has given the app** — backlog `Q7`.
+    ///
+    /// The whole `LabResult`, including its `evidence`, and that is the point
+    /// rather than verbosity: a value read by OCR and a value typed by a person
+    /// are different kinds of fact, and a pooled dataset that cannot tell them
+    /// apart cannot honestly use either. `LabResult.confidence` and the checks
+    /// behind it travel with the number.
+    ///
+    /// ⚠️ **The two lipids are also in `profile`, as grounding facts, and that
+    /// duplication is deliberate** — the risk models read one current value each
+    /// and this key is the history. Neither is derived from the other, so
+    /// neither can be dropped without losing something.
+    public let labResults: [LabResult]
+
+    /// **Imported ECGs — the metadata, never the document.**
+    ///
+    /// ⚠️ The trace itself is a binary the app keeps on the phone;
+    /// `attachmentFileName` names it and nothing here carries its bytes. That is
+    /// not squeamishness about size: this file is JSON, and a base64 waveform
+    /// image would make the reader's whole export unreadable in a text editor
+    /// for the one key least likely to be read.
+    ///
+    /// ⚠️ **`printedFinding` is a quotation with an attribution attached**, and
+    /// `findingProvenance` travels beside it for exactly the reason
+    /// `HealthTag`'s mapping does: a classification exported without who made it
+    /// is indistinguishable in the file from one this app produced — and this
+    /// app produces none.
+    public let ecgRecords: [ECGRecord]
+
     /// The four prose reports that used to be four separate files. See `Reports`.
     public let reports: Reports
 
@@ -967,8 +1002,12 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 suggestionDismissals: [SuggestionDismissal] = [],
                 feedback: [Feedback] = [],
                 predictionOutcomes: [PredictionOutcome] = [],
+                labResults: [LabResult] = [],
+                ecgRecords: [ECGRecord] = [],
                 reports: Reports = .empty,
                 improvements: Improvements = .empty) {
+        self.labResults = labResults
+        self.ecgRecords = ecgRecords
         self.reports = reports
         self.improvements = improvements
         self.cycles = cycles
@@ -1101,6 +1140,13 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // by DataExportView.buildFullExport() and carries the whole raw
         // catalogue. It shares the key only because `calendarEvents` points at
         // it while emitting nothing.
+        // export-domain: labResults — owns "labResults"; `labResults:` is passed
+        // by DataExportView.buildFullExport(). Backlog Q7.
+        case .labResults: return "labResults"
+        // export-domain: ecgRecords — owns "ecgRecords"; `ecgRecords:` is passed
+        // by DataExportView.buildFullExport(). Metadata only; the document
+        // itself stays on the phone and is named rather than carried. Backlog I7.
+        case .ecgRecords: return "ecgRecords"
         case .unmodelled: return "unmodelled"
         // ⚠️ **Its own key, not `unmodelled`, even though the tags are promoted
         // *out of* `unmodelled` and their raw rows are still in it.** Same call
@@ -1237,6 +1283,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case calendarEvents
         case generatedInsights, tags, flaggedEvents
         case connections, suggestionDismissals, feedback, predictionOutcomes
+        case labResults, ecgRecords
         case reports, improvements
     }
 
@@ -1276,6 +1323,8 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(suggestionDismissals, forKey: .suggestionDismissals)
         try c.encode(feedback, forKey: .feedback)
         try c.encode(predictionOutcomes, forKey: .predictionOutcomes)
+        try c.encode(labResults, forKey: .labResults)
+        try c.encode(ecgRecords, forKey: .ecgRecords)
         try c.encode(reports, forKey: .reports)
         try c.encode(improvements, forKey: .improvements)
     }

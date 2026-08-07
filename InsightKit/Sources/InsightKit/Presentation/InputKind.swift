@@ -38,8 +38,33 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     case medicationDose
     /// Something the reader felt, with how strongly.
     case sideEffect
-    /// A photographed pathology report, read on-device.
+    /// A pathology report brought in as a document — photographed, scanned with
+    /// the camera, or picked as a PDF. Read entirely on-device.
+    ///
+    /// ⚠️ **One case for three routes, and the reader is the reason.** Asked
+    /// whether bloods should be typed or photographed (backlog `Q7`), they
+    /// answered *"both? What do you mean? We should be able to accept all of
+    /// these."* All four routes exist; what is split is where the *conversation*
+    /// divides, and it divides between "I have the paperwork" (this) and "I have
+    /// the numbers" (`labResultManual`). Camera, scanner and PDF are one choice
+    /// made inside one sheet, exactly as `bodyMeasurements` is one case for a
+    /// tape and a scan.
     case bloodTestPhoto
+    /// Blood-test values typed in.
+    ///
+    /// The floor, not the ceiling: lipids and HbA1c have their own fields and
+    /// anything else the reader's report prints can be entered by naming the
+    /// analyte. Separate from `bloodTestPhoto` because a reader holding a
+    /// printout and a reader holding a phone are answering different questions,
+    /// and because this is the route that still works when a scan comes back
+    /// unreadable — which the import screen's failure message points at.
+    case labResultManual
+    /// An ECG brought in as a photo or a PDF, with its metadata.
+    ///
+    /// ⚠️ **Import, store, display. Never interpret** — see `ECGRecord`. The
+    /// input exists so a trace lives with the rest of the reader's health data;
+    /// nothing in this app reads the waveform.
+    case ecgImport
     /// A backup file shared in from another app — today Shotsy's.
     case fileImport
     /// The reader's own read of their build, overriding the app's estimate.
@@ -94,7 +119,9 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationRegimen: return "Medication"
         case .medicationDose: return "Dose"
         case .sideEffect: return "Side effect"
-        case .bloodTestPhoto: return "Blood test (photo)"
+        case .bloodTestPhoto: return "Blood test (photo, scan or PDF)"
+        case .labResultManual: return "Blood test results (typed)"
+        case .ecgImport: return "ECG"
         case .fileImport: return "File from another app"
         case .bodyType: return "Your build"
         case .screenTime: return "Screen time"
@@ -122,7 +149,11 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .sideEffect:
             return "What you felt and how strongly, so it can be read against your doses."
         case .bloodTestPhoto:
-            return "Photograph a pathology report; the values are read on-device and you confirm them."
+            return "Photograph, scan or pick a PDF of a pathology report. Every analyte on it is read on this device and you confirm each one — nothing is uploaded."
+        case .labResultManual:
+            return "Type the numbers yourself. Cholesterol and HbA1c have their own fields; anything else your report prints can be entered by name."
+        case .ecgImport:
+            return "A photo or PDF of an ECG, kept with its date, device and whatever was printed on it. This app stores and shows a trace; it never interprets one."
         case .fileImport:
             return "Shotsy's JSON backup — injections, weight and body composition in one file."
         case .bodyMeasurements:
@@ -149,6 +180,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationDose: return "syringe"
         case .sideEffect: return "waveform.path.ecg.rectangle"
         case .bloodTestPhoto: return "doc.text.viewfinder"
+        case .labResultManual: return "list.clipboard"
+        case .ecgImport: return "waveform.path.ecg"
         case .fileImport: return "square.and.arrow.down"
         case .bodyType: return "figure.stand"
         case .screenTime: return "iphone"
@@ -176,7 +209,10 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         // even though it is not a grounding fact.
         case .medicationRegimen, .bodyType, .bodyMeasurements, .readerIdentity:
             return .aboutYou
-        case .bloodTestPhoto, .fileImport: return .bringItIn
+        // Typed values are dated entries like a cuff reading — logged when the
+        // results arrive, not a standing fact about the reader.
+        case .labResultManual: return .asItHappens
+        case .bloodTestPhoto, .fileImport, .ecgImport: return .bringItIn
         }
     }
 
@@ -192,7 +228,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationDose: return "Set up a medication first."
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
              .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
-             .bodyMeasurements, .readerIdentity, .holiday:
+             .bodyMeasurements, .readerIdentity, .holiday, .labResultManual,
+             .ecgImport:
             return nil
         // ⚠️ **`nil`, deliberately, even though there is often nothing to
         // answer.** Making the row unavailable when the queue is empty was the
@@ -249,6 +286,27 @@ public extension InputKind {
             return .settingsOnly("It fills the same cholesterol facts the "
                 + "profile route already offers, so a card carrying both would "
                 + "ask twice for one number.")
+        // Same reasoning as `.bloodTestPhoto` above, and one addition that is a
+        // date rather than a principle: **no shipped card reads the general lab
+        // store.** The two lipids reach the risk models as grounding facts, and
+        // that is the route a card should offer. The other thirty analytes have
+        // no card at all yet, so offering the sheet on one would claim a
+        // sensitivity nothing has.
+        case .labResultManual:
+            return .settingsOnly("The lipids it can fill are already offered by "
+                + "the profile route, and no shipped card reads the wider lab "
+                + "store yet — a card offering it would claim a sensitivity its "
+                + "model does not have. The offer moves onto a card in the same "
+                + "change that wires one.")
+        // ⚠️ **Not a date, a principle.** Nothing scores an ECG here and nothing
+        // will: interpreting a trace is a regulated device claim. A card exists
+        // to say what a number means, so an ECG has no card to be offered on —
+        // and there is no future change that would give it one.
+        case .ecgImport:
+            return .settingsOnly("No card takes an ECG, and none will. "
+                + "Interpreting a trace is a regulated device claim; this app "
+                + "imports, stores and shows one, which is a Data-tab job "
+                + "rather than a scoring one.")
         case .fileImport: return .offeredAndPrompted
         // An override of an estimate that already works without it. Offered, so
         // a reader who disagrees can find it; never nagged for, because the app

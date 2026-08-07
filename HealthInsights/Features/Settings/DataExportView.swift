@@ -437,6 +437,13 @@ struct DataExportView: View {
             // coarsened, DP-noised `TelemetryEvent` is a different type and is
             // what would be transmitted if sharing were ever switched on.
             predictionOutcomes: outcomes,
+            // Q7. Every analyte, whole — including its `evidence`, because an
+            // OCR'd 5.2 and a typed 5.2 are the same number and different facts,
+            // and a pool that cannot tell them apart cannot honestly use either.
+            labResults: model.labResults,
+            // I7. Metadata only: the trace itself stays on the phone and is
+            // named rather than carried — see `HealthDataExport.ecgRecords`.
+            ecgRecords: model.ecgRecords,
             // The four documents that used to be four separate files on this
             // screen and the next one. Backlog B20 — the reader wants one
             // export, and each of these earns its place inside it rather than
