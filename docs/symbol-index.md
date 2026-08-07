@@ -405,6 +405,9 @@ the place to look.
   - `BalanceWebGeometry` :39
   - `BalanceWebSnapshot` :113
   - `WebPoint` :10
+- `Presentation/BalanceWebTimeline.swift`
+  - `BalanceWebTimeline` :113
+  - `WebTimeGranularity` :17
 - `Presentation/ChartedContributions.swift`
   - `ChartedContributions` :26
 - `Presentation/ContributionRoute.swift`
@@ -1009,7 +1012,7 @@ the place to look.
 - `Features/Insights/RecoverySection.swift`
   - `RecoverySection` :21
 - `Features/Insights/ScoreComparisonDetailView.swift`
-  - `ScoreComparisonDetailView` :20
+  - `ScoreComparisonDetailView` :39
 - `Features/Insights/SettlingSection.swift`
   - `SettlingSection` :43
 - `Features/Insights/SickDaysCalendarSection.swift`
@@ -1046,6 +1049,9 @@ the place to look.
   - `RadarRingShape` :251
   - `RadarSpokeShape` :276
   - `SymptomRadarWebCard` :35
+- `Features/Insights/WebMorphSection.swift`
+  - `WebMorphModel` :18
+  - `WebMorphSection` :94
 - `Features/Integrations/ProviderSetupView.swift`
   - `ProviderSetupView` :9
 - `Features/Launch/LaunchParticleView.swift`

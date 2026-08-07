@@ -258,11 +258,19 @@ struct InsightsListView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text("How your scores compare").font(.headline)
                     Spacer(minLength: 8)
+                    // **"Deep dive", not "Over time"** (backlog P20, the
+                    // reader's wording). The destination stopped being one
+                    // chart of scores against time the moment the score
+                    // decomposition landed on it, and it now also carries the
+                    // web itself walked back through the reader's whole
+                    // history. "Over time" named a third of what is behind the
+                    // tap and read as a chart link, which is the kind of label
+                    // that stops a reader ever finding the other two thirds.
                     NavigationLink {
                         ScoreComparisonDetailView()
                     } label: {
                         HStack(spacing: 2) {
-                            Text("Over time")
+                            Text("Deep dive")
                             Image(systemName: "chevron.right")
                         }
                         .font(.caption.weight(.medium))
