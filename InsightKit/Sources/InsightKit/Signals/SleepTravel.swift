@@ -143,6 +143,87 @@ public enum SleepTravel {
         calendar.startOfDay(for: key.addingTimeInterval(12 * 3600))
     }
 
+    /// Every stored `.sleepOnset`, rewritten so that **both halves of it are in
+    /// the reader's current zone** — the other half of problem 1, and the half
+    /// that was left open on 2026-08-07.
+    ///
+    /// ## Why re-rendering the value alone is not enough
+    ///
+    /// A stored onset is a pair: a night key (`start`) and signed hours from
+    /// that key (`value`). `onsetHours(of:in:)` fixes the second, and every
+    /// caller in this package reads the first through
+    /// `VitalReader.dailySeries`, which re-buckets by `calendar.startOfDay(for:
+    /// sample.start)`. So the key silently becomes **midnight here** while the
+    /// value stays **hours from midnight there**, and the pair no longer
+    /// describes any instant at all:
+    ///
+    /// - Bedtime 23:00 Manila is stored as key `7 Aug 00:00 +08`, value `−1.0`.
+    /// - Bucketed in Sydney the key becomes `7 Aug 00:00 +10`, value still
+    ///   `−1.0` → `6 Aug 23:00 +10`, two hours from the truth.
+    /// - `SleepRegularityIndex.intervals` and `NightSleepDetail.windowLanes`
+    ///   then rebuild the episode from `key + value`, so the error is not
+    ///   cosmetic: it moves the whole sleep block on the grid.
+    ///
+    /// Worse westward, where it changes the *day*: a Sydney-minted key read in
+    /// London is `6 Aug 15:00`, and `startOfDay` on that labels the night one
+    /// day early — the shear `DayStamp` predicted in writing.
+    ///
+    /// ## What this returns
+    ///
+    /// One sample per stored onset, with:
+    ///
+    /// - `start` = `nightDay(of:)` — the night's label, resolved to local
+    ///   midnight **here**, so `startOfDay` on it is a no-op and no later
+    ///   bucketing can shear it.
+    /// - `value` = the exact interval from that key to the recovered instant,
+    ///   which keeps `start + value·3600 == onsetInstant` true by construction
+    ///   rather than by coincidence. In every ordinary case that is the same
+    ///   number `clockHoursFromMidnight` gives; it is derived from the key
+    ///   instead so the identity cannot drift apart from it.
+    ///
+    /// **Idempotent**: re-rendering an already-rendered sample recovers the
+    /// same instant, the same key and the same value, so a caller that applies
+    /// it twice — or applies it after some future app-wide pass does — is safe.
+    ///
+    /// ⚠️ **Returns only the onsets, not the whole array**, and that is a
+    /// performance decision with a measurement behind it. `MultiSource`'s
+    /// evaluation memo is keyed on the sample buffer's *address*, so handing
+    /// any model a rebuilt copy of the full 237k-sample array would miss the
+    /// memo and cost a full scan per metric (28.8 ms each, measured). Every
+    /// caller here reads `.sleepOnset` and nothing else out of what it passes,
+    /// so passing only the onsets is equivalent — and it is a few hundred
+    /// elements rather than a few hundred thousand.
+    ///
+    /// ⚠️ **The result is not bounded by `SleepOnset.plausibleHours`.** See
+    /// `clockHoursFromMidnight`: the band is [−12, +12), and a chart or an axis
+    /// that assumed ±6 will clip a real night once the reader has moved far
+    /// enough.
+    public static func onsets(in samples: [HealthMetricSample],
+                              calendar: Calendar = .current) -> [HealthMetricSample] {
+        samples.compactMap { sample in
+            guard let instant = onsetInstant(of: sample) else { return nil }
+            var key = nightDay(of: sample.start, calendar: calendar)
+            var hours = instant.timeIntervalSince(key) / 3600
+            // Beyond a twelve-hour offset difference the minted label cannot be
+            // preserved — `nightDay` says so — and the honest resolution is the
+            // one the reader actually lived: keep the instant, move the label.
+            // A loop rather than an `if` because DST can make a "day" 23 or 25
+            // hours, and stepping by calendar days is what keeps the key at
+            // local midnight in those zones.
+            var guardCount = 0
+            while abs(hours) >= 12, guardCount < 3 {
+                let step = hours >= 12 ? 1 : -1
+                guard let moved = calendar.date(byAdding: .day, value: step, to: key)
+                else { break }
+                key = calendar.startOfDay(for: moved)
+                hours = instant.timeIntervalSince(key) / 3600
+                guardCount += 1
+            }
+            return HealthMetricSample(type: .sleepOnset, value: hours,
+                                      start: key, end: key, source: sample.source)
+        }
+    }
+
     // MARK: - 2. Whether the night crossed a zone
 
     /// The UTC offset at each end of one night, and what moved between them.
@@ -463,14 +544,18 @@ public enum SleepTravel {
             daytime[day] = Swift.max(daytime[day] ?? 0, hours)
         }
 
+        // Through `onsets(in:)` rather than re-deriving the pair here, so this
+        // section and every chart elsewhere in the app cannot end up with two
+        // answers for one night. The re-render keeps key and value in the
+        // viewing zone together; `here` is read back off the pair for the same
+        // reason.
         var onsets: [Date: (instant: Date, here: Double)] = [:]
-        for sample in samples where sample.type == .sleepOnset {
-            guard let instant = onsetInstant(of: sample) else { continue }
-            let day = nightDay(of: sample.start, calendar: calendar)
+        for sample in Self.onsets(in: samples, calendar: calendar) {
+            let instant = sample.start.addingTimeInterval(sample.value * 3600)
             // Earliest wins, matching `SleepOnset.samples`' own rule, so two
             // sources describing one night cannot produce two answers here.
-            if let held = onsets[day], held.instant <= instant { continue }
-            onsets[day] = (instant, clockHoursFromMidnight(instant, calendar: calendar))
+            if let held = onsets[sample.start], held.instant <= instant { continue }
+            onsets[sample.start] = (instant, sample.value)
         }
 
         var durations: [Date: Double] = [:]

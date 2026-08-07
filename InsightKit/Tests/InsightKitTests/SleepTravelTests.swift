@@ -106,6 +106,139 @@ final class SleepTravelTests: XCTestCase {
                        instant(sydney, 2026, 8, 7, 0))
     }
 
+    // MARK: - Problem 1, the other half: the KEY, not just the value
+
+    /// The defect that was left open on 2026-08-07, in one assertion.
+    ///
+    /// A stored onset is a pair — a night key and signed hours from it — and
+    /// every reader of it re-buckets the key into the viewing zone while
+    /// leaving the value in the minting zone. The pair then describes no
+    /// instant at all. `onsets(in:)` moves both halves together.
+    func testReRenderedOnsetKeepsTheKeyAndValueInOneZone() {
+        let bedtime = instant(manila, 2026, 8, 6, 23, 10)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(manila))
+
+        let here = SleepTravel.onsets(in: stored, calendar: calendar(sydney))
+        XCTAssertEqual(here.count, 1)
+        // The key is now local midnight in Sydney, so `startOfDay` on it is a
+        // no-op and no later bucketing can shear it.
+        XCTAssertEqual(here[0].start, instant(sydney, 2026, 8, 7, 0))
+        XCTAssertEqual(calendar(sydney).startOfDay(for: here[0].start), here[0].start)
+        // And the value is 01:10 Sydney, which is when the reader actually
+        // went to bed as their own clock now reads it.
+        XCTAssertEqual(here[0].value, 70.0 / 60, accuracy: 0.01)
+        // The identity every consumer rebuilds an episode from.
+        XCTAssertEqual(here[0].start.addingTimeInterval(here[0].value * 3600)
+                           .timeIntervalSince1970,
+                       bedtime.timeIntervalSince1970, accuracy: 1)
+    }
+
+    /// The shear `DayStamp` predicted in writing, asserted at the render site.
+    /// A Sydney-minted key read from London is 15:00 the day *before*, so plain
+    /// `startOfDay` labels the night a day early. The night must keep its name.
+    func testAWestwardMoveDoesNotMoveTheNightToTheDayBefore() {
+        let london = TimeZone(identifier: "Europe/London")!
+        let bedtime = instant(sydney, 2026, 8, 6, 23, 0)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(sydney))
+
+        // The bug, demonstrated on the untouched sample first.
+        XCTAssertEqual(calendar(london).startOfDay(for: stored[0].start),
+                       instant(london, 2026, 8, 6, 0))
+        // The fix.
+        let here = SleepTravel.onsets(in: stored, calendar: calendar(london))
+        XCTAssertEqual(here[0].start, instant(london, 2026, 8, 7, 0))
+        XCTAssertEqual(here[0].start.addingTimeInterval(here[0].value * 3600)
+                           .timeIntervalSince1970,
+                       bedtime.timeIntervalSince1970, accuracy: 1)
+    }
+
+    /// Applying it twice must change nothing — a later app-wide pass over the
+    /// same samples is expected, and two passes must not compound.
+    func testReRenderingIsIdempotent() {
+        let bedtime = instant(manila, 2026, 8, 6, 23, 10)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(manila))
+        let once = SleepTravel.onsets(in: stored, calendar: calendar(sydney))
+        let twice = SleepTravel.onsets(in: once, calendar: calendar(sydney))
+        XCTAssertEqual(once[0].start, twice[0].start)
+        XCTAssertEqual(once[0].value, twice[0].value, accuracy: 0.0001)
+    }
+
+    /// A reader who has not moved must see exactly what they saw before. This
+    /// is the regression guard on two years of untravelled history.
+    func testAnUntravelledNightIsUnchanged() {
+        let bedtime = instant(sydney, 2026, 8, 6, 22, 45)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(sydney))
+        let here = SleepTravel.onsets(in: stored, calendar: calendar(sydney))
+        XCTAssertEqual(here[0].start, stored[0].start)
+        XCTAssertEqual(here[0].value, stored[0].value, accuracy: 0.0001)
+    }
+
+    /// Beyond twelve hours the minted label cannot be preserved — `nightDay`
+    /// says so out loud. What must survive is the *instant*: the reader in
+    /// Honolulu is shown the moment they actually fell asleep, on the day they
+    /// lived it, rather than a value folded out of the encoding's range.
+    func testBeyondTwelveHoursTheInstantSurvivesAndTheLabelMoves() {
+        let honolulu = TimeZone(identifier: "Pacific/Honolulu")!   // UTC−10
+        let bedtime = instant(sydney, 2026, 8, 6, 23, 0)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(sydney))
+        let here = SleepTravel.onsets(in: stored, calendar: calendar(honolulu))
+        XCTAssertLessThan(abs(here[0].value), 12)
+        XCTAssertEqual(calendar(honolulu).startOfDay(for: here[0].start), here[0].start)
+        XCTAssertEqual(here[0].start.addingTimeInterval(here[0].value * 3600)
+                           .timeIntervalSince1970,
+                       bedtime.timeIntervalSince1970, accuracy: 1)
+    }
+
+    func testReRenderingIgnoresEverythingThatIsNotAnOnset() {
+        let samples = [HealthMetricSample(type: .sleepDurationHours, value: 7,
+                                          start: Date(), source: .oura),
+                       HealthMetricSample(type: .restingHeartRate, value: 52,
+                                          start: Date(), source: .oura)]
+        XCTAssertTrue(SleepTravel.onsets(in: samples, calendar: calendar(sydney)).isEmpty)
+    }
+
+    // MARK: - The render sites, end to end
+
+    /// The chart the reader actually looks at. `CircadianConsistencyModel.nights`
+    /// feeds `SleepOnsetChart`, `SleepOnsetStripChart` and the ideal-window
+    /// section, and until this it drew a Manila bedtime two hours from where it
+    /// happened.
+    func testCircadianNightsRenderInTheReadersCurrentZone() {
+        let bedtime = instant(manila, 2026, 8, 6, 23, 10)
+        let stored = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                        source: .oura, calendar: calendar(manila))
+        let nights = CircadianConsistencyModel.nights(
+            from: stored, days: 30,
+            now: instant(sydney, 2026, 8, 8, 12), calendar: calendar(sydney))
+        XCTAssertEqual(nights.count, 1)
+        XCTAssertEqual(nights[0].date, instant(sydney, 2026, 8, 7, 0))
+        XCTAssertEqual(nights[0].value, 70.0 / 60, accuracy: 0.01)
+    }
+
+    /// `SleepRegularityIndex` rebuilds each episode as `key + onset·3600`, so a
+    /// disagreeing pair moves the whole sleep block on its grid — not a
+    /// cosmetic error. The rebuilt start must be the instant sleep began.
+    func testRegularityIntervalsRebuildTheTrueInstant() {
+        let bedtime = instant(manila, 2026, 8, 6, 23, 10)
+        let key = SleepOnset.night(of: bedtime, calendar: calendar(manila))
+        var samples = SleepOnset.samples(fromSegmentStarts: [bedtime],
+                                         source: .oura, calendar: calendar(manila))
+        samples.append(HealthMetricSample(type: .sleepDurationHours, value: 7,
+                                          start: key, source: .oura))
+
+        let intervals = SleepRegularityIndex.intervals(
+            from: samples, days: 30,
+            now: instant(sydney, 2026, 8, 8, 12), calendar: calendar(sydney))
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals[0].start.timeIntervalSince1970,
+                       bedtime.timeIntervalSince1970, accuracy: 60)
+    }
+
     // MARK: - Problem 2: elapsed is right, the clock is not
 
     func testZoneSpanMeasuresTheOvernightShift() {

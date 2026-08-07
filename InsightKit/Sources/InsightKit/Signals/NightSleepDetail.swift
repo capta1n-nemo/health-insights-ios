@@ -256,17 +256,30 @@ public struct NightSleepDetail: Sendable, Equatable {
     }
 
     /// night day → source name → its window band.
+    ///
+    /// ⚠️ **Keyed by `wakeDay`, and the onsets come through
+    /// `SleepTravel.onsets(in:)`.** Both were `calendar.startOfDay(for:
+    /// sample.start)` until 2026-08-07 and both were wrong for a reader who
+    /// moves. A night key is local midnight *in the zone that minted it*: read
+    /// from a zone far enough west, `startOfDay` on it lands a day early, so
+    /// this lane keyed to a different day than `appleSegments` — which already
+    /// used `wakeDay` — and the two lanes for one night split apart. And the
+    /// stored onset *value* is signed hours from midnight there, so
+    /// `key + onset·3600` below drew the reader's Manila bedtime two hours from
+    /// where it happened once they were home in Sydney. The re-render puts both
+    /// halves in the viewing zone, which is what the reader asked for.
     private static func windowLanes(samples: [HealthMetricSample],
                                     calendar: Calendar) -> [Date: [String: Band]] {
         let sleepSamples = samples.filter { $0.source.id != MetricSource.oura.id }
         struct Key: Hashable { let day: Date; let source: String }
         var onsets: [Key: Double] = [:]
         var durations: [Key: Double] = [:]
-        for sample in sleepSamples {
-            let key = Key(day: calendar.startOfDay(for: sample.start),
-                          source: sample.source.displayName)
-            if sample.type == .sleepOnset { onsets[key] = sample.value }
-            if sample.type == .sleepDurationHours { durations[key] = sample.value }
+        for sample in SleepTravel.onsets(in: sleepSamples, calendar: calendar) {
+            onsets[Key(day: sample.start, source: sample.source.displayName)] = sample.value
+        }
+        for sample in sleepSamples where sample.type == .sleepDurationHours {
+            durations[Key(day: wakeDay(of: sample.start, calendar: calendar),
+                          source: sample.source.displayName)] = sample.value
         }
         var out: [Date: [String: Band]] = [:]
         for (key, onset) in onsets {

@@ -105,7 +105,7 @@ the place to look.
   - `SharingPreferences` :113
   - `SharingTier` :31
 - `Ingestion/DayStamp.swift`
-  - `DayStamp` :45
+  - `DayStamp` :77
 - `Ingestion/FieldCatalogue.swift`
   - `FieldCatalogue` :58
   - `FieldDescriptor` :9
