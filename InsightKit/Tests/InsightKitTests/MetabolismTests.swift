@@ -110,8 +110,16 @@ final class MetabolismTests: XCTestCase {
             samples: samples(days: 28, logEvery: 2),
             profile: UserHealthProfile(), now: metNow)
         XCTAssertNil(result.score)
-        XCTAssertTrue(result.explanation.contains("flatter") || result.drivers.isEmpty,
-                      result.explanation)
+        // **Two claims, two asserts.** This was one disjunction —
+        // `contains("flatter") || drivers.isEmpty` — under which the wording pin
+        // could rot while the unrelated empty-drivers half kept it green, and
+        // vice versa. Both halves are true of the shipped card, so both are
+        // asserted.
+        XCTAssertTrue(result.explanation.contains("flatter"),
+                      "the card no longer says *why* it is withholding the number: "
+                      + result.explanation)
+        XCTAssertTrue(result.drivers.isEmpty,
+                      "a card with no score must not still list drivers: \(result.drivers)")
     }
 
     /// A reader who started logging a fortnight ago and has logged every day

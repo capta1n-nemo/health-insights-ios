@@ -18,15 +18,49 @@ final class ContributorDepartureTests: XCTestCase {
     /// Every metric a model reports as a contributor is accounted for by the
     /// departure panel — drawn as a row, or named as unjudged/stale. Silence is
     /// the one thing it may not be.
+    ///
+    /// ⚠️ **On `ContributorsFixture.fullCoverage`, not `GoldenDataset`, since
+    /// 2026-08-07.** The golden dataset carries five metrics (HR, RHR, rMSSD,
+    /// temperature, sleep), and this sweep opens with
+    /// `guard !contributors.isEmpty else { continue }` — so Fitness, Body
+    /// Composition, Blood Pressure, Nutrition, Metabolism, Gait and the rest
+    /// had **never once** been checked against the departure panel. Every one
+    /// of them was skipped in silence by the test whose name says it covers
+    /// every contributor. The guard survives because log-driven cards
+    /// legitimately have nothing to check; what it may no longer do is decide
+    /// on its own which cards those are, which is
+    /// `testTheSweepExaminesEveryModelThatCanHaveContributors` below.
+    /// A metric the clinical scan deliberately hides behind a better one.
+    ///
+    /// `Spec.supersededBy` exists so the same physiology is not drawn twice —
+    /// raw skin temperature stands down when the deviation produced a reading.
+    /// The card still scores both, so "accounted for" has to mean *this metric
+    /// or the one standing in for it*, or the sweep would demand the panel undo
+    /// a rule the scan applies on purpose.
+    private func supersedes(_ metric: MetricType) -> MetricType? {
+        VitalSignsCheck.specs.first { $0.metric == metric }?.supersededBy
+    }
+
     func testEveryContributorIsAccountedForInTheDeparturePanel() {
         let now = TestClock.now
-        let samples = GoldenDataset.samples()
+        let samples = ContributorsFixture.fullCoverage(now: now)
         let profile = ContributorsFixture.profile(now: now)
         let scan = VitalSignsCheck.evaluate(samples: samples, now: now)
+        var checked = 0
 
         for model in InsightEngine().models {
             let result = model.evaluate(samples: samples, profile: profile, now: now)
             let contributors = result.contributors.map(\.metric)
+                .filter { !PeerStandingModel.isModelled($0) }
+            // **What the card actually scores.** A zero-weight contributor is
+            // charted rather than scored, and the panel leaves it out on
+            // purpose — its own doc: "the same decision the weighted
+            // contribution card makes for zero-weight contributors ... a mark
+            // at the origin claims a measurement that was never judged". The
+            // regression this test was written for (sleep duration on
+            // Readiness) carries weight 0.20, so this narrowing keeps every
+            // case the name promises.
+            let scored = result.contributors.filter { $0.weight > 0 }.map(\.metric)
                 .filter { !PeerStandingModel.isModelled($0) }
             guard !contributors.isEmpty else { continue }
 
@@ -38,15 +72,66 @@ final class ContributorDepartureTests: XCTestCase {
 
             let accounted = Set(panel.rows.map(\.metric))
                 .union(panel.unjudged).union(panel.stale)
-            for metric in contributors {
+            for metric in scored {
+                checked += 1
                 XCTAssertTrue(
-                    accounted.contains(metric),
+                    accounted.contains(metric)
+                        || supersedes(metric).map(accounted.contains) == true,
                     "\(model.id.rawValue): \(metric.rawValue) is scored under "
                         + "\"What goes into this\" but appears nowhere in \"How far "
                         + "from your normal\" — the counts on the two sections will "
                         + "disagree and the reader cannot tell why.")
             }
         }
+
+        // The sweep's own reach, stated so a future narrowing cannot hollow it
+        // out in silence: on `GoldenDataset` it checked a couple of dozen
+        // metric/card pairs across five cards; it now checks the register.
+        XCTAssertGreaterThan(checked, 50,
+                             "the sweep now examines only \(checked) scored contributors — "
+                             + "something upstream stopped producing them")
+    }
+
+    /// **The census.** The sweep above may skip a card only because that card
+    /// genuinely reports no sensed contributors — never because the fixture was
+    /// too thin to make it speak.
+    ///
+    /// Same shape as `ScoreAttributionTests.testEveryRegisteredModelScores
+    /// OnTheFixture`, and here for the same reason: a `guard … continue` is a
+    /// guard that hides, and the only defence is a companion asserting that the
+    /// set examined is the set that exists. The exemption is derived from
+    /// `InsightModel.readsOnlySamples` rather than listed, so a new log-driven
+    /// card needs no edit here and a new *sensed* card that stays silent fails.
+    func testTheSweepExaminesEveryModelThatCanHaveContributors() {
+        let now = TestClock.now
+        let samples = ContributorsFixture.fullCoverage(now: now)
+        let profile = ContributorsFixture.profile(now: now)
+
+        var examined: [InsightID] = []
+        var silent: [InsightID] = []
+        for model in InsightEngine().models {
+            let contributors = model.evaluate(samples: samples, profile: profile, now: now)
+                .contributors.map(\.metric)
+                .filter { !PeerStandingModel.isModelled($0) }
+            if contributors.isEmpty { silent.append(model.id) } else { examined.append(model.id) }
+        }
+
+        // Cards whose input is a log the fixture does not carry — a substance
+        // entry, a calendar, a flight. They have nothing sensed to place on a
+        // departure panel, and that is a property of the card, not of the data.
+        let logDriven = Set(InsightEngine().models.filter { !$0.readsOnlySamples }.map(\.id))
+        XCTAssertTrue(silent.allSatisfy { logDriven.contains($0) },
+                      "these cards read samples and still contribute nothing on a fully "
+                      + "covered fixture, so the departure sweep skips them without "
+                      + "saying so: \(silent.filter { !logDriven.contains($0) }.map(\.rawValue))")
+
+        // Stated in the failing direction as well: the sweep must actually be
+        // looking at more than a handful of cards. On `GoldenDataset` — five
+        // metrics — it examined a fraction of the register for weeks.
+        XCTAssertGreaterThanOrEqual(
+            examined.count, InsightEngine().models.count - logDriven.count,
+            "the departure sweep examines only \(examined.count) of "
+            + "\(InsightEngine().models.count) cards: \(examined.map(\.rawValue))")
     }
 
     /// The specific regression: Readiness scores sleep duration at weight 0.20,

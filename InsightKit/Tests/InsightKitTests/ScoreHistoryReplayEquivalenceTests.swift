@@ -82,6 +82,17 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
                                        calendar: utc, now: referenceNow)
         let slow = naiveReplay(model: model, samples: samples, events: events,
                                profile: profile, days: days)
+        // **Two empty arrays agree about everything.** Every assertion below is
+        // satisfied by a model that scored nothing at all, which is not a
+        // property of the optimisation — and it was happening: until 2026-08-07
+        // `testAgreesAcrossModels` passed `SleepInsight` a fixture with no stage
+        // data, so that third of the test compared [] against [] and reported
+        // success. A caller that genuinely wants the empty case should assert
+        // it directly rather than through this helper.
+        XCTAssertFalse(fast.isEmpty,
+                       "the replay produced no points at all, so nothing below is being "
+                       + "compared — the fixture does not reach this model",
+                       file: file, line: line)
         XCTAssertEqual(fast.count, slow.count, "point count", file: file, line: line)
         for (a, b) in zip(fast, slow) {
             XCTAssertEqual(a.date, b.date, file: file, line: line)
@@ -106,6 +117,24 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
             out.append(.init(type: .restingHeartRate, value: 58 + jitter * 0.4,
                              start: date, source: .oura))
             out.append(.init(type: .sleepDurationHours, value: 7.2 + jitter * 0.1,
+                             start: date, source: .oura))
+        }
+        return out
+    }
+
+    /// `dense` plus the stage breakdown, so `SleepInsight` has enough to score
+    /// a day. Without it that model returns nothing and any comparison against
+    /// it is vacuous — which is what `testAgreesAcrossModels` was doing.
+    private func denseWithStages(days: Int) -> [HealthMetricSample] {
+        var out = dense(days: days)
+        for i in stride(from: days - 1, through: 0, by: -1) {
+            let date = TestClock.day(i)
+            let jitter = Double(i % 5) - 2
+            out.append(.init(type: .sleepEfficiency, value: 88 + jitter * 0.5,
+                             start: date, source: .oura))
+            out.append(.init(type: .sleepDeepMinutes, value: 90 + jitter,
+                             start: date, source: .oura))
+            out.append(.init(type: .sleepRemMinutes, value: 95 + jitter,
                              start: date, source: .oura))
         }
         return out
@@ -177,11 +206,20 @@ final class ScoreHistoryReplayEquivalenceTests: XCTestCase {
 
     /// Different models read different metric sets, so they take different paths
     /// through the pre-filter and the contributor count.
+    ///
+    /// ⚠️ **This test ran one model twice and a second one on nothing.** Two of
+    /// its three lines were `ReadinessInsight` — a copy-paste — and the third
+    /// gave `SleepInsight` a fixture with no stage data, on which it scores no
+    /// days at all, so that comparison was `[]` against `[]`. "Different models
+    /// take different paths" was pinned by exactly one path. Fixed 2026-08-07:
+    /// Energy replaces the duplicate, Sleep gets a fixture it can score on, and
+    /// `assertAgrees` now fails on an empty replay so this cannot recur
+    /// silently.
     func testAgreesAcrossModels() {
         let samples = dense(days: 40)
         assertAgrees(ReadinessInsight(), samples: samples, days: 40)
-        assertAgrees(ReadinessInsight(), samples: samples, days: 40)
-        assertAgrees(SleepInsight(), samples: samples, days: 40)
+        assertAgrees(EnergyInsight(), samples: samples, days: 40)
+        assertAgrees(SleepInsight(), samples: denseWithStages(days: 40), days: 40)
     }
 
     /// The invariant the optimisation rests on, asserted directly rather than

@@ -238,9 +238,135 @@ final class HealthDataExportTests: XCTestCase {
         XCTAssertTrue(json.contains("\"higherIsBetter\""))
     }
 
+    // MARK: - The round trip, actually taken
+
+    /// **Everything, out and back.**
+    ///
+    /// Until 2026-08-07 every assertion in this file was `json.contains("key")`
+    /// — including one titled "must survive the round trip" that never decoded.
+    /// A substring cannot see a shape, and a shape is what went wrong: on
+    /// 2026-08-05 an importer lost all four sections of a real file because
+    /// `UserHealthProfile.inputs` does not encode as the object everyone
+    /// assumed. The encode side was word-perfect throughout.
+    ///
+    /// Compared as whole values rather than field by field, deliberately: a
+    /// field added to `HealthDataExport` next month is compared by this test
+    /// without anyone remembering to add it, which is the difference between
+    /// closing an instance and closing the category. It is also why
+    /// `Equatable` was added to the type.
+    func testTheWholeExportSurvivesADecode() throws {
+        let original = fullyPopulated()
+        let decoded = try HealthDataExport.decoded(from: original.json())
+
+        // Named first so a failure says *which* section moved, then the whole
+        // value so a new one cannot be added without being compared.
+        XCTAssertEqual(decoded.samples, original.samples)
+        XCTAssertEqual(decoded.unmodelled, original.unmodelled)
+        XCTAssertEqual(decoded.substances, original.substances)
+        XCTAssertEqual(decoded.medication, original.medication)
+        XCTAssertEqual(decoded.previousMedication, original.previousMedication)
+        XCTAssertEqual(decoded.sideEffects, original.sideEffects)
+        XCTAssertEqual(decoded.symptoms, original.symptoms)
+        XCTAssertEqual(decoded.bodyScans, original.bodyScans)
+        XCTAssertEqual(decoded.profile, original.profile)
+        XCTAssertEqual(decoded.derivedScores, original.derivedScores)
+        XCTAssertEqual(decoded.cycles, original.cycles)
+        XCTAssertEqual(decoded.holidays, original.holidays)
+        XCTAssertEqual(decoded.generatedInsights, original.generatedInsights)
+        XCTAssertEqual(decoded.schemaVersion, HealthDataExport.schemaVersion)
+        XCTAssertEqual(decoded, original)
+    }
+
+    /// **The exact shape that broke the importer, pinned.**
+    ///
+    /// `UserHealthProfile.inputs` is `[GroundingKind: GroundingInput]`, and
+    /// Swift encodes a dictionary whose key is neither `String` nor `Int` as an
+    /// **alternating key/value array**, not an object. Every hand-rolled reader
+    /// of this file will assume otherwise, so the shape is asserted here rather
+    /// than left as folklore — and the assertion is in the failing direction: if
+    /// `GroundingKind` ever gains `CodingKeyRepresentable`, the payload becomes
+    /// an object, every such reader breaks again, and this test says so.
+    func testTheProfileEncodesAsAnAlternatingArrayAndStillDecodes() throws {
+        let original = fullyPopulated()
+        let payload = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: original.json()) as? [String: Any])
+        let profile = try XCTUnwrap(payload["profile"] as? [String: Any],
+                                    "profile is no longer a keyed object")
+        let inputs = try XCTUnwrap(profile["inputs"],
+                                   "the profile's own facts are missing from the file")
+        XCTAssertNotNil(inputs as? [Any],
+                        "`inputs` is no longer an alternating key/value array — every "
+                        + "reader of this file that assumed an object has just broken, "
+                        + "and the 2026-08-05 import defect is the shape of what happens")
+        XCTAssertNil(inputs as? [String: Any])
+
+        // And the thing that matters: it comes back.
+        let decoded = try HealthDataExport.decoded(from: original.json())
+        XCTAssertEqual(decoded.profile.value(.totalCholesterol), 5.1)
+        XCTAssertEqual(decoded.profile.inputs.count, original.profile.inputs.count)
+    }
+
+    /// A fresh install's file must decode too — the empty case is the one a
+    /// reader is most likely to hand back first, and `[]` vs absent is the
+    /// distinction the hand-written encoders exist to keep.
+    func testAnEmptyExportSurvivesADecode() throws {
+        let original = bundle(empty: true)
+        let decoded = try HealthDataExport.decoded(from: original.json())
+        XCTAssertEqual(decoded, original)
+        XCTAssertNil(decoded.medication, "an explicit null must read back as nil, not as a throw")
+        XCTAssertTrue(decoded.samples.isEmpty)
+        XCTAssertTrue(decoded.previousMedication.isEmpty)
+    }
+
+    /// The nulls the encoders were hand-written to produce have to read back as
+    /// nils. An explicit `null` that throws on decode is no better than a
+    /// missing key.
+    func testExplicitNullsDecodeAsNils() throws {
+        let now = TestClock.now
+        let allNil = HealthDataExport(
+            generatedAt: now, build: "test",
+            samples: [], unmodelled: [], substances: [],
+            medication: .init(compound: "tirzepatide", brandName: nil, startedOn: now,
+                              doses: [.init(takenAt: now, milligrams: 5, injectionSite: nil,
+                                            isInferred: true, confirmedAt: nil)]),
+            sideEffects: [], profile: UserHealthProfile(),
+            derivedScores: [.init(card: "sleep", title: "Sleep", score: nil,
+                                  primaryValue: nil, headline: "No data yet",
+                                  confidence: "low", history: [])])
+        let decoded = try HealthDataExport.decoded(from: allNil.json())
+        let dose = try XCTUnwrap(decoded.medication?.doses.first)
+        XCTAssertNil(dose.confirmedAt)
+        XCTAssertNil(dose.injectionSite)
+        XCTAssertTrue(dose.isInferred, "an inferred dose must not read back as a logged one")
+        XCTAssertNil(decoded.medication?.brandName)
+        XCTAssertNil(decoded.derivedScores.first?.score)
+        XCTAssertNil(decoded.derivedScores.first?.primaryValue)
+        XCTAssertEqual(decoded, allNil)
+    }
+
+    /// Dates are written as ISO-8601 without fractional seconds, so the file
+    /// carries whole seconds and a re-read instant is truncated. Stated as a
+    /// test because it is a property of the file that a reader pooling these
+    /// needs to know, and because it is the one place whole-value equality
+    /// above could quietly stop meaning what it says.
+    func testDatesRoundTripToTheSecond() throws {
+        let odd = TestClock.now.addingTimeInterval(0.75)
+        let export = HealthDataExport(
+            generatedAt: odd, build: "test", samples: [], unmodelled: [], substances: [],
+            medication: nil, sideEffects: [], profile: UserHealthProfile(), derivedScores: [])
+        let decoded = try HealthDataExport.decoded(from: export.json())
+        XCTAssertEqual(decoded.generatedAt.timeIntervalSince1970,
+                       TestClock.now.timeIntervalSince1970, accuracy: 1e-9,
+                       "sub-second precision is not in the file; if that changes, say so here")
+    }
+
     /// The distinctions that matter downstream must survive the round trip: an
     /// inferred dose is not a logged one, and a derived score is not a
     /// measurement.
+    ///
+    /// Kept as an encode-side key check — the decode half of the claim its
+    /// title makes is `testExplicitNullsDecodeAsNils` above, which is where it
+    /// should have been all along.
     func testTheInferredFlagAndDerivedScoresSurvive() throws {
         let json = try XCTUnwrap(String(data: bundle().json(), encoding: .utf8))
         XCTAssertTrue(json.contains("\"isInferred\""))

@@ -38,15 +38,32 @@ import Foundation
 /// cohort-stratified, no-free-text thing a pool would actually receive is a
 /// different type — `NormContribution` — and nothing in this build sends
 /// either.
-public struct HealthDataExport: Encodable, Sendable {
+///
+/// ## Why it decodes as well as encodes (2026-08-07)
+///
+/// This type was `Encodable` only, and every test on it asserted
+/// `json.contains("\"key\"")` — one of them titled "must survive the round trip"
+/// without ever decoding. A substring check cannot see a *shape*: on 2026-08-05
+/// an importer lost all four sections of a file because
+/// `UserHealthProfile.inputs` is a dictionary keyed by an enum, which Swift
+/// encodes as an alternating key/value **array** rather than an object. The
+/// encode side was word-perfect and the file was still unreadable.
+///
+/// So the conformance is `Codable`, and `decoded(from:)` below is the one place
+/// the reading strategy is stated — an importer that calls it cannot pair
+/// `.iso8601` on the way out with a bare decoder on the way in. `Equatable` is
+/// here for the same reason and is the part that ages well: the round-trip test
+/// compares whole values, so a field added later is compared without anyone
+/// remembering to add it to a list.
+public struct HealthDataExport: Codable, Equatable, Sendable {
 
     /// Bumped when a field is added or renamed, so an export can be read
     /// against the shape it was written with. 3 added `holidays`;
     /// 4 added `generatedInsights`.
     public static let schemaVersion = 4
 
-    public struct Medication: Encodable, Sendable {
-        public struct Dose: Encodable, Sendable {
+    public struct Medication: Codable, Equatable, Sendable {
+        public struct Dose: Codable, Equatable, Sendable {
             public let takenAt: Date
             public let milligrams: Double
             public let injectionSite: String?
@@ -116,7 +133,7 @@ public struct HealthDataExport: Encodable, Sendable {
         }
     }
 
-    public struct SideEffect: Encodable, Sendable {
+    public struct SideEffect: Codable, Equatable, Sendable {
         public let name: String
         public let severity: Int
         public let date: Date
@@ -136,7 +153,7 @@ public struct HealthDataExport: Encodable, Sendable {
     /// titles are the one thing the export must not hold (see
     /// `exportKey(for: .calendarEvents)`). The dates are the data point;
     /// `label` is only ever the reader's own typed words.
-    public struct Holiday: Encodable, Sendable {
+    public struct Holiday: Codable, Equatable, Sendable {
         /// First and last day off, both inclusive — `HolidayLedger.Period`'s
         /// own convention, kept so the file round-trips without an off-by-one.
         public let firstDay: Date
@@ -172,8 +189,8 @@ public struct HealthDataExport: Encodable, Sendable {
     /// A card's own output — the number the reader was shown, and the replayed
     /// history behind it. These are **derived, not measured**, and the export
     /// says so in the key name rather than mixing them in with `samples`.
-    public struct DerivedScore: Encodable, Sendable {
-        public struct Point: Encodable, Sendable {
+    public struct DerivedScore: Codable, Equatable, Sendable {
+        public struct Point: Codable, Equatable, Sendable {
             public let date: Date
             public let score: Double
             public init(date: Date, score: Double) {
@@ -232,8 +249,8 @@ public struct HealthDataExport: Encodable, Sendable {
     /// `DerivedSeriesKind` raw value and `producedBy` is an `InsightID` raw
     /// value, so the file says which card owns the figure without anyone
     /// parsing the id.
-    public struct DerivedSeries: Encodable, Sendable {
-        public struct Point: Encodable, Sendable {
+    public struct DerivedSeries: Codable, Equatable, Sendable {
+        public struct Point: Codable, Equatable, Sendable {
             /// Start of the day the value belongs to, as `DerivedPoint` stores it.
             public let day: Date
             public let value: Double
@@ -490,6 +507,22 @@ public struct HealthDataExport: Encodable, Sendable {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(self)
+    }
+
+    /// Read a file this type wrote. **The one place the reading strategy lives.**
+    ///
+    /// `json()` sets `.iso8601`; a decoder that does not is a file full of
+    /// unreadable dates, and the mismatch is invisible until someone tries to
+    /// import. Pairing the two here means an importer cannot get half of the
+    /// contract — which is the half that went wrong on 2026-08-05.
+    ///
+    /// ⚠️ Dates round-trip to **whole seconds**: ISO-8601 without fractional
+    /// seconds is what `json()` writes, so a re-read `generatedAt` is truncated.
+    /// That is a property of the file, not of this function.
+    public static func decoded(from data: Data) throws -> HealthDataExport {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(HealthDataExport.self, from: data)
     }
 
     // MARK: - Encoding

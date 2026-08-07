@@ -392,7 +392,17 @@ final class PeerStandingTests: XCTestCase {
             profile: profile(age: 30, male: true), now: cardNow, calendar: cardCalendar))
         let lean = try XCTUnwrap(output.standings.first { $0.metric == .leanBodyMass })
         XCTAssertEqual(lean.value, 60.0 / (1.80 * 1.80), accuracy: 0.01)
-        XCTAssertEqual(lean.percentile, 45, accuracy: 12)
+        // **The comment above is the claim, so the assert has to be able to
+        // refute it.** This was `45, accuracy: 12` — anything from 33 to 57, a
+        // quarter of the whole scale, so a reading of 57 would have satisfied
+        // it while contradicting "a little under the fiftieth centile". The
+        // direction is the claim; the band is what makes a drifting norm table
+        // visible.
+        XCTAssertLessThan(lean.percentile, 50,
+                          "FFMI 18.5 is below the young-male mean of 19.0, so it cannot "
+                          + "be at or above the fiftieth centile")
+        XCTAssertEqual(lean.percentile, 38.9, accuracy: 1,
+                       "the male FFMI norm has moved — decide whether that was intended")
         XCTAssertEqual(lean.displayLabel, "18.5 kg/m² (FFMI)")
         XCTAssertTrue(output.unNormed.isEmpty)
 

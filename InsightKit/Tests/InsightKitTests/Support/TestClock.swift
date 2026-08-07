@@ -70,3 +70,18 @@ extension OuraResponseParser {
         try parseSleep(data, calendar: TestClock.utc)
     }
 }
+
+extension WhoopResponseParser {
+
+    /// The Whoop twin, added 2026-08-07 with the parser's calendar overload.
+    ///
+    /// Whoop's sleep parser feeds `SleepOnset.samples(fromSegmentStarts:)` and
+    /// so has exactly the local-midnight dependence the Oura note above
+    /// describes: a `23:10Z` fixture is a valid bedtime in UTC and, at UTC+10,
+    /// a 09:10 reading thrown away as a nap. Until this existed the Whoop
+    /// onset output was untested *and untestable deterministically* — which is
+    /// the reason the audit called it out, not the parser being wrong.
+    static func parseSleepUTC(_ data: Data) throws -> [HealthMetricSample] {
+        try parseSleep(data, calendar: TestClock.utc)
+    }
+}

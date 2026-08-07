@@ -482,7 +482,7 @@ the place to look.
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/HealthDataExport.swift`
-  - `HealthDataExport` :41
+  - `HealthDataExport` :58
 - `Text/ModelInternalsExport.swift`
   - `ModelInternalsExport` :25
 - `Text/PlainText.swift`

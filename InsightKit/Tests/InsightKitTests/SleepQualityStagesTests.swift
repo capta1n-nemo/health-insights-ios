@@ -108,12 +108,35 @@ final class SleepQualityStagesTests: XCTestCase {
 
     /// Absent stage data must not be penalised — most of the world has a phone
     /// and no ring, and a night with no breakdown is not a bad night.
+    ///
+    /// **Stated as a position between two measured nights, not as a tolerance.**
+    /// This was `XCTAssertEqual(bare, full, accuracy: 12)` on a 0–100 score: a
+    /// twelve-point penalty passed the test whose name says a penalty is the one
+    /// thing that must not happen. "Neutral" has a testable meaning — the
+    /// phone-only reader lands *inside* the range a ring-wearer spans, above a
+    /// poor breakdown and below a good one — and that is what is asserted here.
+    /// Every number below is a measured behaviour of the model, not a guess.
     func testANightWithNoBreakdownIsNotPunished() throws {
         let bare = try XCTUnwrap(evaluate(samples(hours: 8)).score)
-        let full = try XCTUnwrap(
+
+        // Poor efficiency and a poor restorative share: the nights a breakdown
+        // is *supposed* to mark down. No breakdown must score better than these,
+        // or absence is being read as bad news.
+        let poorEfficiency = try XCTUnwrap(evaluate(samples(hours: 8, efficiency: 70)).score)
+        let poorStages = try XCTUnwrap(
+            evaluate(samples(hours: 8, deepMinutes: 24, remMinutes: 24)).score)
+        XCTAssertGreaterThan(bare, poorEfficiency,
+                             "a night with no breakdown is scored worse than a measured bad "
+                             + "one — that is the penalty this test exists to forbid")
+        XCTAssertGreaterThan(bare, poorStages, "same, for the restorative share")
+
+        // And a genuinely good breakdown still earns its bonus: neutral means
+        // in between, not "as good as the best".
+        let good = try XCTUnwrap(
             evaluate(samples(hours: 8, efficiency: 88, deepMinutes: 96, remMinutes: 96)).score)
-        XCTAssertEqual(bare, full, accuracy: 12,
-                       "a missing breakdown should be neutral, not a penalty")
+        XCTAssertLessThan(bare, good,
+                          "a measured good night no longer scores above an unmeasured one, "
+                          + "so the breakdown has stopped counting for anything")
     }
 
     /// Contributors drive the detail chart, so a term that moved the score has
