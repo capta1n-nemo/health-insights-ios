@@ -1360,37 +1360,109 @@ if [ "${1:-}" = "--tests" ]; then
         else
             note "Running the app-target tests on $sim (Mac only — CI cannot run these)."
             apptestlog="${TMPDIR:-/tmp}/healthinsights-app-tests.log"
+            apptestdd="$DERIVED_ROOT/${DERIVED_SLOT/verify-ios/verify-apptests}"
+
+            # --- D63: make the failure say what it is ----------------------
+            #
+            # This block used to grep for `error:` and, finding none, tell the
+            # reader "the host may have crashed" — a maybe, in the one place a
+            # session needs a yes or a no. Under ten-plus concurrent worktree
+            # builds on 2026-08-07 it failed repeatedly and differently each
+            # time, and its silence produced three wrong diagnoses, the last of
+            # which nearly pushed past the gate on a contaminated comparison.
+            #
+            # ⚠️ **It was right to block every single time.** So nothing here
+            # softens the gate: a real assertion still fails, first time, with
+            # no retry. What changes is that the output now names which of two
+            # different sentences this is —
+            #   * *a test ran and disagreed with the code*  → your diff, stop;
+            #   * *the host was killed before it ran*       → the machine —
+            # and only the second kind is retried, once, out loud, with the
+            # machine's load printed beside it as evidence.
+            #
+            # `app-test-report.sh` owns the classification and canaries itself
+            # (`--self-test`). It also closes the inverse hole: a suite that
+            # executed **zero tests** used to print a green tick.
+            run_app_tests() {
+                xcodebuild test \
+                    -project "$APP.xcodeproj" \
+                    -scheme "$APP" \
+                    -destination "platform=iOS Simulator,name=$sim" \
+                    -derivedDataPath "$apptestdd" \
+                    CODE_SIGNING_ALLOWED=NO > "$apptestlog" 2>&1
+            }
+
             apptestfail=0
-            xcodebuild test \
-                -project "$APP.xcodeproj" \
-                -scheme "$APP" \
-                -destination "platform=iOS Simulator,name=$sim" \
-                -derivedDataPath "$DERIVED_ROOT/${DERIVED_SLOT/verify-ios/verify-apptests}" \
-                CODE_SIGNING_ALLOWED=NO > "$apptestlog" 2>&1 || apptestfail=1
-            # Same collision check, and for the same reason, as the compile
-            # above: a locked build database prints two `error:` lines for
-            # something that is not a test failure at all.
-            if [ "$apptestfail" -ne 0 ] && grep -q 'database is locked' "$apptestlog"; then
-                note 'Another build holds this derived-data path — NOT a test failure, and not your diff.'
-                printf '%s\n' "Path: $DERIVED_ROOT/${DERIVED_SLOT/verify-ios/verify-apptests}"
-                printf '%s\n' 'Wait for it to finish and run this again. Nothing here has been checked, so this is not a pass.'
-                fail=1
-            elif [ "$apptestfail" -ne 0 ]; then
-                note 'The app-target tests failed:'
-                grep -E 'error:|Restarting after unexpected exit' "$apptestlog" | head -12
-                # A test run can fail without printing `error:` — a crashed host
-                # leaves a stack trace and no such line. Naming that is the
-                # difference between a diagnosis and an empty grep the reader
-                # has to conclude means nothing happened.
-                grep -qE 'error:' "$apptestlog" \
-                    || printf '%s\n' "No 'error:' line — the host may have crashed. Full log: $apptestlog"
-                printf '%s\n' "Full output: $apptestlog"
-                fail=1
-            else
+            run_app_tests || apptestfail=1
+            appreport=$(./scripts/app-test-report.sh verdict "$apptestlog" "$apptestfail")
+            apptoken=$(printf '%s\n' "$appreport" | head -1 | awk '{print $1}')
+            appretryable=$(printf '%s\n' "$appreport" | head -1 | awk '{print $2}')
+            appfirst=$apptoken
+
+            # **One retry, and only for what is not attributable to the diff.**
+            # Announced before it happens, because a silent retry is how
+            # flakiness stops being visible — and invisible flakiness is what
+            # trained the session to argue for pushing through it.
+            if [ "$appretryable" = 1 ]; then
+                note "App-target tests: $apptoken — not attributable to your diff. Retrying once (D63)."
+                printf '%s\n' "$appreport" | tail -n +2
+                # Read **now**, not before the run started. An earlier version
+                # sampled the load up front and printed a quiet machine beside
+                # a host that had just been killed by a loaded one — a wrong
+                # number is worse than no number, because it argues.
+                ./scripts/app-test-report.sh load
+                # Keep the first attempt's log. It is the only record of what
+                # the machine did, and the retry would otherwise overwrite the
+                # evidence that justified retrying.
+                cp "$apptestlog" "${apptestlog%.log}-attempt1.log" 2>/dev/null
+                printf '%s\n' "First attempt kept at: ${apptestlog%.log}-attempt1.log"
+                sleep 5
+                apptestfail=0
+                run_app_tests || apptestfail=1
+                appreport=$(./scripts/app-test-report.sh verdict "$apptestlog" "$apptestfail")
+                apptoken=$(printf '%s\n' "$appreport" | head -1 | awk '{print $1}')
+            fi
+
+            if [ "$apptoken" = clean ]; then
                 printf '\033[32m✓\033[0m %s\n' \
-                    "$(grep -oE 'Executed [0-9]+ tests' "$apptestlog" | tail -1 || echo 'App-target tests') passed."
+                    "$(printf '%s\n' "$appreport" | tail -n +2 | head -1)"
+                # A pass that only happened on the second attempt is still a
+                # pass, and must still be said aloud — the count of these is
+                # the only measure of whether D63 is getting better or worse.
+                if [ "$appfirst" != "$apptoken" ]; then
+                    printf '%s\n' \
+                        "  (passed on retry — the first attempt was '$appfirst'. The machine, not your diff.)"
+                fi
+            else
+                note "The app-target tests did not pass — $apptoken:"
+                printf '%s\n' "$appreport" | tail -n +2
+                if [ "$apptoken" = locked ]; then
+                    printf '%s\n' "Path: $apptestdd"
+                fi
+                ./scripts/app-test-report.sh load
+                printf '%s\n' "Full output: $apptestlog"
+                # ⚠️ Every token lands here, environmental ones included. An
+                # unexplained machine is still an unchecked diff, and "probably
+                # the load" is not a check. Say what it was; do not excuse it.
+                fail=1
             fi
         fi
+    fi
+fi
+
+# --- The app-test classifier must still classify (D63) ---------------------
+#
+# Sub-second, needs no toolchain, and runs on every platform — so it runs in the
+# lint pass rather than behind `--tests`, where a Linux session would never see
+# it break. What it protects is a set of grep patterns against `xcodebuild`
+# output, i.e. exactly the kind of thing that rots quietly and is only noticed
+# on the night it matters, which for D63 was a night that cost three wrong
+# diagnoses. It also holds the wording contract with `pre-push-gate.sh`.
+if [ -x ./scripts/app-test-report.sh ]; then
+    if ! selftest=$(./scripts/app-test-report.sh --self-test 2>&1); then
+        note 'The app-target failure classifier is broken — it can no longer tell a failed assertion from a killed host:'
+        printf '%s\n' "$selftest" | grep -E 'FAIL|fixtures pass'
+        fail=1
     fi
 fi
 
@@ -1421,5 +1493,25 @@ if [ "$fail" -eq 0 ]; then
     printf '\n\033[32mClean.\033[0m\n'
 else
     printf '\n\033[31mIssues above — read them before pushing.\033[0m\n'
+    # **Say what the machine was doing, on every red (D63).**
+    #
+    # Not only the app-target block: the first red this fix produced was an
+    # *InsightKit* test — `LaunchParticleFieldTests` asserting that cloud
+    # generation scales linearly, measured in wall-clock, failing at 2.29x
+    # against a 2.0x limit with ten sibling worktrees compiling. It passed in
+    # isolation on the same commit two minutes later. So the load belongs on
+    # the summary line, where every red sees it, and not only beside the one
+    # suite this row started from.
+    #
+    # ⚠️ **This is context, not an excuse, and the wording has to keep it that
+    # way.** "The machine was busy" is precisely the sentence that talked a
+    # session into pushing past a real failure on 2026-08-07. The gate has
+    # already failed; a loaded machine changes *what to do next* (re-run the
+    # named test in isolation) and never *whether this is a pass*.
+    if [ -x ./scripts/app-test-report.sh ]; then
+        ./scripts/app-test-report.sh load
+        printf '%s\n' 'A busy machine is a reason to re-run a timing assertion in isolation before believing it.'
+        printf '%s\n' 'It is never a reason to push: this gate has verified nothing either way.'
+    fi
 fi
 exit "$fail"
