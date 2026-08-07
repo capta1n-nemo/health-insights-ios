@@ -251,7 +251,15 @@ final class SuggestionsFromTheNewCardsTests: XCTestCase {
                                .skinTemperature: 1])
         let watch = try XCTUnwrap(HealthWatchModel.evaluate(samples: samples, now: sugNow,
                                                             calendar: sugCalendar))
-        try XCTSkipUnless(watch.leaning.count >= 2, "fixture failed to produce a lean")
+        // **A precondition, not a skip.** This was `XCTSkipUnless`, so a
+        // `HealthWatchModel` change that stopped the fixture leaning would have
+        // switched this test — and the one below — off in silence, leaving
+        // convergence-outranks-everything pinned by nothing. The template is
+        // `SymptomRadarTests`' "fixture drifted" asserts: drift is a failure,
+        // because a fixture that no longer exercises the behaviour is news.
+        XCTAssertGreaterThanOrEqual(watch.leaning.count, 2,
+                                    "fixture drifted: it no longer produces a lean, so the "
+                                    + "convergence path below is not being tested at all")
 
         let top = try XCTUnwrap(suggestions(samples).first)
         XCTAssertEqual(top.basis, .convergingSignals)
@@ -275,11 +283,16 @@ final class SuggestionsFromTheNewCardsTests: XCTestCase {
         let samples = history([.restingHeartRate: 1, .respiratoryRate: 1,
                                .skinTemperature: 1])
         let all = suggestions(samples)
-        try XCTSkipUnless(all.contains { $0.basis == .convergingSignals },
-                          "fixture failed to produce a convergence")
+        // Fixture drift fails here too — see the note in the test above. Without
+        // a convergence in the list there is no "same signal twice" to look for,
+        // and the loop below asserts nothing.
+        XCTAssertTrue(all.contains { $0.basis == .convergingSignals },
+                      "fixture drifted: no convergence in the list, so the duplicate-report "
+                      + "check below has nothing to check")
         let watch = try XCTUnwrap(HealthWatchModel.evaluate(samples: samples, now: sugNow,
                                                             calendar: sugCalendar))
         let leaning = Set(watch.leaning.map(\.metric))
+        XCTAssertFalse(leaning.isEmpty, "fixture drifted: nothing is leaning")
         for suggestion in all where suggestion.basis == .signalOffBaseline {
             XCTAssertFalse(leaning.contains(suggestion.metric!),
                            "\(suggestion.metric!) reported twice")

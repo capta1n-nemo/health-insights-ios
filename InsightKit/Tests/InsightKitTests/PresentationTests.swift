@@ -311,7 +311,7 @@ final class PresentationTests: XCTestCase {
     /// Darwin only. Per-locale unit choice comes from `Measurement.formatted`,
     /// which swift-corelibs-foundation does not have — see the note on
     /// `MetricValueFormatter.lengthString`. The Linux fallback reports
-    /// centimetres so the other 330 tests can run in a sandbox; asserting
+    /// centimetres so the rest of the suite can run in a sandbox; asserting
     /// imperial output there would be asserting against a stub.
     #if canImport(Darwin)
     func testHeightUsesFeetAndInchesInImperialLocales() {

@@ -86,14 +86,34 @@ public enum WhoopResponseParser {
         }
     }
 
+    /// The bare signature the provider registry references as
+    /// `(Data) throws -> [HealthMetricSample]`, forwarding to the injectable one
+    /// below.
+    ///
+    /// **This is the same two-line overload `OuraResponseParser` gained on
+    /// 2026-08-04, and it arrives here for the same reason.** `.sleepOnset` is
+    /// produced by `SleepOnset.samples(fromSegmentStarts:)`, which resolves an
+    /// instant against a *local* calendar — signed hours from local midnight,
+    /// kept only within ±6 h of it — so what this parser emits depends on the
+    /// zone the process is running in. That is the shipped behaviour and it is
+    /// deliberate (the phone's zone is the reader's zone). What was wrong is
+    /// that with no calendar to inject, **the timezone half of this parser could
+    /// not be tested at all** — the only Whoop sleep test asserted respiratory
+    /// rate and duration, both zone-independent, so the bug class that lost
+    /// every Oura bedtime had no tripwire one door over.
     public static func parseSleep(_ data: Data) throws -> [HealthMetricSample] {
+        try parseSleep(data, calendar: .current)
+    }
+
+    static func parseSleep(_ data: Data, calendar: Calendar) throws -> [HealthMetricSample] {
         let list = try JSONDecoder().decode(SleepList.self, from: data)
         var samples: [HealthMetricSample] = []
         // `start` is the moment sleep began, which is what `.sleepOnset` wants.
         // A record with no score still carries one, so this is gathered before
         // the guard below rather than inside it.
         samples += SleepOnset.samples(
-            fromSegmentStarts: list.records.compactMap { date($0.start) }, source: .whoop)
+            fromSegmentStarts: list.records.compactMap { date($0.start) }, source: .whoop,
+            calendar: calendar)
         for record in list.records {
             guard let when = date(record.start), let s = record.score else { continue }
             if let rr = s.respiratory_rate {

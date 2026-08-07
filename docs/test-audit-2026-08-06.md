@@ -35,6 +35,10 @@ history behind it.
    when it was written. *Fix: add both to `all`, and add a companion that
    fails when a new factory is not in the list (count the static factories in
    a doc-comment contract, or switch the routes to an enum).*
+   **Fixed 2026-08-07 (backlog D33)** — the sweep list is now keyed by factory
+   name and `testTheSweepExaminesEveryRouteThatExists` reads the declarations
+   off `ContributionSummary.swift` and compares. `readerIdentity` had joined
+   the two missing routes by then, so three were being excluded, not two.
 2. **The Whoop sleep parser never got the 2026-08-04 timezone fix, and its
    onset output is untested.** `WhoopResponseParser.parseSleep`
    (`WhoopResponseParser.swift:89`) takes no calendar and feeds
@@ -46,6 +50,10 @@ history behind it.
    and *untestable deterministically*. *Fix: add the forwarding
    `parseSleep(_:calendar:)` overload Oura got, a `parseSleepUTC` twin in
    `TestClock.swift`, and one onset assertion.*
+   **Fixed 2026-08-07 (backlog D34)** — all three, plus four onset tests in
+   `WhoopSleepParserTests` including one asserting that the same fixture reads
+   differently at UTC and UTC+10, which is what proves the injection point
+   exists.
 3. **Two suggestion tests can skip forever in silence.**
    `SuggestionTests.swift:254` and `:278` use `XCTSkipUnless(...)` on "fixture
    failed to produce a lean/convergence". If a `HealthWatchModel` change stops
@@ -54,6 +62,8 @@ history behind it.
    `XCTSkip` in place of `guard … continue`. *Fix: make fixture drift a
    failure, the way `SymptomRadarTests.swift:852–855` asserts "fixture
    drifted" as a precondition.*
+   **Fixed 2026-08-07 (backlog D36)** — both `XCTSkipUnless` calls are now
+   "fixture drifted" assertions, and both tests still pass.
 4. **The departure-panel rule is only enforced for cards that can score on a
    five-metric fixture.** `ContributorDepartureTests.swift:27–31` sweeps every
    registered model over `GoldenDataset` (HR, RHR, rMSSD, temperature, sleep
@@ -64,6 +74,13 @@ history behind it.
    `ContributorsFixture.fullCoverage` (130 days) and add the
    `testEveryRegisteredModelScoresOnTheFixture`-style companion
    (`ScoreAttributionTests.swift:839–852` is the template).*
+   **Fixed 2026-08-07 (backlog D36)** — both. The sweep now runs on
+   `fullCoverage` and checks 50+ scored contributors across every sensed card;
+   `testTheSweepExaminesEveryModelThatCanHaveContributors` derives its
+   exemption from `InsightModel.readsOnlySamples`. Two narrowings were needed
+   and both are documented in the test: only weight-bearing contributors are
+   swept (the panel deliberately omits zero-weight ones), and a metric counts
+   as accounted for by whatever `Spec.supersededBy` puts in its place.
 5. **The export has no decode round-trip, anywhere.** Every
    `HealthDataExportTests` assertion is `json.contains("\"key\"")`
    (substring); `:126` is even titled "must survive the round trip" and never
@@ -76,6 +93,12 @@ history behind it.
    — the byte-offset bug was caught only by round-trip). *Fix: one test that
    decodes `bundle().json()` back into `HealthDataExport` (add `Decodable`
    conformance if missing) and compares field-by-field.*
+   **Fixed 2026-08-07 (backlog D35)** — `HealthDataExport` is `Codable,
+   Equatable`, `decoded(from:)` states the reading strategy once, and five
+   tests take the trip: whole-value equality on a fully populated export, the
+   empty case, explicit nulls, the whole-second date truncation, and a pin on
+   the alternating key/value array shape `UserHealthProfile.inputs` really
+   encodes as — the shape that broke the importer.
 6. **`testMemoryAloneCannotReachStrongSigns`'s real-path half can pass
    vacuously.** `SymptomRadarTests.swift:982–988`: the through-the-real-path
    assertions sit inside `if let today, today.excess < strongSignsExcess {
@@ -92,12 +115,19 @@ history behind it.
    neutral, not a penalty" as `bare == full, accuracy: 12` on a 0–100 score —
    a 12-point penalty passes. *Fix: assert the direction (`lessThan 50`;
    `bare >= full - ε`) plus a tight band on the computable value.*
+   **Fixed 2026-08-07 (backlog D37)** — the FFMI centile is 38.9, not 45, and
+   is now pinned `lessThan 50` plus ±1. The sleep one is restated as a
+   position rather than a tolerance: no breakdown must score above a measured
+   *poor* one and below a measured good one, which is what "neutral" means and
+   is falsifiable. (`bare >= full - ε` as suggested would not have held: the
+   good night legitimately earns a bonus.)
 8. **A disjunctive assertion masks its own subject.**
    `MetabolismTests.swift:113`:
    `XCTAssertTrue(result.explanation.contains("flatter") || result.drivers.isEmpty)` —
    the wording pin can rot while the unrelated `drivers.isEmpty` half keeps it
    green, and vice versa. *Fix: split into two asserts (or drop the escape
    hatch).*
+   **Fixed 2026-08-07 (backlog D37)** — split; both halves hold.
 9. **A self-referential comparison in CompositionVelocity.**
    `CompositionVelocityTests.swift:95`:
    `XCTAssertGreaterThan(good, good > quality ? quality : 0)` asserts, when
@@ -108,16 +138,23 @@ history behind it.
    `start + kgPerWeek * weeks * -1 * -1 + kgPerWeek * 0` — noise that survived
    a rewrite into `series(...)`. *Fix: replace `:95` with
    `XCTAssertGreaterThan(good, quality)`, delete `falling`.*
+   **Fixed 2026-08-07 (backlog D37)** — both.
 10. **A duplicated line where a second model was meant.**
     `ScoreHistoryReplayEquivalenceTests.swift:180–185`
     (`testAgreesAcrossModels`, "different models take different paths") runs
     `ReadinessInsight` **twice** and `SleepInsight` once — one of the three
     lines is a copy-paste and a third model (Fitness, with its profile-driven
     path) was plainly intended. *Fix: make line 183 a different model.*
+    **Fixed 2026-08-07 (backlog D37)**, and it was worse than described: the
+    `SleepInsight` line scored **no days at all** on that fixture, so it
+    compared `[]` against `[]`. Energy replaces the duplicate, Sleep gets a
+    fixture with stage data, and `assertAgrees` now fails on an empty replay
+    so a vacuous comparison cannot recur.
 11. **The stale-count lesson has one survivor.** `PresentationTests.swift:314`
     still says "so the other **330** tests can run in a sandbox" — the suite
     is 1,767 and CLAUDE.md removed its own count for exactly this reason.
     *Fix: "the rest of the suite".*
+    **Fixed 2026-08-07** alongside D37.
 12. **A comment claims a bound the assert doesn't.**
     `LaunchParticleFieldTests.swift:176` says "the ceiling is generous (6× for
     a 4× size increase)"; `:201` asserts `< 8.0`. Small, but this repo's own
@@ -126,6 +163,9 @@ history behind it.
     that exists because its own predecessor flaked. The min-of-five ratio
     design itself is healthy — no regression there. *Fix: make the comment say
     8×.*
+    **Fixed 2026-08-07** alongside D37 — and the assertion had moved on again
+    since the audit: it is equal-work-both-sides with a ceiling of 2.0 against
+    a linear 1.0, which is what the comment now says.
 13. **Eleven files still anchor on wall-clock `Date()` although `TestClock`
     exists.** `HeartAgeTests.swift:204`, `BaselineAndModelTests.swift:109`,
     `ScoreShapeTests.swift:71+`, `AdditionalInsightsTests.swift:5–13`,

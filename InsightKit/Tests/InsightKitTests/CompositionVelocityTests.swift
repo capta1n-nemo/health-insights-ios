@@ -14,16 +14,12 @@ final class CompositionVelocityTests: XCTestCase {
         calendar.startOfDay(for: now).addingTimeInterval(-Double(back) * 86_400 + 8 * 3600)
     }
 
-    /// A weight series falling at a chosen kg/week, oldest first.
-    private func falling(from start: Double, kgPerWeek: Double,
-                         days: Int = 56) -> [HealthMetricSample] {
-        (0..<days).map { back in
-            let weeks = Double(back) / 7
-            return HealthMetricSample(type: .bodyMass,
-                                      value: start + kgPerWeek * weeks * -1 * -1 + kgPerWeek * 0,
-                                      start: day(back), source: .withings)
-        }
-    }
+    // `falling(from:kgPerWeek:days:)` lived here and was deleted on 2026-08-07:
+    // zero callers since the rewrite into `series(_:start:kgPerWeek:days:)`, and
+    // its value expression had decayed to
+    // `start + kgPerWeek * weeks * -1 * -1 + kgPerWeek * 0` — arithmetic noise
+    // that reads as a sign convention and is none. Dead test code is worse than
+    // dead production code: nothing compiles against it, so nothing objects.
 
     /// Explicit: value at `back` days ago is `start - kgPerWeek*(days-back)/7`,
     /// so the newest reading is the lightest when `kgPerWeek` is positive.
@@ -92,7 +88,12 @@ final class CompositionVelocityTests: XCTestCase {
         XCTAssertLessThan(quality, 40)
         let good = try XCTUnwrap(CompositionVelocityModel.qualityScore(
             leanShareOfChange: 0.25, isLosing: true))
-        XCTAssertGreaterThan(good, good > quality ? quality : 0)
+        // This read `XCTAssertGreaterThan(good, good > quality ? quality : 0)`,
+        // which asserts `good > 0` in the only case it was meant to catch — it
+        // could never fail in the direction it reads as testing.
+        XCTAssertGreaterThan(good, quality,
+                             "losing a quarter lean must score better than losing "
+                             + "three fifths lean")
         XCTAssertGreaterThan(good, 80, "inside the expected 20–30% is fine")
     }
 

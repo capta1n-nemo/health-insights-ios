@@ -172,9 +172,12 @@ final class LaunchParticleFieldTests: XCTestCase {
     /// for are a bisection loop gaining a zero or a rejection sampler creeping
     /// back in, and both of those bend the *shape* of the curve. Timing two
     /// sizes back to back cancels the machine out, because whatever load
-    /// distorts one measurement distorts the other. The ceiling is generous
-    /// (6× for a 4× size increase) so ordinary noise cannot trip it; only a
-    /// change of complexity class can.
+    /// distorts one measurement distorts the other. The ceiling is generous —
+    /// **2.0 against a linear 1.0**, equal work on both sides of the ratio — so
+    /// ordinary noise cannot trip it; only a change of complexity class can.
+    /// (This sentence claimed "6× for a 4× size increase" after the assertion
+    /// had been rewritten twice past it. A comment describing behaviour is not
+    /// evidence of it, which is the rule this drift was found by.)
     func testCloudGenerationStaysLinearInTheParticleCount() {
         /// **Best of several, not a single reading.** The first version of this
         /// timed one small run against one large one, and still flaked: at a few

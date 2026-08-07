@@ -218,20 +218,208 @@ final class ContributionSummaryTests: XCTestCase {
         }
     }
 
+    // MARK: - Body measurements
+
+    /// Grounded is a waist, not a full set — `BuildAssessmentModel` moves off BMI
+    /// the moment it has one, and a summary that waited for hips and neck would
+    /// call a card ungrounded while it was already scoring on the better
+    /// instrument.
+    func testBodyMeasurementsAreGroundedOnAWaistAlone() {
+        let waistOnly = ContributionSummary.bodyMeasurements(
+            sitesMeasured: 1, hasWaist: true, lastMeasured: "3 days ago", isOverdue: false)
+        XCTAssertTrue(waistOnly.isGrounded)
+        XCTAssertEqual(waistOnly.figure, "1 measurement")
+        XCTAssertNil(waistOnly.progress)
+
+        // Sites without the one that counts is not grounded, however many there are.
+        let noWaist = ContributionSummary.bodyMeasurements(
+            sitesMeasured: 4, hasWaist: false, lastMeasured: "3 days ago", isOverdue: false)
+        XCTAssertFalse(noWaist.isGrounded)
+        XCTAssertEqual(noWaist.figure, "4 measurements")
+        XCTAssertTrue(noWaist.guidance.contains("waist"), noWaist.guidance)
+
+        let nothing = ContributionSummary.bodyMeasurements(
+            sitesMeasured: 0, hasWaist: false, lastMeasured: nil, isOverdue: false)
+        XCTAssertFalse(nothing.isGrounded)
+        XCTAssertEqual(nothing.figure, "Nothing measured yet")
+        XCTAssertEqual(nothing.addLabel, "Add measurements")
+        XCTAssertNil(nothing.detailLabel)
+    }
+
+    /// Overdue changes what the sentence asks for without changing the seal —
+    /// a stale waist still feeds the score, so it must not be reported as
+    /// missing.
+    func testAnOverdueMeasurementStillCounts() {
+        let overdue = ContributionSummary.bodyMeasurements(
+            sitesMeasured: 3, hasWaist: true, lastMeasured: "7 weeks ago", isOverdue: true)
+        XCTAssertTrue(overdue.isGrounded)
+        XCTAssertTrue(overdue.guidance.contains("7 weeks ago"), overdue.guidance)
+        XCTAssertTrue(overdue.guidance.contains("once a month"), overdue.guidance)
+        XCTAssertEqual(overdue.addLabel, "Measure again")
+        XCTAssertEqual(overdue.detailLabel, "All measurements")
+
+        let fresh = ContributionSummary.bodyMeasurements(
+            sitesMeasured: 3, hasWaist: true, lastMeasured: "yesterday", isOverdue: false)
+        XCTAssertTrue(fresh.guidance.contains("yesterday"), fresh.guidance)
+        XCTAssertFalse(fresh.guidance.contains("once a month"), fresh.guidance)
+    }
+
+    // MARK: - Screen time
+
+    /// The one route besides facts and blood pressure with a real target, so it
+    /// is the one whose bar can disagree with its seal.
+    func testScreenTimeIsGroundedOnlyOnceTheSleepModelCanContrast() throws {
+        for days in 0...16 {
+            let summary = ContributionSummary.screenTime(
+                daysRecorded: days, needed: 14, lastEntered: days == 0 ? nil : "yesterday")
+            XCTAssertEqual(summary.isGrounded, days >= 14, "\(days) days")
+            if days >= 14 {
+                XCTAssertNil(summary.progress, "\(days) days")
+            } else {
+                XCTAssertEqual(try XCTUnwrap(summary.progress),
+                               Double(days) / 14, accuracy: 1e-9, "\(days) days")
+            }
+        }
+    }
+
+    func testScreenTimeSaysWhyItCannotBeReadAutomatically() {
+        let none = ContributionSummary.screenTime(daysRecorded: 0, needed: 14, lastEntered: nil)
+        XCTAssertEqual(none.figure, "None yet")
+        XCTAssertEqual(none.addLabel, "Add a day")
+        XCTAssertTrue(none.guidance.contains("Screen Time"), none.guidance)
+
+        let partway = ContributionSummary.screenTime(
+            daysRecorded: 5, needed: 14, lastEntered: "yesterday")
+        XCTAssertEqual(partway.figure, "5 days")
+        XCTAssertTrue(partway.guidance.hasPrefix("5 of 14 days needed"), partway.guidance)
+
+        let one = ContributionSummary.screenTime(
+            daysRecorded: 1, needed: 14, lastEntered: "yesterday")
+        XCTAssertEqual(one.figure, "1 day")
+
+        let enough = ContributionSummary.screenTime(
+            daysRecorded: 30, needed: 14, lastEntered: "today")
+        XCTAssertTrue(enough.guidance.contains("last today"), enough.guidance)
+        // An association, never a cause — the standing rule for this contrast.
+        XCTAssertTrue(enough.guidance.contains("association"), enough.guidance)
+        XCTAssertNil(enough.detailLabel)
+    }
+
+    // MARK: - Reader identity
+
+    /// A name alone answers the name-in-title question and emails alone answer
+    /// the organiser one, so either is grounding on its own.
+    func testReaderIdentityIsGroundedOnEitherHalf() {
+        let empty = ContributionSummary.readerIdentity(name: nil, emails: 0)
+        XCTAssertFalse(empty.isGrounded)
+        XCTAssertEqual(empty.figure, "Not set")
+        XCTAssertEqual(empty.addLabel, "Add your name & emails")
+
+        // An empty string is not a name — the sheet can hand back "".
+        XCTAssertFalse(ContributionSummary.readerIdentity(name: "", emails: 0).isGrounded)
+        XCTAssertEqual(ContributionSummary.readerIdentity(name: "", emails: 0).figure, "Not set")
+
+        let named = ContributionSummary.readerIdentity(name: "Alex", emails: 0)
+        XCTAssertTrue(named.isGrounded)
+        XCTAssertEqual(named.figure, "Alex")
+
+        let emailsOnly = ContributionSummary.readerIdentity(name: nil, emails: 1)
+        XCTAssertTrue(emailsOnly.isGrounded)
+        XCTAssertEqual(emailsOnly.figure, "1 email")
+        XCTAssertEqual(ContributionSummary.readerIdentity(name: "", emails: 3).figure, "3 emails")
+
+        // The reassurance is the reason the reader hands over a name at all.
+        for summary in [empty, named, emailsOnly] {
+            XCTAssertTrue(summary.guidance.contains("never exported"), summary.guidance)
+            XCTAssertNil(summary.progress)
+            XCTAssertNil(summary.detailLabel)
+        }
+    }
+
     // MARK: - Shape, across every route
 
-    private var all: [ContributionSummary] {
-        [.facts(set: 0, of: 3), .facts(set: 3, of: 3),
-         .substances(logged: 0), .substances(logged: 5),
-         .bloodPressure(.init(totalReadings: 0, recentReadings: 0)),
-         .bloodPressure(.init(totalReadings: 9, recentReadings: 9)),
-         .medication(hasRegimen: false, doses: 0, sideEffects: 0),
-         .medication(hasRegimen: true, doses: 24, sideEffects: 2),
-         .bodyType(estimated: nil, override: nil),
-         .bodyType(estimated: "Mesomorph", override: nil),
-         .fileImport(lastReceived: nil), .fileImport(lastReceived: "yesterday"),
-         .symptoms(tagged: 0, recordedAbsences: 0),
-         .symptoms(tagged: 5, recordedAbsences: 2)]
+    /// The sweeps below claim "across every route". They are only worth that
+    /// sentence while this list *is* the set of routes — which is what
+    /// `testTheSweepExaminesEveryRouteThatExists` checks against the source,
+    /// rather than against whatever was shipped the day this was written.
+    ///
+    /// Keyed by factory name for exactly that reason: the census compares these
+    /// keys to the `public static func` declarations in `ContributionSummary`,
+    /// so a new route fails here instead of being silently excluded. (Before
+    /// 2026-08-07 this was a bare array and two shipped routes —
+    /// `bodyMeasurements` and `screenTime` — appeared in no test in the repo;
+    /// `readerIdentity` had joined them by the time it was fixed. The
+    /// CardVisibilityTests closed-set lesson, one door over.)
+    private static let routes: [(name: String, cases: [ContributionSummary])] = [
+        ("facts", [.facts(set: 0, of: 3), .facts(set: 3, of: 3)]),
+        ("substances", [.substances(logged: 0), .substances(logged: 5)]),
+        ("bloodPressure", [.bloodPressure(.init(totalReadings: 0, recentReadings: 0)),
+                           .bloodPressure(.init(totalReadings: 9, recentReadings: 9))]),
+        ("medication", [.medication(hasRegimen: false, doses: 0, sideEffects: 0),
+                        .medication(hasRegimen: true, doses: 24, sideEffects: 2)]),
+        ("bodyType", [.bodyType(estimated: nil, override: nil),
+                      .bodyType(estimated: "Mesomorph", override: nil),
+                      .bodyType(estimated: "Mesomorph", override: "Endomorph")]),
+        ("fileImport", [.fileImport(lastReceived: nil),
+                        .fileImport(lastReceived: "yesterday")]),
+        ("symptoms", [.symptoms(tagged: 0, recordedAbsences: 0),
+                      .symptoms(tagged: 5, recordedAbsences: 2)]),
+        ("bodyMeasurements", [
+            .bodyMeasurements(sitesMeasured: 0, hasWaist: false,
+                              lastMeasured: nil, isOverdue: false),
+            .bodyMeasurements(sitesMeasured: 4, hasWaist: false,
+                              lastMeasured: "9 weeks ago", isOverdue: true),
+            .bodyMeasurements(sitesMeasured: 6, hasWaist: true,
+                              lastMeasured: "yesterday", isOverdue: false)]),
+        ("screenTime", [.screenTime(daysRecorded: 0, needed: 14, lastEntered: nil),
+                        .screenTime(daysRecorded: 5, needed: 14, lastEntered: "yesterday"),
+                        .screenTime(daysRecorded: 30, needed: 14, lastEntered: "today")]),
+        ("readerIdentity", [.readerIdentity(name: nil, emails: 0),
+                            .readerIdentity(name: "", emails: 2),
+                            .readerIdentity(name: "Alex", emails: 1)])
+    ]
+
+    private var all: [ContributionSummary] { Self.routes.flatMap(\.cases) }
+
+    /// **The set being swept must be the set that exists.**
+    ///
+    /// Read against the type's own source rather than a second hand-written
+    /// list, because a second hand-written list is the defect: `all` covered
+    /// seven of ten factories for weeks and all three sweeps below reported
+    /// success over the seven.
+    func testTheSweepExaminesEveryRouteThatExists() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // InsightKitTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // InsightKit
+            .appendingPathComponent("Sources")
+            .appendingPathComponent("InsightKit")
+            .appendingPathComponent("Presentation")
+            .appendingPathComponent("ContributionSummary.swift")
+        // Deliberately a failure and not an XCTSkip: a census that can quietly
+        // stop running is the thing it was written to prevent.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path),
+                      "cannot find ContributionSummary.swift at \(source.path) — "
+                      + "if the file moved, move this path with it")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        var declared: Set<String> = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("public static func ") else { continue }
+            let rest = trimmed.dropFirst("public static func ".count)
+            let name = rest.prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+            if !name.isEmpty { declared.insert(String(name)) }
+        }
+
+        XCTAssertGreaterThanOrEqual(declared.count, 10,
+                                    "only found \(declared.count) route factories — the "
+                                    + "parse above has stopped matching the source")
+        let swept = Set(Self.routes.map(\.name))
+        XCTAssertEqual(swept, declared,
+                       "a route is not in the sweep: missing \(declared.subtracting(swept)), "
+                       + "stale \(swept.subtracting(declared))")
+        XCTAssertEqual(Self.routes.count, swept.count, "a route name is listed twice")
     }
 
     /// Every route has a header figure, a sentence and exactly one prominent way
