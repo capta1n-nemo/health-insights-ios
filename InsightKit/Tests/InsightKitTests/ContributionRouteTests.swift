@@ -78,8 +78,13 @@ final class ContributionRouteTests: XCTestCase {
         // the symptom-tag route it grades itself against. `.workImpact` joined
         // with B7 H1: no grounding facts, but it offers the identity route that
         // decides whose OOO block a working day contains.
+        // `.screenTime` joined with B9-2, and it is the clearest case on the
+        // list: the card's entire subject is a series Apple's sandbox means no
+        // app can read, so the route the reader hands it a day through is not a
+        // convenience on this card — it is the only way the card ever has
+        // anything to say.
         let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar,
-                                          .workImpact]
+                                          .workImpact, .screenTime]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,

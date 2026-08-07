@@ -379,6 +379,18 @@ public extension InsightID {
         // them, and putting the two on one circle would make it one.
         case .supplementStack:
             return false
+        // **Off the web, and it is the mental-health case exactly.** This card's
+        // top band means *your heavier screen days looked like your lighter
+        // ones* — a difference not found, which the web would draw as a tall
+        // green spoke beside cards that graded a level. It is worse here than
+        // there, because the counterweight the calendar cards carry is
+        // deliberately absent: screen time itself is never scored (see
+        // `ScreenTimeModel.evidenceRefusal`), so there is no exposure side to
+        // pull the spoke down for a reader who spends all day on their phone.
+        // A reader who never varies their screen time would draw the tallest
+        // spoke on the chart, and it would mean nothing at all.
+        case .screenTime:
+            return false
         }
     }
 
@@ -402,6 +414,7 @@ public extension InsightID {
         case .travelDrain: return "Travel"
         case .soundExposure: return "Sound"
         case .supplementStack: return "Stack"
+        case .screenTime: return "Screen"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

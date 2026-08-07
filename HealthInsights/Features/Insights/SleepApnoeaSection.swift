@@ -89,6 +89,13 @@ struct SleepApnoeaSection: View {
             if breakdown.dateSpan != nil {
                 headline
                 breathingDuringSleep
+                // S13. The trend surface, in its own file: the nights, the
+                // reader's own middle half and the fitted line. It is *here*
+                // rather than a section of its own because B18-1's rule stands —
+                // one measurement, one heading — and it carries the drift
+                // sentence and the placement that used to sit above, so neither
+                // is now said twice on one screen.
+                BreathingTrendSection(trend: trend, timeframe: timeframe)
                 Divider()
                 Text(BreathingDisturbanceTrend.whatWouldAnswerIt)
                     .font(.caption).foregroundStyle(.secondary)
@@ -133,31 +140,27 @@ struct SleepApnoeaSection: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Whichever of the two it has: the drift sentence once there are
-            // enough nights, and until then the coverage line saying how many
-            // more. Never both, and never neither.
-            if let drift = trend.driftSentence {
-                Text(drift)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if let waiting = trend.coverage?.sentence {
-                Text(waiting)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // ⚠️ **The drift sentence and the placement moved out on 2026-08-08
+            // (S13), and the move is the point rather than a tidy-up.** They
+            // named a slope, a scatter and a percentile above a
+            // `MultiSourceChart`, which draws one line per *instrument* and
+            // carries no fitted line at all — so the picture on this screen
+            // could neither confirm nor contradict the sentence beside it. They
+            // now sit in `BreathingTrendSection`, immediately below, under the
+            // chart that actually draws that line.
+            //
+            // What stays here is what this chart genuinely answers: whether the
+            // reader's devices agree about the index.
             MultiSourceChart(breakdown: breakdown,
                              window: timeframe.chartWindow(
                                 spanning: breakdown.dateSpan.map {
                                     $0.upperBound.timeIntervalSince($0.lowerBound)
                                 }))
-            if let percentile = trend.latestPercentile {
-                Text(String(format: "Your most recent night sits above %.0f%% of the "
-                            + "%d nights recorded — a position among your own nights, "
-                            + "and nothing more than that.",
-                            percentile * 100, trend.nights.count))
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("One line per device that reported the index. Where two of them "
+                 + "disagree, that is a fact about the instruments rather than about "
+                 + "your night.")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

@@ -161,6 +161,26 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// limit is information; this card names the total and the published figure
     /// and stops.
     case supplementStack
+    /// **Your heavier screen days against your lighter ones** — backlog B9-2,
+    /// gated until the OCR import's date attribution (`B10-1`) and its
+    /// whole-week scans (`B10-2`) were fixed, because a card built on mis-dated
+    /// days is a confident wrong answer.
+    ///
+    /// ⚠️ **It never grades how much screen time the reader has, and that
+    /// refusal is the card.** See `ScreenTimeModel.evidenceRefusal`: there is no
+    /// published dose–response for adult screen time, the popular figures come
+    /// from self-reported use in cross-sectional surveys, and the effects shrink
+    /// towards nothing in the larger and better-measured work. So the number
+    /// here is a *contrast the reader's own record can support* — what their
+    /// body did on the nights after their heavier days against the nights after
+    /// their lighter ones — and its direction is read off their own nights
+    /// rather than assumed.
+    ///
+    /// ⚠️ **Coverage is the constraint, not an aside.** Apple sandboxes Screen
+    /// Time, so every day of it was typed in or photographed; the reader's
+    /// export carries twenty-six rows. The card leads with a `CoverageGate` and
+    /// describes the days it has while it waits.
+    case screenTime
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

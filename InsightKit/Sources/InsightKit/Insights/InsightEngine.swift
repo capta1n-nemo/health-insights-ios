@@ -92,7 +92,11 @@ public struct InsightEngine: Sendable {
             //
             // Last, and beside the other log-driven cards: its input is a list
             // the reader keeps rather than anything a sensor noticed.
-            SupplementStackInsight()
+            SupplementStackInsight(),
+            // B9-2. Reads only samples — screen time is a `MetricType` like any
+            // other, however it got there — so it needs no binding, unlike the
+            // four cards above it.
+            ScreenTimeInsight()
         ]
     }
 

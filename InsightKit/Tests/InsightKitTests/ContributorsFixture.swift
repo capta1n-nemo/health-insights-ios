@@ -79,7 +79,15 @@ enum ContributorsFixture {
             // steps above rather than picked independently — a fixture whose
             // distance and step count disagree would let a card that reads one
             // as a proxy for the other pass.
-            .distanceWalkingRunning: 6.4, .flightsClimbed: 11
+            .distanceWalkingRunning: 6.4, .flightsClimbed: 11,
+            // B9-2. `ScreenTimeInsight` reads only samples, so without a day of
+            // this here it would score nil on "full coverage" and be skipped in
+            // silence by every sweep in `ScoreAttributionTests` — which is the
+            // exact hole `testEveryRegisteredModelScoresOnTheFixture` exists to
+            // close. The jitter above gives it five distinct levels, which is
+            // what the card's median split needs. Not round, and a plausible
+            // couple of hours rather than a headline figure.
+            .screenTimeMinutes: 143
         ]
         var out: [HealthMetricSample] = []
         for i in stride(from: days - 1, through: 0, by: -1) {

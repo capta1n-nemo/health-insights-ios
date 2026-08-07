@@ -146,6 +146,14 @@ public extension InsightID {
         // the one entry here that was *corrected by the test*, which is the
         // whole argument for asserting this switch in both directions.
         case .symptomRadar:       return .scores
+        // **Scores, because `MetricType.screenTimeMinutes` is seeded daily** —
+        // `SyntheticSeedPlan` gives it a weekday/weekend rhythm, so a seeded
+        // simulator has both halves of the median split and the nights after
+        // them. ⚠️ What the simulator cannot show is the state the reader is
+        // actually in: theirs is hand-entered and sparse, so on the phone this
+        // card renders its `CoverageGate` description rather than a number, and
+        // a screenshot of the seeded version is not evidence about that state.
+        case .screenTime:         return .scores
 
         // MARK: The three that samples cannot reach
         //

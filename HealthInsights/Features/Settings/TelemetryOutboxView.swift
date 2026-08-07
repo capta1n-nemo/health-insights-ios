@@ -254,6 +254,7 @@ struct TelemetryOutboxView: View {
             case .socialBattery: return "Social battery"
             case .soundExposure: return "Sound you took on"
             case .supplementStack: return "What is actually in your stack"
+            case .screenTime: return "Screen time"
             }
         } ?? raw
     }

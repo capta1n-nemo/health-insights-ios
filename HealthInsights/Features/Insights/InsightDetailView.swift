@@ -232,6 +232,11 @@ struct InsightDetailView: View {
         // bottles each figure came from.
         case .supplementStack:
             SupplementStackSection()
+        // B9-2. Two sections in its own file: the days the reader supplied, and
+        // the contrast between their heavier and lighter halves. ⚠️ Neither
+        // grades the amount — see `ScreenTimeModel.evidenceRefusal`.
+        case .screenTime:
+            ScreenTimeSection(timeframe: timeframe)
         }
     }
 
