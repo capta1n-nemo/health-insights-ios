@@ -1681,7 +1681,19 @@ final class AppModel {
                                                  // a dismissible front-page row
                                                  // while the permission is
                                                  // absent. This is what feeds it.
-                                                 locationAccess: EventFeedModel.shared.access)
+                                                 locationAccess: EventFeedModel.shared.access,
+                                                 // B7 H7 — the ledger and the
+                                                 // calendar the leave
+                                                 // recommendation reads. One
+                                                 // parameter, because a ledger
+                                                 // with no calendar cannot name
+                                                 // a date and a calendar with no
+                                                 // ledger cannot know a break is
+                                                 // overdue.
+                                                 leave: LeaveSuggestionInput(
+                                                    ledger: holidayLedger,
+                                                    events: calendarEvents,
+                                                    judgements: calendarJudgements))
         suggestionCache = built
         return built
     }
@@ -1905,6 +1917,12 @@ final class AppModel {
         let engineNow = engine.withSubstanceLog(substanceEvents)
             .withSupplements(supplementEntries)
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
+            // ⚠️ **After `withCalendar`, always** (B7 H6). That call rebuilds
+            // both calendar cards from scratch, so a ledger bound before it is
+            // silently dropped — the card simply stops scoring leave and nothing
+            // reports it. `InsightEngine.withHolidayLedger` says the same thing
+            // at the other end.
+            .withHolidayLedger(holidayLedger)
         let profileNow = profile
         // The schedule is read here — a `Sendable` value, never the `@Model`
         // record — because the symptoms it is bound beside only exist once the
@@ -2767,6 +2785,9 @@ final class AppModel {
             .withSymptoms(symptoms, medication: activeMedication?.schedule)
             // Both calendar cards, in one call — see `withCalendar`.
             .withCalendar(events: calendarEvents, judgements: calendarJudgements)
+            // …and the four cards that score leave, after it — see the note on
+            // the launch path above for why the order is not free.
+            .withHolidayLedger(holidayLedger)
 
         // The flagged-event feed moves with the data rather than only when
         // somebody opens it — otherwise the dismissible suggestion below would

@@ -283,7 +283,25 @@ public struct MentalHealthInsight: InsightModel {
     /// times before finding the last one.
     public let title = "Mental health"
 
-    public init() {}
+    /// **The reader's leave, B7 H6.** Construction state, like the calendar
+    /// cards' events: `InsightEngine` carries samples and a profile, and a
+    /// ledger is neither. Empty by default, which is the state in which this
+    /// card scores nothing off it — see `LeaveRecency`.
+    public let holidays: HolidayLedger
+
+    public init(holidays: HolidayLedger = HolidayLedger()) {
+        self.holidays = holidays
+    }
+
+    /// What time since a break carries here.
+    ///
+    /// ⚠️ **The smallest of the four shares, and deliberately.** This card's
+    /// claim is that several *measured* behaviours moved together; a fact about
+    /// a diary is a different kind of evidence and must stay the junior partner
+    /// of the four the card is named for. It is also the card that most needs to
+    /// not be read as a verdict, and a large share for "you have not had a
+    /// holiday" would read as one.
+    public static let leaveShare = 0.08
 
     public var candidateMetrics: [MetricType] { MentalHealthModel.channels.map(\.metric) }
 
@@ -291,6 +309,11 @@ public struct MentalHealthInsight: InsightModel {
     /// is no fact a reader could type that would make a fortnight of step counts
     /// more informative.
     public var requirements: [GroundingRequirement] { [] }
+
+    /// The leave log, because this card now scores time since a break —
+    /// `mental-health-v2`. The rule it satisfies is the one `.holiday` was held
+    /// to until today: a card offers an input only once its model reads it.
+    public var contributions: [ContributionRoute] { [.holidayLog] }
 
     public func evaluate(samples: [HealthMetricSample],
                          profile: UserHealthProfile, now: Date) -> InsightResult {
@@ -348,20 +371,35 @@ public struct MentalHealthInsight: InsightModel {
         drivers.append(.routine("This card has no idea how you feel, and it is not trying to guess. It watches \(out.readings.count) of \(MentalHealthModel.channels.count) everyday behaviours against your own previous \(MentalHealthModel.referenceDays) days and tells you when they move together — which is sometimes worth a second thought, and is sometimes a busy fortnight."))
         drivers.append(.routine("It does not diagnose anything and it cannot. If you want to talk to someone, do that — nothing here is a reason to wait, and nothing here is a reason not to."))
 
+        // **B7 H6.** Time since a break, folded in after the card has scored
+        // itself. ⚠️ It is *not* a fifth behaviour and the copy never presents it
+        // as one: the four above are measured, this is read off a diary, and the
+        // row says so. `mental-health-v2` marks every previously recorded score
+        // as non-comparable, per the fitness-v2 precedent.
+        let recency = LeaveRecency.read(holidays, asOf: now)
+        let blended = LeaveBlend.fold(score: out.score,
+                                      contributions: contributions,
+                                      factors: Self.producedFigures(out),
+                                      recency: recency, on: id,
+                                      share: Self.leaveShare)
+        drivers.append(InsightDriver(text: recency.driverLine(share: Self.leaveShare),
+                                     isNotable: false))
+
         return InsightResult(
             id: id, title: title,
-            primaryValue: out.score,
+            primaryValue: blended.score,
             headline: MentalHealthModel.headline(out),
-            score: out.score,
+            score: blended.score,
             confidence: out.readings.count >= 3 ? .moderate : .low,
             explanation: "\(out.readings.count) everyday behaviours — \(MentalHealthModel.list(out.readings.map { $0.channel.label.lowercased() })) — each measured against your own previous \(MentalHealthModel.referenceDays) days. It reports when several drift the same way at once. It is not a screen, it does not diagnose, and it never says you are fine: the top of its range means those numbers have not moved, which is a much smaller thing.",
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: contributions,
+            contributors: blended.contributions,
             weighting: .weightedAverage,
-            otherFactors: Self.producedFigures(out),
-            derivedOutputs: Self.derivedOutputs(out))
+            otherFactors: blended.factors,
+            derivedOutputs: Self.derivedOutputs(out)
+                + (blended.didScore ? [recency.derivedOutput].compactMap { $0 } : []))
     }
 
     // MARK: - What this card works out (2026-08-06)

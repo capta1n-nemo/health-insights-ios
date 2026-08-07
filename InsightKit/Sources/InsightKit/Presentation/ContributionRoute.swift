@@ -90,6 +90,18 @@ public enum ContributionRoute: Sendable, Equatable, Hashable {
     /// depends on it is exactly where the reader will look for it.
     case supplementStack
 
+    /// **The reader's leave, past and planned** — `HolidayEntry`, backlog B7
+    /// H4/H6.
+    ///
+    /// A route as of H6 and not before, and the date is the whole justification:
+    /// `InputKind.holiday` was `settingsOnly` while no shipped card read the
+    /// ledger, because a card offering an input its model ignores claims a
+    /// sensitivity it has not got. Four cards read it now — Work impact, Travel
+    /// drain, Stress load and Mental health, each at its own `leaveShare` — so
+    /// the offer moves onto them in the same change that wired them, which is
+    /// exactly what `InputKind.holiday`'s reason string promised.
+    case holidayLog
+
     /// Standing facts held on the profile, one latest value each.
     ///
     /// Carries the kinds rather than deriving them at the call site, so a card
@@ -117,6 +129,7 @@ public extension ContributionRoute {
         case .bodyMeasurements: return [.bodyMeasurements]
         case .screenTime: return [.screenTime]
         case .readerIdentity: return [.readerIdentity]
+        case .holidayLog: return [.holiday]
         // **One kind, not two.** Adding a bottle and saying how much of it you
         // take are the same act on the same screen — the same call
         // `.bodyMeasurements` makes about a tape and a scan, and for the same

@@ -259,10 +259,32 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
         switch occasion {
         case .reminder: return 0
         // An absence is not a commitment, whoever it belongs to. The reader's
-        // own leave feeds the *holiday ledger*, never the meeting load; a
-        // colleague's OOO is if anything a lighter week — the backlog notes
-        // "possibly reduced load", which is H6's call to make when the cards
-        // read the ledger, and zero is the honest floor until then.
+        // own leave feeds the *holiday ledger* (B7 H5/H6), never the meeting
+        // load.
+        //
+        // ⚠️ **H2's open half, ruled on with H6 (2026-08-08): a colleague's OOO
+        // is zero and never negative.** The brief hedged it — *"possibly
+        // reduced load (fewer meetings that week)"* — and the hedge was right to
+        // be a hedge. Three reasons, and the first alone settles it:
+        //
+        // 1. **The reduction is already in the calendar.** A colleague who is
+        //    away does not attend, so their meetings are cancelled or declined
+        //    and simply are not there to be counted. Subtracting hours for the
+        //    absence would remove the same meetings twice — once by their not
+        //    existing, once by a constant — and the card would report a quiet
+        //    week that was quiet only in arithmetic.
+        // 2. **The sign is not even known.** Somebody's absence raises the
+        //    reader's load as often as it lowers it: cover, handover, the thing
+        //    that waited. A constant would have to pick a direction the app
+        //    cannot see.
+        // 3. **There is nothing to size it against.** Work impact scores
+        //    exposure against the reader's own spread of working-day load, and a
+        //    negative term for an absence would be a number invented here
+        //    wearing calendar clothes — the refusal `docs/norms-and-telemetry.md`
+        //    describes, one level down.
+        //
+        // So the honest floor is the honest answer, and it is no longer
+        // provisional.
         case .leave, .absence: return 0
         // A sick day is not a commitment either, and it is emphatically not
         // load: the reader was not working. Zero for the same reason leave is

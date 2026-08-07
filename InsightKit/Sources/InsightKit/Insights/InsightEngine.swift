@@ -122,6 +122,39 @@ public struct InsightEngine: Sendable {
         })
     }
 
+    /// The same registry with every card that scores leave bound to the ledger —
+    /// backlog B7 H6.
+    ///
+    /// Idempotent, like the four `with…` methods around it: a caller applies it
+    /// on every recompute, so it replaces rather than appends.
+    ///
+    /// ⚠️ **Four models, one call**, and the reason is `withCalendar`'s: binding
+    /// them separately is how one card ends up scoring a ledger the other three
+    /// cannot see, and the symptom would be four cards disagreeing about when
+    /// the reader last had a holiday. A fifth card that takes leave goes here
+    /// rather than into a second method.
+    ///
+    /// ⚠️ **It must run after `withCalendar`**, because that call rebuilds the
+    /// two calendar cards from scratch and would otherwise drop the ledger it
+    /// knows nothing about. Stated here rather than left to the call site: the
+    /// failure is silent — a card that simply stops scoring leave, with no error
+    /// anywhere — and `LeaveLedgerBindingTests` pins the ordering.
+    public func withHolidayLedger(_ ledger: HolidayLedger) -> InsightEngine {
+        InsightEngine(models: models.map { model in
+            if let card = model as? WorkImpactInsight {
+                return WorkImpactInsight(events: card.events,
+                                         judgements: card.judgements,
+                                         holidays: ledger)
+            }
+            if let card = model as? TravelDrainInsight {
+                return TravelDrainInsight(events: card.events, holidays: ledger)
+            }
+            if model is SustainedLoadInsight { return SustainedLoadInsight(holidays: ledger) }
+            if model is MentalHealthInsight { return MentalHealthInsight(holidays: ledger) }
+            return model
+        })
+    }
+
     /// The same registry with the substance model bound to a log.
     ///
     /// Idempotent — it *replaces* the substance model rather than appending one —

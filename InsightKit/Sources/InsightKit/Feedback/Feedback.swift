@@ -171,12 +171,21 @@ public extension InsightID {
         case .nutrition: return "nutrition-v1"
         case .metabolism: return "metabolism-v1"
         case .symptomRadar: return "symptom-radar-v1"
-        case .sustainedLoad: return "sustained-load-v1"
+        // **v2, B7 H6.** Time since the reader's last recorded leave now carries
+        // a tenth of the number (`SustainedLoadInsight.leaveShare`), so a score
+        // recorded before today is a reading of four signals and one recorded
+        // after is a reading of four signals and a ledger. Not comparable, which
+        // is the one failure this field exists to prevent.
+        case .sustainedLoad: return "sustained-load-v2"
         case .gait: return "gait-v1"
         case .soundExposure: return "sound-exposure-v1"
         case .supplementStack: return "supplement-stack-v1"
         case .biologicalAge: return "biological-age-v1"
-        case .mentalHealth: return "mental-health-v1"
+        // **v2, B7 H6.** The holiday ledger joined the four behaviours at
+        // `MentalHealthInsight.leaveShare`. The smallest of the four leave
+        // shares and still a version bump: a share is a share, and pooling v1
+        // and v2 scores would blur the one distinction the field carries.
+        case .mentalHealth: return "mental-health-v2"
         // **v2, 2026-08-06 — backlog D41.** The number was a curve over how much
         // the body differed between busy and quiet working days, and the
         // calendar load that decides which day lands in which half was nowhere
@@ -186,14 +195,17 @@ public extension InsightID {
         // contrast. Every score recorded under v1 measures a different quantity
         // and is not comparable with one recorded after — which is the one
         // failure this field exists to prevent. The `fitness-v2` precedent.
-        case .workImpact: return "work-impact-v2"
-        // ⚠️ **Deliberately still v1.** D41 rewrote work impact and stopped
-        // there: travel drain's equivalent figure is a count of two-to-four
-        // time-zone changes, which is not a distribution to score against and
-        // not established as travel at all. Its arithmetic is untouched, so its
-        // stored scores stay comparable. Reasoned out at
-        // `TravelDrainModel`'s "What the calendar contributes here".
-        case .travelDrain: return "travel-drain-v1"
+        // **v3, B7 H6.** Time since the reader's last recorded leave now carries
+        // `WorkImpactInsight.leaveShare` of the number, alongside the exposure
+        // and response halves v2 introduced.
+        case .workImpact: return "work-impact-v3"
+        // **v2, B7 H6 — and note what did *not* change.** The trip count is
+        // still unscored for the three reasons set out at `TravelDrainModel`'s
+        // "What the calendar contributes here"; that refusal stands. What moved
+        // is the holiday ledger joining at `TravelDrainInsight.leaveShare` — a
+        // date rather than a count, scored on the same curve the other three
+        // cards read. The arithmetic changed, so the version does.
+        case .travelDrain: return "travel-drain-v2"
         // B9-1. The version matters here more than on most cards: the exposure
         // term's *direction* is learnt from the reader's own nights, so a score
         // recorded before the model had enough evidence to say which way company

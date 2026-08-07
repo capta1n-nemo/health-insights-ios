@@ -393,11 +393,19 @@ public extension InputKind {
         // hints that this app can add a stack of labels up, and a card the
         // reader never opens cannot tell them.
         case .supplement: return .offeredAndPrompted
-        case .holiday:
-            return .settingsOnly("No shipped card reads the holiday ledger yet "
-                + "(B7 H6). Offering the log on a card whose score ignores it "
-                + "would claim a sensitivity the model does not have; the offer "
-                + "moves onto the cards in the same change that wires them.")
+        // **Promoted with B7 H6 (2026-08-08), exactly as the `settingsOnly`
+        // reason it replaces promised.** Four cards now score time since the
+        // reader's last leave — Work impact, Travel drain, Stress load and
+        // Mental health — so `.holidayLog` reaches all four and the input is
+        // offered where its numbers move.
+        //
+        // ⚠️ **Offered, never prompted.** A never-used holiday log earns no
+        // dismissible row, and the reason is the one guard `LeaveRecency` is
+        // built around: with nothing entered the cards score nothing off it and
+        // say so, so there is no hole for a nudge to be filling. Nagging
+        // somebody to tell an app about their holidays is also a poor use of the
+        // one prompt slot a card gets.
+        case .holiday: return .offeredOnly
         }
     }
 
