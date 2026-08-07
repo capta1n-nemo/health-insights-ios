@@ -42,6 +42,38 @@ import Foundation
 /// This package's suite runs on Linux, where several Foundation formatter paths
 /// are Darwin-only, and a date parser that cannot be tested is not one worth
 /// having. Same rationale and same shape as `ShortcutIngest.parseDate`.
+///
+/// ## ⚠️ What this fixed, and what it did not — audited 2026-08-07
+///
+/// The reader flew Manila → Sydney and asked for everything to read in their
+/// own zone. That audit found the paragraphs above to be exactly right and
+/// exactly half the problem, so the other half is written down here rather than
+/// discovered a fourth time.
+///
+/// `local(_:calendar:)` resolves a bare day in **the zone the device was in when
+/// the payload arrived**, which is the only correct answer at ingest — the
+/// connector meant *that* reader's day. But the resulting key is then a bare
+/// `Date`, carrying no record of which zone minted it, and every display path
+/// re-reads it with `calendar.startOfDay(for:)` in the zone the reader is in
+/// **now**. Those two agree only while the reader stays put:
+///
+/// - Move **east** and a foreign-minted midnight is still inside its own day
+///   here, so nothing shears. That is the reader's actual journey, which is
+///   why nothing looked broken on the day they asked.
+/// - Move **west** and it is not. A Sydney-minted `7 Aug 00:00 +10` read in
+///   London is `6 Aug 15:00`, and `startOfDay` labels it **6 Aug** — one day
+///   early, silently, for every metric that arrived as a bare day.
+///
+/// Sleep is fixed: `SleepTravel.onsets(in:)` re-keys a night with a twelve-hour
+/// nudge, so the label survives any offset difference under 12 h, and
+/// `CircadianConsistencyModel.nights`, `SleepRegularityIndex.intervals` and
+/// `NightSleepDetail.windowLanes` all read through it.
+///
+/// **Every other bare-day metric is still exposed** — Oura's daily summaries
+/// among them. The cheap mitigation is that same nudge inside
+/// `VitalReader.dailyBuckets`; the complete one is storing the minting zone
+/// beside the key, which is a schema change and a migration. Neither was in
+/// scope for the sleep row, and the choice between them is still open.
 public enum DayStamp {
 
     /// `2026-07-20` → local midnight on that day, in `calendar`'s zone.

@@ -249,8 +249,29 @@ final class CircadianConsistencyTests: XCTestCase {
 
     /// Sleep needs a duration as well as a bedtime — it is a card about the
     /// night, and regularity is one term of it.
+    ///
+    /// ⚠️ **Minted in `Calendar.current`, unlike every other fixture in this
+    /// file, and the difference is load-bearing.** `SleepInsight.evaluate` takes
+    /// no calendar and reads `.current`; since 2026-08-07 a stored bedtime is
+    /// re-rendered into the *viewing* zone before it is fitted (the reader's
+    /// instruction: "report in MY current timezone"), so a UTC-minted 23:00 is
+    /// correctly reported as 09:00 to anyone running the suite at UTC+10. Pinning
+    /// the fixture to UTC while production reads `.current` decouples the two —
+    /// exactly the trap `TestClock` records against `SharedBaselineTests` — and
+    /// a green assertion would then be measuring the machine's zone, not the
+    /// code. The durations are left on `TestClock.day`, which is midday and so
+    /// cannot straddle a day boundary in any real zone.
     private func nightsWithDuration(_ offsets: [Double]) -> [HealthMetricSample] {
-        samples(offsets) + (0..<offsets.count).map { night in
+        let here = Calendar.current
+        let onsets = offsets.enumerated().map { index, offset -> HealthMetricSample in
+            let start = here.startOfDay(for: TestClock.day(offsets.count - index))
+                .addingTimeInterval((23 + offset) * 3600)
+            return HealthMetricSample(
+                type: .sleepOnset,
+                value: SleepOnset.hoursFromMidnight(start, calendar: here) ?? 0,
+                start: SleepOnset.night(of: start, calendar: here), source: .oura)
+        }
+        return onsets + (0..<offsets.count).map { night in
             HealthMetricSample(type: .sleepDurationHours, value: 7.6,
                                start: TestClock.day(night), source: .oura)
         }

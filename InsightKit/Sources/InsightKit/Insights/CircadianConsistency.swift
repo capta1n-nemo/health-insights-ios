@@ -120,12 +120,19 @@ public enum CircadianConsistencyModel {
     /// finger. Reading the nights is the expensive half — a filter and a daily
     /// bucket over the whole history — and fitting a centre to a handful of
     /// them is arithmetic.
+    ///
+    /// ⚠️ **Read through `SleepTravel.onsets(in:)`, never straight off the
+    /// samples.** A stored onset is signed hours from local midnight *in the
+    /// zone that ingested it*; the reader flew Manila → Sydney on 2026-08-07 and
+    /// asked for every night to "report in MY current timezone". Bucketing the
+    /// stored value directly draws a Manila bedtime two hours from where it was.
     public static func nights(from samples: [HealthMetricSample],
                               days: Int = windowNights,
                               now: Date = Date(),
                               calendar: Calendar = .current) -> [VitalReader.DailyValue] {
-        VitalReader.dailySeries(.sleepOnset, from: samples, days: days, now: now,
-                                calendar: calendar)
+        VitalReader.dailySeries(.sleepOnset,
+                                from: SleepTravel.onsets(in: samples, calendar: calendar),
+                                days: days, now: now, calendar: calendar)
     }
 
     public static func evaluate(samples: [HealthMetricSample], now: Date = Date(),

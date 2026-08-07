@@ -133,8 +133,16 @@ public enum SleepRegularityIndex {
                                  days: Int? = nil,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> [Interval] {
-        let onsets = VitalReader.dailySeries(.sleepOnset, from: samples, days: days,
-                                             now: now, calendar: calendar)
+        // Through `SleepTravel.onsets(in:)`, because the join below rebuilds an
+        // instant as `key + onset·3600` and that identity only holds while both
+        // halves are in one zone. A stored onset's value was baked in whatever
+        // zone ingested it; bucketing moves its key to midnight *here*. Left
+        // alone the two disagree by the offset difference and the whole sleep
+        // block lands in the wrong place on the grid.
+        let onsets = VitalReader.dailySeries(.sleepOnset,
+                                             from: SleepTravel.onsets(in: samples,
+                                                                      calendar: calendar),
+                                             days: days, now: now, calendar: calendar)
         let durations = VitalReader.dailySeries(.sleepDurationHours, from: samples,
                                                 days: days, now: now, calendar: calendar)
         var durationByNight: [Date: Double] = [:]
