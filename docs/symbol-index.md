@@ -120,9 +120,9 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :959
+  - `TravelDrainInsight` :974
   - `TravelDrainModel` :668
-  - `WorkImpactInsight` :867
+  - `WorkImpactInsight` :882
   - `WorkImpactModel` :40
 - `Insights/CardioTrajectory.swift`
   - `VO2Trajectory` :11
@@ -178,6 +178,8 @@ the place to look.
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
   - `MetricContribution` :11
+- `Insights/JetlagModel.swift`
+  - `JetlagModel` :57
 - `Insights/LaggedCorrelation.swift`
   - `LagFinder` :27
   - `LaggedRelationship` :14
@@ -802,6 +804,8 @@ the place to look.
   - `InstrumentAgreementSection` :47
 - `Features/Insights/InstrumentIndexCard.swift`
   - `InstrumentIndexCard` :45
+- `Features/Insights/JetlagSection.swift`
+  - `JetlagSection` :32
 - `Features/Insights/MedicationPanelSection.swift`
   - `DoseCycleChart` :259
   - `MedicationPanelSection` :33
@@ -832,6 +836,8 @@ the place to look.
   - `SleepInfluencesSection` :63
 - `Features/Insights/SleepScreenTimeSection.swift`
   - `SleepScreenTimeSection` :38
+- `Features/Insights/SleepTravelSection.swift`
+  - `SleepTravelSection` :47
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Insights/SoundExposureSection.swift`

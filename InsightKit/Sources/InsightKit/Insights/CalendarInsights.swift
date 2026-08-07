@@ -668,6 +668,21 @@ public enum WorkImpactModel {
 public enum TravelDrainModel {
 
     /// Days after a zone change treated as the disrupted stretch.
+    ///
+    /// ⚠️ **Unsourced, and does not vary with the dose.** A one-zone hop and a
+    /// twelve-zone haul get the same four days. Backlog `B21` names this as the
+    /// constant a jetlag measurement would replace, and
+    /// `JetlagModel.windowDays(shiftHours:)` is what should replace it: the
+    /// signed offset times a *published* rate (Waterhouse et al., **Lancet**
+    /// 2007), floored at a day and capped at a fortnight.
+    ///
+    /// It is deliberately not swapped in here yet. This card's score, its
+    /// `disruptedDays` derived series and its contribution details are all
+    /// computed off this number, so changing it moves a shipped figure — and
+    /// `travel-drain-v1` would need a version bump and its own brief, which the
+    /// comment further down this file already says is the rule for touching this
+    /// model's arithmetic. `JetlagModel` therefore keeps its own dose-derived
+    /// window, and the Jetlag section says which window it used.
     public static let recoveryDays = 4
     /// Trips needed before anything is said. **Two, minimum** — one trip is an
     /// anecdote, and a card that turns a single flight into a finding is the
