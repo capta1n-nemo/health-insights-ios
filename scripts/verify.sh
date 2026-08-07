@@ -567,7 +567,7 @@ fi
 # "Going forward" is the part a lint has to carry: the shading was on one chart
 # for months because each new chart's author had no reason to know about it.
 # `ScrollableMetricChart` now draws it for every chart that wraps it, so the
-# only files this can catch are the ones building a raw `Chart {` of their own
+# only files this can catch are the ones building a raw chart of their own
 # — which is exactly where the rule gets skipped.
 #
 # A file passes if it wraps `ScrollableMetricChart`, calls `SubstanceShading`
@@ -575,7 +575,14 @@ fi
 #     // substance-shading: exempt — <why>
 # An exemption is for a chart whose x axis is not a date (a projection in months
 # ahead, a scatter). There is no exemption for "it did not seem relevant".
-chartfiles=$(grep -rlE '(^|[^A-Za-z0-9_])Chart[ ]*\{' HealthInsights --include=*.swift 2>/dev/null || true)
+#
+# ⚠️ **`[({]`, not `\{`** — backlog D11, found on the simulator. This matched
+# only `Chart {` and so never saw `Chart(data) { … }`, the data-driven form.
+# `OtherDataDetailView`'s chart used it and had gone unshaded since the day it
+# shipped, while the *sibling* lint fifty lines above (no raw chart in a data
+# page) had matched both forms all along. Widening it caught exactly that one
+# file, which is now shaded.
+chartfiles=$(grep -rlE '(^|[^A-Za-z0-9_])Chart[ ]*[({]' HealthInsights --include=*.swift 2>/dev/null || true)
 unshaded=""
 for f in $chartfiles; do
     case "$(basename "$f")" in
@@ -584,7 +591,7 @@ for f in $chartfiles; do
     # Comment lines don't build charts. `DomainDataScaffold` documents the rule
     # that a data page never hand-rolls a `Chart {}`, and was flagged for saying
     # so — a lint that fires on prose about itself teaches people to ignore it.
-    grep -nE '(^|[^A-Za-z0-9_])Chart[ ]*\{' "$f" \
+    grep -nE '(^|[^A-Za-z0-9_])Chart[ ]*[({]' "$f" \
         | grep -qvE '^[0-9]+:[[:space:]]*(///|//|\*)' || continue
     grep -q 'ScrollableMetricChart\|SubstanceShading\|substance-shading: exempt' "$f" \
         || unshaded="$unshaded $(basename "$f")"
