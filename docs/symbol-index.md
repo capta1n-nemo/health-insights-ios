@@ -671,11 +671,15 @@ the place to look.
   - `VitalsGlance` :226
 - `Features/Data/BodyScanDataView.swift`
   - `BodyScanDataView` :14
+- `Features/Data/CalendarEventsDataView.swift`
+  - `CalendarEventsDataView` :41
 - `Features/Data/CardDataView.swift`
   - `CardDataView` :24
+- `Features/Data/CycleDataView.swift`
+  - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1222
+  - `OtherDataDetailView` :1255
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

@@ -421,28 +421,31 @@ struct DataTabView: View {
     /// Data tab's whole job — every kind of data the app holds, listed, newest
     /// first, with nothing derived.
     @ViewBuilder private var cycleSection: some View {
-        // data-detail: exempt — TEMPORARY, tracked as backlog D49. Cycles have
-        // a whole tab, so the reader can reach the detail; what they cannot do
-        // is reach it from here, which is the convention this section breaks.
-        // The exemption names a row on purpose: an exemption with no id is a
-        // permanent excuse, and this one is meant to be spent.
+        // D49, spent: this opened nothing and now opens `CycleDataView`. The
+        // Cycle tab still owns the calendar, the phase and every prediction —
+        // this row is the Data tab's consistent way *in*, which is the thing
+        // the convention is about.
         let summary = model.cycleSummary
         if !model.cycleDays.isEmpty {
             Section {
-                VStack(alignment: .leading, spacing: 3) {
-                    if let latest = model.cycleDays.last {
-                        HStack {
-                            Text(latest.day.formatted(date: .abbreviated, time: .omitted))
-                            Spacer()
-                            Text(latest.flow.title).foregroundStyle(.secondary)
+                NavigationLink {
+                    CycleDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let latest = model.cycleDays.last {
+                            HStack {
+                                Text(latest.day.formatted(date: .abbreviated, time: .omitted))
+                                Spacer()
+                                Text(latest.flow.title).foregroundStyle(.secondary)
+                            }
                         }
+                        // The range, never a single length — the rule `CycleLog`
+                        // is built around, restated wherever cycles are shown.
+                        Text(summary.lengthRange.map {
+                            "\(model.cycleDays.count) days logged · cycles \($0.lowerBound)–\($0.upperBound) days"
+                        } ?? "\(model.cycleDays.count) day\(model.cycleDays.count == 1 ? "" : "s") logged")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    // The range, never a single length — the rule `CycleLog`
-                    // is built around, restated wherever cycles are shown.
-                    Text(summary.lengthRange.map {
-                        "\(model.cycleDays.count) days logged · cycles \($0.lowerBound)–\($0.upperBound) days"
-                    } ?? "\(model.cycleDays.count) day\(model.cycleDays.count == 1 ? "" : "s") logged")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             } header: {
                 Text(DataDomain.cycles.title)
@@ -453,30 +456,36 @@ struct DataTabView: View {
     /// The three categories the reader named, as three labelled groups under
     /// one heading — see `DataDomain.calendarEvents` for why it is one domain.
     @ViewBuilder private var calendarSection: some View {
-        // data-detail: exempt — TEMPORARY, tracked as backlog D49. The review
-        // list lives on the Work impact and Travel drain cards, so the events
-        // are reachable but not from the Data tab, which is where the reader
-        // asked for a consistent way in.
+        // D49, spent: this opened nothing and now opens `CalendarEventsDataView`.
+        // The cards' review list is still where a judgement is *corrected* —
+        // but it only covers work and travel, so a personal event was counted
+        // here and visible nowhere. See the page's own note.
         let buckets = model.calendarBuckets
         if !model.calendarEvents.isEmpty {
             Section {
-                ForEach(CalendarEventBucket.allCases) { bucket in
-                    if let events = buckets[bucket], !events.isEmpty {
-                        HStack {
-                            Text(bucket.title)
-                            Spacer()
-                            Text("\(events.count)")
-                                .foregroundStyle(.secondary).monospacedDigit()
+                NavigationLink {
+                    CalendarEventsDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(CalendarEventBucket.allCases) { bucket in
+                            if let events = buckets[bucket], !events.isEmpty {
+                                HStack {
+                                    Text(bucket.title)
+                                    Spacer()
+                                    Text("\(events.count)")
+                                        .foregroundStyle(.secondary).monospacedDigit()
+                                }
+                            }
                         }
+                        let reviewed = model.calendarAccuracy
+                        Text(reviewed.rate.map {
+                            String(format: "%d events · you have reviewed %d, and it was right %.0f%% of the time",
+                                   model.calendarEvents.count, reviewed.reviewed, $0 * 100)
+                        } ?? "\(model.calendarEvents.count) events · \(reviewed.reviewed) reviewed so far")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                let reviewed = model.calendarAccuracy
-                Text(reviewed.rate.map {
-                    String(format: "%d events · you have reviewed %d, and it was right %.0f%% of the time",
-                           model.calendarEvents.count, reviewed.reviewed, $0 * 100)
-                } ?? "\(model.calendarEvents.count) events · \(reviewed.reviewed) reviewed so far")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             } header: {
                 Text(DataDomain.calendarEvents.title)
             }
@@ -1131,11 +1140,35 @@ struct DataTabView: View {
     }
 
     @ViewBuilder private var otherDataSection: some View {
-        // data-detail: exempt — tracked as backlog D49, and this is the one of
-        // the three that may be correct rather than a gap: "unmodelled" is not
-        // one kind of data but ~158 raw identifiers, browsed by search in place.
-        // A single detail page for it would be a page of everything. Decide
-        // deliberately rather than inheriting this comment.
+        // data-detail: exempt — PERMANENT, decided under D49 rather than
+        // inherited from it. The other two exemptions D49 named were spent;
+        // this one was examined and kept, and the reasoning is the point:
+        //
+        // 1. **Every row here already opens a page.** `rawFieldRow` is a
+        //    `NavigationLink` into `OtherDataDetailView`, per identifier. There
+        //    is no dead end for any actual datum — what has no single
+        //    destination is the *section*, and only because it is not one kind
+        //    of data. `unmodelled` is the residual: ~158 raw identifiers with
+        //    nothing in common but that no card reads them yet.
+        //
+        // 2. **A page of everything answers nothing.** The other domains'
+        //    detail pages exist to say "here is this one shape, listed, newest
+        //    first". The equivalent here is a flat list of 158 unrelated
+        //    fields — which is exactly the screen this section was rebuilt to
+        //    stop being (eleven consecutive rows reading "Daily activity ·
+        //    Contributors: Mee…"). Putting it one tap further away and calling
+        //    it a detail page would undo that and satisfy a lint.
+        //
+        // 3. **This section is browsed in place, by search.** `filteredOtherGroups`
+        //    matches the display name, the raw identifier, the rendered row
+        //    title and the group heading, so the reader finds a field from the
+        //    Data tab's own search field. A detail page would put a second
+        //    search behind the first.
+        //
+        // The shape is different from every other domain, so the convention's
+        // second rule genuinely does not apply — and saying so is a decision,
+        // not a debt. If `unmodelled` ever narrows to one kind of thing, this
+        // comment is wrong and the page should be built.
         let sections = fieldSections
         let titles = fieldTitles
         ForEach(sections) { section in
@@ -1222,6 +1255,11 @@ struct DataTabView: View {
 struct OtherDataDetailView: View {
     let group: RawMetricGroup
     @State private var timeframe: Timeframe = .month
+    /// **For the substance shading, and only for it.** The reader's standing
+    /// rule (2026-08-03) is that *every* chart carries it, and this page's
+    /// chart went without for as long as it has existed — see the chart's own
+    /// note for why no check caught that.
+    @Environment(AppModel.self) private var model
 
     /// The same readable name the tab's row shows.
     ///
@@ -1257,6 +1295,21 @@ struct OtherDataDetailView: View {
         guard all.count > limit else { return all }
         let stride = Double(all.count - 1) / Double(limit - 1)
         return (0..<limit).map { all[Int((Double($0) * stride).rounded())] }
+    }
+
+    /// The span the chart actually draws, so the shading can be clipped to it.
+    ///
+    /// **From `charted`, not from the timeframe.** A shaded rectangle wider
+    /// than the data widens the x domain and drags the line into a corner —
+    /// which is why `SubstanceShading.marks` takes a range at all. Falls back
+    /// to a zero-width range for the empty case, where nothing is drawn anyway.
+    private var plotRange: ClosedRange<Date> {
+        guard let first = charted.first?.date, let last = charted.last?.date,
+              first <= last else {
+            let now = Date()
+            return now...now
+        }
+        return first...last
     }
 
     /// For a categorical field (Oura's resilience level, a sleep stage), the
@@ -1332,8 +1385,20 @@ struct OtherDataDetailView: View {
                 if charted.count > 1 {
                     // An explicit hue: without one Swift Charts supplies its
                     // own blue, which is off the validated palette every other
-                    // chart in the app draws from.
+                    // chart in the app draws from. (Slot 0 *is* a blue — the
+                    // validated one. Checked against the pixels, not assumed.)
                     Chart(charted) { point in
+                        // ⚠️ **This chart carried no substance shading until
+                        // D11 looked at it on the simulator**, and the reason
+                        // no check said so is worth keeping: the shading lint
+                        // greps for `Chart` followed by a **brace**, and this
+                        // is the `Chart(data) { … }` paren form. Its sibling
+                        // lint — no raw chart in a data page — already matched
+                        // both. The one that mattered matched one. `verify.sh`
+                        // now matches both, and this was the only file in the
+                        // app the widening newly caught.
+                        SubstanceShading.marks(model.allSubstanceWindows,
+                                               in: plotRange)
                         LineMark(x: .value("Time", point.date),
                                  y: .value(group.unit, point.value))
                             .foregroundStyle(Theme.paletteColour(slot: 0))
@@ -1344,6 +1409,11 @@ struct OtherDataDetailView: View {
                             .symbolSize(20)
                     }
                     .frame(height: 160)
+                    // A band with no caption is decoration — the same rule the
+                    // reference ranges follow.
+                    Text(SubstanceShading.caption)
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } header: {
                 Text(title)

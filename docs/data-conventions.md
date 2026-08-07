@@ -47,7 +47,29 @@ scaffold directly.
 **Enforcement:** `verify.sh` requires every `<Domain>DataView` under
 `Features/Data` to be built with `DomainDataScaffold` (`CardDataView`, a
 card-scoped browser over many domains, is the one exclusion). A page that
-reinvents its own shape fails the gate.
+reinvents its own shape fails the gate. A second check requires every branch of
+`section(for:)` to contain a `NavigationLink`, or a `// data-detail: exempt —
+<why>` comment.
+
+**The one standing exemption, and why it is not a debt (backlog D49).**
+`otherDataSection` — the `unmodelled` domain — has no detail page and is not
+getting one. Three exemptions existed; two were spent on `CycleDataView` and
+`CalendarEventsDataView` in the same commit, and this one was examined and
+kept:
+
+- **Every row already opens a page.** `rawFieldRow` is a `NavigationLink` into
+  `OtherDataDetailView`, per identifier. Nothing here is a dead end; what has no
+  single destination is the *section*.
+- **`unmodelled` is not one kind of data.** It is the residual — ~158 raw
+  identifiers whose only shared property is that no card reads them yet. A
+  detail page for it would be a page of everything, which is the screen the
+  grouped catalogue was built to stop being.
+- **It is browsed in place, by search.** The Data tab's own search matches the
+  display name, the raw identifier, the rendered row title and the group
+  heading. A detail page would put a second search behind the first.
+
+If `unmodelled` ever narrows to one kind of thing, that reasoning stops holding
+and the page should be built.
 
 ## 3. A data page never hand-rolls a chart
 
@@ -62,6 +84,14 @@ get skipped.
 `<Domain>DataView`. `OtherDataDetailView` is exempt — it is the review surface
 for *unmodelled* imported data, which has no shared component by definition, and
 its chart is a plain line by design.
+
+⚠️ **Exempt from the shared-component rule is not exempt from the shading rule**,
+and that gap was live for as long as this page has existed. `OtherDataDetailView`
+draws `Chart(charted) { … }` — the *paren* form — and the substance-shading lint
+matched only `Chart {`, so it never looked. Found by opening the page on the
+simulator under D11, not by any check. The lint now matches both forms (its
+sibling above always did), and the page draws `SubstanceShading.marks` with the
+caption. **Any new chart form is a lint question first.**
 
 **Before adding or changing any chart, load the `add-chart` skill.** This lint
 catches a raw chart in a data page; it does not check that a shared component
