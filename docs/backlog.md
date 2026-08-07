@@ -2083,6 +2083,50 @@ so the decision is deliberate rather than inherited. See
       shape, and the ban exists because a UTC-pinned test of UTC-pinned code
       agrees with itself while losing every Oura bedtime in a two-year history.
 
+      **2026-08-07 — the InsightKit half is built; the card is not.** New:
+      `InsightKit/Sources/InsightKit/Signals/SleepTravel.swift` (+25 tests in
+      `SleepTravelTests.swift`, all three zones real, none pinned to UTC).
+
+      ⚠️ **The premise above is now wrong and the correction matters more than
+      the fix.** "The app captures no time zone on any health reading" was true
+      of what was *stored*, not of what arrives. Oura stamps every
+      `bedtime_start` as `…T23:10:00+08:00`. `ISO8601DateFormatter` resolves the
+      offset into an instant and Foundation then offers no way to ask what it
+      was — and `GenericJSONIngestor` excludes the date keys from the raw sweep
+      (see the long note in `PromotionRules.swift`), so the string never reached
+      the catalogue either. **The zone was being deleted at the door, twice.**
+      `PayloadDate.utcOffsetSeconds` now keeps it and the ingestor emits
+      `zone_offset_seconds` / `…_at_end` as raw fields. So a night that crossed
+      a zone is now **measured**, and the `CalendarModel.timeZoneChanges` join
+      suggested above is the *fallback*, not the first resort — it is an
+      inference and its own doc says a hand-set event produces the same shape.
+      Apple Health still supplies nothing on this path, so an Apple-only night
+      is **unknown**, never "did not travel".
+
+      The hinge for problem 1, and the reason no migration or re-sync is needed:
+      a stored `.sleepOnset` is an instant in disguise. Its `start` is local
+      midnight on the wake day and its `value` is the clock offset from that
+      same midnight, **both computed in one calendar**, so
+      `start + value·3600` recovers the absolute instant whatever zone wrote it.
+      `SleepTravel.onsetInstant(of:)`, tested in both signs.
+
+      Answers taken, so the card is not free to re-decide them:
+      - **Problem 2 reports elapsed.** `SleepNights` sums segment durations, so
+        it always did; nobody had said so. `wallClockHours(elapsedHours:span:)`
+        gives the other number so the card can print both and name them.
+      - **Problem 3 changes nothing about what a night is.** The noon–18:00
+        filter still drops afternoon sleep; `daytimeSleepHours(from:calendar:)`
+        surfaces exactly what it dropped, and `episodes(in:)` counts the bouts.
+
+      ⚠️ **Still open, and it is a UI bug this work creates.** Re-rendering in
+      the current zone widens the onset range from ±6 h to **[−12, +12)** — a
+      Sydney 23:00 bedtime read from London is −10. `SleepOnsetChart` and
+      `SleepOnsetStripChart` both assume ±6 and will clip or drop it.
+      Also open: nothing calls `SleepTravel` from a view yet (the sleep card was
+      another agent's file this session), and `SleepOnsetModel`'s consistency
+      figure should use the *recorded-zone* bedtime rather than the re-rendered
+      one — circadian rhythm follows the body, not the reader's current clock.
+
 - `D50` ⬜ `w1` `export` `mech` `gate:none` — **A new `DataDomain` can ship with an export key and no data, and no check notices**
       Found while diagnosing the reader's 2026-08-07 report that new data types
       *"aren't making it into exports by default"*.

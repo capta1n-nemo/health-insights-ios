@@ -98,10 +98,66 @@ public struct GenericJSONIngestor: PayloadIngestor {
                 .union(spec.startDateKeys)
                 .union(spec.endDateKeys)
             let flattened = JSONFlattener.flatten(record, policy: spec.policy, skipping: ignored)
+            // …but the *zone* on those keys is not a duplicate of the timestamp,
+            // and until 2026-08-07 this line was the only place it ever existed.
+            //
+            // Oura stamps `bedtime_start` as `2026-08-06T23:10:00+08:00`. The
+            // instant survives; `+08:00` does not — `ISO8601DateFormatter`
+            // resolves and discards it, and because the date keys are excluded
+            // from the sweep above the string never reaches the raw catalogue
+            // either. So the app held **no time zone on any health reading**,
+            // and the one provider that sends one had it deleted at the door.
+            //
+            // That is the whole of the reader's 2026-08-07 report: they flew
+            // Manila → Sydney and slept across the change. Whether a night
+            // crossed zones is a fact only these two fields know.
+            //
+            // Emitted as ordinary flat fields rather than as a new column on
+            // `IngestedDocument`, so they land in the raw catalogue beside the
+            // record they describe (`oura.sleep.zone_offset_seconds`) with no
+            // model change and no promotion rule — the same shape
+            // `NightSleepDetail` already joins `oura.sleep.type` by.
+            //
+            // The path names the *role*, not the provider's key, because the
+            // only consumer question is "which end of the record is this?" and
+            // that must be answerable without knowing whether the provider
+            // called it `bedtime_start`, `start` or `start_datetime`.
+            var fields = flattened.fields
+            if let seconds = Self.offsetSeconds(in: record, keys: spec.startDateKeys,
+                                                calendar: calendar) {
+                fields.append(FlatField(path: PayloadDate.startZoneOffsetField,
+                                        value: .number(Double(seconds))))
+            }
+            if let seconds = Self.offsetSeconds(in: record, keys: spec.endDateKeys,
+                                                calendar: calendar) {
+                fields.append(FlatField(path: PayloadDate.endZoneOffsetField,
+                                        value: .number(Double(seconds))))
+            }
             out.append(IngestedDocument(start: start, end: end,
-                                        fields: flattened.fields, skipped: flattened.skipped))
+                                        fields: fields, skipped: flattened.skipped))
         }
         return out
+    }
+
+    /// Which key actually supplied the timestamp — the same preference order
+    /// `PayloadDate.firstDate` walks, so the offset can never be attributed to a
+    /// different field than the instant it belongs to.
+    static func datingKey(in record: [String: Any], keys: [String],
+                          calendar: Calendar) -> String? {
+        keys.first { key in
+            guard let raw = record[key] else { return false }
+            return PayloadDate.parse(raw, calendar: calendar) != nil
+        }
+    }
+
+    /// The UTC offset stamped on the dating key, or nil when it carries none —
+    /// a bare `2026-08-06` names a day and says nothing about a zone, and
+    /// inventing one for it is exactly the accident `DayStamp` documents.
+    static func offsetSeconds(in record: [String: Any], keys: [String],
+                              calendar: Calendar) -> Int? {
+        guard let key = datingKey(in: record, keys: keys, calendar: calendar),
+              let raw = record[key] else { return nil }
+        return PayloadDate.utcOffsetSeconds(raw)
     }
 
     /// Navigate to the record array, tolerating the three shapes a provider
@@ -243,6 +299,66 @@ public enum PayloadDate {
         if let d = isoWithFraction.date(from: s) { return d }
         if let d = isoPlain.date(from: s) { return d }
         return nil
+    }
+
+    /// Field paths under which a captured zone offset is catalogued, giving
+    /// `oura.sleep.zone_offset_seconds` and `oura.sleep.zone_offset_seconds_at_end`.
+    ///
+    /// Named so they can never collide with a promotion alias —
+    /// `PromotionRuleSet.proposal(forIdentifier:)` matches on the *leaf*, and no
+    /// vital is called `zone_offset_seconds`. They stay raw on purpose: a UTC
+    /// offset is a fact about the recording, not a measurement of the reader.
+    public static let startZoneOffsetField = "zone_offset_seconds"
+    public static let endZoneOffsetField = "zone_offset_seconds_at_end"
+
+    /// The UTC offset an ISO-8601 instant was written in, in seconds, or nil if
+    /// the value carries none.
+    ///
+    /// **This is the only measurement of the reader's time zone the app has
+    /// ever received.** No health reading in this codebase stores a zone;
+    /// `CalendarModel.timeZoneChanges` infers travel from calendar events, which
+    /// is an inference. `2026-08-06T23:10:00+08:00` is not an inference: the
+    /// ring recorded it from the phone that was in Manila.
+    ///
+    /// Parsed by hand rather than by `ISO8601DateFormatter`, for two reasons and
+    /// both of them are already precedents in this file. Foundation's formatter
+    /// *resolves* the offset into an instant and then has no API to tell you
+    /// what it was — the information is gone by the time you hold the `Date`.
+    /// And this package's suite runs on Linux, where several formatter paths are
+    /// Darwin-only; the same rationale as `DayStamp` and `ShortcutIngest.parseDate`.
+    ///
+    /// Returns 0 for `Z`, which is a real answer — the writer said UTC — and
+    /// nil for a bare day or a naive local timestamp, which said nothing.
+    /// **Nil and zero must not be conflated**: a naive timestamp treated as UTC
+    /// is the shape `verify.sh` bans and the shear `DayStamp` exists to describe.
+    public static func utcOffsetSeconds(_ any: Any) -> Int? {
+        guard let s = any as? String else { return nil }
+        // Only an instant carries a zone. A ten-character day never does, and a
+        // date's own hyphens must not be mistaken for a negative offset — which
+        // is why everything below is read from *after* the date/time separator.
+        guard let separator = s.firstIndex(where: { $0 == "T" || $0 == "t" || $0 == " " })
+        else { return nil }
+        let time = s[s.index(after: separator)...]
+        guard !time.isEmpty else { return nil }
+        if time.hasSuffix("Z") || time.hasSuffix("z") { return 0 }
+        guard let signIndex = time.lastIndex(where: { $0 == "+" || $0 == "-" })
+        else { return nil }
+        let sign = time[signIndex] == "-" ? -1 : 1
+        let digits = String(time[time.index(after: signIndex)...].filter(\.isNumber))
+        // `+08:00` and `+0800` are the same offset; `+08` is the bare-hour form.
+        // Anything else is not a zone designator and is refused rather than guessed.
+        let hourText: Substring
+        let minuteText: Substring
+        switch digits.count {
+        case 4: hourText = digits.prefix(2); minuteText = digits.suffix(2)
+        case 2: hourText = digits.prefix(2); minuteText = ""
+        default: return nil
+        }
+        guard let hours = Int(hourText), hours <= 14 else { return nil }
+        let minutes = minuteText.isEmpty ? 0 : Int(minuteText) ?? -1
+        // Real zones run to ±14:00, and 45-minute offsets exist (Nepal, Chatham).
+        guard minutes >= 0, minutes < 60 else { return nil }
+        return sign * (hours * 3600 + minutes * 60)
     }
 
     private static let isoWithFraction: ISO8601DateFormatter = {

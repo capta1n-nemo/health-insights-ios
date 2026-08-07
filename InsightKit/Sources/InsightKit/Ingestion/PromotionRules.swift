@@ -232,6 +232,14 @@ public struct PromotionRuleSet: Sendable {
             // nothing, silently, forever. A rule is only useful for a provider
             // whose spec does not already spend that field on the date.
             //
+            // ⚠️ One thing did change on 2026-08-07 and it is *not* an
+            // exception to the above. `GenericJSONIngestor` now emits the
+            // **UTC offset** stamped on the dating key as its own flat field
+            // (`zone_offset_seconds`), so the zone reaches the catalogue even
+            // though the timestamp still does not. It is deliberately not
+            // aliased and never promoted: an offset is a fact about the
+            // recording, not a measurement of the reader. See `SleepTravel`.
+            //
             // What these aliases buy meanwhile is the *proposal* — a connector
             // nobody has written a parser for gets its bedtime catalogued and
             // surfaced, and promoting it is then one row in `rules` with
