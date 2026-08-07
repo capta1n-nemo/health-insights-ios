@@ -115,16 +115,35 @@ final class DiagnosticsLog {
     ///   said ok / fail / null and when — which is most of what a remote
     ///   debugging session needs.
     ///
-    /// `fail` maps to `.error` and everything else to `.info`, so error-only
-    /// filtering in the tooling surfaces exactly the red rows the
-    /// Troubleshooting view would.
+    /// The level mapping decides **what survives into a sysdiagnose**, and it
+    /// was chosen deliberately (backlog `D52`, 2026-08-08):
+    ///
+    /// - `fail` → `.error` — error-only filtering surfaces exactly the red rows
+    ///   the Troubleshooting view would.
+    /// - `ok` and `info` → `.notice`, **which the unified log persists by
+    ///   default.** These are the sync lifecycle, the hang watchdog and the
+    ///   launch stamp — the lines a device's `log collect` or a sysdiagnose
+    ///   needs, and the ones that were invisible outside `simulator.sh logs
+    ///   --info` when everything sat at `.info`. The privacy analysis above
+    ///   already assumes persistence (it names sysdiagnose), so this changes
+    ///   visibility, not posture.
+    /// - `null` stays `.info`, **deliberately not promoted**: it is the
+    ///   per-metric import chatter — "null: 0 × AFib Burden", one line per
+    ///   metric per sync, ~64 lines a run — which is exactly the volume the
+    ///   row warned about. It remains visible with `--info` where it always
+    ///   was, and a full sync no longer writes its whole inventory into every
+    ///   sysdiagnose.
+    ///
+    /// ⚠️ If a `null` line ever matters to a device-side investigation, promote
+    /// that *call site* to `.info`-status-with-a-notice-worthy message rather
+    /// than flipping the whole level back.
     private func mirrorToUnifiedLog(_ category: String, _ message: String, _ status: Status) {
         let logger = unifiedLogger(for: category)
         switch status {
         case .fail: logger.error("fail: \(message)")
-        case .ok: logger.info("ok: \(message)")
+        case .ok: logger.notice("ok: \(message)")
         case .null: logger.info("null: \(message)")
-        case .info: logger.info("info: \(message)")
+        case .info: logger.notice("info: \(message)")
         }
     }
 

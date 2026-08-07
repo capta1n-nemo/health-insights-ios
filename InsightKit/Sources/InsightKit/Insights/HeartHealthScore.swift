@@ -329,13 +329,30 @@ public struct HeartHealthInsight: InsightModel {
         // departures are already harvested from `contributions`, and
         // `ScoreHistory` trends the composite.
         //
-        // ⚠️ **The one figure that would qualify is not computed here.** Heart
-        // rate recovery — the card's own bespoke section — is evaluated by
-        // `HeartResponseModel` in the *view*, so it never reaches this result
-        // and cannot be declared from it. That is a real gap and it is a
-        // rendering-layer one: moving the response model into `evaluate` is the
-        // fix, and it changes what the card reports, so it is backlog rather
-        // than a side effect of this pass. See COMMIT_MESSAGE / backlog §E.
+        // ✅ **The gap above is half-closed (D40, 2026-08-08), and the half is
+        // chosen deliberately.** `HeartResponseModel` now runs here too, and the
+        // recovery figure is declared as a **derived output** — so it becomes a
+        // data source, trends, and reaches the export, per standing rule 10.
+        //
+        // ⚠️ **It carries NO weight in this score, and that is the boundary of
+        // what could be done without the reader.** Making recovery a weighted
+        // input changes what every recorded Heart Health score means and needs
+        // a `modelVersion` bump and its own brief — that half stays on the
+        // backlog, gated on a decision. The view still renders its own richer
+        // evaluation (bands, autonomic pair); this call is the declaration, not
+        // the section.
+        //
+        // The evaluate is cheap: one `VitalReader.reading` and two
+        // `dailySeries`, all behind the pass's own memo.
+        let response = HeartResponseModel.evaluate(samples: samples, now: now)
+        var outputs: [DerivedOutput] = []
+        if let recovery = response.recovery {
+            outputs.append(DerivedOutput(
+                key: "heartRateRecovery",
+                displayName: "Heart-rate recovery (1 min)",
+                unit: "bpm", value: recovery,
+                higherIsBetter: true, precision: 0))
+        }
         return InsightResult(
             id: id, title: title, primaryValue: score,
             headline: band, score: score, confidence: confidence,
@@ -343,7 +360,8 @@ public struct HeartHealthInsight: InsightModel {
             driverLines: all.filter { $0.isNotable == true } + all.filter { $0.isNotable != true },
             unmetRequirements: unmet,
             contributors: blend?.contributions ?? out.contributions,
-            weighting: .weightedAverage)
+            weighting: .weightedAverage,
+            derivedOutputs: outputs)
     }
 
     static func band(_ score: Double) -> String {
