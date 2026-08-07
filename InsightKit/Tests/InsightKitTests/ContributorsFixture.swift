@@ -97,6 +97,25 @@ enum ContributorsFixture {
             out.append(.init(type: .physicalEffort, value: 4.4,
                              start: day.addingTimeInterval(601 * 60),
                              end: day.addingTimeInterval(631 * 60), source: .oura))
+            // ⚠️ **The two sound doses cannot go in the loop above either, and
+            // the reason is the same one effort has.** A dose is a level times
+            // a time, so `SoundExposureModel` reads the measured seconds off
+            // each sample's own span (`SoundDoseModel.measuredSeconds(of:)`) —
+            // a point sample carries a level and no exposure at all, and the
+            // card would report a fully-covered fixture as a silent week.
+            //
+            // Two hours of headphones at 76 dB(A), which spends about a sixth
+            // of WHO's weekly allowance across the window — inside it, and
+            // deliberately not on its edge. Six hours of a 62 dB(A) room
+            // around the watch, which is charted and never added to it.
+            // `.calculated`, because `SoundDoseModel` derives both and no
+            // device reports a daily figure.
+            out.append(.init(type: .headphoneSoundDose, value: 76, start: day,
+                             end: day.addingTimeInterval(2 * 3600),
+                             source: .calculated))
+            out.append(.init(type: .environmentalSoundDose, value: 62, start: day,
+                             end: day.addingTimeInterval(6 * 3600),
+                             source: .calculated))
         }
         return out
     }

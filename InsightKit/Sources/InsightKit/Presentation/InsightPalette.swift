@@ -48,6 +48,7 @@ public extension InsightID {
         case .mentalHealth: return 15
         case .workImpact: return 16
         case .travelDrain: return 17
+        case .soundExposure: return 18
         }
     }
 }

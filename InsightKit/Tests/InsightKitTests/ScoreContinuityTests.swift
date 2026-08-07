@@ -253,4 +253,31 @@ final class ScoreContinuityTests: XCTestCase {
         XCTAssertEqual(EnergyModel.hourlyChange(4), -4, accuracy: 1e-9)
         XCTAssertLessThan(EnergyModel.hourlyChange(2), 0, "an active hour must cost")
     }
+
+    // MARK: - Sound exposure
+
+    /// **Swept in the input's own units, not the curve's.** The curve is
+    /// anchored in decibels relative to the allowance, so sweeping decibels
+    /// would only prove `ScoreCurve.through` interpolates — which is already
+    /// tested. What the reader's week actually moves is the *fraction* of the
+    /// allowance spent, and that is exponential in the anchors: a thousandth of
+    /// a unit near the bottom is a much smaller step in dB than the same
+    /// thousandth near the top, so this is the axis where a step would hide.
+    ///
+    /// Nought to four times the allowance, which spans everything from a silent
+    /// week to a genuinely alarming one — including the point where the fraction
+    /// reaches zero, where `10·log10` goes to −∞ and the guard has to hold.
+    func testTheSoundAllowanceScoreIsContinuous() {
+        assertContinuous("SoundExposureModel.score", over: 0...4) {
+            SoundExposureModel.score(allowanceUsed: $0)
+        }
+    }
+
+    /// And again over the first hundredth, where the log axis is steepest and
+    /// a coarse sweep would step straight past the guard at zero.
+    func testTheSoundAllowanceScoreIsContinuousApproachingSilence() {
+        assertContinuous("SoundExposureModel.score near zero", over: 0...0.01) {
+            SoundExposureModel.score(allowanceUsed: $0)
+        }
+    }
 }

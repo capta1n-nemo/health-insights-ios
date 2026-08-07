@@ -38,9 +38,11 @@ import Foundation
 /// sample before regenerating, so running it twice cannot stack two copies of
 /// a day (the same strip-then-rebuild `refreshMedicationLevelSamples` uses).
 /// Every emitted sample carries `MetricSource.calculated`, because no device
-/// produced this daily figure. **Nothing reads these into a score** — they are
-/// Vitals-tab / Data-tab series only, stated here so the omission reads as a
-/// decision rather than a gap (`add-metric-type` step 4).
+/// produced this daily figure. **`SoundExposureModel` reads them into a score
+/// since 2026-08-07** (backlog §B3 #22) — the headphone series against WHO/ITU's
+/// weekly allowance, the environmental one reported beside it and never added.
+/// That card is also why each sample's **span is the measured time**: see
+/// `measuredSeconds(of:)`.
 public enum SoundDoseModel {
 
     /// The two HealthKit identifiers this model consumes, exactly as they
@@ -114,8 +116,14 @@ public enum SoundDoseModel {
         return weightedIntensity.compactMap { key, energy -> HealthMetricSample? in
             guard let seconds = measuredSeconds[key], seconds > 0 else { return nil }
             let leq = 10 * log10(energy / seconds)
+            // ⚠️ **The span is the measured time, and it is the other half of
+            // the figure** — see `measuredSeconds(of:)` directly below for why
+            // a level without its duration cannot be weighed against any
+            // published limit.
             return HealthMetricSample(type: key.metric, value: leq,
-                                      start: key.day, source: .calculated)
+                                      start: key.day,
+                                      end: key.day.addingTimeInterval(seconds),
+                                      source: .calculated)
         }
         // Deterministic order — a dictionary's is not — so two runs over the
         // same raw pile are equal element-for-element, which the idempotence
@@ -123,6 +131,38 @@ public enum SoundDoseModel {
         .sorted {
             ($0.start, $0.type.rawValue) < ($1.start, $1.type.rawValue)
         }
+    }
+
+    /// **How long the sensor could hear, for a derived dose sample.**
+    ///
+    /// ⚠️ **A level on its own cannot be weighed against a limit, and this is
+    /// the missing half.** Every published exposure budget — WHO/ITU's 80 dB(A)
+    /// for 40 hours a week, NIOSH's 85 dB(A) for eight — is a statement about
+    /// *energy*, which is a level **times a duration**. 85 dB(A) for ten minutes
+    /// and 85 dB(A) for ten hours are the same LEQ and sixty times the dose, so
+    /// a card holding only `value` could report the reader's listening level and
+    /// never their exposure. That is the gap `SoundExposureModel` exists to
+    /// close, and it is why the span is carried.
+    ///
+    /// **Why `end` rather than a new `MetricType`.** The span of a sample is
+    /// already this app's word for how long a reading covers —
+    /// `EffortIntensityModel` reads `end − start` off every `physicalEffort`
+    /// sample to get its minutes, on the same ingest path and for the same
+    /// reason. A second metric would have put the denominator of a figure in a
+    /// different series from the figure, where the two could be filtered apart.
+    ///
+    /// ⚠️ **The span says how much, never when.** `start` is midnight because
+    /// this is a daily aggregate; `start + measured` is not a claim that the
+    /// listening happened in the small hours. Nothing may read a time of day off
+    /// these two dates, and nothing does.
+    ///
+    /// It can exceed a day where two sources overlap — two headphones paired at
+    /// once write overlapping intervals, and both their energy and their time
+    /// count. The LEQ is unaffected (both halves of the ratio scale together)
+    /// and the dose is legitimately the sum of what each ear took, so it is left
+    /// unclamped rather than quietly capped at 24 hours.
+    public static func measuredSeconds(of sample: HealthMetricSample) -> TimeInterval {
+        Swift.max(0, sample.end.timeIntervalSince(sample.start))
     }
 
     /// Samples with the daily sound doses merged in — the previous derivation

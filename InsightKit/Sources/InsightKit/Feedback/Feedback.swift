@@ -173,6 +173,7 @@ public extension InsightID {
         case .symptomRadar: return "symptom-radar-v1"
         case .sustainedLoad: return "sustained-load-v1"
         case .gait: return "gait-v1"
+        case .soundExposure: return "sound-exposure-v1"
         case .biologicalAge: return "biological-age-v1"
         case .mentalHealth: return "mental-health-v1"
         // **v2, 2026-08-06 — backlog D41.** The number was a curve over how much

@@ -162,14 +162,14 @@ the place to look.
 - `Insights/IdealSleepWindow.swift`
   - `IdealSleepWindow` :57
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :164
-  - `InsightCadence` :122
-  - `InsightConfidence` :156
-  - `InsightDriver` :192
+  - `GroundingRequirement` :178
+  - `InsightCadence` :136
+  - `InsightConfidence` :170
+  - `InsightDriver` :206
   - `InsightID` :15
-  - `InsightModel` :451
-  - `InsightResult` :209
-  - `RequirementStatus` :180
+  - `InsightModel` :465
+  - `InsightResult` :223
+  - `RequirementStatus` :194
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -203,6 +203,8 @@ the place to look.
 - `Insights/ReadinessScore.swift`
   - `ReadinessInsight` :254
   - `ReadinessScore` :15
+- `Insights/RecoveryTracker.swift`
+  - `RecoveryTracker` :49
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
 - `Insights/ScoreBlend.swift`
@@ -229,6 +231,9 @@ the place to look.
   - `SleepInfluences` :67
 - `Insights/SleepInsight.swift`
   - `SleepInsight` :21
+- `Insights/SoundExposureInsight.swift`
+  - `SoundExposureInsight` :333
+  - `SoundExposureModel` :73
 - `Insights/SuggestionVisibility.swift`
   - `SuggestionDismissal` :4
   - `SuggestionVisibility` :43
@@ -354,7 +359,7 @@ the place to look.
   - `InputGroup` :280
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :63
+  - `InsightPalette` :64
 - `Presentation/InstrumentCoverage.swift`
   - `InstrumentCoverage` :100
   - `InstrumentReport` :34
@@ -483,7 +488,7 @@ the place to look.
   - `Somatotype` :15
   - `SomatotypeModel` :78
 - `Signals/SoundDose.swift`
-  - `SoundDoseModel` :44
+  - `SoundDoseModel` :46
 - `Signals/SymptomReconciliation.swift`
   - `SymptomReconciliation` :46
 - `Signals/TemperatureReconstructor.swift`
@@ -781,6 +786,8 @@ the place to look.
   - `OvernightCardiacReading` :22
   - `OvernightHRVSection` :85
   - `OvernightNightlyChart` :228
+- `Features/Insights/RecoverySection.swift`
+  - `RecoverySection` :21
 - `Features/Insights/ScoreComparisonDetailView.swift`
   - `ScoreComparisonDetailView` :20
 - `Features/Insights/SettlingSection.swift`
@@ -800,6 +807,8 @@ the place to look.
   - `SleepScreenTimeSection` :38
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
+- `Features/Insights/SoundExposureSection.swift`
+  - `SoundExposureSection` :22
 - `Features/Insights/SubstanceEpisodesSection.swift`
   - `SubstanceEpisodesSection` :39
 - `Features/Insights/SymptomRadarWebCard.swift`

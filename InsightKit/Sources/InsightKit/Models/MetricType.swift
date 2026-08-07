@@ -256,11 +256,15 @@ public enum MetricType: String, Codable, Sendable, CaseIterable {
     ///
     /// Every sample carries `MetricSource.calculated`, on
     /// `activeMedicationLevel`'s precedent: no screen that names a source may
-    /// present a computed daily figure as a device reading. **Nothing reads
-    /// these into a score yet — they are Vitals-tab / Data-tab series only**
-    /// until the "Sound you took on" card (backlog §B3 #22) exists to weigh
-    /// the dose against the WHO/NIOSH budget with the day's measured hours in
-    /// scope.
+    /// present a computed daily figure as a device reading.
+    ///
+    /// **Read by "Sound you took on" since 2026-08-07** (backlog §B3 #22) —
+    /// `SoundExposureModel` weighs the headphone series against WHO/ITU's
+    /// weekly allowance and reports the environmental one beside it, never
+    /// added. ⚠️ **The level is only half of each figure**: a dose is a level
+    /// times a time, so the day's measured seconds ride in the derived sample's
+    /// span — see `SoundDoseModel.measuredSeconds(of:)`, without which neither
+    /// series can be weighed against any published limit at all.
     case environmentalSoundDose    // dBA — day's LEQ over the hours the watch could hear
     case headphoneSoundDose        // dBA — day's LEQ over the time audio was playing
 

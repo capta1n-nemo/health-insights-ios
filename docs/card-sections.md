@@ -198,6 +198,13 @@ three: closed by the reader, opened by the reader, and not yet asked.
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
+⚠️ **Nineteen rows since 2026-08-07** — Sound you took on (backlog §B3 #22)
+joined, and Readiness's bespoke cell changed: its slot now draws the recovery
+tracker (§C S6) instead of declaring itself empty. The `noBespokeSection`
+declaration it used to carry has no call site left; the helper stays, because
+the next card wanting to say "drawn elsewhere" needs it and the lint still
+refuses a bare `EmptyView`.
+
 ⚠️ **Swept against the code 2026-08-07 (backlog D15/D48).** It had **fifteen**
 rows against `InsightID.allCases`' **eighteen** — Symptom radar, Work impact and
 Travel drain had never been added — and three columns were describing the app of
@@ -212,6 +219,8 @@ silently; count the enum before trusting the table.
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "When you settled" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Screen time and your sleep" + "Overnight HRV" + "Sleep apnoea indicator" (which *contains* "Breathing during sleep") | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **eight top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" + "Sleep debt" + "Your best bedtime" + "What's impacting your sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Readiness | Today | ● | ● | ● | ● | ◐ "How long you take to come back" — the recovery tracker (S6). It does **not** redraw the seventeen-vital scan: that *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** **+ "When it has spoken"** (S4 chart + the S3 nights-to-flag detail) | ● **"Your two symptom records"** (R28, hand-entered side effects against Health tags) | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
@@ -228,6 +237,7 @@ silently; count the enum before trusting the table.
 | Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Work impact | Insights | ● | ● | ● | ● | ◐ "Your work events" — the calendar review list | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.readerIdentity` | ● | ● |
 | Travel drain | Insights | ● | ● | ● | ● | ◐ "Your travel events" — the same list, `.travel` only | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — deliberate: the model reads time-zone changes and no classifications | ● | ● |
+| Sound you took on | Insights | ● | ● | ● | ● | ● **two sections**: "What you took on" + "What was around you" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — every input is sensed; there is no fact a reader could type that improves a headphone's own output estimate | ● | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Five cards
 draw more than one thing *inside* the first slot (Body Composition, Fitness,
@@ -1502,6 +1512,14 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    legal. The fix has two halves — the eight `else` arms, and a lint that makes a
    ninth impossible. See the per-section feature audit above for which arm each
    one is missing.
+
+   **Fitness's "How hard you worked" was a tenth, in the *second* slot, and it
+   is closed (backlog S12, 2026-08-07.)** It was the worst instance rather than
+   an extra one: `physicalEffort` lands on **14 of the last 90 days**, so the
+   section the reader asked for was absent far more often than present, and its
+   absence read as the feature having been removed rather than as the watch
+   having been off. Note that the sweep above looked only at `bespokeSection` —
+   `secondaryBespokeSection` has the same shape and was not counted.
 0b. ⚠️ **One raw chart is outside the substance-shading lint's reach** — found
    by D48 the same day. `verify.sh` finds raw charts with
    `grep -rlE '(^|[^A-Za-z0-9_])Chart[ ]*\{'`, which matches the `Chart { … }`

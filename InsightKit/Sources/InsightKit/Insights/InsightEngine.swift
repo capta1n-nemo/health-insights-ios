@@ -38,6 +38,12 @@ public struct InsightEngine: Sendable {
             // when a fortnight of ring data is missing this is the card still
             // reporting, and the Insights tab should not put it last.
             GaitInsight(),
+            // The week's headphone energy against WHO/ITU's published weekly
+            // allowance. Beside Gait rather than with the log-driven cards
+            // below: like Gait it reads a sensor nobody has to remember to
+            // wear, and it is the only card here whose two dose series were
+            // shipped, charted and read by nothing for a day.
+            SoundExposureInsight(),
             // The app's own biological age. Registered here rather than left as
             // a section of the risk card, because it reads five markers of its
             // own and produces a score — everything that iterates `models`
