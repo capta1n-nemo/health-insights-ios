@@ -88,9 +88,9 @@ the place to look.
   - `GenericJSONIngestor` :78
   - `IngestPayload` :9
   - `IngestedDocument` :22
-  - `PayloadDate` :212
+  - `PayloadDate` :268
   - `PayloadIngestor` :38
-  - `WithingsMeasureIngestor` :126
+  - `WithingsMeasureIngestor` :182
 - `Ingestion/PromotionRules.swift`
   - `PromotionRule` :9
   - `PromotionRuleSet` :116
@@ -496,6 +496,8 @@ the place to look.
   - `SleepRegularityIndex` :45
 - `Signals/SleepStageAverages.swift`
   - `SleepStageAverages` :41
+- `Signals/SleepTravel.swift`
+  - `SleepTravel` :61
 - `Signals/Somatotype.swift`
   - `Somatotype` :15
   - `SomatotypeModel` :78
