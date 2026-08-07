@@ -581,7 +581,7 @@ the place to look.
 - `Core/Integrations/HealthIntegration.swift`
   - `HealthIntegration` :25
   - `IntegrationCapabilities` :14
-  - `IntegrationRegistry` :43
+  - `IntegrationRegistry` :72
   - `IntegrationStatus` :5
 - `Core/Integrations/OAuthIntegration.swift`
   - `IntegrationError` :20
@@ -717,6 +717,8 @@ the place to look.
   - `SubstanceLoadChart` :13
 - `DesignSystem/SubstanceShading.swift`
   - `SubstanceShading` :27
+- `DesignSystem/SyncWarningLine.swift`
+  - `SyncWarningLine` :28
 - `DesignSystem/Theme.swift`
   - `Card` :393
   - `ConfidenceBadge` :409
@@ -894,9 +896,9 @@ the place to look.
   - `ResearchTopic` :113
   - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :376
+  - `DisclaimerView` :378
   - `IntegrationRow` :277
-  - `IntegrationSummaryRow` :333
+  - `IntegrationSummaryRow` :334
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

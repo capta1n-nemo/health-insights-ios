@@ -297,5 +297,12 @@ final class OuraProvider: OAuthIntegration {
         lines.append("Permissions this token carries: \(credentials.tokens(for: id)?.scopeSummary ?? "no token stored")")
         diag.fail(displayName, "\(failures.count) of \(attempted) collections failed — \(names)",
                   detail: lines.joined(separator: "\n"))
+        // The same sentence, carried out of the log and onto the Settings row.
+        // Backlog D10: this summary was already exact and already written, and
+        // reached nobody who hadn't gone looking for Troubleshooting — while
+        // the row the reader *does* see said "Synced just now" in green.
+        syncWarning = missing.isEmpty
+            ? "\(failures.count) of \(attempted) Oura collections failed this sync (\(names))."
+            : "\(failures.count) of \(attempted) Oura collections failed — the saved sign-in is missing the \(missing.joined(separator: ", ")) permission\(missing.count == 1 ? "" : "s"). Reconnecting is the only fix."
     }
 }

@@ -35,6 +35,35 @@ protocol HealthIntegration: AnyObject {
     func disconnect() async
     /// Pull the latest data — canonical samples plus any unmodelled "other" data.
     func sync() async throws -> SyncedData
+
+    /// **What this source could not say, last time it was asked.**
+    ///
+    /// `status` answers *is it connected*. That is a different question from
+    /// *did the last sync actually bring anything back*, and until backlog D10
+    /// walked the unhappy paths nothing in the app asked the second one.
+    ///
+    /// Both of the failures that matter leave `status` reading
+    /// `.connected(lastSync: <now>)`:
+    ///
+    /// - **Apple Health with reads denied.** `requestAuthorization` succeeds
+    ///   whether the reader taps Allow or Don't Allow — HealthKit hides read
+    ///   refusal by design, so a denied type is indistinguishable from an empty
+    ///   one. Walked on the simulator: tapping *Don't Allow* produced a green
+    ///   tick and *"Synced 22 seconds ago"*.
+    /// - **An OAuth provider whose grant no longer covers anything.**
+    ///   `OuraProvider.fetchData` records per-collection failures and returns
+    ///   normally, so nine 401s in a row still ended in a green "Synced".
+    ///
+    /// This is the sentence that goes next to the status when that happens.
+    /// `nil` when the last sync brought something back, and `nil` before the
+    /// first sync — an unasked source is not a failing one.
+    var syncWarning: String? { get }
+}
+
+extension HealthIntegration {
+    /// Sources that cannot come back silent (a file import, a Shortcut) get
+    /// this and say nothing.
+    var syncWarning: String? { nil }
 }
 
 /// Holds the set of available integrations and exposes them to Settings + sync.
@@ -53,13 +82,28 @@ final class IntegrationRegistry: ObservableObject {
 
     /// Sync all connected integrations, merging their data. Failures on one
     /// source don't abort the others.
+    ///
+    /// ⚠️ **The failure is logged, not swallowed.** This was `try?` until D10:
+    /// a provider that threw — an expired token whose refresh had already been
+    /// spent, a phone with no network — vanished without a trace, and the only
+    /// evidence left anywhere was whatever the provider itself had happened to
+    /// log on the way past. A discarded error is how a source stops syncing
+    /// silently.
     func syncAllConnected() async -> SyncedData {
         var all = SyncedData()
         for integration in integrations {
-            if case .connected = integration.status {
-                if let data = try? await integration.sync() {
-                    all.append(data)
-                }
+            guard case .connected = integration.status else { continue }
+            do {
+                all.append(try await integration.sync())
+            } catch {
+                DiagnosticsLog.shared.fail(
+                    integration.displayName,
+                    "Sync failed: \(error.localizedDescription)",
+                    detail: """
+                        Nothing was fetched from \(integration.displayName) this time, so \
+                        every card that leans on it is working from whatever was already \
+                        stored. The readings already on this phone are untouched.
+                        """)
             }
         }
         return all

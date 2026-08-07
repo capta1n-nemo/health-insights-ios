@@ -16,6 +16,20 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
 
     @Published private(set) var status: IntegrationStatus
 
+    /// **Connected, and reading nothing.** Backlog D10.
+    ///
+    /// Walked on the simulator, 2026-08-07: tap *Don't Allow* on the Health
+    /// permission sheet and `requestAuthorization` still succeeds — HealthKit
+    /// reports refusal to nobody — so `connect()` stored "connected", Settings
+    /// drew a green *"Synced 22 seconds ago"*, and four cards told the reader
+    /// to *"Connect a wearable"* and *"Wear your watch to sleep"*: instructions
+    /// for something they had already done, about a refusal the app had been
+    /// told nothing about.
+    ///
+    /// The app cannot learn *why* it read nothing. It can notice **that** it
+    /// did, which is enough to stop claiming a successful sync.
+    @Published private(set) var syncWarning: String?
+
     private let service: HealthKitService
     /// iOS deliberately doesn't expose HealthKit *read* authorization state, and
     /// it isn't revoked between launches — so we remember that the user opted in
@@ -69,6 +83,15 @@ final class AppleHealthProvider: HealthIntegration, ObservableObject {
             try? await service.requestAuthorization()
         }
         let data = await service.fetchAllData()
+        // Said before the status is set, so a reader who opens Settings on the
+        // next frame sees the two together rather than the green line alone.
+        syncWarning = (data.samples.isEmpty && data.other.isEmpty)
+            // Short, because a Settings row has very little width left beside
+            // its button. The long version — why a refusal and an empty phone
+            // look identical from here — is the Troubleshooting entry
+            // `HealthKitService.logReadOutcome` writes on the same pass.
+            ? "Read nothing this sync. Check Health \u{25B8} Apps & Services \u{25B8} Health Insights."
+            : nil
         status = .connected(lastSync: Date())
         return data
     }
