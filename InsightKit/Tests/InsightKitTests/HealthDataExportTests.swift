@@ -238,6 +238,129 @@ final class HealthDataExportTests: XCTestCase {
         XCTAssertTrue(json.contains("\"higherIsBetter\""))
     }
 
+    // MARK: - The four that were in no key at all (backlog Q10)
+
+    /// A bundle carrying one of each of Q10's four fields.
+    ///
+    /// Separate from `fullyPopulated()` on purpose, and that is a compromise
+    /// rather than a design: another agent was editing this file at the same
+    /// time and additive edits merge, shared helpers don't. **`fullyPopulated()`
+    /// leaves all four of these empty and therefore under-claims its name** —
+    /// folding them in is a one-line-each follow-up worth doing once these two
+    /// branches have met, and it would put them under
+    /// `testEveryDataDomainsKeyIsPopulatedOnAFullyPopulatedExport`'s sibling
+    /// checks.
+    private func withLedgers() -> HealthDataExport {
+        let now = TestClock.now
+        let cohort = Cohort(sex: "male", ageBand: "40-49",
+                            ethnicity: "white_or_other", region: "low")
+        return HealthDataExport(
+            generatedAt: now, build: "test", samples: [], unmodelled: [],
+            substances: [], medication: nil, sideEffects: [],
+            profile: UserHealthProfile(), derivedScores: [],
+            connections: [
+                .init(integration: "oura", state: .connected, lastSync: now),
+                // Connected but nothing has come back yet, and errored — the two
+                // states whose nil `lastSync` the hand-written encoder exists for.
+                .init(integration: "withings", state: .connected, lastSync: nil),
+                .init(integration: "calendar", state: .error, lastSync: nil)],
+            suggestionDismissals: [
+                .init(suggestionID: "grounding-cuffSystolic", dismissedAt: now)],
+            feedback: [.init(card: .sleep, rating: .inaccurate,
+                             modelVersion: InsightID.sleep.modelVersion,
+                             cohort: cohort, recordedAt: now)],
+            predictionOutcomes: [
+                .init(id: UUID(), insightID: .bloodPressure, metric: .bloodPressureSystolic,
+                      predicted: 128, actual: 124, modelVersion: "bp-estimator-v2",
+                      cohort: cohort, recordedAt: now)])
+    }
+
+    /// **The Q10 rule.** Four things the phone held were named by no export key
+    /// at all: connection state, suggestion dismissals, the feedback ledger and
+    /// prediction outcomes.
+    ///
+    /// None of them is a `DataDomain` — the Data tab shows none of them — so
+    /// `exportKey(for:)` cannot speak for them and neither can the two tests
+    /// that walk it. They live in `additionalKeys`, and this insists the keys
+    /// are not merely present but carry something, which is the distinction the
+    /// D39 defect was about: `"cycles": []` satisfied every check there was.
+    ///
+    /// The reader's standing rule 11 is why it matters more than it looks: *a
+    /// quantity missing from the export is a quantity that can never become a
+    /// norm* — this file is the only route from a phone to a server-side pool,
+    /// and "it is recomputable" was tried as an exemption and reversed the same
+    /// day (see `exportKey(for: .generatedInsights)`).
+    func testTheFourQ10FieldsAreInTheExportAndCarrySomething() throws {
+        let object = try JSONSerialization.jsonObject(with: withLedgers().json())
+        let payload = try XCTUnwrap(object as? [String: Any])
+        for key in ["connections", "suggestionDismissals", "feedback", "predictionOutcomes"] {
+            XCTAssertTrue(HealthDataExport.additionalKeys.contains(key),
+                          "\(key) is not in additionalKeys, so nothing walks it")
+            let array = try XCTUnwrap(payload[key] as? [Any], "missing \"\(key)\"")
+            XCTAssertFalse(array.isEmpty,
+                           "\"\(key)\": [] on a phone that holds one of each — the key is "
+                               + "present and the data is not")
+        }
+    }
+
+    /// The keys survive an empty phone, so "nothing connected" reads differently
+    /// from "the exporter dropped connections".
+    func testTheFourQ10KeysArePresentWhenEmpty() throws {
+        let json = try XCTUnwrap(String(data: bundle(empty: true).json(), encoding: .utf8))
+        for key in ["connections", "suggestionDismissals", "feedback", "predictionOutcomes"] {
+            XCTAssertTrue(json.contains("\"\(key)\""), "\(key) vanishes when empty")
+        }
+    }
+
+    /// **The reader's one condition on Q10: *"do not include tokens."***
+    ///
+    /// `OAuthTokens` gave up `Codable` so a credential cannot be a stored
+    /// property of anything `Encodable`, which closes the obvious route. This
+    /// closes the second one: `IntegrationStatus.unavailable(reason:)` and
+    /// `.error(String)` quote whatever the provider said, and a failed OAuth
+    /// exchange is precisely where an access token appears inside a message
+    /// nobody chose to export.
+    ///
+    /// So the assertion is on the *shape*: a connection has exactly three keys
+    /// and its state is one of five closed values. A future edit that widened
+    /// `state` to a `String` to "keep the error message for diagnostics" fails
+    /// here, which is the edit this test exists to stop.
+    func testAConnectionCanCarryNothingButItsIdStateAndLastSync() throws {
+        let object = try JSONSerialization.jsonObject(with: withLedgers().json())
+        let payload = try XCTUnwrap(object as? [String: Any])
+        let connections = try XCTUnwrap(payload["connections"] as? [[String: Any]])
+        XCTAssertFalse(connections.isEmpty)
+        for connection in connections {
+            XCTAssertEqual(Set(connection.keys), ["integration", "state", "lastSync"],
+                           "a connection grew a field — if it holds free text from a "
+                               + "provider it can hold a token")
+            let state = try XCTUnwrap(connection["state"] as? String)
+            XCTAssertNotNil(HealthDataExport.ConnectionState(rawValue: state),
+                            "\"\(state)\" is not one of the closed states, so state is "
+                                + "carrying free text")
+        }
+        // Connected-but-never-synced must say so rather than lose the key.
+        let neverSynced = try XCTUnwrap(connections.first { $0["integration"] as? String == "withings" })
+        XCTAssertTrue(neverSynced["lastSync"] is NSNull,
+                      "a source connected but yet to deliver reads as though the exporter "
+                          + "forgot to record when it last did")
+    }
+
+    /// A rating means nothing without the revision it was about and the cohort
+    /// it came from, and a prediction outcome means nothing without both of its
+    /// numbers.
+    func testTheLedgersCarryWhatMakesThemInterpretable() throws {
+        let json = try XCTUnwrap(String(data: withLedgers().json(), encoding: .utf8))
+        XCTAssertTrue(json.contains("\"inaccurate\""), "the rating itself did not travel")
+        XCTAssertTrue(json.contains("sleep-v1"),
+                      "a rating without its model version is not comparable with any other")
+        XCTAssertTrue(json.contains("\"ageBand\""), "the cohort a rating was recorded under")
+        XCTAssertTrue(json.contains("128"), "the predicted value")
+        XCTAssertTrue(json.contains("124"), "the actual value — an outcome is the pair")
+        XCTAssertTrue(json.contains("grounding-cuffSystolic"),
+                      "a dismissal's id is what makes it mean the same suggestion later")
+    }
+
     /// The distinctions that matter downstream must survive the round trip: an
     /// inferred dose is not a logged one, and a derived score is not a
     /// measurement.
