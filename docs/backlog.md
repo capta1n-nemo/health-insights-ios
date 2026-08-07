@@ -87,8 +87,8 @@ while about thirty were open. **A parser that silently returns nothing reads as
 | Wave | `mech` | `design` | `build` | `hard` | `ultra` | Total |
 |---|---|---|---|---|---|---|
 | **w0** Blockers — tooling and truth | 1 |  |  |  |  | 1 |
-| **w1** Shipped but wrong | 2 |  | 2 | 3 | 1 | 8 |
-| **w2** Quick wins | 9 |  | 1 | 1 |  | 11 |
+| **w1** Shipped but wrong | 2 |  | 2 | 2 | 1 | 7 |
+| **w2** Quick wins | 10 |  | 1 | 1 |  | 12 |
 | **w3** Substantial builds | 2 | 2 | 17 | 4 | 1 | 26 |
 | **w4** Complex, last |  |  | 14 | 3 | 4 | 21 |
 
@@ -103,10 +103,10 @@ Gates on open rows: **none** 25 · **phone** 15 · **needs** 14 · **decision** 
 | 5 | `F1` Resting Heart Rate page cross-device defect | w1 | `build` | phone |
 | 6 | `D54` Hangs, and nothing is watching for them ⭐ | w1 | `hard` |  |
 | 7 | `D56` Sleep is not timezone- or travel-aware, and the reader has now actually flo… ⭐ | w1 | `hard` |  |
-| 8 | `D63` Two of the four new app-target test classes crash the test host | w1 | `hard` |  |
-| 9 | `B19` The Energy card has no calibration — five invented constants set its whole… ⭐ | w1 | `ultra` |  |
-| 10 | `B2-39` Verify Travel drain and Work impact against real calendar data | w2 | `mech` | phone |
-| 11 | `D52` The diagnostics mirror is INFO-level, so everything but failures is hidden… | w2 | `mech` | decision |
+| 8 | `B19` The Energy card has no calibration — five invented constants set its whole… ⭐ | w1 | `ultra` |  |
+| 9 | `B2-39` Verify Travel drain and Work impact against real calendar data | w2 | `mech` | phone |
+| 10 | `D52` The diagnostics mirror is INFO-level, so everything but failures is hidden… | w2 | `mech` | decision |
+| 11 | `D63` The app-target tests are flaky under concurrent load, and the failure names… | w2 | `mech` |  |
 | 12 | `D9` Cold-launch time against the real 320,913-row record is unmeasured | w2 | `mech` | phone |
 | 13 | `F2` Body Composition after the hatch change | w2 | `mech` | phone |
 | 14 | `F3` Split-night proof from the next export | w2 | `mech` | phone |
@@ -2085,32 +2085,38 @@ so the decision is deliberate rather than inherited. See
       `performRefresh`, canaried both ways — including a first version that
       matched its own fix.
 
-- `D63` ⬜ `w1` `testdebt` `hard` `gate:none` — **Two of the four new app-target test classes crash the test host**
-      The app-target target landed 2026-08-07 (`D5`). `AppModelStateTests` (7
-      tests) passes. **`CardRenderSmokeTests` and `CardRoutingTests` each fail on
-      their own**, and `CardRoutingTests` reports **zero tests executed** with
-      the host killed — so it dies before any assertion runs.
+- `D63` ⬜ `w2` `testdebt` `mech` `gate:none` — **The app-target tests are flaky under concurrent load, and the failure names no cause**
+      The app-target target landed 2026-08-07 (`D5`) and **passes on a quiet
+      machine**: 14 tests, green. On the evening of 2026-08-07 — with ten to
+      twelve worktree agents building concurrently, plus a simulator running the
+      reader's real export — it failed repeatedly and **differently each time**:
+      `CardRoutingTests` reporting **zero tests executed** with the host killed,
+      `CardRenderSmokeTests` failing, `AppModelStateTests` passing throughout.
 
-      ⚠️ **Nothing in the failure names a cause.** No `error:` line, no failing
-      assertion, and it reproduces on a clean checkout — so it reads as *"your
-      diff broke the app"*. It blocked the `D62` outage fix at the pre-push gate
-      and cost a stash-and-rerun plus a per-class bisect to establish it was
-      neither the diff nor the container.
+      ⚠️ **It blocked a reader-reported outage fix (`D62`) at the pre-push gate,
+      and it made me diagnose it wrong twice.** The wrong turns are the useful
+      part, so they are recorded rather than tidied away:
 
-      ⚠️ **Two theories were tested and BOTH were wrong** — recorded so nobody
-      re-tests them: (1) *the simulator holds the reader's export and the app
-      cannot finish hydrating* — the container measured **12 MB**, so no;
-      (2) *a dedicated simulator fixes it* — the second device would not boot on
-      a loaded machine (`launchd_sim … could not bind to session`).
+      1. *"The simulator holds the reader's export, so the app cannot finish
+         hydrating inside a test host."* **Wrong** — the container measured 12 MB.
+      2. *"Give the app tests their own simulator."* **Wrong** — the second
+         device would not boot under load (`launchd_sim … could not bind to
+         session`), and the attempt made the run worse.
+      3. *"It is pre-existing, so push past the gate."* **Wrong, and the most
+         dangerous of the three.** A `git stash` comparison appeared to prove the
+         failure was not mine; it was contaminated by the container state at the
+         time. Running the same class on `HEAD~1` **and** `HEAD` afterwards
+         showed **both green**.
 
-      What is known: both classes construct `TestAppModel.seeded()`, which now
-      runs the **exhaustive** `SyntheticSeed` (also new that day) over every
-      `MetricType`, then awaits `recomputeSettled()`. That is the newest thing in
-      the path and the first place to look.
+      **The gate was right to block on every occasion, and the failure was real
+      flakiness rather than a real defect.**
 
-      ⚠️ **Until it is fixed the Mac gate is unreliable, which is worse than not
-      having it** — a red gate that is usually environmental trains a session to
-      push through a real one.
+      ⚠️ **A red gate that is usually environmental trains a session to push
+      through a real one** — which is exactly what nearly happened, on a fix for
+      an outage the reader had already reported. The fix is to make the failure
+      *say* it is a resource problem: report machine load, or retry once before
+      failing, rather than printing *"No `error:` line — the host may have
+      crashed"* and leaving the reader to guess.
 
 - `D54` ◐ `w1` `pipeline` `hard` `gate:none` `ask` — **Hangs, and nothing is watching for them**
       **The reader, 2026-08-07:** *"Can you enable hang detection on the
