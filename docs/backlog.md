@@ -3220,8 +3220,14 @@ These rows were moved here on 2026-08-07, when the three lists became one. Every
 
 - `P22` ✅ `w2` `sleep` `build` `gate:none` — **Timeframe-aware sleep chart**
       The Oura time axis (`f971541`) and Apple stages (`8ab542e`) are fixed. The
-      third part, per-stage averages across sources obeying the page timeframe,
-      is not started.
+      third part shipped 2026-08-07: per-stage averages across sources obeying the
+      page timeframe, drawn by `SleepStageAverageChart` as Sleep's "A typical
+      night" section.
+
+      ⚠️ This sentence used to end *"is not started"* and survived the ✅ for a
+      day — agents are told not to edit this file, and the marking pass only
+      changed the glyph. **A ✅ row whose body still says "not started" is how a
+      closed list starts lying.** The handover's re-read step caught it.
 
 - `P23` ⬜ `w4` `rules` `ultra` `gate:none` `ask` — **Signal audit**
       Every card × every available signal, with justified weightings, against the
@@ -3379,7 +3385,11 @@ These rows were moved here on 2026-08-07, when the three lists became one. Every
 - `R24` ✅ `w3` `substances` `build` `gate:none` `ask` — **The medication panel — still open**
       The card charts `activeMedicationLevel` and states on the row that the
       evidence is about intake rather than expenditure, but the before/after
-      contrast itself is not built: it needs a logged stretch on each side of the
+      contrast shipped 2026-08-07 as `MedicationPanelSection`, reporting the two
+      deltas — what intake did, what expenditure did — rather than one number,
+      which is the honest shape this row asked for.
+
+      ⚠️ It still needs a logged stretch on each side of the
       first dose, and the honest version reports the two deltas (what intake did,
       what expenditure did) rather than one number. Original scope follows.
 

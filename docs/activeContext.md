@@ -3,54 +3,94 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
-## Current focus — session 30 (2026-08-07): one list
+## Current focus — session 30 (2026-08-07/08), 123 commits
 
-**There is one open-item list now: `docs/backlog.md`, read by
-`./scripts/backlog.sh`.** `progress.md` keeps the shipped history and this file
-keeps the current state; neither records open work. If you find yourself
-starting a second list, that is the mistake this session existed to stop.
+⚠️ **Read these four first.**
+
+1. **There is ONE open-item list: `docs/backlog.md`, read by
+   `./scripts/backlog.sh`.** `progress.md` keeps the shipped history; this file
+   keeps the current state. Neither records open work. If you find yourself
+   starting a second list, that is the mistake this session existed to stop.
+2. **`R60` is the unblocker.** Five research briefs the reader commissioned were
+   stopped partway. `B19` (Energy) and `N1` (Stress) are waiting on them, and
+   both of their existing designs were **refuted**.
+3. **`D63` — the Mac gate is flaky under concurrent agent load**, and it made me
+   diagnose an outage wrong twice. Read that row before trusting a red gate.
+4. ⚠️ **A merge reverted a shipped outage fix and only a lint caught it.** See
+   below; it is the most transferable thing here.
 
 ```bash
-./scripts/backlog.sh --asks    # 63 things the reader asked for and has not got
+./scripts/backlog.sh --asks    # what the reader asked for and has NOT got
 ./scripts/backlog.sh --next    # the next batch, and the model it needs
 ```
 
-**215 rows, 151 open.** Ordered `w0` blockers → `w1` shipped-but-wrong → `w2`
+**236 rows, 56 open.** Ordered `w0` blockers → `w1` shipped-but-wrong → `w2`
 quick wins → `w3` builds → `w4` complex. Every row carries a **tier** naming the
-model and effort it needs — `mech` (Opus 5 · medium), `build` (high), `hard`
-(xhigh/max), `ultra` (+ ultracode), `design` (Fable 5) — so work batches by
-complexity. **Say the model out loud when the tier changes.**
+model it needs — `mech` (Opus 5 · medium), `build` (high), `hard` (xhigh/max),
+`ultra` (+ ultracode), `design` (Fable 5). **Say the model out loud when the
+tier changes.**
 
-### ⚠️ Twenty corrections landed with it — the docs were lying about what was open
+### What this session was
 
-Fifteen rows described work that had already shipped, and a session planning
-from them would have scheduled rebuilds. The ones most likely to waste a
-session: **calendar events are persisted** (`CalendarEventRecord` and
-`CalendarJudgementRecord` are both `@Model`s in `DataStore.swift:21`'s `Schema`,
-and both cards read them) — §D I1 said the opposite and called itself the
-blocker on two cards that are also built; **all five "cards with no bespoke
-section"** have one (`InsightDetailView.swift:79-160` is exhaustive over 26
-cases; Readiness is a documented deliberate `EmptyView`); **the Fitness
-sections** shipped in `5ed4ac7`. And `D17`'s two named causes are **both
-wrong** — the gait promotion path is correct, and the seed export was written
-one day *before* commit `3853446`, so 27,248 walking-speed rows sit in
-`unmodelled` and can never reach `samples`.
+The list was consolidated from three to one, and then **~90 rows were closed**
+by five waves of worktree agents (12, 14, 12, 11, plus research). The reader
+reported five live defects from their own phone while it ran, and all five are
+fixed and installed.
 
-### ⚠️ `AC1` is on a reboot clock
+### ⚠️ The four defects worth carrying, because each is a class
 
-The 706-line calendar-drift patch is **not lost**. It survives in the
-*abandoned* iCloud checkout's session scratchpad, and `/private/tmp` does not
-survive a reboot. Copy it into the repo before anything else. Designed against
-real file contents, **never compiled or tested**.
+- **`D62` — the sync never finished.** `performRefresh` **awaited**
+  `refreshTagApplicability()` before its completion marker; that walks up to 12
+  tags serially, each a fresh `LanguageModelSession`. The reader lost every
+  card. **The class: an on-device model call must never be awaited on the path
+  that tells the app its data is ready.** Linted.
+- **`D59` — a correct fix made a card vanish.** Travel drain was fixed to stop
+  saying "Connect your calendar" to a reader who had; the fix set
+  `invitesInput: false`, every term of `isWorthShowing` went false, and the card
+  disappeared. **The reader then ruled: no card is ever hidden for want of
+  data.** `isWorthShowing` is unconditionally `true` now, and the obligation
+  moved to the empty state.
+- **`D60` — the export carried no score history at all.** It called
+  `AppModel.scoreHistory(for:)`, a **lazy view cache** returning `[]` until a
+  chart is drawn. **So there were no prediction-versus-actual pairs and the app
+  could not learn from itself.** Linted.
+- **`D58` — a Swift exclusivity trap aborted the app** on every render of a
+  section shipped the same afternoon. `RenderMemo.value` was `mutating`, so it
+  held exclusive access across the caller's closure, and one memo nested inside
+  another.
 
-### The repeat that was inside the countermeasure
+### ⚠️ The merge lesson, and it is the biggest one
 
-`unbuilt-asks.sh` — built last session to stop a three-session *"where is my
-work?"* repeat — reported **two** open asks this morning against **63**. It
-parsed two hard-coded headings and could not see §B7 or §B9–§B19 at all. It did
-not break; it under-reported, and an under-report reads exactly like good news.
-**A parser that silently returns nothing reads as "nothing outstanding."** That
-is why `backlog.sh` refuses to run rather than skipping a row it cannot read.
+Eleven branches all added `DataDomain` cases, `InputKind` cases, export keys and
+`Schema` entries. An automatic keep-both resolution **spliced them into code
+that read plausibly and did not parse** — two `case` lists welded together, the
+`Schema` array closed twice, two `syncWarning` defaults.
+
+**And all eleven predated `D62`'s fix, so the merge reverted it.** `verify.sh`
+caught it. Without that lint the push would have re-shipped the reader's outage
+**with 2,669 green tests behind it**, because no test can see that defect.
+
+**Carry this:** after a multi-branch merge, `grep -rl '^<<<<<<<'` over the whole
+tree — not over the file list `git` reported before resolution, which is what I
+did and it missed four files. And where a merged array carries a rule
+(`DataStore`'s *"a `@Model` not listed here silently never persists"*),
+**enumerate the set from source and check it** rather than trusting the merge.
+
+### Next session, in order
+
+**Do not work from a list here. Run `./scripts/backlog.sh --next`.**
+
+1. **`R60`** — re-run the five stopped briefs. ⚠️ A stopped agent leaves its
+   topic **uncovered**, not mostly done; several reported progress when killed.
+   The mental-health brief carries a safety-critical interaction.
+2. **`D63`** — make the flaky gate say it is a resource problem. Until it does,
+   a red gate trains a session to push through a real one.
+3. **The four `◐` rows** — `Q15`/`R16`, `D7`, `D8`, `D56` each carry the agent's
+   own account of what is left.
+4. **`D61`** — ask the reader for a fresh export. Theirs is schemaVersion 4;
+   every model-improvement key landed at 5 and 6 the same day, so the correction
+   data they asked me to learn from **is not in any file yet**.
+5. **The phone rows** — 15 can only close on their device.
 
 ---
 
