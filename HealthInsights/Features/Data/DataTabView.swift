@@ -281,6 +281,14 @@ struct DataTabView: View {
             return matches(domain.title, "holiday", "leave", "vacation",
                            "time off", "pto", "break")
                 || model.holidayLedger.periods.contains { matches($0.label ?? "") }
+        case .sickDays:
+            // The words a reader types when they want the days they were ill.
+            // "Sick" also finds the Symptoms section, which is right — they are
+            // neighbouring answers to the same question.
+            guard !model.sickDayLedger.periods.isEmpty else { return false }
+            return matches(domain.title, "sick", "ill", "illness", "unwell",
+                           "flu", "off sick")
+                || model.sickDayLedger.periods.contains { matches($0.label ?? "") }
         case .bodyScans:
             guard !model.bodyScans.isEmpty else { return false }
             return matches(domain.title, "body", "measurement", "scan", "waist",
@@ -513,6 +521,51 @@ struct DataTabView: View {
         }
     }
 
+    /// **The days the reader was ill** — the merged `SickDayLedger` (§B11-4),
+    /// one row into its data page. The reader's instruction: *"since this 'sick
+    /// day' is now a new data source, it should of course now be stored in the
+    /// data section too."*
+    ///
+    /// Its own section rather than a line inside Holidays, because a week of flu
+    /// is not leave — see `DataDomain.sickDays`.
+    @ViewBuilder private var sickDaysSection: some View {
+        let ledger = model.sickDayLedger
+        if let latest = ledger.periods.last {
+            Section {
+                NavigationLink {
+                    SickDaysDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(latest.label ?? "From your calendar")
+                            Spacer()
+                            Text("\(ledger.periods.count) \(ledger.periods.count == 1 ? "spell" : "spells")")
+                                .foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        Text(sickStanding(ledger))
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.sickDays.title)
+            } footer: {
+                Text(DataDomain.sickDays.summary)
+            }
+        }
+    }
+
+    /// One phrase for where the reader stands on illness. Three genuinely
+    /// different answers, each with its own words — the same shape
+    /// `holidayStanding` uses, and a ledger of only future-dated records must
+    /// not read as "recently ill".
+    private func sickStanding(_ ledger: SickDayLedger) -> String {
+        switch ledger.daysSinceLastSickDay(asOf: Date()) {
+        case 0: return "Marked ill today"
+        case .some(let days): return "Last ill \(days) \(days == 1 ? "day" : "days") ago"
+        case nil: return "Nothing recorded before today"
+        }
+    }
+
     /// One phrase for where the reader stands on leave. The three states are
     /// genuinely different answers and each earns its own words — a ledger of
     /// only *booked* leave must not read as recent recovery.
@@ -536,6 +589,7 @@ struct DataTabView: View {
         case .derivedScores: derivedScoreSection
         case .calendarEvents: calendarSection
         case .holidays: holidaysSection
+        case .sickDays: sickDaysSection
         case .cycles: cycleSection
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection

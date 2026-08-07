@@ -67,7 +67,7 @@ the place to look.
   - `SharedField` :245
   - `SharedRecord` :289
   - `SharedValue` :178
-  - `SharingExample` :533
+  - `SharingExample` :546
   - `SharingPreferences` :113
   - `SharingTier` :31
 - `Ingestion/DayStamp.swift`
@@ -144,7 +144,7 @@ the place to look.
   - `GroundingRenewal` :12
 - `Insights/HealthWatch.swift`
   - `HealthWatchModel` :32
-  - `SymptomRadarInsight` :1005
+  - `SymptomRadarInsight` :1166
   - `SymptomRadarModel` :429
   - `SymptomRadarStatus` :374
 - `Insights/HeartAgeAnalyser.swift`
@@ -254,11 +254,11 @@ the place to look.
 - `Models/CalendarEventArtifact.swift`
   - `CalendarEventArtifact` :47
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :394
+  - `CalendarClassifierAccuracy` :470
   - `CalendarEventClassification` :35
-  - `CalendarEventJudgement` :238
+  - `CalendarEventJudgement` :309
 - `Models/CalendarEventClassifier.swift`
-  - `CalendarEventBucket` :415
+  - `CalendarEventBucket` :468
   - `CalendarEventClassifier` :31
 - `Models/CycleLog.swift`
   - `Cycle` :98
@@ -313,12 +313,14 @@ the place to look.
   - `ASCVDRaceGroup` :23
   - `BiologicalSex` :5
   - `SCORE2RiskRegion` :37
+- `Models/SickDayLedger.swift`
+  - `SickDayLedger` :49
 - `Models/SourceOrigin.swift`
   - `SourceOrigin` :11
 - `Models/Symptom.swift`
-  - `SymptomEvent` :212
-  - `SymptomPromotion` :229
-  - `SymptomSeverity` :179
+  - `SymptomEvent` :272
+  - `SymptomPromotion` :289
+  - `SymptomSeverity` :239
   - `SymptomType` :27
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
@@ -463,6 +465,8 @@ the place to look.
   - `SomatotypeModel` :78
 - `Signals/SoundDose.swift`
   - `SoundDoseModel` :44
+- `Signals/SymptomReconciliation.swift`
+  - `SymptomReconciliation` :46
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`
@@ -675,7 +679,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1222
+  - `OtherDataDetailView` :1276
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -689,6 +693,8 @@ the place to look.
   - `GeneratedCardDataView` :57
   - `GeneratedInsightsDataView` :11
   - `GeneratedSeriesDataView` :129
+- `Features/Data/SickDaysDataView.swift`
+  - `SickDaysDataView` :30
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
@@ -738,6 +744,11 @@ the place to look.
   - `MedicationSetupSheet` :285
 - `Features/Insights/ScoreComparisonDetailView.swift`
   - `ScoreComparisonDetailView` :20
+- `Features/Insights/SickDaysSection.swift`
+  - `NightsToFlagDetail` :423
+  - `RadarHistoryChart` :239
+  - `SickDaysSection` :36
+  - `SymptomReconciliationSection` :158
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
 - `Features/Insights/SymptomRadarWebCard.swift`
@@ -772,8 +783,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :389
-  - `OtherDataListView` :402
+  - `FullExport` :399
+  - `OtherDataListView` :412
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :371
   - `IntegrationRow` :272

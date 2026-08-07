@@ -326,6 +326,16 @@ struct DataExportView: View {
                 HealthDataExport.Holiday(firstDay: $0.firstDay, lastDay: $0.lastDay,
                                          label: $0.label, source: $0.source.rawValue)
             },
+            // The merged sick-day ledger (§B11-4), on exactly the terms the
+            // holiday ledger travels on: dates and grades, never an event's
+            // title. A sick day is *what the reader said*, and whoever reads
+            // this file must not take it for a confirmed illness.
+            sickDays: model.sickDayLedger.periods.map {
+                HealthDataExport.SickDay(firstDay: $0.firstDay, lastDay: $0.lastDay,
+                                         label: $0.label,
+                                         severity: $0.severity?.rawValue,
+                                         source: $0.source.rawValue)
+            },
             // Every figure the app worked out, day by day. These used to be
             // left out as "a cache that replays from samples" — true on this
             // phone, false of a pooled server-side dataset, which is the only

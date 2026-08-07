@@ -473,6 +473,19 @@ extension CalendarEventJudgement: SharedCorrectionConvertible {
                                             from: classification.presence.rawValue,
                                             to: correction.presence.rawValue))
             }
+            // §B11-6. The reader grading a sick day is a correction like any
+            // other and belongs in the training pair — `wasCorrected` counts it,
+            // so a record that omitted it would disagree with the tally beside
+            // it. `"—"` for the side that said nothing: the rules never guess a
+            // severity, so almost every one of these is nil → a grade, and an
+            // empty string would read as an axis with no value rather than an
+            // axis nobody had answered.
+            if correction.severity != classification.severity {
+                changes.append(SharedChange(axis: CalendarEventClassification.severityKey,
+                                            axisLabel: "severity",
+                                            from: classification.severity?.rawValue ?? "—",
+                                            to: correction.severity?.rawValue ?? "—"))
+            }
         }
 
         return tier.shape(kind: .calendarClassification, changes: changes, fields: fields)

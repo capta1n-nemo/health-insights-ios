@@ -110,6 +110,20 @@ public enum CalendarEventClassifier {
         "concert", "market", "sale", "shopping", "festival", "fair", "gala",
         "quiz", "celebration", "gift", "gifts", "card", "cards",
     ]
+    /// **Illness in the reader's own words** — §B11-6, word-boundary matched
+    /// like the leave vocabulary beside it and for the same reason: "sick"
+    /// inside "Sickle-cell fundraiser" would file a charity event as a day in
+    /// bed.
+    ///
+    /// Deliberately short, and deliberately *not* holding symptom names. A
+    /// calendar entry saying "headache" is a note, not a day off; "Doctor" is an
+    /// appointment, which the reader may well attend perfectly well and which
+    /// `personalWords` already handles. What is here is the vocabulary of
+    /// *being absent because of illness*, which is the thing §B11 counts.
+    static let sicknessVocabulary = [
+        "sick", "sick day", "sick days", "sick leave", "off sick", "unwell",
+        "ill", "flu", "covid",
+    ]
     /// Connective tissue that appears *inside* leave phrases and their
     /// grammar. Used only by the who-is-named check: a token outside this set,
     /// the leave vocabulary and the reader's own name is treated as naming
@@ -157,6 +171,19 @@ public enum CalendarEventClassifier {
     /// 5. **An absence marker with unexplained words** → someone else's.
     ///    "Sarah OOO" carries a token that is not vocabulary, not grammar and
     ///    not the reader — in practice, the absent colleague's name.
+    /// ⚠️ **It also reads a sick day** (§B11-6). Illness vocabulary enters at
+    /// step 1 alongside the leave words, and every ownership rung below is
+    /// shared: "Sam off sick" is somebody else's absence by exactly the rule
+    /// that makes "Sam OOO" one, and an unnamed "Off sick" in the reader's own
+    /// calendar is theirs by exactly the rule that makes "Annual leave" theirs.
+    /// Sharing the ladder rather than copying it is the point — an ownership bug
+    /// fixed here is fixed for both, and a sick day misfiled as a colleague's is
+    /// the same one-tap correction.
+    ///
+    /// Where the title says *both* — "OOO — off sick" — illness wins, because
+    /// leave and illness are the same shape of absence and only one of them is
+    /// what §B11 counts.
+    ///
     /// 6. **Otherwise** → the reader's own. A bare "OOO", "Annual leave" or
     ///    "Holiday to Sydney" in the reader's own calendar is theirs: other
     ///    people's absences arrive named (rule 5) or organised by them (rule
@@ -171,36 +198,51 @@ public enum CalendarEventClassifier {
         let title = event.title
         let isMarked = containsPhrase(title, absenceMarkers)
         let saysLeave = containsPhrase(title, leaveVocabulary)
+        let saysSick = containsPhrase(title, sicknessVocabulary)
         // Bare "leave" is the weakest rung: a verb as often as a noun. It only
         // counts when nothing about the title reads as a departure — "Leave
         // for airport" belongs to the travel rule, not the holiday ledger.
         let bareLeave = containsPhrase(title, ["leave"])
             && !matches(title, travelWords)
-        guard isMarked || saysLeave || bareLeave else { return nil }
+        guard isMarked || saysLeave || saysSick || bareLeave else { return nil }
         guard !containsPhrase(title, eventfulWords) else { return nil }
+
+        // The reader's own absence, of whichever kind the title stated. Illness
+        // outranks leave where a title says both: "OOO — off sick" is a sick
+        // day that happens to have been announced the usual way.
+        let mine: CalendarEventClassification.Occasion = saysSick ? .sick : .leave
 
         // An unconfigured identity is no identity — a blank name must not turn
         // every unnamed OOO into "not mine".
         let identity = identity?.isConfigured == true ? identity : nil
 
-        if let identity, identity.isMe(title) { return (.leave, .rules) }
+        if let identity, identity.isMe(title) { return (mine, .rules) }
         if let organised = event.organizerIsReader {
             // Read off the event, not judged — the one rung that is a fact.
-            return (organised ? .leave : .absence, .fact)
+            return (organised ? mine : .absence, .fact)
         }
         guard let identity else { return (.absence, .rules) }
 
-        if isMarked {
-            let known = Set(absenceMarkers.flatMap { $0.split(separator: " ").map(String.init) })
-                .union(leaveVocabulary.flatMap { $0.split(separator: " ").map(String.init) })
-                .union(leaveConnectors)
-                .union(ReaderIdentity.words(in: identity.name ?? ""))
+        if isMarked || saysSick {
+            // The who-is-named check runs over sickness titles too: "Sam off
+            // sick" carries a token that is neither vocabulary, grammar nor the
+            // reader, which is in practice the absent colleague's name.
+            // ⚠️ Built in steps, not as one chained expression. A fourth
+            // `.union` on the chain that used to be here tipped the type
+            // checker over — "unable to type-check this expression in
+            // reasonable time" — and the fix is annotation and statements
+            // rather than cleverness.
+            var known: Set<String> = leaveConnectors
+            for phrase in absenceMarkers + leaveVocabulary + sicknessVocabulary {
+                for word in phrase.split(separator: " ") { known.insert(String(word)) }
+            }
+            for word in ReaderIdentity.words(in: identity.name ?? "") { known.insert(word) }
             let unexplained = ReaderIdentity.words(in: title).contains { token in
                 token.count > 1 && !token.allSatisfy(\.isNumber) && !known.contains(token)
             }
             if unexplained { return (.absence, .rules) }
         }
-        return (.leave, .rules)
+        return (mine, .rules)
     }
 
     // MARK: - Classify
@@ -330,7 +372,12 @@ public enum CalendarEventClassifier {
         }
         return CalendarEventClassification(
             context: context, occasion: base.occasion, presence: base.presence,
-            formality: formality, hours: base.hours, deciders: deciders)
+            formality: formality, hours: base.hours, deciders: deciders,
+            // The model is not allowed near severity — it is the reader's own
+            // statement about how ill they were, and there is nothing in an
+            // event title for a language model to read it off. Carried through
+            // untouched, not re-derived.
+            severity: base.severity)
     }
 
     /// Re-read one stored guess against a changed identity, touching **only the
@@ -360,7 +407,13 @@ public enum CalendarEventClassifier {
         return CalendarEventClassification(
             context: stored.context, occasion: fresh.occasion,
             presence: stored.presence, formality: stored.formality,
-            hours: stored.hours, deciders: deciders)
+            hours: stored.hours, deciders: deciders,
+            // Carried, and the initialiser drops it if the occasion moved off
+            // `.sick`. A severity is a *reader's* statement about how ill they
+            // were; re-reading an identity must not silently forget it, and
+            // must not leave it attached to something that is no longer a sick
+            // day either.
+            severity: stored.severity)
     }
 
     // MARK: - Drift: the event changed after it was judged
@@ -442,6 +495,13 @@ public enum CalendarEventBucket: String, Sendable, CaseIterable, Identifiable, H
         case .travel: self = .travel; return
         case .leave: self = .personal; return
         case .absence: self = .other; return
+        // A sick day is the reader's own life, whatever calendar it was
+        // announced in — the same rule as `.leave`, and for the same reason:
+        // being ill must never be counted as a work day. Deliberately not a
+        // fourth bucket; §B11-4 gives sick days their own `DataDomain`, which
+        // is where they are *seen*, and a bucket is only how the two calendar
+        // cards filter their review lists.
+        case .sick: self = .personal; return
         case .meeting, .reminder, .blockedTime: break
         }
         switch classification.context {

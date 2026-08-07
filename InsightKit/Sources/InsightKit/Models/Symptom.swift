@@ -59,6 +59,66 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     public static let byHealthKitIdentifier: [String: SymptomType] = Dictionary(
         uniqueKeysWithValues: allCases.map { ($0.healthKitIdentifier, $0) })
 
+    /// **The words a hand-typed side effect arrives under**, mapped to the
+    /// canonical symptom — backlog `R28`.
+    ///
+    /// A tracker's side-effect log is free text somebody chose from *its*
+    /// picker ("Diarrhea", "Stomach pain", "Tiredness"), and Apple's categories
+    /// are a fixed fourteen. Reconciling the two needs a join, and there is no
+    /// identifier to join on — so this is the join, written out.
+    ///
+    /// ⚠️ **Only exact synonyms belong here.** The temptation is to be generous
+    /// — "stomach" → nausea, "pain" → chest tightness — and generosity here
+    /// manufactures agreement between two records that never agreed. Anything
+    /// this cannot name confidently stays unmatched, and the reconciliation says
+    /// so out loud rather than guessing; an unmatched hand entry is a finding
+    /// about vocabulary, not a failure.
+    static let synonyms: [String: SymptomType] = [
+        "nausea": .nausea, "nauseous": .nausea, "sick to stomach": .nausea,
+        "headache": .headache, "headaches": .headache, "migraine": .headache,
+        "fatigue": .fatigue, "tiredness": .fatigue, "tired": .fatigue,
+        "exhaustion": .fatigue, "low energy": .fatigue,
+        "dizziness": .dizziness, "dizzy": .dizziness, "lightheaded": .dizziness,
+        "light headed": .dizziness, "vertigo": .dizziness,
+        "fever": .fever, "temperature": .fever, "chills": .fever,
+        "cough": .coughing, "coughing": .coughing,
+        "shortness of breath": .shortnessOfBreath, "breathlessness": .shortnessOfBreath,
+        "short of breath": .shortnessOfBreath,
+        "chest pain": .chestTightnessOrPain, "chest tightness": .chestTightnessOrPain,
+        "abdominal cramps": .abdominalCramps, "cramps": .abdominalCramps,
+        "stomach cramps": .abdominalCramps, "abdominal pain": .abdominalCramps,
+        "stomach pain": .abdominalCramps,
+        "bloating": .bloating, "bloated": .bloating, "gas": .bloating,
+        "heartburn": .heartburn, "acid reflux": .heartburn, "reflux": .heartburn,
+        "indigestion": .heartburn,
+        "insomnia": .sleepChanges, "poor sleep": .sleepChanges,
+        "sleep changes": .sleepChanges, "trouble sleeping": .sleepChanges,
+        "mood changes": .moodChanges, "low mood": .moodChanges,
+        "irritability": .moodChanges,
+        "hot flashes": .hotFlashes, "hot flushes": .hotFlashes,
+        "night sweats": .hotFlashes,
+        // "Sick" is deliberately absent. In British English it means vomiting
+        // and in American English it means ill, and this app's reader writes
+        // both — a synonym that resolves one way half the time is worse than no
+        // synonym, because the reconciliation would then report agreement it
+        // invented. It stays unmatched and visible.
+        "vomiting": .vomiting, "throwing up": .vomiting,
+        "diarrhea": .diarrhea, "diarrhoea": .diarrhea, "loose stools": .diarrhea,
+    ]
+
+    /// The canonical symptom a free-text name refers to, or nil where the app
+    /// cannot say.
+    ///
+    /// Case- and punctuation-insensitive, and it also accepts the app's own
+    /// display titles, so a name that came *out* of this app round-trips.
+    public static func matching(name: String) -> SymptomType? {
+        let key = name.lowercased()
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let direct = synonyms[key] { return direct }
+        return allCases.first { $0.title.lowercased() == key }
+    }
+
     public var title: String {
         switch self {
         case .nausea: return "Nausea"

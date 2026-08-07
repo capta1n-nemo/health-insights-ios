@@ -122,6 +122,13 @@ struct InsightDetailView: View {
             // direction and whether it is leaning — roadmap #31's "which
             // signals moved is more actionable than a score".
             symptomRadarWebCard
+            // S4 (when it has spoken, and how a finding builds) and S3 (the
+            // nights-to-flag sheet), in their own file — see SickDaysSection.
+            SickDaysSection()
+            // R28. This card's ledger reads Apple Health tags alone, so a reader
+            // who logs side effects in a tracker has a second record it has
+            // never seen. Same file.
+            SymptomReconciliationSection()
         case .biologicalAge:
             // Every marker's own answer, its own error bar and its own share,
             // on one axis of years. This is the section that makes the card not
@@ -274,12 +281,24 @@ struct InsightDetailView: View {
             // land in `pendingCalendarEdits` — view-local, uncommitted — and
             // the row stays put and keeps its controls until the reader says
             // to save.
+            //
+            // ⚠️ **A sick day asks different questions** (§B11-6). The reader:
+            // *"For a sick classification the work/personal/not-sure selector
+            // and the formal/casual/standard selector are not relevant and
+            // should not show. It does need a severity of sickness selector."*
+            // The occasion chip stays a full picker in both states, so
+            // travel → sick and sick → work are each one tap — the reader was
+            // explicit that misclassification must be correctable **both**
+            // ways. The predicate is `Occasion.asksAboutWorkAndFormality`, in
+            // InsightKit, rather than an `== .sick` test written twice here.
             HStack(spacing: 4) {
-                editableChip(shown.context.title,
-                             decided: shown.decider(for: CalendarEventClassification.contextKey),
-                             options: CalendarEventClassification.Context.allCases,
-                             label: { $0.title }) { option in
-                    editCalendarDraft(event.id, judgement: judgement, context: option)
+                if shown.occasion.asksAboutWorkAndFormality {
+                    editableChip(shown.context.title,
+                                 decided: shown.decider(for: CalendarEventClassification.contextKey),
+                                 options: CalendarEventClassification.Context.allCases,
+                                 label: { $0.title }) { option in
+                        editCalendarDraft(event.id, judgement: judgement, context: option)
+                    }
                 }
                 editableChip(shown.occasion.title,
                              decided: shown.decider(for: CalendarEventClassification.occasionKey),
@@ -290,11 +309,23 @@ struct InsightDetailView: View {
                 // Presence and duration are read off the event itself. There is
                 // nothing to disagree with, so they stay plain chips.
                 reviewChip(shown.presence.title, decided: .fact)
-                editableChip(shown.formality.title,
-                             decided: shown.decider(for: CalendarEventClassification.formalityKey),
-                             options: CalendarEventClassification.Formality.allCases,
-                             label: { $0.title }) { option in
-                    editCalendarDraft(event.id, judgement: judgement, formality: option)
+                if shown.occasion.asksAboutWorkAndFormality {
+                    editableChip(shown.formality.title,
+                                 decided: shown.decider(for: CalendarEventClassification.formalityKey),
+                                 options: CalendarEventClassification.Formality.allCases,
+                                 label: { $0.title }) { option in
+                        editCalendarDraft(event.id, judgement: judgement, formality: option)
+                    }
+                } else {
+                    // Never `.fact` and never `.rules`: nothing on a calendar
+                    // event states how ill somebody was, so an ungraded sick day
+                    // shows the reader's own dash until they say.
+                    editableChip(shown.severity?.title ?? "How ill?",
+                                 decided: shown.severity == nil ? .rules : .reader,
+                                 options: CalendarEventClassification.SickSeverity.allCases,
+                                 label: { $0.title }) { option in
+                        editCalendarDraft(event.id, judgement: judgement, severity: option)
+                    }
                 }
                 if shown.isMarathon {
                     reviewChip("Marathon", decided: .fact)
@@ -386,19 +417,27 @@ struct InsightDetailView: View {
     private func editCalendarDraft(_ eventID: String, judgement: CalendarEventJudgement,
                                    context: CalendarEventClassification.Context? = nil,
                                    occasion: CalendarEventClassification.Occasion? = nil,
-                                   formality: CalendarEventClassification.Formality? = nil) {
+                                   formality: CalendarEventClassification.Formality? = nil,
+                                   severity: CalendarEventClassification.SickSeverity? = nil) {
         let base = pendingCalendarEdits[eventID] ?? judgement.effective
         var deciders = base.deciders
         if context != nil { deciders[CalendarEventClassification.contextKey] = .reader }
         if occasion != nil { deciders[CalendarEventClassification.occasionKey] = .reader }
         if formality != nil { deciders[CalendarEventClassification.formalityKey] = .reader }
+        if severity != nil { deciders[CalendarEventClassification.severityKey] = .reader }
         pendingCalendarEdits[eventID] = CalendarEventClassification(
             context: context ?? base.context,
             occasion: occasion ?? base.occasion,
             presence: base.presence,
             formality: formality ?? base.formality,
             hours: base.hours,
-            deciders: deciders)
+            deciders: deciders,
+            // ⚠️ **Carried, and dropped by the initialiser off a sick day.**
+            // Editing the occasion away from `.sick` and back must not resurrect
+            // a grade the reader gave to a different reading of the event —
+            // `CalendarEventClassification.init` is where that is enforced, so
+            // no draft can smuggle one through.
+            severity: severity ?? base.severity)
     }
 
     /// Commit the draft as one correction, and clear it.

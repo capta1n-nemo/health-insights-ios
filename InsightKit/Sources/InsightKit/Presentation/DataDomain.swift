@@ -99,6 +99,26 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// any block exists — and the deduplicated merge is precisely what neither
     /// source shows on its own.
     case holidays
+    /// **The days the reader was ill** — the merged `SickDayLedger`, §B11-4.
+    ///
+    /// The reader's own sentence, and it is why this exists: *"since this 'sick
+    /// day' is now a new data source, it should of course now be stored in the
+    /// data section too, so all of this can be viewed and changed from the data
+    /// section too."*
+    ///
+    /// Its own domain rather than a view of `calendarEvents` for exactly the
+    /// reason `holidays` is: an event is one calendar row, a sick day is a dated
+    /// *period* that may exist in no calendar at all, and the deduplicated merge
+    /// is what neither source shows on its own. Its own domain rather than a
+    /// flavour of `holidays` for a sharper reason — **a week of flu is not
+    /// leave**, and folding the two together would let illness read as recovery
+    /// to every card that comes to ask when the reader last had a break.
+    ///
+    /// ⚠️ **A record of what was said, never a physiological finding.** See
+    /// `SickDayLedger` and `docs/illness-detection-evidence-2026-08-07.md`:
+    /// two-thirds of genuine infections produce no clear signal, so neither the
+    /// presence nor the absence of a row here is evidence about anybody's body.
+    case sickDays
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -132,6 +152,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .cycles: return "Cycles"
         case .calendarEvents: return "Calendar"
         case .holidays: return "Holidays"
+        case .sickDays: return "Sick days"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -162,6 +183,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
         case .holidays:
             return "Your leave, in one record — holidays found in your calendar and ones you entered yourself, deduplicated, with how long since you last had any."
+        case .sickDays:
+            return "Every day you were ill, from your calendar and from what you told the app — what you said, never what a sensor decided."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

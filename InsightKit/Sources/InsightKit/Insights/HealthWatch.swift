@@ -559,17 +559,119 @@ public enum SymptomRadarModel {
     /// something, which is a way of forgetting an illness because somebody
     /// stopped measuring it.
     public static func accumulation(over timeline: [DaySnapshot]) -> Accumulation {
+        history(over: timeline).last?.accumulation ?? .none
+    }
+
+    // MARK: - S4: flagged days over time, and how they build
+
+    /// **One day of the radar's history, as the reader would see it** — backlog
+    /// `S4`, the reader's own idea: *"when sickness was flagged and how it
+    /// builds"*.
+    ///
+    /// Both halves in one row, because the whole point of the chart is that they
+    /// are different quantities: `score` is what the card said *that morning* on
+    /// its own, and `accumulation` is what had piled up behind it. A day where
+    /// the second is high and the first is not is the reader's own reported
+    /// complaint — *"why am I now back at 99% just 1 day later?"* — made visible
+    /// rather than argued about.
+    public struct DayHistory: Sendable, Equatable, Identifiable {
+        public let day: Date
+        /// The output for that day, or nil where the watch could not judge it.
+        /// **Kept nil rather than filled**, so a chart can leave a real gap: a
+        /// night nothing was worn is missing evidence, and an interpolated
+        /// point there would invent a reading.
+        public let output: HealthWatchModel.Output?
+        /// The accumulation as it stood at the end of that day. Carried
+        /// unchanged across a day with no output, exactly as `accumulation`
+        /// does — a night on charge is not evidence of recovery.
+        public let accumulation: Accumulation
+        /// What the card would have reported that morning, memory included.
+        /// Nil on an unjudgeable day.
+        public let status: SymptomRadarStatus?
+
+        public var id: Date { day }
+        /// The day's own score, before memory. Nil where nothing was judgeable.
+        public var dailyScore: Double? { output?.score }
+        /// True where the card was not quiet — the definition `dayCounters` and
+        /// `episodes` already use, restated nowhere else.
+        public var isFlagged: Bool { status != nil && status != .quiet }
+    }
+
+    /// The whole history in **one forward pass** over a timeline that was itself
+    /// built in one pass.
+    ///
+    /// ⚠️ **Never `days × evaluate`.** `timeline(samples:days:endingAt:calendar:)`
+    /// fetches each watched metric's daily series once and slides the windows;
+    /// this walks the result once more to run the CUSUM. Rebuilding either per
+    /// day would multiply score replay's cost by the span, which is exactly what
+    /// a longer chart window would make expensive.
+    ///
+    /// The recurrence is the same three lines `accumulation` used to hold, and
+    /// that method now reads its last row — so the chart and the card cannot
+    /// disagree about what had accumulated by a given morning.
+    public static func history(over timeline: [DaySnapshot]) -> [DayHistory] {
         var statistic = 0.0
         var daysRunning = 0
+        var out: [DayHistory] = []
+        out.reserveCapacity(timeline.count)
         for snapshot in timeline {
-            guard let output = snapshot.output else { continue }
-            let daily = HealthWatchModel.standardised(output.signals)
-            statistic = Swift.min(Memory.accumulationCap,
-                                  Swift.max(0, statistic + daily - Memory.allowance))
-            daysRunning = statistic > 0 ? daysRunning + 1 : 0
+            if let output = snapshot.output {
+                let daily = HealthWatchModel.standardised(output.signals)
+                statistic = Swift.min(Memory.accumulationCap,
+                                      Swift.max(0, statistic + daily - Memory.allowance))
+                daysRunning = statistic > 0 ? daysRunning + 1 : 0
+            }
+            let memory = Accumulation(statistic: statistic, daysRunning: daysRunning)
+            // The status the card would have shown, which is the *verdict's* —
+            // today's number and the accumulation, whichever says more. Reusing
+            // `verdict` rather than re-deriving the bands is the point: the
+            // chart cannot drift from the card by construction.
+            let status = snapshot.output.map { output -> SymptomRadarStatus in
+                verdict(today: output, accumulation: memory).status
+            }
+            out.append(DayHistory(day: snapshot.day, output: snapshot.output,
+                                  accumulation: memory, status: status))
         }
-        return Accumulation(statistic: statistic, daysRunning: daysRunning)
+        return out
     }
+
+    /// The history split into **runs of consecutive judgeable days**.
+    ///
+    /// A chart draws one line per run and never joins two, which is this repo's
+    /// standing rule about gaps: a line crossing a fortnight the ring spent in a
+    /// drawer asserts a trend nobody measured. The split lives here rather than
+    /// in the view because it is a rule about what may look continuous, and this
+    /// app has already learnt that such rules verified only by eye are not
+    /// verified (`docs/… add-chart` §5).
+    ///
+    /// A single-day run is kept: one judged day between two blank stretches is a
+    /// real point, and dropping it would quietly shorten the record.
+    public static func runs(of history: [DayHistory],
+                            calendar: Calendar = .current) -> [[DayHistory]] {
+        var out: [[DayHistory]] = []
+        for row in history where row.output != nil {
+            if let last = out.last?.last,
+               daysBetween(last.day, row.day, calendar: calendar) == 1 {
+                out[out.count - 1].append(row)
+            } else {
+                out.append([row])
+            }
+        }
+        return out
+    }
+
+    /// How far back the history chart looks.
+    ///
+    /// Twice `ledgerDays`, and the reason is the subject: the ledger grades the
+    /// card over a window short enough that last winter is not marking this
+    /// spring's homework, while a chart of *when the reader was ill* wants a
+    /// season either side of one. Six months is also roughly two of an adult's
+    /// two-to-four annual respiratory infections
+    /// (`docs/illness-detection-evidence-2026-08-07.md`), so a chart this long
+    /// should show a small number of stretches rather than a wall — and if it
+    /// shows a wall, that is the false-alarm rate being visible, which is the
+    /// honest outcome.
+    public static let historyDays = 180
 
     /// Today's verdict, with memory — what the card actually reports.
     public struct Verdict: Sendable, Equatable {
@@ -585,7 +687,19 @@ public enum SymptomRadarModel {
 
     public static func verdict(today: HealthWatchModel.Output,
                                timeline: [DaySnapshot]) -> Verdict {
-        let memory = accumulation(over: timeline)
+        verdict(today: today, accumulation: accumulation(over: timeline))
+    }
+
+    /// The same verdict against an accumulation already in hand.
+    ///
+    /// Split out for `history(over:)`, which walks the CUSUM forward once and
+    /// has each day's memory at the moment it needs the day's status. The
+    /// alternative — calling the timeline overload per day — would re-run the
+    /// accumulation from the start on every row, turning one pass into `n²`.
+    /// Splitting rather than copying is what stops the chart's bands drifting
+    /// from the card's.
+    public static func verdict(today: HealthWatchModel.Output,
+                               accumulation memory: Accumulation) -> Verdict {
         let carried = memory.excess > today.excess
         let excess = Swift.max(today.excess, memory.excess)
         let score = HealthWatchModel.score(excess: excess)
@@ -631,6 +745,53 @@ public enum SymptomRadarModel {
         return Verdict(today: today, accumulation: memory, score: score,
                        status: status, isCarriedForward: carried)
     }
+
+    // MARK: - S3: how many nights it takes
+
+    /// **How long a departure of a given size takes to reach the accumulation's
+    /// decision interval** — backlog `S3`, the "nights to flag" figure.
+    ///
+    /// The arithmetic is the CUSUM's own and there is nothing else in it. While
+    /// the body sits `excess` null SDs past ordinary, each night adds
+    /// `excess − allowance` to `S`; the accumulation is a finding at
+    /// `decisionInterval`; so the wait is
+    ///
+    ///     ⌈ decisionInterval / (excess − allowance) ⌉
+    ///
+    /// and a departure at or under the allowance never gets there at all, which
+    /// is what `nil` means. **That is the honest answer and not a defect**: the
+    /// allowance exists precisely so ordinary noise cannot accumulate, and a
+    /// detector that eventually flags everything is a detector that has stopped
+    /// saying anything.
+    ///
+    /// ⚠️ **A ceiling on a noiseless line, deliberately.** Real nights vary, and
+    /// simulating the same recurrence with `N(excess, 1)` noise gives a mean
+    /// wait very close to this and a median a night under it (measured at
+    /// `excess` 1.0: deterministic 12, simulated mean 12.4, median 11). The
+    /// deterministic figure is inside that spread, is reproducible without an
+    /// RNG in shipped code, and is pinned by `SymptomRadarTests`. The sheet says
+    /// "about", because none of these is a promise.
+    ///
+    /// ⚠️ **And it is a latency, never a sensitivity.** How long the card takes
+    /// to notice a departure is a different question from how often a departure
+    /// means illness, and the second one this app cannot answer:
+    /// `docs/illness-detection-evidence-2026-08-07.md` puts prospective positive
+    /// predictive value at 4–12%. The sheet that renders this must not let the
+    /// first figure be read as the second.
+    public static func nightsToFlag(atDailyExcess excess: Double) -> Int? {
+        let perNight = excess - Memory.allowance
+        guard perNight > 0 else { return nil }
+        return Int((Memory.decisionInterval / perNight).rounded(.up))
+    }
+
+    /// The departures the "nights to flag" sheet lists, in null SDs.
+    ///
+    /// Four rows because four is what a reader can hold: one SD is the shift the
+    /// allowance was chosen against (`k = δ/2`), three is a body that is
+    /// unmistakably somewhere else, and the two between are where real illness
+    /// actually sits.
+    public static let flagLatencyExcesses: [Double] = [1.0, 1.5, 2.0, 3.0]
+
     /// A dose taken on day D covers days D through D+2 — the GI-effect window
     /// used everywhere in this feature.
     public static let doseWindowDays = 3
