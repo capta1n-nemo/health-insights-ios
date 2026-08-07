@@ -3,7 +3,58 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
-## Current focus — session 29 (2026-08-06/07), 64 commits
+## Current focus — session 30 (2026-08-07): one list
+
+**There is one open-item list now: `docs/backlog.md`, read by
+`./scripts/backlog.sh`.** `progress.md` keeps the shipped history and this file
+keeps the current state; neither records open work. If you find yourself
+starting a second list, that is the mistake this session existed to stop.
+
+```bash
+./scripts/backlog.sh --asks    # 63 things the reader asked for and has not got
+./scripts/backlog.sh --next    # the next batch, and the model it needs
+```
+
+**215 rows, 151 open.** Ordered `w0` blockers → `w1` shipped-but-wrong → `w2`
+quick wins → `w3` builds → `w4` complex. Every row carries a **tier** naming the
+model and effort it needs — `mech` (Opus 5 · medium), `build` (high), `hard`
+(xhigh/max), `ultra` (+ ultracode), `design` (Fable 5) — so work batches by
+complexity. **Say the model out loud when the tier changes.**
+
+### ⚠️ Twenty corrections landed with it — the docs were lying about what was open
+
+Fifteen rows described work that had already shipped, and a session planning
+from them would have scheduled rebuilds. The ones most likely to waste a
+session: **calendar events are persisted** (`CalendarEventRecord` and
+`CalendarJudgementRecord` are both `@Model`s in `DataStore.swift:21`'s `Schema`,
+and both cards read them) — §D I1 said the opposite and called itself the
+blocker on two cards that are also built; **all five "cards with no bespoke
+section"** have one (`InsightDetailView.swift:79-160` is exhaustive over 26
+cases; Readiness is a documented deliberate `EmptyView`); **the Fitness
+sections** shipped in `5ed4ac7`. And `D17`'s two named causes are **both
+wrong** — the gait promotion path is correct, and the seed export was written
+one day *before* commit `3853446`, so 27,248 walking-speed rows sit in
+`unmodelled` and can never reach `samples`.
+
+### ⚠️ `AC1` is on a reboot clock
+
+The 706-line calendar-drift patch is **not lost**. It survives in the
+*abandoned* iCloud checkout's session scratchpad, and `/private/tmp` does not
+survive a reboot. Copy it into the repo before anything else. Designed against
+real file contents, **never compiled or tested**.
+
+### The repeat that was inside the countermeasure
+
+`unbuilt-asks.sh` — built last session to stop a three-session *"where is my
+work?"* repeat — reported **two** open asks this morning against **63**. It
+parsed two hard-coded headings and could not see §B7 or §B9–§B19 at all. It did
+not break; it under-reported, and an under-report reads exactly like good news.
+**A parser that silently returns nothing reads as "nothing outstanding."** That
+is why `backlog.sh` refuses to run rather than skipping a row it cannot read.
+
+---
+
+## Session 29 (2026-08-06/07), 64 commits
 
 **The reader used the app on their own phone all day and reported defects from
 it.** That is new, and it is the most valuable input this project has had: five
