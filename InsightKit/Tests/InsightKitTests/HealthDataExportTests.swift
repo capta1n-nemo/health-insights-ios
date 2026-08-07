@@ -175,6 +175,11 @@ final class HealthDataExportTests: XCTestCase {
                              lastDay: now.addingTimeInterval(-8 * 86_400),
                              label: nil, severity: "moderate", source: "detected")],
             generatedInsights: HealthDataExport.derivedSeries(from: store),
+            // §B12. One custom Oura tag, classified — the fixture holds a name
+            // the lexicon has never seen, because a fixed lookup table is
+            // exactly what the reader said would not scale.
+            tags: [HealthTag(name: "Kayaking", code: nil, date: now, source: .oura,
+                             mapping: TagLexicon.classify(name: "Kayaking"))],
             reports: .init(inventory: "# Inventory\nbodyMass · 1 reading",
                            cardOutputs: "# Cards\ncardiovascularRisk 72",
                            modelInternals: "# Internals\nbaseline n=1",

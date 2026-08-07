@@ -292,6 +292,13 @@ the place to look.
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :106
   - `MetricSource` :5
+- `Models/HealthTag.swift`
+  - `HealthTag` :199
+  - `TagApplicability` :22
+  - `TagApplicabilityMapping` :156
+  - `TagMappingMethod` :123
+  - `TagMappingRank` :302
+  - `TagSummary` :238
 - `Models/HolidayLedger.swift`
   - `HolidayLedger` :39
 - `Models/MetricAggregator.swift`
@@ -332,6 +339,11 @@ the place to look.
   - `SymptomPromotion` :289
   - `SymptomSeverity` :239
   - `SymptomType` :27
+- `Models/TagLexicon.swift`
+  - `TagLexicon` :39
+- `Models/TagPromotion.swift`
+  - `TagMappingStore` :182
+  - `TagPromotion` :31
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
@@ -587,6 +599,8 @@ the place to look.
   - `CalendarEventInterpreter` :50
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
+- `Core/Intelligence/TagApplicabilityModel.swift`
+  - `TagApplicabilityModel` :44
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :8
 - `Core/Persistence/KeychainStore.swift`
@@ -714,7 +728,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1309
+  - `OtherDataDetailView` :1358
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -730,6 +744,9 @@ the place to look.
   - `GeneratedSeriesDataView` :129
 - `Features/Data/SickDaysDataView.swift`
   - `SickDaysDataView` :30
+- `Features/Data/TagsDataView.swift`
+  - `TagRow` :126
+  - `TagsDataView` :41
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
@@ -843,8 +860,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :37
-  - `FullExport` :416
-  - `OtherDataListView` :429
+  - `FullExport` :421
+  - `OtherDataListView` :434
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73

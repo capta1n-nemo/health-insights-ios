@@ -342,6 +342,11 @@ struct DataExportView: View {
             // `HealthDataExport.exportKey(for:)`, which keeps the superseded
             // reasoning, and `docs/norms-and-telemetry.md`.
             generatedInsights: HealthDataExport.derivedSeries(from: model.derivedSeries),
+            // Every tag, with the applicability the app inferred and the method
+            // that inferred it (B12-1). The occurrences rather than the distinct
+            // summaries: a summary is a count, and the dates are what a norm
+            // would ever be built from. See `HealthDataExport.tags`.
+            tags: model.tags,
             // Which sources are connected and when each last delivered — the
             // provenance every other key in the file rests on, and held nowhere
             // that leaves the phone otherwise (Keychain and SwiftData). **Never

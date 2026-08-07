@@ -53,9 +53,16 @@ final class OuraProvider: OAuthIntegration {
                 // `end_datetime` (this endpoint does not take plain dates), and
                 // decide what happens for a user whose Apple Health already
                 // carries the same readings from the same ring.
+                //
+                // `tag` is Oura's published scope for the tag collections
+                // (B12-1). Unlike `heartrate` above it is asked for *and* used:
+                // `enhanced_tag` is fetched below, and tags exist nowhere else
+                // — Apple Health has no tag concept, and the reader's whole
+                // export contains not one tag row, so this scope is the only
+                // route by which a tag can reach this app at all.
                 scopes: ["daily", "workout", "session",
                          "spo2", "spo2Daily", "personal",
-                         "stress", "heart_health"],
+                         "stress", "heart_health", "tag"],
                 usesPKCE: true),
             credentials: credentials, webFlow: webFlow)
     }
@@ -63,8 +70,22 @@ final class OuraProvider: OAuthIntegration {
     /// Collections captured wholesale as raw "other" data. The four that also
     /// feed canonical metrics are fetched individually below, because each needs
     /// its own parser.
+    ///
+    /// `enhanced_tag` is here rather than in `mappedCollections` because a tag
+    /// is not a measurement and has no typed parser: the pipeline captures the
+    /// record's fields into the raw catalogue and `TagPromotion` reassembles
+    /// them into `HealthTag`s from there — the same read-don't-move promotion
+    /// `SymptomPromotion` uses.
+    ///
+    /// ⚠️ **`enhanced_tag` only, not the legacy `tag` endpoint.** Oura
+    /// supersedes one with the other, and adding a deprecated endpoint that may
+    /// answer 404 for every account would put a permanent red line in the sync
+    /// summary — a diagnostic that always fails is a diagnostic nobody reads.
+    /// `TagPromotion` still understands the legacy `tags: [...]` array shape, so
+    /// a payload cached by an older build still promotes.
     private static let rawCollections = ["daily_sleep", "daily_stress", "daily_resilience",
-                                         "daily_cardiovascular_age", "vO2_max"]
+                                         "daily_cardiovascular_age", "vO2_max",
+                                         "enhanced_tag"]
     private static let mappedCollections = ["sleep", "daily_readiness", "daily_spo2", "daily_activity"]
     private static var collectionCount: Int { rawCollections.count + mappedCollections.count }
 
@@ -76,7 +97,8 @@ final class OuraProvider: OAuthIntegration {
     private static let requiredScope: [String: String] = [
         "daily_resilience": "stress",
         "daily_cardiovascular_age": "heart_health",
-        "vO2_max": "heart_health"
+        "vO2_max": "heart_health",
+        "enhanced_tag": "tag"
     ]
 
     override func fetchData(accessToken: String, since: Date) async throws -> SyncedData {

@@ -100,6 +100,12 @@ final class AppModel {
             // Every ingest path funnels through here, so the stored `symptoms`
             // can never lag the raw catalogue it is promoted from.
             symptoms = SymptomPromotion.events(from: otherSamples)
+            // Same contract as `symptoms`: promoted here so the stored list can
+            // never lag the catalogue it is read from. Deterministic only — the
+            // on-device model is asked afterwards, by
+            // `refreshTagApplicability()`, because this is a synchronous
+            // observer and a `didSet` is the wrong place to start an inference.
+            tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
         }
     }
     /// Everything the app has learned about provider schemas — every field ever
@@ -223,6 +229,87 @@ final class AppModel {
     /// which every ingest path funnels through. (Promotion still *reads*
     /// rather than moves — see `SymptomPromotion`.)
     private(set) var symptoms: [SymptomEvent] = []
+
+    /// **Tags the reader put on a day** — imported from Oura, newest first
+    /// (backlog B12-1).
+    ///
+    /// Promoted rather than ingested, and stored rather than computed, for
+    /// exactly the two reasons `symptoms` above is: the raw rows stay in the
+    /// catalogue so a promotion bug cannot cost data, and a computed read
+    /// through `otherDataGroups` would register no observation dependency.
+    ///
+    /// The applicability on each one comes from `TagLexicon` unless
+    /// `tagMappings` holds a better-evidenced answer — the on-device model's or
+    /// the reader's own. See `refreshTagApplicability()`.
+    private(set) var tags: [HealthTag] = []
+
+    /// Applicabilities that beat the deterministic classifier: what the
+    /// on-device model worked out, and what the reader corrected.
+    ///
+    /// ⚠️ **Persisted, and that is not an optimisation.** A model answer is
+    /// non-deterministic, so re-asking on every launch would quietly move a tag
+    /// between headings; and a reader's correction is data they typed. Held in
+    /// `UserDefaults` beside `TypeSightingLedger` rather than in SwiftData
+    /// because it is a small keyed cache, not a log.
+    private(set) var tagMappings = TagMappingStore() {
+        didSet { saveTagMappings() }
+    }
+
+    private static let tagMappingsKey = "tagApplicabilityMappings"
+
+    private func loadTagMappings() {
+        guard let data = UserDefaults.standard.data(forKey: Self.tagMappingsKey),
+              let store = try? JSONDecoder().decode(TagMappingStore.self, from: data)
+        else { return }
+        // Assigned through the backing store directly would re-save what was
+        // just read; harmless, and not worth a second property to avoid.
+        tagMappings = store
+    }
+
+    private func saveTagMappings() {
+        if let data = try? JSONEncoder().encode(tagMappings) {
+            UserDefaults.standard.set(data, forKey: Self.tagMappingsKey)
+        }
+    }
+
+    /// The on-device model. Held rather than built per call so `isAvailable` is
+    /// asked once per session rather than once per tag.
+    private let tagModel = TagApplicabilityModel()
+
+    /// **Ask the on-device model about the tags nothing else could place.**
+    ///
+    /// Called after a sync, never during one: the deterministic answer is
+    /// already on screen by then, so this only ever *improves* a heading and can
+    /// never be the reason the section is empty. On a device with no model it
+    /// returns immediately having done nothing, which is the common case.
+    ///
+    /// Most-used tags first — see `TagApplicabilityModel.perPassLimit` for why
+    /// the order matters.
+    func refreshTagApplicability() async {
+        let summaries = tags.distinctTags().sorted { $0.count > $1.count }
+        let resolved = await tagModel.resolve(summaries)
+        guard !resolved.isEmpty else { return }
+        var store = tagMappings
+        for (key, mapping) in resolved { store.record(mapping, for: key) }
+        tagMappings = store
+        // Re-promote so the new answers are on the rows the reader is looking
+        // at, rather than waiting for the next sync to redraw them.
+        tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
+    }
+
+    /// The reader overruling the app about one of their own words.
+    ///
+    /// Ranked above every other method (`TagMappingRank`), so a later sync
+    /// re-classifying the same word cannot undo it.
+    func setTagApplicability(_ applicability: TagApplicability, forTagKey key: String) {
+        var store = tagMappings
+        store.record(TagApplicabilityMapping(
+            applicability: applicability, method: .reader, confidence: 1,
+            rationale: "You said this tag is about \(applicability.rawValue.lowercased())."),
+                     for: key)
+        tagMappings = store
+        tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
+    }
 
     /// Reload the logged data that lives in SwiftData rather than in `samples`,
     /// so every observed reader of it redraws. Called from `hydrate()` and at
@@ -1603,6 +1690,13 @@ final class AppModel {
         guard !isHydrated else { return }
         launchPhase = .reading
 
+        // ⚠️ **Before `otherSamples` is assigned, not after.** Its `didSet`
+        // promotes the tags, and promotion consults `tagMappings` — so loading
+        // the store later would classify the reader's whole tag history with the
+        // model's and their own answers missing, then quietly leave it that way
+        // until the next sync.
+        loadTagMappings()
+
         // Main actor, because SwiftData's `mainContext` is. Both are small.
         let manual = dataStore.loadManualSamples()
         let store = dataStore
@@ -2162,6 +2256,12 @@ final class AppModel {
         await recomputeSettled()
         launchPhase = .summarising
         await refreshSummaryIfChanged(now: startedAt, diag: diag)
+        // **After the sync has otherwise finished, deliberately.** Every tag is
+        // already promoted and already carries a deterministic applicability, so
+        // this can only improve a heading — it can never be the reason the Tags
+        // section is empty or late. On a device with no on-device model it
+        // returns having done nothing.
+        await refreshTagApplicability()
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })
