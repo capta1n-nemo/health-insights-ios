@@ -308,8 +308,16 @@ struct SettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            // Q13 / AC4. Last in the section on purpose: it is the end of the
+            // privacy story, not an option among the others.
+            NavigationLink {
+                DeleteEverythingView()
+            } label: {
+                Label("Delete everything", systemImage: "trash")
+                    .foregroundStyle(.red)
+            }
         } footer: {
-            Text("See exactly what would ever leave your phone to make the models better — including your corrections, which are shared in two tiers, both on by default and each switchable off. Nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps.")
+            Text("See exactly what would ever leave your phone to make the models better — including your corrections, which are shared in two tiers, both on by default and each switchable off. Nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps. Delete everything removes every record on this phone and says plainly what it cannot reach.")
         }
     }
 

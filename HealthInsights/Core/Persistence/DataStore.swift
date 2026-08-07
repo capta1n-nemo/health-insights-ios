@@ -2,6 +2,26 @@ import Foundation
 import SwiftData
 import InsightKit
 
+/// Counting and clearing a `@Model` type **without naming it**.
+///
+/// `ModelContext.delete(model:)` and `FetchDescriptor` are both generic over a
+/// concrete `PersistentModel`, so neither can be called on an element of a
+/// `[any PersistentModel.Type]` array directly. Hanging them off the protocol
+/// moves the binding to the call site, where `Self` is concrete — which is what
+/// lets `DataStore.deleteEverything()` iterate the same list the `Schema` is
+/// built from instead of restating it as nineteen hand-written lines.
+///
+/// That is the whole trick, and it is the reason the wipe cannot go stale.
+extension PersistentModel {
+    static func rowCount(in context: ModelContext) -> Int {
+        (try? context.fetchCount(FetchDescriptor<Self>())) ?? 0
+    }
+
+    static func deleteAll(in context: ModelContext) throws {
+        try context.delete(model: Self.self)
+    }
+}
+
 /// Thin persistence facade over SwiftData for the app's local data. Keeps
 /// SwiftData details out of the view layer.
 @MainActor
@@ -9,27 +29,208 @@ final class DataStore {
     let container: ModelContainer
     var context: ModelContext { container.mainContext }
 
+    /// Whether this store is the in-memory one the tests build.
+    ///
+    /// ⚠️ **Load-bearing for `removeWrittenFiles()`, not a convenience.** The
+    /// app-target test bundle is *hosted in the installed app*, so its
+    /// Application Support directory is the real one on whatever simulator or
+    /// phone is running the tests. A wipe test that swept it would delete the
+    /// reader's own imported lab reports and body scans and pass while doing it.
+    /// An in-memory store owns no files, so the sweep is skipped — which is both
+    /// the safe answer and the true one.
+    private let isInMemory: Bool
+
+    /// **Every `@Model` this app persists. There is one list and this is it.**
+    ///
+    /// Two guarantees hang off this array, and they are mirror images of each
+    /// other. The first has been written here for months:
+    ///
+    /// - ⚠️ **A `@Model` not listed here silently never persists.** It compiles,
+    ///   it saves, and nothing comes back after a relaunch.
+    ///
+    /// The second arrived with `deleteEverything()` (backlog `AC4`) and is the
+    /// reason this stopped being an inline literal inside `init`:
+    ///
+    /// - ⚠️ **A `@Model` not listed here is silently never deleted.** A wipe
+    ///   written against a hand-copied list is complete on the day it is written
+    ///   and quietly incomplete from the next `@Model` onwards — and on *this*
+    ///   feature "quietly incomplete" means health data the reader was told had
+    ///   been deleted, still on the phone.
+    ///
+    /// That has already happened once in slower motion: four of the types below
+    /// (`CycleDayRecord`, `CalendarEventRecord`, `CalendarJudgementRecord`,
+    /// `HolidayEntry`) landed *after* the delete-everything path was agreed, and
+    /// three more after that. So the wipe is derived from this array rather than
+    /// restating it, and adding a `@Model` here is the whole of the work.
+    ///
+    /// `Schema` takes exactly this type, so nothing is lost by naming the list
+    /// first.
+    static let persistedModels: [any PersistentModel.Type] =
+        [GroundingRecord.self, ManualSampleRecord.self,
+         IntegrationRecord.self, SubstanceEventRecord.self,
+         PredictionOutcomeRecord.self, FeedbackRecord.self,
+         InsightScoreRecord.self, SuggestionDismissalRecord.self,
+         MedicationRecord.self, DoseLogRecord.self,
+         SideEffectRecord.self, BodyScanRecord.self,
+         CycleDayRecord.self,
+         CalendarEventRecord.self, CalendarJudgementRecord.self,
+         HolidayEntry.self,
+         // Q7 / I7 — see DocumentRecords.swift.
+         LabResultRecord.self, ECGRecordEntry.self,
+         // Q8 — the stack the reader types in.
+         SupplementEntryRecord.self]
+
     init(inMemory: Bool = false) {
-        let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
-                             IntegrationRecord.self, SubstanceEventRecord.self,
-                             PredictionOutcomeRecord.self, FeedbackRecord.self,
-                             InsightScoreRecord.self, SuggestionDismissalRecord.self,
-                             MedicationRecord.self, DoseLogRecord.self,
-                             SideEffectRecord.self, BodyScanRecord.self,
-                             // ⚠️ A @Model not listed here silently never persists.
-                             CycleDayRecord.self,
-                             CalendarEventRecord.self, CalendarJudgementRecord.self,
-                             HolidayEntry.self,
-                             // Q7 / I7 — see DocumentRecords.swift.
-                             LabResultRecord.self, ECGRecordEntry.self,
-                             // Q8 — the stack the reader types in.
-                             SupplementEntryRecord.self])
+        isInMemory = inMemory
+        let schema = Schema(Self.persistedModels)
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+    }
+
+    // MARK: - Delete everything (Q13 / AC4)
+
+    /// What a wipe destroyed, so the screen can show it rather than assert it.
+    ///
+    /// Counted *before* the delete and reported per type, because "everything
+    /// was deleted" is unfalsifiable and a row-by-row tally is not: a reader who
+    /// knows they logged twelve doses can check that twelve doses went.
+    struct DeletionReport: Equatable {
+        /// Type name → rows deleted. Every persisted type appears, including the
+        /// ones that held nothing — silence about a type is what this feature
+        /// cannot afford.
+        var rowsByType: [String: Int] = [:]
+        /// Files and folders removed from Application Support — the provider
+        /// caches, the written summary, imported lab and ECG documents, body
+        /// scan assets, everything the app put there bar the store itself.
+        var filesRemoved: Int = 0
+        /// Types the delete threw on. **Empty is the only acceptable result**,
+        /// and it is surfaced rather than swallowed.
+        var failures: [String] = []
+
+        var totalRows: Int { rowsByType.values.reduce(0, +) }
+        var typesCleared: Int { rowsByType.count }
+        /// Non-empty types, newest reader-facing detail first by size.
+        var nonEmpty: [(type: String, rows: Int)] {
+            rowsByType.filter { $0.value > 0 }
+                .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+                .map { (type: $0.key, rows: $0.value) }
+        }
+    }
+
+    /// Delete every record of every persisted `@Model`, plus the on-disk caches
+    /// of provider data.
+    ///
+    /// ## The guarantee, and where it comes from
+    ///
+    /// It iterates `persistedModels` — **the same array the `Schema` is built
+    /// from** — so the set of things deleted is the set of things stored, by
+    /// construction rather than by anyone remembering. Adding a `@Model` to that
+    /// list is the entire cost of keeping this correct; there is no second list
+    /// to update and therefore no second list to forget.
+    ///
+    /// ## The other half: the files, and why they are swept rather than listed
+    ///
+    /// SwiftData is not the only place this app puts the reader's health data.
+    /// Application Support also holds the provider caches, the written Today
+    /// summary, the field catalogue, imported lab and ECG **documents**, and
+    /// body-scan assets. A hand-written list of those would rot exactly the way
+    /// a hand-written list of `@Model`s would — and it nearly did: the compact
+    /// raw cache `synced_other.hirc` was added after `clearSyncedCaches()` and
+    /// never added to it, so 109 MB of raw rows survived a function whose whole
+    /// job was to remove them.
+    ///
+    /// So `removeWrittenFiles()` deletes *everything* in Application Support bar
+    /// the live store, rather than the things somebody remembered. A file added
+    /// next month is covered on the day it is written.
+    ///
+    /// ## What it does not reach, stated because a wipe must not overclaim
+    ///
+    /// - **Apple Health.** This app writes nothing to HealthKit that it did not
+    ///   read from it, and it cannot delete another app's records. Everything
+    ///   synced from Health comes back on the next sync, because it was never
+    ///   this app's copy to destroy — it is Apple Health's. Deleting it there is
+    ///   the reader's own action in the Health app.
+    /// - **`UserDefaults` preferences** — which notification you switched off,
+    ///   which suggestion you dismissed. Settings, not health data. They are
+    ///   left deliberately, and the screen says so.
+    ///
+    /// Non-throwing on purpose: a wipe that stops halfway through because one
+    /// type failed leaves the reader worse off than one that clears the other
+    /// eighteen and *names* the failure. The failures ride in the report.
+    @discardableResult
+    func deleteEverything() -> DeletionReport {
+        var report = DeletionReport()
+        for model in Self.persistedModels {
+            let name = String(describing: model)
+            report.rowsByType[name] = model.rowCount(in: context)
+            do {
+                try model.deleteAll(in: context)
+            } catch {
+                report.failures.append("\(name): \(error.localizedDescription)")
+            }
+        }
+        do { try context.save() } catch {
+            report.failures.append("save: \(error.localizedDescription)")
+        }
+        report.filesRemoved = removeWrittenFiles()
+        return report
+    }
+
+    /// Everything this app has written into Application Support, removed —
+    /// except the SwiftData store itself, which is live, and whose contents
+    /// `deleteEverything()` has just cleared through the schema.
+    ///
+    /// ⚠️ **Swept, not enumerated**, and that is the point: the reasoning that
+    /// makes the model half of the wipe safe (derive from one list, never
+    /// restate it) has no equivalent for files, because each accessor mints its
+    /// own URL. Directory enumeration is the closest thing to a derivation —
+    /// whatever is in there, went in from here.
+    ///
+    /// The store is recognised by its own configuration rather than by the name
+    /// "default.store", and by **prefix**, because SwiftData writes `-wal` and
+    /// `-shm` siblings and removing those under a live container is how a
+    /// delete-everything turns into a crash.
+    @discardableResult
+    func removeWrittenFiles() -> Int {
+        // See `isInMemory`: the test host's Application Support is the installed
+        // app's, and an in-memory store has no files of its own to remove.
+        guard !isInMemory else { return 0 }
+        let manager = FileManager.default
+        guard let base = try? manager.url(for: .applicationSupportDirectory,
+                                          in: .userDomainMask,
+                                          appropriateFor: nil, create: false),
+              let entries = try? manager.contentsOfDirectory(at: base,
+                                                             includingPropertiesForKeys: nil)
+        else { return 0 }
+        let storeName = container.configurations.first?.url.lastPathComponent
+        var removed = 0
+        for entry in entries {
+            if let storeName, entry.lastPathComponent.hasPrefix(storeName) { continue }
+            if (try? manager.removeItem(at: entry)) != nil { removed += 1 }
+        }
+        return removed
+    }
+
+    /// Every on-disk cache of provider data, removed. Returns how many files
+    /// actually existed.
+    ///
+    /// ⚠️ **All four, including `synced_other.hirc`** — which
+    /// `clearSyncedCaches()` did not remove until this landed, and which is the
+    /// *largest* of them: 109 MB of the reader's raw rows on their own record
+    /// against the canonical cache's 6.6 MB. `loadCachedOther()` reads that file
+    /// first, so leaving it meant the rebuild that function exists to force did
+    /// not happen for raw rows at all.
+    @discardableResult
+    nonisolated func removeCachedProviderFiles() -> Int {
+        [compactCacheURL, syncedCacheURL, compactOtherCacheURL, otherCacheURL]
+            .reduce(into: 0) { removed, url in
+                guard FileManager.default.fileExists(atPath: url.path) else { return }
+                if (try? FileManager.default.removeItem(at: url)) != nil { removed += 1 }
+            }
     }
 
     // MARK: - Grounding
@@ -459,11 +660,14 @@ final class DataStore {
     ///
     /// Returns what was discarded, because a rebuild that silently did nothing
     /// looks exactly like a rebuild that worked.
+    ///
+    /// ⚠️ **It used to miss `synced_other.hirc`** — see
+    /// `removeCachedProviderFiles()`, which it now defers to. Found while
+    /// writing `deleteEverything()` (`AC4`).
+    @discardableResult
     nonisolated func clearSyncedCaches() -> (samples: Int, other: Int) {
         let discarded = (samples: loadCachedSamples().count, other: loadCachedOther().count)
-        try? FileManager.default.removeItem(at: compactCacheURL)
-        try? FileManager.default.removeItem(at: syncedCacheURL)
-        try? FileManager.default.removeItem(at: otherCacheURL)
+        removeCachedProviderFiles()
         return discarded
     }
 
