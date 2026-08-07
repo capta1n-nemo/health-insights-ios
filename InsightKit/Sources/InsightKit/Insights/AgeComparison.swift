@@ -95,6 +95,37 @@ public enum AgeComparison {
         /// The row is shown, with its date, and says how old it is.
         public let asOf: Date?
 
+        /// **Set only where the app is unsure what the number *is*.**
+        ///
+        /// ⚠️ Every other doubt on this section is about width — how far the
+        /// answer could move and still be the same answer. This one is about
+        /// identity, and it is a different claim: `withings.measure.227` is
+        /// believed to be a metabolic age because its values sit where one
+        /// would, and Withings publishes no field table that would confirm it
+        /// (backlog D20).
+        ///
+        /// **It is deliberately not an `Uncertainty` case.** `Uncertainty`
+        /// answers "±what", and `disagreement(_:)` reads `.years` off it to
+        /// decide whether two rows genuinely disagree. Folding an identity
+        /// doubt into that would have it answering a question it was never
+        /// asked, and would let the row inherit the standard modelled caveat —
+        /// which states the wrong uncertainty, confidently. The two are shown
+        /// side by side because both are true of this row at once: Withings
+        /// publishes no error for the number *and* no name for the field.
+        public let identity: RawFieldPresentation.InferredMapping?
+
+        /// The identity sentence for the row, or nil.
+        ///
+        /// The last clause is not decoration: a reader who has just read four
+        /// "±9 years" notes will read a fifth caveat as more of the same unless
+        /// something says outright that this one is a different kind.
+        public var identityNote: String? {
+            identity.map {
+                "\($0.caveat) Every other row here is a number whose width is uncertain. "
+                    + "On this one it is the subject."
+            }
+        }
+
         /// Unique per row, not per label.
         ///
         /// `label` alone was the id, which is fine while every row is a
@@ -105,12 +136,14 @@ public enum AgeComparison {
         public var id: String { "\(label)|\(attribution)" }
 
         public init(label: String, years: Double, attribution: String,
-                    uncertainty: Uncertainty, asOf: Date? = nil) {
+                    uncertainty: Uncertainty, asOf: Date? = nil,
+                    identity: RawFieldPresentation.InferredMapping? = nil) {
             self.label = label
             self.years = years
             self.attribution = attribution
             self.uncertainty = uncertainty
             self.asOf = asOf
+            self.identity = identity
         }
 
         /// How stale a relayed reading is allowed to be before the row says so.
@@ -151,6 +184,10 @@ public enum AgeComparison {
     /// whole difference from a number printed bare.
     public static let vo2EstimateError = 3.5
 
+    /// - Parameter raw: The unmodelled catalogue. A vendor age can arrive with
+    ///   no `MetricType` behind it — Withings' is a numbered measure type — and
+    ///   the section is a poorer answer to "all the sources" for every one it
+    ///   cannot see. See `relayedRawAges`.
     public static func estimates(chronological: Double?,
                                  fitness: FitnessAgeModel.Output?,
                                  heart: HeartAgeModel.Output?,
@@ -158,6 +195,7 @@ public enum AgeComparison {
                                  samples: [HealthMetricSample],
                                  biological: BiologicalAgeModel.Output? = nil,
                                  heartSubject: HeartAgeModel.Subject? = nil,
+                                 raw: [RawMetricSample] = [],
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> [Estimate] {
         var out: [Estimate] = []
@@ -225,6 +263,78 @@ public enum AgeComparison {
                 asOf: newest.start))
         }
 
+        out += relayedRawAges(raw: raw)
+
+        return out
+    }
+
+    // MARK: - Vendor ages with no MetricType behind them
+
+    /// Raw identifiers that carry an age in years, and nothing reads.
+    ///
+    /// Withings has sent `withings.measure.227` on more distinct days than Oura
+    /// has sent a vascular age, and until now the one screen built to show every
+    /// product's answer did not know it existed — because the section reads
+    /// `HealthMetricSample`s and this field was never promoted to a
+    /// `MetricType`. Backlog D20.
+    ///
+    /// ⚠️ **Every identifier here must have a `RawFieldPresentation`
+    /// `InferredMapping`**, and that is not a coincidence to be tidied away: a
+    /// raw field's name is by definition not a canonical metric's name, so a
+    /// vendor age arriving through this lane is one whose identity the app
+    /// worked out. `relayedRawAges` skips anything without a mapping rather
+    /// than printing an age under a name nothing stands behind.
+    static let relayedRawAgeIdentifiers: [String] = ["withings.measure.227"]
+
+    /// The band a value must sit in to still look like an age in years.
+    ///
+    /// ⚠️ **This is the identification, re-checked at the moment of printing.**
+    /// The only reason the app believes measure type 227 is a metabolic age is
+    /// that its values sit where an adult age sits. A reading outside this band
+    /// is that evidence being withdrawn — so the row disappears rather than
+    /// printing "Withings says you are 4" under a name the number has just
+    /// refuted. Wide on purpose: it is a sanity bound on the *mapping*, not a
+    /// plausibility filter on the reader.
+    static let plausibleAgeYears: ClosedRange<Double> = 5...120
+
+    /// One row per source per relayed raw age, each labelled as inferred.
+    ///
+    /// **Relay, never merge, exactly as for the vascular age** — the section's
+    /// point is naming who computed what, and Withings computed this one. What
+    /// is different is *what the caveat says*: not "this figure is modelled"
+    /// but "we believe this is their metabolic age, and they publish nothing
+    /// that would confirm it". See `Estimate.identity`.
+    static func relayedRawAges(raw: [RawMetricSample], now: Date = Date()) -> [Estimate] {
+        var out: [Estimate] = []
+        for identifier in relayedRawAgeIdentifiers {
+            guard let mapping = RawFieldPresentation.inferredMapping(forPath: identifier) else { continue }
+            let name = RawFieldPresentation.title(forPath: identifier)
+            let bySource = Dictionary(grouping: raw.filter { $0.identifier == identifier },
+                                      by: \.source)
+            let sources = bySource.keys.sorted { $0.displayName < $1.displayName }
+            for source in sources {
+                guard let newest = bySource[source]?.max(by: { $0.start < $1.start }),
+                      let value = newest.numericValue,
+                      plausibleAgeYears.contains(value)
+                else { continue }
+                // ⚠️ **The label carries the flag, not only the note below it.**
+                // The strip above the rows draws `label` and nothing else, so a
+                // row labelled plainly "Metabolic age" would put the app's
+                // strongest unverified claim on a chart with no caveat attached
+                // to it at all — which is the invisible-claim failure this
+                // section exists to prevent, one level up.
+                let base = "\(name) (unconfirmed)"
+                out.append(Estimate(
+                    label: sources.count > 1 ? "\(base) · \(source.displayName)" : base,
+                    years: value,
+                    // Never "This app" — that prefix is what the strip tints as
+                    // the app's own, and this number is the vendor's.
+                    attribution: "\(source.displayName), from a field this app identified rather than one \(mapping.vendor) documents",
+                    uncertainty: .notPublishedByVendor(source.displayName),
+                    asOf: newest.start,
+                    identity: mapping))
+            }
+        }
         return out
     }
 
@@ -409,8 +519,21 @@ public enum AgeComparison {
         guard spread > widest * 2 else { return nil }
         let sorted = estimates.filter { $0.label != "Your age" }.sorted { $0.years < $1.years }
         guard let low = sorted.first, let high = sorted.last else { return nil }
-        return String(format: "These disagree by %.0f years — %@ says %.0f and %@ says %.0f. That is wider than their stated errors explain, so at least one of them is measuring something the other is not. A single \"biological age\" is not a thing your data agrees on.",
-                      spread, low.label.lowercased(), low.years,
-                      high.label.lowercased(), high.years)
+        var text = String(format: "These disagree by %.0f years — %@ says %.0f and %@ says %.0f. That is wider than their stated errors explain, so at least one of them is measuring something the other is not. A single \"biological age\" is not a thing your data agrees on.",
+                          spread, low.label.lowercased(), low.years,
+                          high.label.lowercased(), high.years)
+        // ⚠️ **A finding built on an inferred identity has to say so, here of
+        // all places.** This sentence's whole force is "the disagreement is
+        // real" — and it is not, if one of the two endpoints might not be the
+        // quantity the app has called it. Naming the endpoint rather than
+        // quietly dropping the row: excluding it would leave the spread above
+        // disagreeing with the sentence below, which is its own dishonesty.
+        for endpoint in [low, high] {
+            guard let identity = endpoint.identity else { continue }
+            text += " Read the gap carefully, though: \(endpoint.label.lowercased()) rests on a "
+                + "field this app identified rather than one \(identity.vendor) documents, so some "
+                + "of that distance could be a wrong label rather than your body."
+        }
+        return text
     }
 }

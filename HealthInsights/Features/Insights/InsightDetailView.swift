@@ -3213,6 +3213,22 @@ struct InsightDetailView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                             Text(estimate.uncertainty.note)
                                 .font(.caption2).foregroundStyle(.tertiary)
+                            // ⚠️ **A doubt about what the number *is*, not how
+                            // wide it is** — and the only row on this section
+                            // that has one. Withings' metabolic age arrives as
+                            // a numbered measure type it publishes no table
+                            // for, so the app named the field by matching its
+                            // range. Given the same tertiary caption2 as the
+                            // error note it would read as more of the same
+                            // hedging, which is exactly what it is not, so it
+                            // carries the warn tint the staleness line uses.
+                            // Backlog D20; the sentence is decided and tested
+                            // in `AgeComparison.Estimate.identityNote`.
+                            if let identity = estimate.identityNote {
+                                Text(identity)
+                                    .font(.caption2).foregroundStyle(Theme.warn)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             // A relayed reading that has gone quiet is shown
                             // with its age rather than hidden — see
                             // `AgeComparison.Estimate.asOf`.

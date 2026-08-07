@@ -112,6 +112,83 @@ public enum RawFieldPresentation {
         "227": "Metabolic age",
     ]
 
+    // MARK: - Names this app inferred rather than read off a spec
+
+    /// **A field whose *name* here is an inference, and what that inference
+    /// rests on.**
+    ///
+    /// ⚠️ Everything else in this file is presentation — a unit tidied, a leaf
+    /// promoted to a title, a code decoded. This is a different claim
+    /// altogether, and it went unmarked for two days: the four Withings measure
+    /// types above were named by **matching the reader's own value ranges
+    /// against the meanings that would fit**, because Withings publishes no
+    /// table of what its measure types mean. That is good evidence and it is
+    /// not a label from the vendor, and the difference has to reach the reader
+    /// rather than living in a doc comment above a dictionary.
+    ///
+    /// It became load-bearing when backlog D20 ruled that `227` may be relayed
+    /// into the age comparison: **the moment an inferred name is printed as
+    /// "Withings says you are N", the uncertainty is no longer about how wide
+    /// the number is but about what the number *is*.* No other figure in this
+    /// app carries that kind of doubt, so it gets its own type rather than
+    /// borrowing the modelled-estimate caveat, which would say the wrong thing
+    /// confidently.
+    public struct InferredMapping: Sendable, Equatable {
+        /// The full identifier, e.g. `withings.measure.227`.
+        public let identifier: String
+        public let vendor: String
+        /// How the field arrives on the wire, in words — "measure type 227".
+        public let wireName: String
+        /// What this app believes it is — "a metabolic age, in years".
+        public let believedToBe: String
+
+        public init(identifier: String, vendor: String, wireName: String, believedToBe: String) {
+            self.identifier = identifier
+            self.vendor = vendor
+            self.wireName = wireName
+            self.believedToBe = believedToBe
+        }
+
+        /// The sentence a reader needs, wherever the field is shown.
+        ///
+        /// ⚠️ It says what the app did (matched value ranges) and what it did
+        /// **not** have (a published field table), in that order, because a
+        /// caveat that only says "this might be wrong" invites the reader to
+        /// discount a well-evidenced guess as a coin flip. The basis is
+        /// described without quoting a reading — `docs/privacy-and-ip.md`: the
+        /// shape of a finding, never the reading.
+        public var caveat: String {
+            "The name here is this app's inference, not a label from \(vendor). \(vendor) "
+                + "publishes no list of what its measure types mean, so the app worked out that "
+                + "\(wireName) is \(believedToBe) by matching the range your own readings sit in "
+                + "against the meanings that would fit it. Nothing from \(vendor) confirms it."
+        }
+    }
+
+    /// Every field whose name here is an inference, keyed by identifier.
+    ///
+    /// All four Withings measure types, not only the one being relayed: they
+    /// were all named the same way, and marking one while the other three read
+    /// as documented would make the mark look like a property of that field
+    /// rather than of the method.
+    public static let inferredMappings: [String: InferredMapping] = {
+        let entries = [
+            InferredMapping(identifier: "withings.measure.8", vendor: "Withings",
+                            wireName: "measure type 8", believedToBe: "fat mass in kilograms"),
+            InferredMapping(identifier: "withings.measure.170", vendor: "Withings",
+                            wireName: "measure type 170", believedToBe: "a visceral fat index"),
+            InferredMapping(identifier: "withings.measure.226", vendor: "Withings",
+                            wireName: "measure type 226", believedToBe: "a basal metabolic rate in kcal/day"),
+            InferredMapping(identifier: "withings.measure.227", vendor: "Withings",
+                            wireName: "measure type 227", believedToBe: "a metabolic age in years"),
+        ]
+        return Dictionary(uniqueKeysWithValues: entries.map { ($0.identifier, $0) })
+    }()
+
+    public static func inferredMapping(forPath path: String) -> InferredMapping? {
+        inferredMappings[path]
+    }
+
     /// Recording details, and **the name each one should carry**.
     ///
     /// ⚠️ Naming them is half the point and was missed the first time: seen on
@@ -265,8 +342,16 @@ public enum RawFieldPresentation {
             "Withings' visceral fat index — its estimate of fat around the organs, on its own unitless scale rather than in kilograms. Comparable with your own past readings, not with anyone else's.",
         "withings.measure.226":
             "Basal metabolic rate in kcal/day: the energy the scale estimates your body spends at complete rest. Estimated from your weight, composition, age and sex, never measured.",
+        // ⚠️ Reworded 2026-08-07, when backlog D20 ruled this field may be
+        // relayed into the age comparison. It read "Withings' metabolic age —
+        // the age its model would guess from your body composition", which
+        // asserts both what the field is *and* how it is computed. The app
+        // knows neither: it matched a value range, and Withings publishes
+        // nothing. `InferredMapping.caveat` is appended to this by
+        // `explanation(forPath:)`, so the sentence itself no longer has to
+        // carry a claim it cannot support.
         "withings.measure.227":
-            "Withings' metabolic age — the age its model would guess from your body composition. A presentation of the composition figures above, not a separate measurement, and not a clinical assessment.",
+            "A figure that behaves like a metabolic age — the age a body-composition model would guess you were. Not a measurement of anything, and not a clinical assessment.",
     ]
 
     /// Leaf-level explanations for recording details, which arrive under
@@ -280,10 +365,21 @@ public enum RawFieldPresentation {
         "period": "Which numbered period within the record this row belongs to. Not a measurement — it describes one.",
     ]
 
+    /// ⚠️ **An inferred name carries its caveat wherever the sentence goes.**
+    ///
+    /// Appended here rather than written into each string, so a field cannot be
+    /// added to `inferredMappings` and keep an explanation that reads as though
+    /// the vendor labelled it. The Data tab renders this verbatim, which is why
+    /// this is the right seam: the tab needed no change to start telling the
+    /// truth about all four Withings measure types.
     public static func explanation(forPath path: String) -> String? {
-        if let known = pathExplanations[path] { return known }
-        guard let leaf = path.split(separator: ".").last else { return nil }
-        return recordingDetailExplanations[String(leaf).lowercased()]
+        let caveat = inferredMappings[path]?.caveat
+        if let known = pathExplanations[path] {
+            return caveat.map { "\(known)\n\n\($0)" } ?? known
+        }
+        guard let leaf = path.split(separator: ".").last else { return caveat }
+        guard let detail = recordingDetailExplanations[String(leaf).lowercased()] else { return caveat }
+        return caveat.map { "\(detail)\n\n\($0)" } ?? detail
     }
 
     public static func title(forPath path: String) -> String {

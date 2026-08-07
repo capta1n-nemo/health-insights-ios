@@ -352,4 +352,55 @@ final class RawFieldPresentationTests: XCTestCase {
     func testAnUnknownFieldIsNotGivenAnInventedExplanation() {
         XCTAssertNil(RawFieldPresentation.explanation(forPath: "some.future.connector.thing"))
     }
+
+    // MARK: - Names this app inferred rather than read off a spec (backlog D20)
+
+    /// ⚠️ **The four Withings measure types were named by matching the
+    /// reader's own value ranges**, because Withings publishes no table of what
+    /// its measure types mean. That is good evidence and it is not a label from
+    /// the vendor, and the difference has to reach the reader rather than
+    /// living in a doc comment above a dictionary.
+    func testEveryNamedWithingsMeasureSaysItsNameIsAnInference() throws {
+        for code in ["8", "170", "226", "227"] {
+            let path = "withings.measure.\(code)"
+            let explanation = try XCTUnwrap(RawFieldPresentation.explanation(forPath: path),
+                                            "\(path) is named and unexplained")
+            XCTAssertTrue(explanation.contains("inference"),
+                          "\(path) reads as though Withings labelled it: \(explanation)")
+            XCTAssertTrue(explanation.contains("publishes no list"), explanation)
+        }
+    }
+
+    /// A field the vendor *does* document gets no such caveat — the mark has to
+    /// mean something.
+    func testADocumentedFieldCarriesNoInferenceCaveat() throws {
+        let explanation = try XCTUnwrap(
+            RawFieldPresentation.explanation(forPath: "oura.daily_readiness.score"))
+        XCTAssertFalse(explanation.contains("inference"), explanation)
+    }
+
+    /// The caveat is appended by `explanation(forPath:)` rather than written
+    /// into each string, so a field cannot be added to `inferredMappings` and
+    /// keep an explanation that reads as though the vendor labelled it. The
+    /// original sentence survives underneath it.
+    func testTheCaveatIsAppendedToTheFieldsOwnSentence() throws {
+        let explanation = try XCTUnwrap(
+            RawFieldPresentation.explanation(forPath: "withings.measure.226"))
+        XCTAssertTrue(explanation.contains("kcal/day"), explanation)
+        XCTAssertTrue(explanation.contains("Nothing from Withings confirms it."), explanation)
+    }
+
+    /// ⚠️ **The basis is described without quoting a reading.** This repo is
+    /// public and holds one person's health data — `docs/privacy-and-ip.md`:
+    /// the shape of a finding, never the reading.
+    /// The only digits allowed in the sentence are the vendor's own field
+    /// number, which is not a reading of anybody.
+    func testTheCaveatDescribesTheBasisWithoutQuotingTheReadersValues() {
+        for mapping in RawFieldPresentation.inferredMappings.values {
+            let withoutFieldNumber = mapping.caveat
+                .replacingOccurrences(of: mapping.wireName, with: "")
+            XCTAssertFalse(withoutFieldNumber.contains(where: \.isNumber),
+                           "a reader's value range reached a user-facing string: \(mapping.caveat)")
+        }
+    }
 }

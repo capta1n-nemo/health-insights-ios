@@ -2804,6 +2804,11 @@ final class AppModel {
 
         let samples = self.samples
         let profile = self.profile
+        // The unmodelled catalogue, because a vendor age can arrive with no
+        // `MetricType` behind it — Withings sends one as a numbered measure
+        // type, and the section could not see it. Backlog D20; see
+        // `AgeComparison.relayedRawAges`.
+        let raw = self.otherSamples
         let generation = scoreHistoryGeneration
         Task.detached(priority: .userInitiated) {
             let analysis = HeartAgeAnalyser().analyse(samples: samples, profile: profile,
@@ -2822,7 +2827,7 @@ final class AppModel {
                 // The risk-factor set, so the section can re-solve the heart age
                 // once per blood-pressure instrument instead of printing the one
                 // `VitalReader` picked. See `AgeComparison.heartEstimates`.
-                heartSubject: analysis.subject, now: Date())
+                heartSubject: analysis.subject, raw: raw, now: Date())
             await MainActor.run { [weak self] in
                 guard let self, self.scoreHistoryGeneration == generation else { return }
                 self.riskProjections = analysis.projections
