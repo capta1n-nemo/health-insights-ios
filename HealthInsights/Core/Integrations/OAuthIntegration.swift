@@ -175,7 +175,7 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     ///
     /// Set by `sync()` from what actually arrived, and enriched by a subclass
     /// that knows more (see `OuraProvider.summarise`).
-    @Published internal(set) var syncWarning: String?
+    @Published internal(set) var syncTrouble: SyncTrouble?
 
     /// Coalesces token refreshes. Oura's refresh tokens are single-use, so nine
     /// endpoints each reacting to their own 401 by refreshing would revoke the
@@ -200,6 +200,13 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     }
 
     static func initialStatus(id: String, credentials: ProviderCredentialStore) -> IntegrationStatus {
+        #if DEBUG
+        // A fault walk needs the provider to *look* connected — a row reading
+        // "Not connected" is skipped by `syncAllConnected` and the failure being
+        // walked never happens. Launch-armed only, and the announcement in the
+        // diagnostics log says so on the same screen.
+        if ConnectorFaultInjection.oauthFault != nil { return .connected(lastSync: nil) }
+        #endif
         if credentials.tokens(for: id) != nil { return .connected(lastSync: nil) }
         return .notConnected
     }
@@ -271,18 +278,14 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
     /// when it cannot see.
     func sync() async throws -> SyncedData {
         refreshFailedThisSync = false
-        syncWarning = nil
+        syncTrouble = nil
         let started = Date()
         let data: SyncedData
         do {
-            let token = try await validAccessToken()
-            // Pull a long history so trends and future insights have depth to work with.
-            let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
-            logSyncPreamble(since: since)
-            data = try await fetchData(accessToken: token, since: since)
+            data = try await fetchEverything()
         } catch {
             status = .error(error.localizedDescription)
-            syncWarning = "Last sync failed: \(error.localizedDescription)"
+            syncTrouble = Self.trouble(for: error, displayName: displayName)
             DiagnosticsLog.shared.fail(displayName, "Sync failed: \(error.localizedDescription)",
                                        detail: "Nothing new arrived from \(displayName). What is already on this phone is unchanged, and will go on ageing until a sync succeeds.")
             throw error
@@ -294,8 +297,11 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         if data.samples.isEmpty && data.other.isEmpty && data.payloads.isEmpty {
             // `??`, not `=`: a subclass that already named the collections and
             // the missing permission has said something more useful than this.
-            syncWarning = syncWarning
-                ?? "\(displayName) returned no data at all this sync — see Troubleshooting for what each collection answered."
+            syncTrouble = syncTrouble ?? SyncTrouble(
+                summary: "\(displayName) returned no data at all this sync.",
+                cause: "Every collection either failed or came back empty. The connection itself "
+                     + "is fine, so nothing went red — this is what a source going quiet looks like.",
+                action: "Open Troubleshooting to see what each collection answered.")
             DiagnosticsLog.shared.null(displayName, "Sync brought nothing back",
                                        detail: "Every collection either failed or was empty. If the failures above are 401s, the saved sign-in no longer covers this data and only reconnecting can fix it.")
         }
@@ -304,6 +310,102 @@ class OAuthIntegration: HealthIntegration, ObservableObject {
         DiagnosticsLog.shared.ok(displayName,
                                  "Sync finished in \(seconds)s — \(data.samples.count) vital sample(s), \(data.other.count) other value(s)")
         return data
+    }
+
+    /// **Which of the four D10 failures this was, and whether reconnecting helps.**
+    ///
+    /// ⚠️ The distinction this makes is the whole point. Walking `no-network`
+    /// and `token-expired` back to back produces two errors that are one
+    /// sentence apart in a log and *opposite* in what the reader should do:
+    ///
+    /// - an expired or revoked grant is fixed only by reconnecting, and saying
+    ///   nothing leaves a provider dark for weeks;
+    /// - a phone with no route out is fixed by nothing at all, and telling
+    ///   someone in a tunnel to reconnect their Oura account makes them
+    ///   re-authorise a connection that was never broken. It also *destroys
+    ///   evidence*: a fresh grant hides whatever the old one was doing.
+    ///
+    /// So a transport failure gets `action: nil` — which `SyncTrouble` defines
+    /// as the assertion that there is nothing to do, not as an unwritten
+    /// sentence — and every surface must honour it by staying quiet.
+    static func trouble(for error: Error, displayName: String) -> SyncTrouble {
+        // `URLError` before anything else: no HTTP status ever existed, so any
+        // reading of one would be invented.
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost,
+                 .cannotConnectToHost, .dataNotAllowed, .internationalRoamingOff,
+                 .timedOut, .dnsLookupFailed, .secureConnectionFailed:
+                return SyncTrouble(
+                    summary: "Couldn't reach \(displayName).",
+                    cause: "The request never left this phone — there is no network route to "
+                         + "\(displayName) right now. The saved sign-in is untouched.",
+                    action: nil)   // ⚠️ nothing to do. Do not invent one.
+            default:
+                break
+            }
+        }
+        if case IntegrationError.http(let status, _) = error {
+            switch status {
+            case 401:
+                return SyncTrouble(
+                    summary: "\(displayName) refused the sign-in.",
+                    cause: "The saved sign-in has expired, been revoked, or no longer covers this "
+                         + "data. It cannot be repaired from here — the refresh token is single-use.",
+                    action: "Reconnect \(displayName) in Settings \u{25B8} Data sources.")
+            case 403:
+                return SyncTrouble(
+                    summary: "\(displayName) blocked the request.",
+                    cause: "Usually a lapsed subscription: the account exists and the sign-in is "
+                         + "valid, but the data is no longer served over the API.",
+                    action: "Check the subscription on your \(displayName) account.")
+            case 429:
+                return SyncTrouble(
+                    summary: "\(displayName) is rate-limiting us.",
+                    cause: "Too many requests too quickly. This clears on its own.",
+                    action: nil)   // waiting is not an instruction worth printing
+            default:
+                return SyncTrouble(
+                    summary: "\(displayName) returned an error (HTTP \(status)).",
+                    cause: "The provider answered, but not with data. Troubleshooting has the "
+                         + "exact response.",
+                    action: nil)
+            }
+        }
+        if case IntegrationError.missingCredentials = error {
+            return SyncTrouble(
+                summary: "\(displayName) has no API keys.",
+                cause: "This app signs in with your own developer credentials and none are stored.",
+                action: "Add them in Settings \u{25B8} Data sources \u{25B8} \(displayName).")
+        }
+        // Unknown, and said as unknown. A guessed cause is worse than none:
+        // `localizedDescription` is at least the thing that actually happened.
+        return SyncTrouble(
+            summary: "Last sync failed.",
+            cause: error.localizedDescription,
+            action: nil)
+    }
+
+    /// Get a token and pull every collection — the whole outward half of a sync,
+    /// as one call.
+    ///
+    /// Extracted so a D10 fault walk can stand in for the *entire* outward half
+    /// and leave everything after it untouched. What reacts to the failure —
+    /// the `catch` above, `status`, `syncWarning`, the empty-result branch,
+    /// `IntegrationRegistry`'s log, the Settings row — is then the shipped code
+    /// reacting to a real error value, which is the only kind of walk worth
+    /// anything. See `ConnectorFaultInjection`.
+    private func fetchEverything() async throws -> SyncedData {
+        #if DEBUG
+        if let stood = try await ConnectorFaultInjection.standInForSync(displayName: displayName) {
+            return stood
+        }
+        #endif
+        let token = try await validAccessToken()
+        // Pull a long history so trends and future insights have depth to work with.
+        let since = Calendar.current.date(byAdding: .day, value: -730, to: Date()) ?? Date()
+        logSyncPreamble(since: since)
+        return try await fetchData(accessToken: token, since: since)
     }
 
     /// Everything needed to interpret the API calls that follow: the window we

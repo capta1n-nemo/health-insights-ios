@@ -287,7 +287,7 @@ struct IntegrationRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(integration.displayName)
                 Text(statusText).font(.caption).foregroundStyle(statusColor)
-                SyncWarningLine(warning: integration.syncWarning)   // D10
+                SyncWarningLine(trouble: integration.syncTrouble)   // D10
             }
             Spacer()
             control
@@ -344,7 +344,7 @@ struct IntegrationSummaryRow: View {
                 Text(integration.displayName)
                 Text(statusText).font(.caption).foregroundStyle(statusColor)
                     .fixedSize(horizontal: false, vertical: true)
-                SyncWarningLine(warning: integration.syncWarning)   // D10
+                SyncWarningLine(trouble: integration.syncTrouble)   // D10
             }
             Spacer()
             if case .connected = status {

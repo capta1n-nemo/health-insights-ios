@@ -28,6 +28,21 @@ import SwiftUI
 struct SyncWarningLine: View {
     let warning: String?
 
+    /// Take the structured form when there is one, so the row keeps the *what
+    /// to do* half that a bare summary drops.
+    ///
+    /// ⚠️ The action is appended only when `SyncTrouble` supplies one. A `nil`
+    /// action means there is nothing the reader can do — a tunnel, a rate limit
+    /// — and a row that fills that silence with "try reconnecting" is the thing
+    /// this whole area of the app exists to stop.
+    init(trouble: SyncTrouble?) {
+        warning = trouble.map { t in
+            t.action.map { "\(t.summary) \($0)" } ?? t.summary
+        }
+    }
+
+    init(warning: String?) { self.warning = warning }
+
     var body: some View {
         if let warning {
             // `HStack(alignment: .top)` rather than `Label`, which centres its

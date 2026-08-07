@@ -557,6 +557,9 @@ the place to look.
   - `SyncActivityPill` :83
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
+- `Core/Diagnostics/ConnectorFaultInjection.swift`
+  - `ConnectorFault` :54
+  - `ConnectorFaultInjection` :150
 - `Core/Diagnostics/DiagnosticsLog.swift`
   - `DiagnosticsLog` :37
 - `Core/Diagnostics/HangDiagnosticsReporter.swift`
@@ -585,10 +588,11 @@ the place to look.
   - `MetricTypeEntity` :81
   - `MetricTypeQuery` :101
 - `Core/Integrations/HealthIntegration.swift`
-  - `HealthIntegration` :25
-  - `IntegrationCapabilities` :14
-  - `IntegrationRegistry` :72
+  - `HealthIntegration` :58
+  - `IntegrationCapabilities` :47
+  - `IntegrationRegistry` :114
   - `IntegrationStatus` :5
+  - `SyncTrouble` :29
 - `Core/Integrations/OAuthIntegration.swift`
   - `IntegrationError` :20
   - `OAuthConfig` :7
@@ -736,11 +740,13 @@ the place to look.
   - `VitalDepartureStrip` :32
 - `Features/Cycle/CycleTabView.swift`
   - `CycleTabView` :38
+- `Features/Dashboard/ConnectorTroubleSection.swift`
+  - `ConnectorTroubleSection` :53
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :317
-  - `LastNightCard` :152
+  - `InsightCard` :320
+  - `LastNightCard` :155
   - `TodayView` :8
-  - `VitalsGlance` :227
+  - `VitalsGlance` :230
 - `Features/Dashboard/InstrumentCoverageSection.swift`
   - `InstrumentCoverageSection` :45
 - `Features/Data/ArrivalRowLabel.swift`
