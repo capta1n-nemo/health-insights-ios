@@ -20,12 +20,10 @@ final class DataStore {
                              CycleDayRecord.self,
                              CalendarEventRecord.self, CalendarJudgementRecord.self,
                              HolidayEntry.self,
-<<<<<<< HEAD
                              // Q7 / I7 — see DocumentRecords.swift.
-                             LabResultRecord.self, ECGRecordEntry.self])
-=======
+                             LabResultRecord.self, ECGRecordEntry.self,
+                             // Q8 — the stack the reader types in.
                              SupplementEntryRecord.self])
->>>>>>> worktree-wf_acf822b0-d44-3
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])

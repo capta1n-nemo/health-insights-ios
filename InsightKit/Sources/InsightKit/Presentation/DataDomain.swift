@@ -139,8 +139,6 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// would let self-reported free text into the symptom radar without anybody
     /// deciding it should be there.
     case tags
-<<<<<<< HEAD
-<<<<<<< HEAD
     /// **The half-hours the app noticed and could not explain**, and what the
     /// reader said each one was — backlog P32.
     ///
@@ -161,9 +159,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// see `FlaggedEvent`, which keeps the measured half and the guessed half in
     /// separate fields for exactly this reason.
     case flaggedEvents
-=======
     /// **Blood test results** — every analyte, not only the two a card scores.
-    ///
     /// Backlog `Q7`/`I6`. Its own domain rather than a shape of `metrics`, and
     /// the reason is the same one `bodyScans` gives: a lab result is not a
     /// series, it is a *document's worth of readings taken at one moment*. It
@@ -172,7 +168,6 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// PDF, scanner) and **how confident the app is that it read the number
     /// correctly** — none of which a `HealthMetricSample` has a field for, and
     /// the last of which is the one that must never be lost.
-    ///
     /// ⚠️ **The two lipids still become grounding facts as well**, because
     /// SCORE2 and ASCVD read the profile and not this store. That is a
     /// deliberate duplication: the risk models want one current value each and
@@ -181,22 +176,17 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     case labResults
     /// **Imported ECGs** — the document, its metadata, and what the *source*
     /// printed on it.
-    ///
     /// Backlog `I7`. ⚠️ **Nothing here is interpreted and nothing ever will be**
     /// — reading a trace is a regulated device claim. `ECGRecord` has no field
     /// for a conclusion this app reached, and `ECGFindingProvenance` has no case
     /// for one; the absence is the design, not an omission waiting to be filled.
-    ///
     /// Its own domain rather than a flavour of `labResults` for the reason both
     /// of those are separate from `metrics`: a trace is a picture with metadata
     /// around it, not a value with a unit.
     case ecgRecords
->>>>>>> worktree-wf_acf822b0-d44-2
-=======
     /// **The reader's supplement stack** — the bottles, their Supplement Facts
     /// panels, and what the whole lot adds up to per ingredient. Backlog Q8 /
     /// B3-25.
-    ///
     /// Its own domain rather than a flavour of `substances`, and the line is
     /// sharp: a substance event is something that *happened at a time* and is
     /// read against the vitals around it. A supplement stack is a **standing
@@ -204,19 +194,16 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// temporal at all, it is the sum of the labels across the products against
     /// a published table. Folding them together would put a bottle of zinc in a
     /// dated log with a timestamp nobody meant.
-    ///
     /// Its own domain rather than a `MetricType` for the reason in this file's
     /// header: a metric is one measured series and this is a *shape* — a
     /// product, a list of declared ingredients, some of which declare no amount
     /// at all, and a servings-per-day the reader can change without the label
     /// changing.
-    ///
     /// ⚠️ **What the reader typed, never what a sensor found.** Nothing on this
     /// phone senses a supplement. Every figure here traces to a label the reader
     /// entered, and the ingredients with no stated amount are shown as unstated
     /// rather than as nought.
     case supplements
->>>>>>> worktree-wf_acf822b0-d44-3
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -252,16 +239,10 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .holidays: return "Holidays"
         case .sickDays: return "Sick days"
         case .tags: return "Tags"
-<<<<<<< HEAD
-<<<<<<< HEAD
         case .flaggedEvents: return "Flagged events"
-=======
         case .labResults: return "Blood tests"
         case .ecgRecords: return "ECGs"
->>>>>>> worktree-wf_acf822b0-d44-2
-=======
         case .supplements: return "Supplements"
->>>>>>> worktree-wf_acf822b0-d44-3
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -296,20 +277,14 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every day you were ill, from your calendar and from what you told the app — what you said, never what a sensor decided."
         case .tags:
             return "The words you put on a day, grouped by what the app worked out each one is about — and how it worked that out, so you can disagree with it."
-<<<<<<< HEAD
-<<<<<<< HEAD
         case .flaggedEvents:
             return "Stretches where your heart rate ran high with nothing moving to explain it — what the app guessed, what you said it was, and how often it gets that right."
-=======
         case .labResults:
             return "Every analyte from every report you have given the app — typed, photographed, scanned or imported as a PDF — with the unit and reference range your laboratory printed, and how sure the app is that it read each number right."
         case .ecgRecords:
             return "The ECGs you have imported, with the date, device and whatever the recording device or your clinician printed on them. This app does not interpret an ECG."
->>>>>>> worktree-wf_acf822b0-d44-2
-=======
         case .supplements:
             return "What you take, ingredient by ingredient — every product, everything its label declares, and what the whole stack adds up to against the published upper intake limits."
->>>>>>> worktree-wf_acf822b0-d44-3
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

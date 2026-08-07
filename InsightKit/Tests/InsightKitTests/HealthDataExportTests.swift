@@ -216,7 +216,6 @@ final class HealthDataExportTests: XCTestCase {
             // exactly what the reader said would not scale.
             tags: [HealthTag(name: "Kayaking", code: nil, date: now, source: .oura,
                              mapping: TagLexicon.classify(name: "Kayaking"))],
-<<<<<<< HEAD
             // P32. One flagged moment the reader answered — and **corrected**,
             // so the fixture holds the shape that actually carries information:
             // a guess and an answer that disagree. Built through the judgement
@@ -225,7 +224,6 @@ final class HealthDataExportTests: XCTestCase {
             // with the guess.
             flaggedEvents: [Self.answeredFlaggedEvent(at: now)]
                 .compactMap { HealthDataExport.FlaggedEventExport($0) },
-=======
             // Q7. A machine-read value rather than a typed one, deliberately:
             // the fixture has to hold the shape that carries `evidence`, or the
             // one field that distinguishes an OCR'd number from a typed one
@@ -257,7 +255,6 @@ final class HealthDataExportTests: XCTestCase {
                                    readerNote: nil, pageCount: 1,
                                    attachmentFileName: "ecg-1.pdf",
                                    transcription: nil)],
->>>>>>> worktree-wf_acf822b0-d44-2
             reports: .init(inventory: "# Inventory\nbodyMass · 1 reading",
                            cardOutputs: "# Cards\ncardiovascularRisk 72",
                            modelInternals: "# Internals\nbaseline n=1",

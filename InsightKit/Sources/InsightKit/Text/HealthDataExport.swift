@@ -92,20 +92,14 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// — plus `sickDays` (§B11-4) and `tags` (§B12), which landed in parallel.
     /// ⚠️ Three agents raised the version to 6 on the same afternoon; it is one
     /// version carrying all four keys, not three separate bumps.
-<<<<<<< HEAD
-<<<<<<< HEAD
     /// 7 adds `flaggedEvents` (P32) — **and is subject to the same caveat**: if
     /// another agent in the same wave also lands a key at 7, it is one version
     /// carrying both, not two bumps. The number tracks the *shape* a file was
     /// written with; two keys added the same afternoon share a shape.
-=======
     /// 7 added `labResults` (backlog Q7 — every analyte from a report, with the
     /// confidence the reading was made at) and `ecgRecords` (I7 — an imported
     /// trace's metadata, never an interpretation).
->>>>>>> worktree-wf_acf822b0-d44-2
-=======
     /// 7 added `supplements` — the reader's stack, whole (Q8 / B3-25).
->>>>>>> worktree-wf_acf822b0-d44-3
     public static let schemaVersion = 7
 
     public struct Medication: Codable, Equatable, Sendable {

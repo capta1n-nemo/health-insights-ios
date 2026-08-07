@@ -424,8 +424,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :436
-  - `InputGroup` :447
+  - `CardRequirement` :420
+  - `InputGroup` :431
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :66
@@ -716,7 +716,7 @@ the place to look.
 - `Core/Integrations/HealthIntegration.swift`
   - `HealthIntegration` :58
   - `IntegrationCapabilities` :47
-  - `IntegrationRegistry` :132
+  - `IntegrationRegistry` :137
   - `IntegrationStatus` :5
   - `SyncTrouble` :29
 - `Core/Integrations/OAuthIntegration.swift`
@@ -904,7 +904,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1541
+  - `OtherDataDetailView` :1535
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -971,13 +971,13 @@ the place to look.
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20
-  - `BodyTypeSheet` :237
-  - `HolidayEntrySheet` :791
+  - `BodyTypeSheet` :234
+  - `HolidayEntrySheet` :788
   - `InputSheet` :129
-  - `PushedInSheet` :210
-  - `ReaderIdentitySheet` :664
-  - `ScreenTimeEntrySheet` :316
-  - `SideEffectEntrySheet` :850
+  - `PushedInSheet` :207
+  - `ReaderIdentitySheet` :661
+  - `ScreenTimeEntrySheet` :313
+  - `SideEffectEntrySheet` :847
 - `Features/Inputs/AddInputPicker.swift`
   - `AddInputPicker` :36
   - `AddInputToolbar` :132

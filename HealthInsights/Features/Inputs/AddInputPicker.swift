@@ -242,7 +242,6 @@ extension AppModel {
             // what the reader has given, not what the calendar suggested.
             let count = holidayEntries.count
             return count == 0 ? nil : "\(count) recorded"
-<<<<<<< HEAD
         case .eventConfirmation:
             // **What is waiting takes precedence over what has been done.** The
             // standing figure is the reason to tap the row, and "3 waiting" is
@@ -255,7 +254,6 @@ extension AppModel {
             if !feed.pending.isEmpty { return "\(feed.pending.count) waiting" }
             let answered = feed.accuracy.scored + feed.accuracy.answeredWithoutAGuess
             return answered == 0 ? nil : "\(answered) answered"
-=======
         case .supplement:
             // A product count, not an ingredient count: the row answers "how
             // much have I told it", and the reader thinks in bottles. What the
@@ -263,7 +261,6 @@ extension AppModel {
             // published limit on a menu row would be an alarm with no context.
             let count = supplementEntries.count
             return count == 0 ? nil : "\(count) \(SectionCaveat.plural(count, "product"))"
->>>>>>> worktree-wf_acf822b0-d44-3
         }
     }
 }

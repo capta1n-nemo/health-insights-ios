@@ -115,14 +115,19 @@ protocol HealthIntegration: AnyObject {
 }
 
 extension HealthIntegration {
+    var syncsOnItsOwn: Bool { true }
+
     /// Sources that cannot come back silent (a file import, a Shortcut) get
     /// this and say nothing.
-    var syncWarning: String? { nil }
-
-    var syncsOnItsOwn: Bool { true }
     var syncTrouble: SyncTrouble? { nil }
+
     /// Derived rather than stored, so a source cannot warn in Settings and stay
     /// silent on Today — the two surfaces are one fact seen from two distances.
+    ///
+    /// ⚠️ **This replaced a plain `{ nil }` default**, and both survived a merge
+    /// on 2026-08-08 as a redeclaration. The derived form is the one to keep: the
+    /// flat `nil` let a connector report trouble in Settings while Today showed
+    /// nothing, which is the split D10 was opened to close.
     var syncWarning: String? { syncTrouble?.summary }
 }
 

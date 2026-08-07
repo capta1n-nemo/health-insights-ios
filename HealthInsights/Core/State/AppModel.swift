@@ -2571,10 +2571,20 @@ final class AppModel {
         timer.lap("tag applicability (detached — not awaited)")
         // **After the sync has otherwise finished, deliberately.** Every tag is
         // already promoted and already carries a deterministic applicability, so
-        // this can only improve a heading — it can never be the reason the Tags
-        // section is empty or late. On a device with no on-device model it
-        // returns having done nothing.
-        await refreshTagApplicability()
+        // this can only improve a heading.
+        //
+        // ⚠️ **NOT awaited, and this is the second time it has had to be said.**
+        // Awaiting it made the whole refresh never finish (`D62`): the reader
+        // lost every card, with a log carrying `Refresh started` and no
+        // `Refresh complete` five minutes later. `resolve` walks up to twelve
+        // tags serially, each a fresh `LanguageModelSession` and a full
+        // on-device response.
+        //
+        // ⚠️ **A merge on 2026-08-08 reverted it** — eleven branches all predated
+        // the fix — and the `verify.sh` lint written alongside it is the only
+        // reason that did not ship. If you are reading this because the lint
+        // fired again: it is right, detach it again.
+        Task { [weak self] in await self?.refreshTagApplicability() }
         timer.lap("tag applicability")
         // **Last, and after `results` is settled** — the pass compares this
         // refresh's cards against the ones it saw before, so it must see the

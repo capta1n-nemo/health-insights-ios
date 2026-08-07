@@ -322,7 +322,6 @@ struct DataTabView: View {
             return matches(domain.title, "tag", "label", "note")
                 || model.tags.contains { matches($0.name) }
                 || model.tags.contains { matches($0.mapping.applicability.rawValue) }
-<<<<<<< HEAD
         case .flaggedEvents:
             // The words a reader types for this, plus the causes they have
             // actually recorded — somebody looking for "alcohol" should find the
@@ -336,7 +335,6 @@ struct DataTabView: View {
                 || answered.contains {
                     matches($0.judgement.effective?.displayName ?? "")
                 }
-=======
         case .labResults:
             // Searchable by the analyte's **own name**, which is the point: a
             // reader looking for "ferritin" typed that word themselves and has
@@ -349,7 +347,6 @@ struct DataTabView: View {
             guard !model.ecgRecords.isEmpty else { return false }
             return matches(domain.title, "ecg", "ekg", "electrocardiogram",
                            "heart trace", "rhythm")
->>>>>>> worktree-wf_acf822b0-d44-2
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
         case .generatedInsights:
@@ -702,12 +699,9 @@ struct DataTabView: View {
         case .sickDays: sickDaysSection
         case .cycles: cycleSection
         case .tags: tagsSection
-<<<<<<< HEAD
         case .flaggedEvents: flaggedEventsSection
-=======
         case .labResults: labResultsSection
         case .ecgRecords: ecgSection
->>>>>>> worktree-wf_acf822b0-d44-2
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection
         }

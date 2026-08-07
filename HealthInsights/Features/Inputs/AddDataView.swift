@@ -170,7 +170,6 @@ private struct InputSheet: View {
             ReaderIdentitySheet()
         case .holiday:
             HolidayEntrySheet()
-<<<<<<< HEAD
         // The whole feed, not one event: which moment to answer is the first
         // question, and a sheet that picked one for the reader would be choosing
         // on their behalf. It opens with nothing waiting too — its empty state
@@ -185,10 +184,8 @@ private struct InputSheet: View {
         // event" on the `+` menu and the Settings list twice.
         case .eventConfirmation:
             EventConfirmationSheet()
-=======
         case .supplement:
             SupplementStackSheet()
->>>>>>> worktree-wf_acf822b0-d44-3
         }
     }
 
