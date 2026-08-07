@@ -181,8 +181,6 @@ public extension InsightID {
         // before today silently non-comparable with every score after it. The
         // `fitness-v2` precedent.
         case .symptomRadar: return "symptom-radar-v2"
-        case .sustainedLoad: return "sustained-load-v1"
-        case .symptomRadar: return "symptom-radar-v1"
         // **v2, B7 H6.** Time since the reader's last recorded leave now carries
         // a tenth of the number (`SustainedLoadInsight.leaveShare`), so a score
         // recorded before today is a reading of four signals and one recorded

@@ -86,13 +86,14 @@ final class ContributionRouteTests: XCTestCase {
         // app can read, so the route the reader hands it a day through is not a
         // convenience on this card — it is the only way the card ever has
         // anything to say.
+        // ⚠️ One set, rebuilt by hand after two agents extended it in parallel
+        // (B9-2 added `.screenTime`; B7 H6 added the three leave-scoring cards —
+        // none declares a grounding fact, and all three now score time since
+        // the reader's last leave, so all three offer the holiday log).
         let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar,
-                                          .workImpact, .screenTime]
-        // `.sustainedLoad`, `.mentalHealth` and `.travelDrain` joined with B7
-        // H6: none declares a grounding fact, and all three now score time
-        // since the reader's last leave, so all three offer the holiday log.
-                                          .workImpact, .sustainedLoad,
-                                          .mentalHealth, .travelDrain]
+                                          .workImpact, .screenTime,
+                                          .sustainedLoad, .mentalHealth,
+                                          .travelDrain]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,

@@ -438,11 +438,6 @@ public extension InputKind {
                 + "so it is asked on that day's page — reached from the sick-day "
                 + "log and calendar. A button on the card would have to guess "
                 + "which day you meant.")
-        case .holiday:
-            return .settingsOnly("No shipped card reads the holiday ledger yet "
-                + "(B7 H6). Offering the log on a card whose score ignores it "
-                + "would claim a sensitivity the model does not have; the offer "
-                + "moves onto the cards in the same change that wires them.")
         // **Promoted with B7 H6 (2026-08-08), exactly as the `settingsOnly`
         // reason it replaces promised.** Four cards now score time since the
         // reader's last leave — Work impact, Travel drain, Stress load and

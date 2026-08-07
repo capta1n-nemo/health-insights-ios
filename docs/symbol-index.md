@@ -449,8 +449,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :477
-  - `InputGroup` :488
+  - `CardRequirement` :472
+  - `InputGroup` :483
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :67

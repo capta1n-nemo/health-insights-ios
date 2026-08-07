@@ -75,29 +75,18 @@ final class DataStore {
          CycleDayRecord.self,
          CalendarEventRecord.self, CalendarJudgementRecord.self,
          HolidayEntry.self,
+         // B11-2 — the app's per-day illness guess and the reader's answer.
+         // ⚠️ Added at the AC4 merge: two agents extended two copies of this
+         // list in parallel; the derived one won, and this row is the other
+         // agent's addition carried over. The identity test below is what
+         // makes a miss here loud instead of silent.
+         IllnessJudgementRecord.self,
          // Q7 / I7 — see DocumentRecords.swift.
          LabResultRecord.self, ECGRecordEntry.self,
          // Q8 — the stack the reader types in.
          SupplementEntryRecord.self]
 
     init(inMemory: Bool = false) {
-        let schema = Schema([GroundingRecord.self, ManualSampleRecord.self,
-                             IntegrationRecord.self, SubstanceEventRecord.self,
-                             PredictionOutcomeRecord.self, FeedbackRecord.self,
-                             InsightScoreRecord.self, SuggestionDismissalRecord.self,
-                             MedicationRecord.self, DoseLogRecord.self,
-                             SideEffectRecord.self, BodyScanRecord.self,
-                             // ⚠️ A @Model not listed here silently never persists.
-                             CycleDayRecord.self,
-                             CalendarEventRecord.self, CalendarJudgementRecord.self,
-                             HolidayEntry.self,
-                             // B11-2 — the app's per-day illness guess and the
-                             // reader's answer to it.
-                             IllnessJudgementRecord.self,
-                             // Q7 / I7 — see DocumentRecords.swift.
-                             LabResultRecord.self, ECGRecordEntry.self,
-                             // Q8 — the stack the reader types in.
-                             SupplementEntryRecord.self])
         isInMemory = inMemory
         let schema = Schema(Self.persistedModels)
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
