@@ -212,7 +212,7 @@ silently; count the enum before trusting the table.
 | Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
-| Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
+| Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** **+ "When it has spoken"** (S4 chart + the S3 nights-to-flag detail) | ● **"Your two symptom records"** (R28, hand-entered side effects against Health tags) | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● "How hard you worked" + "How much you moved" | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |

@@ -200,6 +200,59 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         }
     }
 
+    /// One stretch of illness from the merged `SickDayLedger` — §B11-4.
+    ///
+    /// **Reader-stated data, so it genuinely exports**, and the same privacy
+    /// rule as `Holiday` is what lets it: a detected period's label is nil by
+    /// construction, because `SickDayLedger.detected` never carries an event's
+    /// title. A sick-day title is a health fact in somebody's own words, which
+    /// is the one thing that must not travel.
+    ///
+    /// ⚠️ **It is a statement, not a measurement.** Whoever pools this file must
+    /// read a sick day as "this person said they were ill", never as a confirmed
+    /// illness and never as a label to train a detector against without saying
+    /// so — `docs/illness-detection-evidence-2026-08-07.md` has the numbers, and
+    /// self-tagged illness is exactly the weak reference standard that makes
+    /// every vendor's published accuracy figure unusable.
+    public struct SickDay: Codable, Equatable, Sendable {
+        /// First and last day ill, both inclusive — `SickDayLedger.Period`'s
+        /// convention, so the file round-trips without an off-by-one.
+        public let firstDay: Date
+        public let lastDay: Date
+        public let label: String?
+        /// `"unstated"`, `"mild"`, `"moderate"`, `"severe"`, or null where
+        /// nobody graded it. Null and `"unstated"` are different records and
+        /// both are kept — see `SickDayLedger.Period.severity`.
+        public let severity: String?
+        /// `"detected"` or `"entered"`.
+        public let source: String
+
+        public init(firstDay: Date, lastDay: Date, label: String?,
+                    severity: String?, source: String) {
+            self.firstDay = firstDay
+            self.lastDay = lastDay
+            self.label = label
+            self.severity = severity
+            self.source = source
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops nil optionals, and "not graded" must be
+        /// distinguishable from "the exporter forgot grades".
+        enum CodingKeys: String, CodingKey {
+            case firstDay, lastDay, label, severity, source
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(firstDay, forKey: .firstDay)
+            try c.encode(lastDay, forKey: .lastDay)
+            try c.encode(label, forKey: .label)
+            try c.encode(severity, forKey: .severity)
+            try c.encode(source, forKey: .source)
+        }
+    }
+
     /// A card's own output — the number the reader was shown, and the replayed
     /// history behind it. These are **derived, not measured**, and the export
     /// says so in the key name rather than mixing them in with `samples`.
@@ -480,6 +533,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// exports**, and it can only do so because detection strips titles; see
     /// `Holiday`.
     public let holidays: [Holiday]
+    /// The merged sick-day ledger — §B11-4. Dates, the reader's own labels, the
+    /// grade where anybody gave one, and which source each period came from.
+    public let sickDays: [SickDay]
     /// **Every figure the app has derived, day by day** — the fitness ages, the
     /// weekly doses, and each contributor's own 0–100 and departure in SD.
     ///
@@ -542,6 +598,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 derivedScores: [DerivedScore],
                 cycles: [CycleDay] = [],
                 holidays: [Holiday] = [],
+                sickDays: [SickDay] = [],
                 generatedInsights: [DerivedSeries] = [],
                 connections: [Connection] = [],
                 suggestionDismissals: [SuggestionDismissal] = [],
@@ -549,6 +606,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 predictionOutcomes: [PredictionOutcome] = []) {
         self.cycles = cycles
         self.holidays = holidays
+        self.sickDays = sickDays
         self.generatedInsights = generatedInsights
         self.connections = connections
         self.suggestionDismissals = suggestionDismissals
@@ -599,6 +657,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // Reader-entered (and date-only detected) leave genuinely exports —
         // unlike the events above, because the ledger holds no titles.
         case .holidays: return "holidays"
+        // Same reasoning as `holidays`, and the same thing makes it possible:
+        // the ledger holds dates and grades, never an event's title. §B11-4.
+        case .sickDays: return "sickDays"
         case .unmodelled: return "unmodelled"
         // ⚠️ **Reversed 2026-08-06, hours after it was written.** The
         // superseded reasoning, kept verbatim because it is sound about the
@@ -687,7 +748,8 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
-        case bodyScans, profile, derivedScores, cycles, holidays, generatedInsights
+        case bodyScans, profile, derivedScores, cycles, holidays, sickDays
+        case generatedInsights
         case connections, suggestionDismissals, feedback, predictionOutcomes
     }
 
@@ -714,6 +776,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(derivedScores, forKey: .derivedScores)
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
+        try c.encode(sickDays, forKey: .sickDays)
         try c.encode(generatedInsights, forKey: .generatedInsights)
         try c.encode(connections, forKey: .connections)
         try c.encode(suggestionDismissals, forKey: .suggestionDismissals)

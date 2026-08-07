@@ -338,6 +338,27 @@ final class AppModel {
             entered: holidayEntries.compactMap(\.period))
     }
 
+    // MARK: - Sick days (§B11-4)
+
+    /// **The one record of when the reader was ill** — every calendar block the
+    /// classifier read as a sick day, merged and deduplicated.
+    ///
+    /// Derived rather than stored, exactly like `holidayLedger` and for the same
+    /// reason: a correction on a calendar event moves it with no migration, so
+    /// the reader retagging a day on the Work impact review list changes what
+    /// the Data tab shows on the next pass.
+    ///
+    /// ⚠️ **Detected only, today.** There is no hand-entered half yet — no
+    /// `InputKind`, no sheet — so a sick day the reader never put in a calendar
+    /// cannot be recorded. That is a real gap and it is written down as one
+    /// rather than papered over; the `entered:` half of `SickDayLedger` exists
+    /// and takes the second source the day an input surface does.
+    var sickDayLedger: SickDayLedger {
+        SickDayLedger(
+            detected: SickDayLedger.detected(events: calendarEvents,
+                                             judgements: calendarJudgements))
+    }
+
     /// Record one period of leave, past or planned.
     func logHoliday(firstDay: Date, lastDay: Date, label: String?) {
         dataStore.logHoliday(firstDay: firstDay, lastDay: lastDay, label: label)

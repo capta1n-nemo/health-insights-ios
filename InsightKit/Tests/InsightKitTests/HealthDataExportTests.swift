@@ -168,6 +168,12 @@ final class HealthDataExportTests: XCTestCase {
             cycles: [CycleDay(day: now, flow: .medium)],
             holidays: [.init(firstDay: now, lastDay: now.addingTimeInterval(6 * 86_400),
                              label: "Leave", source: "entered")],
+            // §B11-4. A detected spell, so `label` is nil exactly as the ledger
+            // produces it — the fixture has to hold the shape that actually
+            // ships, or the encoder's nil handling goes untested.
+            sickDays: [.init(firstDay: now.addingTimeInterval(-10 * 86_400),
+                             lastDay: now.addingTimeInterval(-8 * 86_400),
+                             label: nil, severity: "moderate", source: "detected")],
             generatedInsights: HealthDataExport.derivedSeries(from: store))
     }
 

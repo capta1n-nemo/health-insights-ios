@@ -94,6 +94,23 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
         /// sheet offers both, so "that's actually mine" is a one-tap
         /// correction that reaches the ledger.
         case absence
+        /// **A sick day** — §B11-6, the reader's own words: the classifier
+        /// *"must be able to classify a day as 'sick', in the same dropdown as
+        /// meeting, reminder, travel"*.
+        ///
+        /// Its own case rather than a flavour of `.leave`, and the difference is
+        /// not cosmetic: a holiday is recovery the reader chose and a sick day
+        /// is the opposite, so folding them together would let a week of flu
+        /// reset `daysSinceLastLeave` and read as rest. It feeds `SickDayLedger`
+        /// exactly as `.leave` feeds `HolidayLedger`, and nothing else.
+        ///
+        /// ⚠️ **The two axes that stop applying.** Work-versus-personal and
+        /// formality are meaningless for a sick day — there is no meeting to be
+        /// formal about and being ill is not a work event — so the review row
+        /// hides both and offers `severity` instead. The stored values are still
+        /// there (a correction *away* from `.sick` must not have silently lost
+        /// them), they are simply not asked about.
+        case sick
         public var id: String { rawValue }
         public var title: String {
             switch self {
@@ -103,6 +120,38 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
             case .travel: return "Travel"
             case .leave: return "Your leave"
             case .absence: return "Someone away"
+            case .sick: return "Sick day"
+            }
+        }
+        /// Whether work/personal and formality are worth asking about.
+        ///
+        /// One property rather than two `if occasion == .sick` tests in the
+        /// review row, so the next occasion that stops caring about them says so
+        /// here instead of in a view.
+        public var asksAboutWorkAndFormality: Bool { self != .sick }
+    }
+
+    /// **How ill the reader was**, on the one axis a sick day has — §B11-6:
+    /// *"It does need a severity of sickness selector."*
+    ///
+    /// Three grades and an unstated, deliberately mirroring `SymptomSeverity`'s
+    /// vocabulary rather than inventing a second scale: the reader already grades
+    /// symptoms mild/moderate/severe in Apple Health, and two scales for the same
+    /// idea is how a reconciliation stops being possible. **Not a number** — a
+    /// 1–10 would invite arithmetic on a word somebody chose.
+    ///
+    /// `unstated` is the honest default for a sick day the *rules* found in a
+    /// calendar: the title said the reader was ill, and said nothing about how
+    /// badly. Only the reader fills this in.
+    public enum SickSeverity: String, Sendable, Codable, CaseIterable, Identifiable {
+        case unstated, mild, moderate, severe
+        public var id: String { rawValue }
+        public var title: String {
+            switch self {
+            case .unstated: return "Not said"
+            case .mild: return "Mild"
+            case .moderate: return "Moderate"
+            case .severe: return "Severe"
             }
         }
     }
@@ -165,20 +214,37 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
     /// carry no entry — there is nothing to attribute.
     public let deciders: [String: Decider]
 
+    /// **How ill, on a sick day** — nil on every other occasion, and nil on a
+    /// sick day nobody has graded yet.
+    ///
+    /// Optional rather than defaulted to `.unstated` for the reason
+    /// `SymptomSeverity.notPresent` is not a Bool: "the reader said mild" and
+    /// "nobody has said" are different records, and a non-optional would erase
+    /// the second. Synthesised `Codable` decodes an absent optional as nil, so
+    /// every judgement stored before §B11-6 reads back unchanged.
+    public let severity: SickSeverity?
+
     public init(context: Context, occasion: Occasion, presence: Presence,
                 formality: Formality, hours: Double,
-                deciders: [String: Decider] = [:]) {
+                deciders: [String: Decider] = [:],
+                severity: SickSeverity? = nil) {
         self.context = context
         self.occasion = occasion
         self.presence = presence
         self.formality = formality
         self.hours = hours
         self.deciders = deciders
+        // A severity on anything but a sick day is a category error, and the
+        // one place it could arrive from is a draft the reader edited *before*
+        // moving the occasion back. Dropped here rather than in the view, so
+        // no caller can store one.
+        self.severity = occasion == .sick ? severity : nil
     }
 
     public static let contextKey = "context"
     public static let occasionKey = "occasion"
     public static let formalityKey = "formality"
+    public static let severityKey = "severity"
 
     public func decider(for key: String) -> Decider { deciders[key] ?? .rules }
 
@@ -198,6 +264,11 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
         // "possibly reduced load", which is H6's call to make when the cards
         // read the ledger, and zero is the honest floor until then.
         case .leave, .absence: return 0
+        // A sick day is not a commitment either, and it is emphatically not
+        // load: the reader was not working. Zero for the same reason leave is
+        // zero — and note that the *cost* of being ill is the symptom radar's
+        // subject, not this card's.
+        case .sick: return 0
         case .travel: return hours
         case .blockedTime: return hours * 0.5
         case .meeting:
@@ -281,6 +352,11 @@ public struct CalendarEventJudgement: Sendable, Equatable, Codable, Identifiable
             || correction.occasion != classification.occasion
             || correction.formality != classification.formality
             || correction.presence != classification.presence
+            // §B11-6. A reader who agreed it was a sick day and said *how ill*
+            // has still told the app something it did not know, and a
+            // `wasCorrected` that could not see it would count that as the
+            // model having been right about a field it never guessed.
+            || correction.severity != classification.severity
     }
 
     /// Whether the reader answered about a version of this event that no longer
