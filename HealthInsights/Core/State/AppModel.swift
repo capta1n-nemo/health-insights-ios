@@ -846,7 +846,6 @@ final class AppModel {
             // reader has ever tried the input.
             case .holiday:
                 hasBeenUsed = !holidayEntries.isEmpty
-<<<<<<< HEAD
             // Having answered one flagged event counts. Never prompts through
             // this route (`.settingsOnly`) — `SuggestionEngine.eventsAwaitingReview`
             // raises the queue itself, carrying a count, which is a better-founded
@@ -855,14 +854,12 @@ final class AppModel {
             case .eventConfirmation:
                 hasBeenUsed = EventFeedModel.shared.feed.accuracy.scored > 0
                     || EventFeedModel.shared.feed.accuracy.answeredWithoutAGuess > 0
-=======
             // One bottle counts. The question this answers is whether the reader
             // has ever tried the input, and somebody who entered a multivitamin
             // has — the sum across a stack is what the card is *for*, not what
             // decides whether to keep nudging them about the feature.
             case .supplement:
                 hasBeenUsed = !supplementEntries.isEmpty
->>>>>>> worktree-wf_acf822b0-d44-3
             }
             if hasBeenUsed { used.insert(kind) }
         }
@@ -2493,6 +2490,22 @@ final class AppModel {
         // sync completes and the headings improve when they improve.
         Task { [weak self] in await self?.refreshTagApplicability() }
         timer.lap("tag applicability (detached — not awaited)")
+        // **After the sync has otherwise finished, deliberately.** Every tag is
+        // already promoted and already carries a deterministic applicability, so
+        // this can only improve a heading — it can never be the reason the Tags
+        // section is empty or late. On a device with no on-device model it
+        // returns having done nothing.
+        await refreshTagApplicability()
+        timer.lap("tag applicability")
+        // **Last, and after `results` is settled** — the pass compares this
+        // refresh's cards against the ones it saw before, so it must see the
+        // finished ones. It is also what the background wake-up exists to
+        // reach: this same function now runs from a `BGAppRefreshTask`
+        // (`BackgroundRefresh`), which is what lets a finding made at 3am be
+        // held until morning rather than wait for somebody to open the app.
+        // Everything it decides lives in `NotificationCoordinator`.
+        await NotificationCoordinator.shared.evaluate(self, now: Date())
+        timer.lap("notification pass")
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })

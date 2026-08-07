@@ -70,6 +70,11 @@ final class ShortcutsIntegration: HealthIntegration, ObservableObject {
         return .connected(lastSync: last)
     }
 
+    /// The automation runs on the reader's schedule, in their Shortcuts app.
+    /// Nothing here can pull it, so nothing here may accuse it of stopping —
+    /// see `HealthIntegration.syncsOnItsOwn`.
+    var syncsOnItsOwn: Bool { false }
+
     /// Nothing to authorise: the reader "connects" this by installing an
     /// automation, so a Connect button would be a control that does nothing.
     /// `ShortcutsIntegrationView` walks them through the real gesture.

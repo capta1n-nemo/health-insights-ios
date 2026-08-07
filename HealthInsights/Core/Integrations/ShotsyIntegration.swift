@@ -62,6 +62,11 @@ final class ShotsyIntegration: HealthIntegration, ObservableObject {
         return .connected(lastSync: last)
     }
 
+    /// There is nothing to pull, so there is nothing that can stop pulling.
+    /// A gap between exports is the reader's own pace, not a fault to notify
+    /// them about — see `HealthIntegration.syncsOnItsOwn`.
+    var syncsOnItsOwn: Bool { false }
+
     /// Nothing to authorise. The reader "connects" this integration by sharing
     /// a file, so a Connect button would be a control that does nothing —
     /// `ShotsyIntegrationView` explains the real gesture instead.

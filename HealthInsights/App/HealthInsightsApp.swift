@@ -9,6 +9,7 @@ struct HealthInsightsApp: App {
     @State private var model = AppModel.shared
     /// The result of a file the OS just handed us, shown as soon as it lands.
     @State private var importOutcome: FileImportOutcome?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -28,6 +29,18 @@ struct HealthInsightsApp: App {
                     DiagnosticsLog.shared.recordLaunch()
                     MainThreadWatchdog.start()
                     HangDiagnosticsReporter.shared.start()
+                    // Idempotent, like the three above. The delegate is what
+                    // makes a notification visible when the app is already
+                    // open, which is also the state anybody testing this will
+                    // be in.
+                    NotificationCentre.shared.configure()
+                    await NotificationCentre.shared.refreshAuthorization()
+                    // ⚠️ **No permission prompt here.** iOS allows exactly one
+                    // ask, and an alert on first launch — before the reader has
+                    // seen a single card — is the cheapest possible way to earn
+                    // a permanent no. It is asked for from Settings ▸
+                    // Notifications, beside the list of what would be sent.
+                    BackgroundRefresh.schedule()
                 }
                 // The share-sheet and "Open With" entry point. A shared file
                 // arrives as a URL the OS opens the app with, so this is the
@@ -64,6 +77,24 @@ struct HealthInsightsApp: App {
                 } message: { outcome in
                     Text(outcome.message)
                 }
+                // Backgrounding is the moment iOS is most willing to grant a
+                // wake-up, and the moment the reader has stopped looking — so
+                // it is the one that matters most for the row this was built
+                // for. `schedule()` replaces any pending request of the same
+                // identifier rather than stacking them.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { BackgroundRefresh.schedule() }
+                }
+        }
+        // ⚠️ **This is the registration**, and it has to be attached to the
+        // `Scene` rather than called from a `task`: `BGTaskScheduler` requires
+        // every identifier to be registered before the app finishes launching,
+        // and SwiftUI's `backgroundTask` is what does that here — which is why
+        // there is no `UIApplicationDelegate` in this app and does not need to
+        // be one. The identifier must appear in `Info.plist`'s
+        // `BGTaskSchedulerPermittedIdentifiers`, or this silently never fires.
+        .backgroundTask(.appRefresh(BackgroundRefresh.taskIdentifier)) {
+            await BackgroundRefresh.run()
         }
     }
 }

@@ -58,12 +58,31 @@ protocol HealthIntegration: AnyObject {
     /// `nil` when the last sync brought something back, and `nil` before the
     /// first sync — an unasked source is not a failing one.
     var syncWarning: String? { get }
+
+    /// **Whether this source fetches for itself, or only ever receives.**
+    ///
+    /// Added for the notification pass (backlog `Q11`), which watches connected
+    /// sources for the failure this app is least able to see on its own: still
+    /// connected, still green, and bringing nothing back. That warning is only
+    /// honest about a source the app *pulls from*. Shotsy has no API and
+    /// Shortcuts is an automation the reader owns — telling somebody a
+    /// push-only source "has stopped syncing" would blame the app's plumbing
+    /// for a file they simply have not exported yet.
+    ///
+    /// ⚠️ **The default is `true`, and that is the safe direction rather than
+    /// the tidy one.** A new pulling connector is watched without anybody
+    /// having to remember to opt it in; a new push-only one has to say so, and
+    /// the cost of forgetting is one wrong sentence rather than a stall that is
+    /// never reported.
+    var syncsOnItsOwn: Bool { get }
 }
 
 extension HealthIntegration {
     /// Sources that cannot come back silent (a file import, a Shortcut) get
     /// this and say nothing.
     var syncWarning: String? { nil }
+
+    var syncsOnItsOwn: Bool { true }
 }
 
 /// Holds the set of available integrations and exposes them to Settings + sync.
