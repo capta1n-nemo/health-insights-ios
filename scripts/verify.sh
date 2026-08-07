@@ -365,7 +365,21 @@ if command -v jq >/dev/null 2>&1 && [ -f .claude/settings.json ]; then
     # So the check derives the prefix from the hook itself rather than
     # restating it: whatever quoting or path the hook emits, an allow entry
     # has to cover it.
-    if [ -f scripts/bash-workdir-hook.sh ] && grep -q 'cd \\"' scripts/bash-workdir-hook.sh; then
+    # ⚠️ Local harness only. The hook is a Claude Code `PreToolUse` hook; it does
+    # not exist on a CI runner, in a worktree, or in a fresh clone at some other
+    # path — and the allow entries are absolute paths, so on any of those the
+    # check would fail for a machine the settings file cannot possibly name.
+    # It did exactly that on its first push: red CI on `e689fb9`, with the local
+    # gate green, because the runner's root is `/home/runner/work/…`.
+    #
+    # The rule this encodes is one this repo already learnt from the opposite
+    # direction — a guard reporting a failure whose own premise is false. The
+    # premise here is "the hook runs on this machine", so the check has to
+    # establish that before it can mean anything.
+    in_worktree=$([ "$(git rev-parse --git-dir 2>/dev/null)" \
+                 != "$(git rev-parse --git-common-dir 2>/dev/null)" ] && echo yes || echo no)
+    if [ -z "${CI:-}" ] && [ "$in_worktree" = no ] \
+       && [ -f scripts/bash-workdir-hook.sh ] && grep -q 'cd \\"' scripts/bash-workdir-hook.sh; then
         # The hook emits a quoted prefix. Every root it can anchor to needs an
         # entry: this repo, and its worktrees directory.
         root_now=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
