@@ -92,7 +92,7 @@ while about thirty were open. **A parser that silently returns nothing reads as
 | **w3** Substantial builds | 2 | 2 | 55 | 11 |  | 70 |
 | **w4** Complex, last |  |  | 14 | 3 | 4 | 21 |
 
-Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 14 · **external** 5.
+Gates on open rows: **none** 74 · **phone** 16 · **needs** 15 · **decision** 8 · **external** 5.
 
 | # | Item | Wave | Tier | Gate |
 |---|---|---|---|---|
@@ -104,9 +104,9 @@ Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 
 | 6 | `D50` A new DataDomain can ship with an export key and no data, and no check noti… | w1 | `mech` |  |
 | 7 | `B20` One export, containing everything — collapse the five surfaces ⭐ | w1 | `build` |  |
 | 8 | `C11` Nothing has been seen with real calendar data in it | w1 | `build` | phone |
-| 9 | `D43` The app announces a discovery for data it then throws away | w1 | `build` | decision |
+| 9 | `D43` The app announces a discovery for data it then throws away | w1 | `build` |  |
 | 10 | `F1` Resting Heart Rate page cross-device defect | w1 | `build` | phone |
-| 11 | `D45` Sleep Duration's trend chip and its detail describe different things, side… | w1 | `hard` | decision |
+| 11 | `D45` Sleep Duration's trend chip and its detail describe different things, side… | w1 | `hard` |  |
 | 12 | `B19` The Energy card has no calibration — five invented constants set its whole… ⭐ | w1 | `ultra` |  |
 | 13 | `B2-39` Verify Travel drain and Work impact against real calendar data | w2 | `mech` | phone |
 | 14 | `D11` The nine Data-domain detail pages have never been opened and checked | w2 | `mech` |  |
@@ -128,7 +128,7 @@ Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 
 | 30 | `B16-3` Description (line 3): an AI summary of the whole card ⭐ | w3 | `design` | decision |
 | 31 | `D29` The Data tab has grown very long | w3 | `design` | decision |
 | 32 | `AC4` The delete-everything wipe must be driven by the Schema, not a hand-written… | w3 | `build` | needs:Q13 |
-| 33 | `B11-1` The section itself: two views, switchable — log and calendar ⭐ | w3 | `build` | decision |
+| 33 | `B11-1` The section itself: two views, switchable — log and calendar ⭐ | w3 | `build` |  |
 | 34 | `B11-2` The per-day page (reachable from either view) ⭐ | w3 | `build` | needs:B11-1 |
 | 35 | `B11-3` Estimated sickness, which the reader can correct ⭐ | w3 | `build` | needs:B11-2 |
 | 36 | `B11-4` A sick day is a data source ⭐ | w3 | `build` |  |
@@ -144,11 +144,11 @@ Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 
 | 46 | `B3-20` "When you settled" | w3 | `build` |  |
 | 47 | `B3-21` "What the drug is doing" | w3 | `build` |  |
 | 48 | `B3-22` "Sound you took on" | w3 | `build` |  |
-| 49 | `B3-23` "Which instrument to believe" ⭐ | w3 | `build` | decision |
+| 49 | `B3-23` "Which instrument to believe" ⭐ | w3 | `build` |  |
 | 50 | `B3-24` "Your bloods" | w3 | `build` |  |
 | 51 | `B3-25` "What is actually in your stack" | w3 | `build` |  |
 | 52 | `B5-33` Total sound exposure ⭐ | w3 | `build` |  |
-| 53 | `B9-1` Social battery ⭐ | w3 | `build` | decision |
+| 53 | `B9-1` Social battery ⭐ | w3 | `build` |  |
 | 54 | `B9-2` Screen time card ⭐ | w3 | `build` | needs:B10-1,B10-2 |
 | 55 | `D13` The document/OCR path is unaudited | w3 | `build` |  |
 | 56 | `D4` Five dead modules | w3 | `build` |  |
@@ -180,13 +180,13 @@ Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 
 | 82 | `S5` "What changed while you slept" ⭐ | w3 | `build` |  |
 | 83 | `S6` Recovery tracker ⭐ | w3 | `build` |  |
 | 84 | `S7` SubstanceEpisodes explained | w3 | `build` |  |
-| 85 | `S8` Device disagreement — pick a signal, see the difference and why ⭐ | w3 | `build` | decision |
+| 85 | `S8` Device disagreement — pick a signal, see the difference and why ⭐ | w3 | `build` | needs:B3-23 |
 | 86 | `S9` Breathing disturbance, charted not scored | w3 | `build` |  |
 | 87 | `B11-8` Weightings ⭐ | w3 | `hard` | needs:B12-1 |
 | 88 | `B12-2` Use AI to map tags to high-level categories — and it must scale to tags nev… ⭐ | w3 | `hard` | needs:B12-1 |
 | 89 | `B18-6` "What's impacting your sleep" — a bespoke section built from other cards' d… ⭐ | w3 | `hard` |  |
 | 90 | `B18-8` An ideal sleep timeframe section ⭐ | w3 | `hard` |  |
-| 91 | `D20` A second vendor age is already arriving and nothing reads it: Withings "met… | w3 | `hard` | decision |
+| 91 | `D20` A second vendor age is already arriving and nothing reads it: Withings "met… | w3 | `hard` |  |
 | 92 | `D40` Heart Health's one derived figure is computed in the view, so it cannot be… | w3 | `hard` | decision |
 | 93 | `H6` Cards read the ledger ⭐ | w3 | `hard` | needs:H5 |
 | 94 | `P15` BP accuracy section + 30-day projection | w3 | `hard` |  |
@@ -211,7 +211,7 @@ Gates on open rows: **none** 67 · **decision** 16 · **phone** 16 · **needs** 
 | 113 | `I6` Arbitrary lab analytes via Foundation Models | w4 | `hard` |  |
 | 114 | `P24` Model accuracy screen ⭐ | w4 | `hard` |  |
 | 115 | `B11-7` The fake-sick-day problem — the reader's own scientific objection, and the… ⭐ | w4 | `ultra` | decision |
-| 116 | `N1` Stress, done properly ⭐ | w4 | `ultra` | decision |
+| 116 | `N1` Stress, done properly ⭐ | w4 | `ultra` |  |
 | 117 | `P23` Signal audit ⭐ | w4 | `ultra` |  |
 | 118 | `R57` Core ML personal anomaly detection once enough history exists | w4 | `ultra` |  |
 
@@ -259,7 +259,7 @@ accuracy ✅ `44fb94e` at §B5 #36; notifications, delete-everything, the export
 gaps and the calendar at `Q10`–`Q13` and `I1`; and capture for the six zero-row
 domains at §B5 #37.
 
-- `N1` ◐ `w4` `stress` `ultra` `gate:decision` `ask` — **Stress, done properly**
+- `N1` ◐ `w4` `stress` `ultra` `gate:none` `ask` — **Stress, done properly**
       **The reader's instruction, 2026-08-06:** *"I want to rename it to stress,
       and research how Oura ring do this, because they track stress, but lets do
       it better because we have more data."*
@@ -316,6 +316,15 @@ domains at §B5 #37.
       thinks in, since the last stress card shipped under a name they could not
       find and they asked three more times. Point 1 and point 5 are the gate,
       not background reading.
+
+      ✅ **RULED 2026-08-07: both, on one card.** A daytime signal AND the
+      sustained nocturnal one, with **Oura's own number beside ours as a
+      labelled second opinion, never blended in**. The reader's words settle
+      point 1 of the research list above; points 2–5 still bind.
+      ⚠️ **The design produced against this ruling was REFUTED** — see
+      `docs/stress-design-2026-08-07.md`, which carries a not-build-ready
+      banner. Three hostile reviewers returned `needs-rework`. **The ruling
+      stands; the design has to be redone.**
 
 - `N2` ✅ `w3` `calendar` `build` `gate:none` — **The calendar integration is persisted, not just fetched**
       Original entry, kept because it still shapes the wording: *"N2 — the
@@ -688,13 +697,21 @@ closing*, not re-asking.
       Cumulative headphone dose against the WHO/NIOSH budget. 13,768 rows over 467
       days. Must state the hours it could not see
 
-- `B3-23` ⬜ `w3` `transparency` `build` `gate:decision` `ask` — **"Which instrument to believe"**
+- `B3-23` ⬜ `w3` `transparency` `build` `gate:none` `ask` — **"Which instrument to believe"**
       Where Watch, ring and scale disagree — show both, say which the app used and why.
       **You asked for this again tonight.** #27 is now fixed so it will not draw a gap
       it creates itself
 
       ⚠️ Unsettled: a card or a section. §C S8 records it as a section, this row as a
       card, and the reader has asked for it again without settling that.
+
+      ✅ **RULED 2026-08-07: both — sections plus an index card.** Per-card
+      sections put the disagreement where the decision is made, which matches the
+      reader's own placement of "why is my score low" (*an explanation one tap
+      from the number is one people actually read*); the index card makes it
+      findable in one place. Roughly double the work and chosen deliberately.
+      **This settles the §B3 #23 / §C S8 duplication** — they were the same ask
+      recorded as a card and as a section, and the answer is that it is both.
 
 - `B3-24` ⬜ `w3` `labs` `build` `gate:none` — **"Your bloods"**
       Manual lipid + HbA1c entry. See Q7
@@ -1271,12 +1288,16 @@ so the decision is deliberate rather than inherited. See
 
       The logic exists and is tested; **nothing shows it to you**.
 
-- `S8` ⬜ `w3` `devices` `build` `gate:decision` `ask` — **Device disagreement — pick a signal, see the difference and why**
+- `S8` ⬜ `w3` `devices` `build` `gate:needs:B3-23` `ask` — **Device disagreement — pick a signal, see the difference and why**
       Card or section — see #23.
 
       ⚠️ Unsettled: §C records it as a section, §B3 #23 records it as a card,
       and the reader has asked for it again without settling which. That
       ruling comes first.
+
+      ✅ **RULED 2026-08-07 — same item as `B3-23`, and the answer is both.**
+      This row is the *section* half; `B3-23` is the index card. Build the
+      sections here, then the card that indexes them.
 
 - `S9` ⬜ `w3` `sleep` `build` `gate:none` — **Breathing disturbance, charted not scored**
       Sleep. 107 days, only 10% redundant. Oura publishes no validated curve,
@@ -1436,7 +1457,7 @@ so the decision is deliberate rather than inherited. See
 - `D15` ✅ `w0` `rules` `mech` `gate:none` — **`docs/card-sections.md` partially corrected 2026-08-06**
       Two false "closed" claims reopened; the per-section tables still need a sweep.
 
-- `D20` ⬜ `w3` `devices` `hard` `gate:decision` — **A second vendor age is already arriving and nothing reads it: Withings "metabolic age"**
+- `D20` ⬜ `w3` `devices` `hard` `gate:none` — **A second vendor age is already arriving and nothing reads it: Withings "metabolic age"**
       ⚠️ `withings.measure.227`, 153 rows over 110 distinct days, 2024-12-25 →
       2026-07-29 — a *longer* history than Oura's vascular age. Raw-only: no
       `MetricType`, no promotion rule.
@@ -1449,6 +1470,18 @@ so the decision is deliberate rather than inherited. See
       labelled as an inference, or leave it raw.
 
       Found by the age scout, 2026-08-06.
+
+      ✅ **RULED 2026-08-07: relay it, labelled as inferred.** Show the Withings
+      figure in the age comparison **with the field-mapping uncertainty stated on
+      the row itself** — that we believe `withings.measure.227` is their
+      metabolic age, and that Withings publishes no field table to confirm it.
+
+      Consistent with relaying Oura's vascular age, and the section's whole point
+      is naming who computed what. ⚠️ **The label is not optional and is not
+      boilerplate**: this is the first number in the app whose *identity* is
+      inferred rather than its value modelled, so the row states a different kind
+      of uncertainty from every other row beside it. Do not let it inherit the
+      standard "modelled" caveat and call that done.
 
 - `D21` ✅ `w1` `newcards` `hard` `gate:none` — **Fitness age and heart age still collapse multiple instruments**
       Both read one source through `VitalReader.reading`; the reader's export has 4
@@ -1772,7 +1805,7 @@ so the decision is deliberate rather than inherited. See
       nothing. The *general* gap it names is real and still open: the switch proves
       a key exists, never that it is filled.
 
-- `D43` ⬜ `w1` `data` `build` `gate:decision` — **The app announces a discovery for data it then throws away**
+- `D43` ⬜ `w1` `data` `build` `gate:none` — **The app announces a discovery for data it then throws away**
       ⚠️ `AppModel.observeArrivals` records what *arrived* and runs **before**
       `partitionedVitals()` sanitises, so a reading outside its metric's
       `plausibleRange` is announced as "New since you last looked" and then dropped
@@ -1785,6 +1818,16 @@ so the decision is deliberate rather than inherited. See
 
       Found while fixing the discovered-row bug.
 
+      ✅ **RULED 2026-08-07: record the drop beside the sighting.** The reader
+      chose keeping the observe-before-sanitise order and storing *why* a reading
+      was dropped, so the row can say **"arrived, but outside the plausible
+      range"**. Their reasoning matches the app's habit of naming what it
+      withheld (`CoverageGate`), and it keeps the honest signal that something
+      *did* arrive — which is what matters when a device starts sending garbage.
+      Observing after sanitising was rejected because a metric arriving
+      persistently out of range would then look identical to nothing arriving,
+      hiding a real device fault.
+
 - `D44` ✅ `w0` `pipeline` `mech` `gate:none` — **`load-real-export.sh` was half a no-op on any container that had run the app**
       `loadCachedOther` prefers `synced_other.hirc`, and the loader deleted only
       `synced_samples.hisc` — so 177,000 raw rows were written to a file nothing
@@ -1793,7 +1836,7 @@ so the decision is deliberate rather than inherited. See
 
       Fixed same session; both compact caches are deleted now.
 
-- `D45` ⬜ `w1` `chrome` `hard` `gate:decision` — **Sleep Duration's trend chip and its detail describe different things, side by side**
+- `D45` ⬜ `w1` `chrome` `hard` `gate:none` — **Sleep Duration's trend chip and its detail describe different things, side by side**
       On Work impact the row reads "Holding steady · higher is better · 22% of this
       score" while its own detail says "about the same on your busier working days
       — 6.7 against 7.4 — which is 0.2 SD worse". The chip is the metric's *trend*;
@@ -1803,6 +1846,12 @@ so the decision is deliberate rather than inherited. See
       question it answers.
 
       Seen on the reader's own phone, 2026-08-06.
+
+      ✅ **RULED 2026-08-07: the chip names its question.** Keep both figures,
+      but the chip states which question it answers — "90-day trend: holding
+      steady" against the detail's busy-versus-quiet contrast. The reader chose
+      this over dropping the chip on contrast cards because **it generalises to
+      every contrast card rather than fixing one screen**.
 
 - `D46` ⬜ `w3` `transparency` `build` `gate:none` `ask` — **Every "not enough yet" gate is invisible**
       The reader's point, and the calendar review section already does it right —
@@ -1985,12 +2034,40 @@ so the decision is deliberate rather than inherited. See
 
 ## §B9 — New cards
 
-- `B9-1` ⬜ `w3` `newcards` `build` `gate:decision` `ask` — **Social battery**
+- `B9-1` ⬜ `w3` `newcards` `build` `gate:none` `ask` — **Social battery**
       New card. Scope not yet specified — needs a brief before building.
 
       ⚠️ Still an open ruling as of 2026-08-07: the card is named and scoped
       nowhere. This is exactly the "ask a pull request's worth of questions
       *before* writing code" case — do not start it on the strength of the name.
+
+      ✅ **SCOPED 2026-08-07 — the reader wants all three framings, not one.**
+      Their words: *"I want all of the above! And of course, make sure any data
+      points we derive go into the data tab, and they used appropriately in the
+      weightings and 'what goes into this' charts. I want several bespoke charts,
+      to show very good insights into people's 'social batteries'."*
+
+      So the card carries three questions, not one:
+      1. **Depletion from social load** — social contact (calendar events with
+         attendees, meeting hours, formal vs casual) against how depleted the
+         body looks afterwards. The exposure×response shape `WorkImpactModel`
+         already uses, pointed at people rather than work — `ScoreBlend.blend(metrics:factors:metricShare:)`
+         is the shared machinery and the four-quadrant naming is the precedent.
+      2. **Capacity remaining today** — forward-looking social tolerance.
+         ⚠️ **Overlaps Energy heavily, and Energy's own calibration is the open
+         `B19` problem** — do not inherit its invented constants. If this cannot
+         be said honestly, say so on the card rather than inventing a number.
+      3. **Introvert/extrovert recovery pattern** — whether contact *restores*
+         or *drains* this reader specifically. **The most novel of the three and
+         the most honest at low n**, because "we cannot tell yet" is a real
+         answer it can give.
+
+      ⚠️ **Three explicit requirements from the same message, all binding:**
+      every figure it derives becomes a `DerivedSeriesID` **and** appears in the
+      Data tab (standing rule 10); those figures carry weights and appear in
+      "What goes into this" and "How this is weighted" (rule 4); and it needs
+      **several bespoke charts**, not one — `secondaryBespokeSection` exists
+      alongside `bespokeSection` for exactly this.
 
 - `B9-2` ⬜ `w3` `screentime` `build` `gate:needs:B10-1,B10-2` `ask` — **Screen time card**
       *"based on all the new screen time data we are supporting"*.
@@ -2045,7 +2122,7 @@ person as a judgement about honesty**, and hold it to a far higher bar than the
 forward direction. This does not block the feature; it constrains what the
 feature may *say*.
 
-- `B11-1` ⬜ `w3` `sickdays` `build` `gate:decision` `ask` — **The section itself: two views, switchable — log and calendar**
+- `B11-1` ⬜ `w3` `sickdays` `build` `gate:none` `ask` — **The section itself: two views, switchable — log and calendar**
       - **Two views, switchable: log and calendar.**
       - **Log view** — every day flagged symptomatic, with that day's score.
       - **Calendar view** — a month at a time, skippable between months, each day
@@ -2059,6 +2136,22 @@ feature may *say*.
       since install. They disagree on exactly the carried-forward days the reader
       already complained about (*"why am I back at 99%"*). Pick one and say why.
       The log view is not blocked by this; only the colouring is.
+
+      ✅ **RULED 2026-08-07: colour each day by its own statistic, and draw the
+      accumulated episode as a band across the days it spanned.**
+
+      The three candidate numbers disagree precisely on the carried-forward days
+      the reader already queried (*"why am I back at 99%"*):
+      `SymptomRadarModel.timeline` (HealthWatch.swift:650) gives the single-day
+      statistic; `verdict()` (:586) takes max(today, CUSUM accumulation) and is
+      what the card actually showed; `DataStore.scoreHistory` gives what was on
+      screen but only since install.
+
+      **The ruling takes the day's own statistic for the colour** — so each day
+      is independently readable and a recovering day is not painted red by
+      memory — **and draws the episode as a band**, so a multi-day illness still
+      reads as a block rather than scattered days. More design work, chosen
+      deliberately.
 
 - `B11-2` ⬜ `w3` `sickdays` `build` `gate:needs:B11-1` `ask` — **The per-day page (reachable from either view)**
       - The **radar for that day**.
