@@ -38,6 +38,11 @@ import InsightKit
 /// which card a group *could* contribute to, marked "not used yet", because the
 /// reader was explicit that activity tags become *candidates at the next
 /// review* rather than inputs. Wiring one is a decision, not a follow-up.
+///
+/// That review now has somewhere to happen: `TagCardCandidatesView`, reached from
+/// the Review row on this page. It takes the reader's verdict and remembers it,
+/// and still feeds nothing — a note for whoever builds the thing, which is a
+/// smaller promise than a toggle implies and the true one.
 struct TagsDataView: View {
     @Environment(AppModel.self) private var model
 
@@ -60,7 +65,10 @@ struct TagsDataView: View {
             emptyMessage: "Tags you add in Oura — a sport, a late night, a sick day — appear here once your ring has synced, grouped by what each one is about.",
             emptySymbol: "tag",
             overview: {
-                if !all.isEmpty { overviewSection(all) }
+                if !all.isEmpty {
+                    overviewSection(all)
+                    candidatesSection(all)
+                }
             },
             rows: {
                 // `DomainDataScaffold` owns the one `Section`, so a group's
@@ -103,6 +111,42 @@ struct TagsDataView: View {
             ? "Every tag here has been placed."
             : "\(unplaced) tag\(unplaced == 1 ? " has" : "s have") not been placed. \(unplaced == 1 ? "It is" : "They are") still kept exactly as you wrote \(unplaced == 1 ? "it" : "them")."
         return base + " Grouping is worked out on this device — from your ring's own tag types, from the words in the tag, and where neither settles it, by the on-device language model. Nothing about a tag is sent anywhere. Tap any tag to change its group."
+    }
+
+    /// **The way in to the review** (`B12-3`).
+    ///
+    /// A group heading already prints "Candidate for Fitness — not used yet", but
+    /// prose on a heading is something to read, not something to answer. The
+    /// reader asked for candidates *at the next review*, and a review needs a
+    /// place to happen and a memory of what was said; this row is the door to it.
+    /// It carries the outstanding count so an unfinished review is visible from
+    /// the page the reader already opens, rather than only from inside itself.
+    @ViewBuilder private func candidatesSection(_ all: [TagSummary]) -> some View {
+        let candidates = model.tagCardCandidates
+        if !candidates.isEmpty {
+            Section {
+                NavigationLink {
+                    TagCardCandidatesView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label("Card candidates", systemImage: "questionmark.folder")
+                        Text(candidateStanding(candidates))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } header: {
+                Text("Review")
+            }
+        }
+    }
+
+    private func candidateStanding(_ candidates: [TagCardCandidate]) -> String {
+        let unreviewed = model.tagCandidateDecisions.unreviewedCount(among: candidates)
+        let subject = candidates.count == 1 ? "tag is about" : "tags are about"
+        let base = "\(candidates.count) \(subject) something a card measures. None of them is being used."
+        guard unreviewed > 0 else { return base + " You have answered for all of them." }
+        return base + " \(unreviewed) waiting for your answer."
     }
 
     @ViewBuilder private func groupHeadingRow(_ applicability: TagApplicability) -> some View {
@@ -156,6 +200,19 @@ private struct TagRow: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
+            // **The way back.** Correcting a tag to something else is one tap;
+            // undoing a correction was not possible at all, so a mis-tap left
+            // "You said so" printed under a heading the reader never chose and no
+            // route to what the app actually thought. This drops the stored
+            // answer entirely, so the deterministic classifier's own conclusion
+            // returns and the on-device model is free to be asked again.
+            if summary.mapping.method == .reader {
+                Button("Use the app's own answer instead") {
+                    model.clearTagApplicability(forTagKey: summary.key)
+                }
+                .font(.caption)
+                .buttonStyle(.borderless)
+            }
         }
     }
 

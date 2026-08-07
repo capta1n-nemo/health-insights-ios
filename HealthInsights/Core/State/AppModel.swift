@@ -326,20 +326,32 @@ final class AppModel {
     /// the order matters.
     func refreshTagApplicability() async {
         let summaries = tags.distinctTags().sorted { $0.count > $1.count }
-        let resolved = await tagModel.resolve(summaries)
-        guard !resolved.isEmpty else { return }
+        // ⚠️ Tags the model has already answered about and could not place are
+        // skipped, or they sit at the head of the queue for ever and the tags
+        // behind them are never asked at all. See `TagMappingStore.declinedByModel`.
+        let pass = await tagModel.resolve(summaries, alreadyDeclined: declinedTagKeys)
+        guard !pass.isEmpty else { return }
         var store = tagMappings
-        for (key, mapping) in resolved { store.record(mapping, for: key) }
+        for (key, mapping) in pass.placed { store.record(mapping, for: key) }
+        for key in pass.declined { store.recordModelDeclined(key) }
         tagMappings = store
         // Re-promote so the new answers are on the rows the reader is looking
         // at, rather than waiting for the next sync to redraw them.
         tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
     }
 
+    /// The keys the on-device model has already given up on.
+    private var declinedTagKeys: Set<String> {
+        Set(tags.distinctTags().map(\.key).filter { tagMappings.modelHasDeclined($0) })
+    }
+
     /// The reader overruling the app about one of their own words.
     ///
     /// Ranked above every other method (`TagMappingRank`), so a later sync
-    /// re-classifying the same word cannot undo it.
+    /// re-classifying the same word cannot undo it — and a *second* correction
+    /// replaces the first outright rather than being weighed against it, which
+    /// `TagMappingStore.record` had to learn: two `.reader` mappings rank the
+    /// same, so a strict comparison silently refused the reader's change of mind.
     func setTagApplicability(_ applicability: TagApplicability, forTagKey key: String) {
         var store = tagMappings
         store.record(TagApplicabilityMapping(
@@ -348,6 +360,63 @@ final class AppModel {
                      for: key)
         tagMappings = store
         tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
+    }
+
+    /// **The reader taking their correction back.**
+    ///
+    /// Not the same as correcting it to something else: this drops everything
+    /// stored about the tag, so the deterministic classifier's own answer returns
+    /// and the model is free to be asked again. Without it a reader who mis-taps
+    /// the menu has no route back to what the app thought — and "you said so" is
+    /// then printed under a heading they never chose.
+    func clearTagApplicability(forTagKey key: String) {
+        var store = tagMappings
+        store.clear(key)
+        tagMappings = store
+        tags = TagPromotion.tags(from: otherSamples, resolved: tagMappings)
+    }
+
+    // MARK: - Tags as card candidates (B12-3)
+
+    /// **What the reader has said about each candidate tag — and nothing more.**
+    ///
+    /// ⚠️ Read by exactly one screen, `TagCardCandidatesView`, and by nothing
+    /// that computes a score. That is the reader's own instruction: activity tags
+    /// *"become candidates for cards at the next review"*, not inputs. See
+    /// `TagCardCandidate.isWiredToAnyCard`, which is `false` and is asserted by a
+    /// test so that stops being true deliberately rather than by accident.
+    private(set) var tagCandidateDecisions = TagCandidateDecisionStore() {
+        didSet { saveTagCandidateDecisions() }
+    }
+
+    private static let tagCandidateDecisionsKey = "tagCardCandidateDecisions"
+
+    private func loadTagCandidateDecisions() {
+        guard let data = UserDefaults.standard.data(forKey: Self.tagCandidateDecisionsKey),
+              let store = try? JSONDecoder().decode(TagCandidateDecisionStore.self, from: data)
+        else { return }
+        tagCandidateDecisions = store
+    }
+
+    private func saveTagCandidateDecisions() {
+        if let data = try? JSONEncoder().encode(tagCandidateDecisions) {
+            UserDefaults.standard.set(data, forKey: Self.tagCandidateDecisionsKey)
+        }
+    }
+
+    /// Every tag whose category names a card it could contribute to, most-used
+    /// first, with the reader's answer attached.
+    var tagCardCandidates: [TagCardCandidate] {
+        TagCardCandidate.candidates(from: tags.distinctTags(),
+                                    decisions: tagCandidateDecisions)
+    }
+
+    /// Record the reader's verdict on a candidate. **Records it. That is all it
+    /// does** — nothing downstream reads this to change a figure.
+    func setTagCandidateDecision(_ decision: TagCardCandidateDecision, forTagKey key: String) {
+        var store = tagCandidateDecisions
+        store.set(decision, for: key)
+        tagCandidateDecisions = store
     }
 
     /// Reload the logged data that lives in SwiftData rather than in `samples`,
@@ -1898,6 +1967,9 @@ final class AppModel {
         // model's and their own answers missing, then quietly leave it that way
         // until the next sync.
         loadTagMappings()
+        // Order does not matter for this one — nothing promotes from it — but it
+        // is loaded beside its sibling so the two cannot drift apart.
+        loadTagCandidateDecisions()
 
         // Main actor, because SwiftData's `mainContext` is. Both are small.
         let manual = dataStore.loadManualSamples()
@@ -2567,25 +2639,17 @@ final class AppModel {
         // this can never be the reason the Tags section is late; nothing said it
         // could not be the reason *everything else* was. Detached now, so the
         // sync completes and the headings improve when they improve.
+        // ⚠️ **A merge on 2026-08-08 reverted the detach** — eleven branches all
+        // predated the fix — and the `verify.sh` lint written alongside it is the
+        // only reason that did not ship. If you are reading this because the lint
+        // fired again: it is right, detach it again. The **second** artefact of
+        // that same merge was this call appearing here *twice*, which was not a
+        // harmless duplicate: two detached passes race on `tagMappings`, both
+        // read it before either writes, and the loser's answers are silently
+        // dropped — so a tag the model placed could end the sync still unplaced.
+        // One call, and only one.
         Task { [weak self] in await self?.refreshTagApplicability() }
         timer.lap("tag applicability (detached — not awaited)")
-        // **After the sync has otherwise finished, deliberately.** Every tag is
-        // already promoted and already carries a deterministic applicability, so
-        // this can only improve a heading.
-        //
-        // ⚠️ **NOT awaited, and this is the second time it has had to be said.**
-        // Awaiting it made the whole refresh never finish (`D62`): the reader
-        // lost every card, with a log carrying `Refresh started` and no
-        // `Refresh complete` five minutes later. `resolve` walks up to twelve
-        // tags serially, each a fresh `LanguageModelSession` and a full
-        // on-device response.
-        //
-        // ⚠️ **A merge on 2026-08-08 reverted it** — eleven branches all predated
-        // the fix — and the `verify.sh` lint written alongside it is the only
-        // reason that did not ship. If you are reading this because the lint
-        // fired again: it is right, detach it again.
-        Task { [weak self] in await self?.refreshTagApplicability() }
-        timer.lap("tag applicability")
         // **Last, and after `results` is settled** — the pass compares this
         // refresh's cards against the ones it saw before, so it must see the
         // finished ones. It is also what the background wake-up exists to

@@ -39,7 +39,12 @@ import FoundationModels
 /// It does not wire anything to a card. The reader was explicit that
 /// activity-related tags *"become candidates for cards at the next review"* —
 /// see `TagApplicability.candidateNote`, which is prose rather than an
-/// `InsightID` for exactly that reason.
+/// `InsightID` for exactly that reason, and `TagCardCandidate`, which is where
+/// that review happens and which carries no weight, no metric and no card id.
+///
+/// It also does not decide anything the reader has already decided: a `.reader`
+/// mapping outranks everything here, and this type is never asked about a tag
+/// the reader has placed themselves.
 @MainActor
 final class TagApplicabilityModel {
 
@@ -68,23 +73,54 @@ final class TagApplicabilityModel {
     /// appears, still counts, and still says plainly that it is unplaced.
     static let perPassLimit = 12
 
+    /// What one pass learned. **Two lists, not one**, because "placed it" and
+    /// "asked and got nowhere" are different facts and only the first used to be
+    /// carried back.
+    struct Pass: Sendable {
+        /// The tags it actually placed, keyed by `HealthTag.key`.
+        var placed: [String: TagApplicabilityMapping] = [:]
+        /// The tags it answered about and named no category for — a settled
+        /// "I don't know", to be remembered so the queue can move on. **Never a
+        /// thrown call**: see `Outcome`.
+        var declined: Set<String> = []
+
+        var isEmpty: Bool { placed.isEmpty && declined.isEmpty }
+    }
+
     /// Ask the model about the tags the deterministic tiers could not place.
     ///
-    /// - Parameter summaries: distinct tags, **most-used first**.
-    /// - Returns: only the ones it actually placed, keyed by `HealthTag.key`.
-    ///   An empty dictionary is the correct and common answer — no model on this
-    ///   device, or nothing worth asking about.
-    func resolve(_ summaries: [TagSummary]) async -> [String: TagApplicabilityMapping] {
-        let wanted = summaries.filter { $0.mapping.wantsModelReview }
+    /// - Parameters:
+    ///   - summaries: distinct tags, **most-used first**.
+    ///   - alreadyDeclined: tag keys the model has answered about before and
+    ///     could not place. ⚠️ **Skipping these is not an optimisation — it is
+    ///     the only thing that lets the queue advance.** Without it the same
+    ///     dozen unplaceable tags sit at the head of `wantsModelReview` on every
+    ///     launch and the thirteenth tag is never asked at all, so a reader with
+    ///     twenty invented tags has some the model has never once seen. It also
+    ///     stops the app spending battery re-asking a question it has already had
+    ///     the answer to.
+    /// - Returns: an empty `Pass` is the correct and common answer — no model on
+    ///   this device, or nothing left worth asking about.
+    func resolve(_ summaries: [TagSummary],
+                 alreadyDeclined: Set<String> = []) async -> Pass {
+        let wanted = summaries
+            .filter { $0.mapping.wantsModelReview && !alreadyDeclined.contains($0.key) }
             .prefix(Self.perPassLimit)
-        guard !wanted.isEmpty, isAvailable else { return [:] }
+        guard !wanted.isEmpty, isAvailable else { return Pass() }
 
-        var out: [String: TagApplicabilityMapping] = [:]
+        var out = Pass()
         #if canImport(FoundationModels)
         if #available(iOS 26.0, macOS 15.0, *) {
             for summary in wanted {
-                guard let mapping = await ask(about: summary) else { continue }
-                out[summary.key] = mapping
+                switch await ask(about: summary) {
+                case .placed(let mapping): out.placed[summary.key] = mapping
+                case .declined: out.declined.insert(summary.key)
+                // ⚠️ Deliberately dropped rather than recorded. A throw is Apple
+                // Intelligence being switched off mid-pass, a guardrail, a
+                // timeout — all transient, and remembering one would retire a
+                // tag permanently over a momentary failure.
+                case .failed: break
+                }
             }
         }
         #endif
@@ -93,9 +129,20 @@ final class TagApplicabilityModel {
 
     // MARK: - One tag
 
+    /// **The three ways asking about one tag can end**, kept apart because two of
+    /// them used to be the same `nil` and the caller could not tell a settled
+    /// "I don't know" from a call that never happened.
+    enum Outcome: Sendable {
+        case placed(TagApplicabilityMapping)
+        /// The model replied and named nothing this app has a category for.
+        case declined
+        /// The call threw. Says nothing about the tag.
+        case failed
+    }
+
     #if canImport(FoundationModels)
     @available(iOS 26.0, macOS 15.0, *)
-    private func ask(about summary: TagSummary) async -> TagApplicabilityMapping? {
+    private func ask(about summary: TagSummary) async -> Outcome {
         do {
             // A fresh session per tag rather than one session per pass: a shared
             // transcript lets an earlier answer bias a later one, and these are
@@ -105,8 +152,11 @@ final class TagApplicabilityModel {
             let response = try await session.respond(to: Self.prompt(for: summary))
             let reply = PlainText.strip(response.content)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let applicability = Self.category(named: reply) else { return nil }
-            return TagApplicabilityMapping(
+            // The model answered. If it named nothing this app has — including
+            // its own "Not yet classified" escape hatch — that is a real answer
+            // and the caller records it, so the tag stops blocking the queue.
+            guard let applicability = Self.category(named: reply) else { return .declined }
+            return .placed(TagApplicabilityMapping(
                 applicability: applicability,
                 method: .onDeviceModel,
                 // **Deliberately below every lexicon hit's ceiling and well
@@ -115,13 +165,15 @@ final class TagApplicabilityModel {
                 // tier there is: a language model reading one word out of
                 // context, with nothing to check it against.
                 confidence: 0.45,
-                rationale: "Worked out on this device by the on-device model, from the words “\(summary.name)”. Nothing checked it, so correct it if it is wrong.")
+                rationale: "Worked out on this device by the on-device model, from the words “\(summary.name)”. Nothing checked it, so correct it if it is wrong."))
         } catch {
             // Any model error — unavailable mid-flight, guardrail, timeout —
             // leaves the tag exactly as the lexicon left it. Silence here is the
             // designed behaviour, not a swallowed failure: the caller's fallback
-            // is a complete answer already.
-            return nil
+            // is a complete answer already. ⚠️ And it is `.failed` rather than
+            // `.declined`: a transient failure must not be remembered as the
+            // model's verdict on the word.
+            return .failed
         }
     }
 

@@ -379,6 +379,10 @@ the place to look.
   - `SymptomPromotion` :289
   - `SymptomSeverity` :239
   - `SymptomType` :27
+- `Models/TagCardCandidate.swift`
+  - `TagCandidateDecisionStore` :135
+  - `TagCardCandidate` :31
+  - `TagCardCandidateDecision` :90
 - `Models/TagLexicon.swift`
   - `TagLexicon` :39
 - `Models/TagPromotion.swift`
@@ -750,7 +754,7 @@ the place to look.
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
 - `Core/Intelligence/TagApplicabilityModel.swift`
-  - `TagApplicabilityModel` :44
+  - `TagApplicabilityModel` :49
 - `Core/Location/EventFeedModel.swift`
   - `EventFeedModel` :25
 - `Core/Location/LocationCapture.swift`
@@ -929,9 +933,12 @@ the place to look.
 - `Features/Data/SupplementsDataView.swift`
   - `SupplementProductDataView` :109
   - `SupplementsDataView` :23
+- `Features/Data/TagCardCandidatesView.swift`
+  - `CandidateRow` :84
+  - `TagCardCandidatesView` :27
 - `Features/Data/TagsDataView.swift`
-  - `TagRow` :126
-  - `TagsDataView` :41
+  - `TagRow` :170
+  - `TagsDataView` :46
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ECGImportSheet.swift`
