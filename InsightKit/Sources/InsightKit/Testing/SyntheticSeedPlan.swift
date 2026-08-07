@@ -255,6 +255,20 @@ public extension MetricType {
         // daily would quietly imply the app has a continuous core-temperature
         // feed, which nothing in the reader's setup provides.
         case .bodyTemperature:          return .onWeekdays([4], R(base: 36.7, spread: 0.4))
+        // ⚠️ **Waking, not nocturnal, and that is the whole point of the
+        // channel.** `basalBodyTemperature` is written deliberately — by a
+        // Shortcut on the reader's record, 136 rows over 124 days — which is
+        // exactly why the radar wants it: it survives a night the ring was off,
+        // and that is the night the radar otherwise goes blind. Seeded daily and
+        // narrow, because a waking basal reading is a tight distribution; a wide
+        // spread here would make the radar's new channel look noisy when the
+        // instrument is the steadiest one it has.
+        //
+        // ⚠️ Seeded with **no zeros**, though 35 of the reader's own 136 records
+        // are exact zeros meaning missing. The placeholder filter is what
+        // removes those, and seeding them here would test the filter rather than
+        // the channel — a fixture that quietly exercises the wrong thing.
+        case .basalBodyTemperature:     return .daily(R(base: 36.5, spread: 0.25))
 
         // MARK: Metabolic
         //

@@ -178,6 +178,19 @@ public extension InsightID {
                 zone on any reading, so a calendar entry is the only thing that knows \
                 the reader moved — see the card's own note.
                 """)
+        // Same gate as work impact and travel drain, and for the same reason:
+        // its exposure side is the calendar — events, attendees, formality — and
+        // a seeded simulator has none. ⚠️ **Its third question is gated harder
+        // still**: "does contact restore or drain *you*" is a per-person
+        // direction, and no fixture can carry an answer that is by definition
+        // learned from one reader's own record. A seed that made it score would
+        // be seeding the conclusion.
+        case .socialBattery:
+            return .needsMore("""
+                A calendar with people in it. The card reads events, attendees and \
+                formality as its exposure side, and a seeded simulator has no \
+                calendar — so the depletion comparison has nothing to compare.
+                """)
         }
     }
 }
