@@ -223,7 +223,7 @@ silently; count the enum before trusting the table.
 | Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
-| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "Your ages over time" **+ "How old does each thing think you are"** | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
 | Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
 | Work impact | Insights | ● | ● | ● | ● | ◐ "Your work events" — the calendar review list | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.readerIdentity` | ● | ● |
 | Travel drain | Insights | ● | ● | ● | ● | ◐ "Your travel events" — the same list, `.travel` only | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — deliberate: the model reads time-zone changes and no classifications | ● | ● |
@@ -233,6 +233,17 @@ draw more than one thing *inside* the first slot (Body Composition, Fitness,
 Heart Attack & Stroke Risk, Symptom radar, and — since 2026-08-02 — Sleep, which
 draws four), separated by a `Divider()` and wrapped in `NestedInsightSection` —
 the pattern Body Composition established.
+
+**Biological age's second slot carries two sections since 2026-08-07** —
+"Your ages over time" above "How old does each thing think you are" (backlog
+D22). The order is the reader's question order: *is mine moving* comes before
+*what does everything else say today*. Before this the card had no history at
+all, which was the wrong half to be missing on a model whose own documentation
+says the absolute number is soft to about ±10 years and the direction it moves
+is what survives. Note the chart there draws **two** series — the app's own
+biological age and the vendor's vascular age — and is the only caller of
+`AgeHistoryChart` that draws more than one; see `AgeHistoryChart.banded` for
+why only the leading one gets a filled band.
 
 That stopped being enough for Body Composition on 2026-08-02. **"Weight
 management" is a second top-level bespoke section**, at the user's request, and

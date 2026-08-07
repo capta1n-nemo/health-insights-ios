@@ -20,6 +20,14 @@ import Foundation
 /// it is worth. This does, and where a figure genuinely cannot be justified it
 /// says *that* instead of inventing one.
 ///
+/// ## One row per instrument, including for the app's own ages
+///
+/// "All the sources" was two-thirds true until 2026-08-07: the vendor's vascular
+/// age got a row per device, while the app's **own** fitness and heart ages
+/// arrived here already collapsed to one instrument by `VitalReader`. See
+/// `fitnessEstimates` for why that is the section committing its own subject's
+/// offence, and what it costs on a record with four VO₂max sources.
+///
 /// ⚠️ **The uncertainties here are derived, not cited.** For the app's own
 /// fitness age the arithmetic is available and honest: the norm table it inverts
 /// falls about 0.4 mL/kg·min per year of age, so a VO₂max carrying ±3.5 is an
@@ -62,8 +70,16 @@ public enum AgeComparison {
         /// app's own is the failure this whole section exists to avoid.
         public let attribution: String
         public let uncertainty: Uncertainty
-        /// When the reading behind a **relayed** estimate was taken. Nil for the
-        /// app's own rows, which are computed from whatever is current.
+        /// When the reading behind this estimate was taken.
+        ///
+        /// ⚠️ **The app's own rows carry one too, since 2026-08-07.** They used
+        /// to be documented as "computed from whatever is current", which was
+        /// only true because they were computed from one instrument picked by
+        /// freshness. Now that every instrument gets its own row, a fitness age
+        /// built from a VO₂max that Apple last estimated eight months ago is on
+        /// the section beside one from last week — and the older row has to say
+        /// so, or the disagreement between them reads as physiology when it is
+        /// partly just time.
         ///
         /// ⚠️ **This replaced a freshness *filter*, and the swap is the point.**
         /// The vendor row used to be read through `VitalReader.reading`, whose
@@ -141,6 +157,7 @@ public enum AgeComparison {
                                  sex: BiologicalSex?,
                                  samples: [HealthMetricSample],
                                  biological: BiologicalAgeModel.Output? = nil,
+                                 heartSubject: HeartAgeModel.Subject? = nil,
                                  now: Date = Date(),
                                  calendar: Calendar = .current) -> [Estimate] {
         var out: [Estimate] = []
@@ -152,38 +169,11 @@ public enum AgeComparison {
                 uncertainty: .derived(years: 0, from: "this one is not an estimate")))
         }
 
-        if let fitness, let sex {
-            let perUnit = vo2YearsPerUnit(sex: sex)
-            out.append(Estimate(
-                label: "Fitness age", years: fitness.fitnessAge,
-                attribution: "This app, by inverting the same fitness norms it scores you against",
-                uncertainty: .derived(
-                    years: (vo2EstimateError * perUnit).rounded(),
-                    from: String(format: "a wrist VO₂max is good to about %.1f mL/kg·min, and these norms move %.1f years per unit",
-                                 vo2EstimateError, perUnit))))
-        }
-
-        if let heart, let heartAge = heart.heartAge {
-            // **The error is measurable here, and it is better than a citation.**
-            // This number is the mean of two published risk equations, and how
-            // far apart *they* land on the reader's own numbers is a direct
-            // reading of how much the answer depends on which equation you
-            // believe. Where only one engine is in its validated range there is
-            // nothing to compare it against, and the section says so.
-            let uncertainty: Uncertainty
-            if heart.readings.count >= 2,
-               let low = heart.lowestHeartAge, let high = heart.highestHeartAge {
-                uncertainty = .derived(
-                    years: ((high - low) / 2).rounded(),
-                    from: String(format: "the two published equations behind it land %.0f years apart on your own numbers", high - low))
-            } else {
-                uncertainty = .unstated("Only one of the two risk equations covers your age, so there is nothing to measure this against")
-            }
-            out.append(Estimate(
-                label: "Heart age", years: heartAge,
-                attribution: "This app, by inverting the risk equations on the risk card",
-                uncertainty: uncertainty))
-        }
+        out += fitnessEstimates(chronological: chronological, sex: sex, samples: samples,
+                                fallback: fitness, now: now, calendar: calendar)
+        out += heartEstimates(chronological: chronological, subject: heartSubject,
+                              samples: samples, fallback: heart,
+                              now: now, calendar: calendar)
 
         // **This app's own biological age.** Added 2026-08-06 at the reader's
         // request — *"I wanted it to take all the age estimates from all the
@@ -236,6 +226,154 @@ public enum AgeComparison {
         }
 
         return out
+    }
+
+    // MARK: - The app's own ages, one row per instrument
+
+    /// ⚠️ **The section's own defect, fixed for the app's own rows too.**
+    ///
+    /// The vascular row stopped picking a winner on 2026-08-06 and these two did
+    /// not, which made "every source" two-thirds true for eleven days. Both the
+    /// fitness age and the heart age reached this file having already been
+    /// collapsed to one instrument by `VitalReader.reading` inside
+    /// `HeartAgeAnalyser` — and the reader's export carries **four VO₂max source
+    /// ids and four systolic ones**.
+    ///
+    /// That is the defect this whole section exists to prevent, committed by the
+    /// section itself: *a screen whose subject is that instruments disagree must
+    /// not manufacture agreement by silently choosing one.* A watch's VO₂max and
+    /// a ring's differ by more than the ±9 years either row prints, so the choice
+    /// was moving the answer further than its own stated error — invisibly.
+    ///
+    /// **Why each row is still read through `VitalReader`** rather than off the
+    /// newest raw sample the way the vendor rows are: `VitalReader` is what the
+    /// Fitness card and the risk card compute their headline from, so handing it
+    /// one source's series at a time reproduces the winner's number *exactly*
+    /// while keeping the losers. Read the newest raw sample instead and this
+    /// section would quietly print a fitness age the card above it disagrees
+    /// with — trading one silent disagreement for another.
+    static func fitnessEstimates(chronological: Double?,
+                                 sex: BiologicalSex?,
+                                 samples: [HealthMetricSample],
+                                 fallback: FitnessAgeModel.Output?,
+                                 now: Date,
+                                 calendar: Calendar) -> [Estimate] {
+        guard let sex else { return [] }
+        let perUnit = vo2YearsPerUnit(sex: sex)
+        // Unchanged arithmetic: the norm table's own slope times the instrument's
+        // own error. Only the count of rows it is printed on has changed.
+        let uncertainty = Uncertainty.derived(
+            years: (vo2EstimateError * perUnit).rounded(),
+            from: String(format: "a consumer VO₂max estimate is good to about %.1f mL/kg·min, and these norms move %.1f years per unit",
+                         vo2EstimateError, perUnit))
+
+        func row(_ years: Double, source: String?, asOf: Date?, named: Bool) -> Estimate {
+            Estimate(
+                label: named ? "Fitness age · \(source ?? "")" : "Fitness age",
+                years: years,
+                // The instrument is named even on a single-source row. Naming it
+                // costs nothing and is the whole point: "this app, from *this*
+                // VO₂max" is a different claim from "this app".
+                attribution: source.map {
+                    "This app, reading \($0)'s VO₂max against the same fitness norms it scores you against"
+                } ?? "This app, by inverting the same fitness norms it scores you against",
+                uncertainty: uncertainty,
+                asOf: asOf)
+        }
+
+        var rows: [Estimate] = []
+        if let chronological {
+            let readings = MultiSource.breakdown(.vo2Max, from: samples).sources
+                .compactMap { VitalReader.reading(.vo2Max, from: $0.samples,
+                                                  now: now, calendar: calendar) }
+            for reading in readings {
+                let output = FitnessAgeModel.evaluate(vo2: reading.value, sex: sex,
+                                                      chronologicalAge: chronological)
+                rows.append(row(output.fitnessAge, source: reading.sourceName,
+                                asOf: reading.date, named: readings.count > 1))
+            }
+        }
+        // Nothing in `samples` to break out — a caller that computed the age
+        // elsewhere still gets its row rather than losing it.
+        if rows.isEmpty, let fallback {
+            rows.append(row(fallback.fitnessAge, source: nil, asOf: nil, named: false))
+        }
+        return rows
+    }
+
+    /// The heart age, once per blood-pressure instrument.
+    ///
+    /// **The reader's own cuff is one of them and needs no special case**:
+    /// `DataStore.saveGrounding` mirrors every entered cuff reading into a
+    /// `.bloodPressureSystolic` sample under `MetricSource.manual`, so the
+    /// per-source breakdown already carries it as its own series beside the
+    /// sensed ones. A hand-written "the reading you entered" row would have
+    /// printed it twice.
+    ///
+    /// Only the systolic varies between rows. Cholesterol, smoking and diabetes
+    /// are facts about the person rather than readings from a device, so holding
+    /// them fixed is what makes the spread *between* these rows attributable to
+    /// the instruments — which is the only reason to draw them side by side.
+    static func heartEstimates(chronological: Double?,
+                               subject: HeartAgeModel.Subject?,
+                               samples: [HealthMetricSample],
+                               fallback: HeartAgeModel.Output?,
+                               now: Date,
+                               calendar: Calendar) -> [Estimate] {
+        // **The error is measurable here, and it is better than a citation.**
+        // This number is the mean of two published risk equations, and how far
+        // apart *they* land on the reader's own numbers is a direct reading of
+        // how much the answer depends on which equation you believe. Where only
+        // one engine is in its validated range there is nothing to compare it
+        // against, and the section says so.
+        func uncertainty(_ output: HeartAgeModel.Output) -> Uncertainty {
+            guard output.readings.count >= 2,
+                  let low = output.lowestHeartAge, let high = output.highestHeartAge else {
+                return .unstated("Only one of the two risk equations covers your age, so there is nothing to measure this against")
+            }
+            return .derived(
+                years: ((high - low) / 2).rounded(),
+                from: String(format: "the two published equations behind it land %.0f years apart on your own numbers", high - low))
+        }
+
+        func row(_ output: HeartAgeModel.Output, source: String?,
+                 asOf: Date?, named: Bool) -> Estimate? {
+            guard let heartAge = output.heartAge else { return nil }
+            return Estimate(
+                label: named ? "Heart age · \(source ?? "")" : "Heart age",
+                years: heartAge,
+                attribution: source.map {
+                    "This app, inverting the risk equations on the risk card against \($0)'s blood pressure"
+                } ?? "This app, by inverting the risk equations on the risk card",
+                uncertainty: uncertainty(output),
+                asOf: asOf)
+        }
+
+        var rows: [Estimate] = []
+        if let subject, let chronological {
+            let solved = MultiSource.breakdown(.bloodPressureSystolic, from: samples).sources
+                .compactMap { series -> (VitalReading, HeartAgeModel.Output)? in
+                    guard let reading = VitalReader.reading(.bloodPressureSystolic,
+                                                            from: series.samples,
+                                                            now: now, calendar: calendar)
+                    else { return nil }
+                    var perSource = subject
+                    perSource.systolicBP = reading.value
+                    return HeartAgeModel.evaluate(subject: perSource, age: chronological)
+                        .map { (reading, $0) }
+                }
+            for (reading, output) in solved {
+                if let estimate = row(output, source: reading.sourceName,
+                                      asOf: reading.date, named: solved.count > 1) {
+                    rows.append(estimate)
+                }
+            }
+        }
+        if rows.isEmpty, let fallback, let estimate = row(fallback, source: nil,
+                                                         asOf: nil, named: false) {
+            rows.append(estimate)
+        }
+        return rows
     }
 
     /// The spread across every estimate that is not the reader's real age.

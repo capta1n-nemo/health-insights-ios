@@ -70,12 +70,26 @@ public struct HeartAgeAnalyser {
         public let vo2Used: Double?
         public let vascularAgeUsed: Double?
         public let vascularAgeSource: String?
+        /// The risk-factor set the heart age was solved from, everything except
+        /// the age itself.
+        ///
+        /// Carried out of here so `AgeComparison` can re-solve the same equations
+        /// **once per blood-pressure instrument** without rebuilding the subject
+        /// from a profile it does not see. Before this it could not, so the one
+        /// section in the app whose subject is that instruments disagree printed
+        /// a single heart age off whichever systolic source `VitalReader` had
+        /// picked — see `AgeComparison.heartEstimates`.
+        ///
+        /// Nil for every early return here: without a sex, an age or a blood
+        /// pressure there is no subject to carry.
+        public let subject: HeartAgeModel.Subject?
 
         public init(chronologicalAge: Double?, heart: HeartAgeModel.Output?,
                     fitness: FitnessAgeModel.Output?,
                     projections: [HeartAgeModel.Projection], assumedCholesterol: Bool,
                     systolicUsed: Double? = nil, vo2Used: Double? = nil,
-                    vascularAgeUsed: Double? = nil, vascularAgeSource: String? = nil) {
+                    vascularAgeUsed: Double? = nil, vascularAgeSource: String? = nil,
+                    subject: HeartAgeModel.Subject? = nil) {
             self.chronologicalAge = chronologicalAge
             self.heart = heart
             self.fitness = fitness
@@ -85,6 +99,7 @@ public struct HeartAgeAnalyser {
             self.vo2Used = vo2Used
             self.vascularAgeUsed = vascularAgeUsed
             self.vascularAgeSource = vascularAgeSource
+            self.subject = subject
         }
 
         /// The age we lead with: the clinical one when it exists, else fitness.
@@ -151,7 +166,8 @@ public struct HeartAgeAnalyser {
             assumedCholesterol: assumed,
             systolicUsed: systolic, vo2Used: vo2Reading?.value,
             vascularAgeUsed: vascularReading?.value,
-            vascularAgeSource: vascularReading?.sourceName)
+            vascularAgeSource: vascularReading?.sourceName,
+            subject: subject)
     }
 
     /// The sensed metrics behind the two ages, so the detail chart plots what

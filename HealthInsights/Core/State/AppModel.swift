@@ -2567,7 +2567,11 @@ final class AppModel {
                 chronological: analysis.chronologicalAge,
                 fitness: analysis.fitness, heart: analysis.heart,
                 sex: profile.sex, samples: samples,
-                biological: biological, now: Date())
+                biological: biological,
+                // The risk-factor set, so the section can re-solve the heart age
+                // once per blood-pressure instrument instead of printing the one
+                // `VitalReader` picked. See `AgeComparison.heartEstimates`.
+                heartSubject: analysis.subject, now: Date())
             await MainActor.run { [weak self] in
                 guard let self, self.scoreHistoryGeneration == generation else { return }
                 self.riskProjections = analysis.projections

@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 import InsightKit
 
-/// Heart age and fitness age against your real age, over time.
+/// Every computed age against your real age, over time.
 ///
 /// The card used to show three numbers and a dial — where you are, and nothing
 /// about which way it's going. Direction is the actionable part: a heart age of
@@ -13,13 +13,45 @@ import InsightKit
 /// than that is closing the gap even while its own number rises, which no chart
 /// of the age alone can show.
 struct AgeHistoryChart: View {
-    /// The two ages get hues of their own rather than borrowing slot 0 and slot
-    /// 2, which are heart rate's and blood oxygen's preferred ones. Low severity
-    /// — neither age is a `MetricType` and they never share a chart with those
-    /// two — but "it can't collide today" is the belief that shipped wrong once
-    /// already, and the far end of the palette is free.
-    static let heartSlot = 7
-    static let fitnessSlot = 5
+    /// The computed ages get hues of their own rather than borrowing slot 0 and
+    /// slot 2, which are heart rate's and blood oxygen's preferred ones. Low
+    /// severity — none of these is a `MetricType` and they never share a chart
+    /// with those two — but "it can't collide today" is the belief that shipped
+    /// wrong once already, and the far end of the palette is free.
+    ///
+    /// Four distinct slots (red, green, violet, orange) plus blue for the
+    /// chronological line, so **any** combination of these series stays
+    /// separable by hue alone — §3's rule, and the reason the two added on
+    /// 2026-08-07 did not simply reuse the two already here.
+    static let heartSlot = 7        // red
+    static let fitnessSlot = 5      // green
+    static let biologicalSlot = 6   // violet
+    static let vascularSlot = 1     // orange
+
+    /// One drawable age, in the order `AgePoint.leadingAge` prefers them.
+    ///
+    /// A table rather than four hand-written blocks: the blocks were duplicated
+    /// per series across the marks, the legend and the scrub read-out, so adding
+    /// a series meant remembering three places and a series drawn but absent
+    /// from the legend is a line with no name on it.
+    struct Series: Identifiable {
+        let id: String
+        /// What the legend calls it; the read-out uses the first word.
+        let label: String
+        let slot: Int
+        let value: (AgePoint) -> Double?
+
+        var tint: Color { Theme.paletteColour(slot: slot) }
+        var short: String { String(label.split(separator: " ").first ?? "") }
+    }
+
+    static let series: [Series] = [
+        .init(id: "heart", label: "Heart age", slot: heartSlot, value: \.heart),
+        .init(id: "fitness", label: "Fitness age", slot: fitnessSlot, value: \.fitness),
+        .init(id: "biological", label: "Biological age", slot: biologicalSlot,
+              value: \.biological),
+        .init(id: "vascular", label: "Vascular age", slot: vascularSlot, value: \.vascular),
+    ]
 
     let points: [AgePoint]
     var window: TimeInterval = 365 * 24 * 3600
@@ -58,8 +90,11 @@ struct AgeHistoryChart: View {
                 Text(hit.date.formatted(date: .abbreviated, time: .omitted))
                     .foregroundStyle(.tertiary)
                 value("You", hit.chronological, Self.chronologicalTint)
-                if let heart = hit.heart { value("Heart", heart, Theme.paletteColour(slot: AgeHistoryChart.heartSlot)) }
-                if let fitness = hit.fitness { value("Fitness", fitness, Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot)) }
+                ForEach(drawn) { series in
+                    if let years = series.value(hit) {
+                        value(series.short, years, series.tint)
+                    }
+                }
                 Spacer()
             }
             .font(.caption2)
@@ -67,6 +102,25 @@ struct AgeHistoryChart: View {
             Text(" ").font(.caption2)
         }
     }
+
+    /// The series this chart's own data actually contains.
+    ///
+    /// Every caller blanks the ages that are not its card's, so this is normally
+    /// one — see `InsightDetailView.ageHistoryCard`.
+    private var drawn: [Series] {
+        Self.series.filter { series in points.contains { series.value($0) != nil } }
+    }
+
+    /// The one series that gets a filled band to the chronological line.
+    ///
+    /// ⚠️ **One, never several, and that is `add-chart` §8 rather than taste.**
+    /// These bands are translucent, so where two of them cover the same stretch
+    /// they *mix* into a third colour that means nothing. It was tolerable while
+    /// only ever one could be drawn; with four series available it stops being a
+    /// theoretical hazard. The card's own age — the one `AgePoint.leadingAge`
+    /// picks, and the one the section's pace figure is about — keeps the band,
+    /// and anything drawn beside it is a line only.
+    private var banded: Series? { drawn.first }
 
     private func value(_ label: String, _ years: Double, _ tint: Color) -> some View {
         HStack(spacing: 3) {
@@ -152,53 +206,36 @@ struct AgeHistoryChart: View {
         // which a fill to the baseline cannot express at all.
         //
         // `AreaMark(x:yStart:yEnd:)` takes no `stacking:` — an absolute band
-        // between two heights is inherently unstacked, which is what lets the
-        // two bands overlap honestly instead of one displacing the other
-        // (`add-chart` §7).
+        // between two heights is inherently unstacked (`add-chart` §7).
         //
-        // ⚠️ Kept to a light opacity on purpose: where both bands cover the
-        // same stretch they *do* mix, and §8's hatch-never-blend applies. The
-        // mixing is tolerable only because both bands share a baseline the
-        // reader can see — your own age is drawn solid on top of both — so
-        // neither region is ever the sole carrier of a value.
-        ForEach(visible.filter { $0.heart != nil }) { point in
-            AreaMark(x: .value("Day", point.date),
-                     yStart: .value("Age", point.chronological),
-                     yEnd: .value("Age", point.heart ?? point.chronological))
-                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.heartSlot).opacity(0.16))
+        // ⚠️ **Exactly one band, whatever is drawn** — see `banded` for why
+        // several translucent ones is §8's hatch-never-blend in a chart that now
+        // has four series to choose from.
+        ForEach(banded.map { [$0] } ?? []) { series in
+            ForEach(visible.filter { series.value($0) != nil }) { point in
+                AreaMark(x: .value("Day", point.date),
+                         yStart: .value("Age", point.chronological),
+                         yEnd: .value("Age", series.value(point) ?? point.chronological))
+                    .foregroundStyle(series.tint.opacity(0.16))
+            }
         }
-        ForEach(visible.filter { $0.fitness != nil }) { point in
-            AreaMark(x: .value("Day", point.date),
-                     yStart: .value("Age", point.chronological),
-                     yEnd: .value("Age", point.fitness ?? point.chronological))
-                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot).opacity(0.16))
-        }
-        ForEach(visible.filter { $0.heart != nil }) { point in
-            LineMark(x: .value("Day", point.date),
-                     y: .value("Age", point.heart ?? 0),
-                     series: .value("Series", "Heart"))
-                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.heartSlot))
-                .lineStyle(StrokeStyle(lineWidth: 2))
-                .interpolationMethod(.linear)
-        }
-        ForEach(visible.filter { $0.fitness != nil }) { point in
-            LineMark(x: .value("Day", point.date),
-                     y: .value("Age", point.fitness ?? 0),
-                     series: .value("Series", "Fitness"))
-                .foregroundStyle(Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot))
-                .lineStyle(StrokeStyle(lineWidth: 2))
-                .interpolationMethod(.linear)
+        ForEach(drawn) { series in
+            ForEach(visible.filter { series.value($0) != nil }) { point in
+                LineMark(x: .value("Day", point.date),
+                         y: .value("Age", series.value(point) ?? 0),
+                         series: .value("Series", series.label))
+                    .foregroundStyle(series.tint)
+                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .interpolationMethod(.linear)
+            }
         }
     }
 
     private var legend: some View {
         HStack(spacing: 12) {
             legendKey("Your age", Self.chronologicalTint)
-            if points.contains(where: { $0.heart != nil }) {
-                legendKey("Heart age", Theme.paletteColour(slot: AgeHistoryChart.heartSlot))
-            }
-            if points.contains(where: { $0.fitness != nil }) {
-                legendKey("Fitness age", Theme.paletteColour(slot: AgeHistoryChart.fitnessSlot))
+            ForEach(drawn) { series in
+                legendKey(series.label, series.tint)
             }
             Spacer()
         }
