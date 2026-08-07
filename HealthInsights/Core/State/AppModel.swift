@@ -2367,13 +2367,30 @@ final class AppModel {
         launchPhase = .summarising
         await refreshSummaryIfChanged(now: startedAt, diag: diag)
         timer.lap("daily summary")
-        // **After the sync has otherwise finished, deliberately.** Every tag is
-        // already promoted and already carries a deterministic applicability, so
-        // this can only improve a heading — it can never be the reason the Tags
-        // section is empty or late. On a device with no on-device model it
-        // returns having done nothing.
-        await refreshTagApplicability()
-        timer.lap("tag applicability")
+        // **After the sync has otherwise finished, and NOT awaited.** Every tag
+        // is already promoted and already carries a deterministic applicability,
+        // so this can only improve a heading.
+        //
+        // ⚠️ **It was `await`ed until 2026-08-07 and that made it the reason the
+        // whole refresh never finished.** The reader, from their phone: *"Data
+        // no longer showing in the app"* — with a diagnostics log that had
+        // `Refresh started` and **no `Refresh complete` at all**, five minutes
+        // later, plus a 12.75 s main-thread block.
+        //
+        // `TagApplicabilityModel.resolve` loops **serially** over up to
+        // `perPassLimit` (12) tags, building a fresh `LanguageModelSession` and
+        // awaiting a full on-device response for each — deliberately, so one bad
+        // answer costs one tag rather than the batch. That is right for the
+        // classifier and fatal in front of the completion marker: twelve
+        // sequential model round trips, the first including model load, all
+        // before `lastRefreshedAt` and before the cards are told the sync ended.
+        //
+        // **The comment above was true and the code did not honour it.** It said
+        // this can never be the reason the Tags section is late; nothing said it
+        // could not be the reason *everything else* was. Detached now, so the
+        // sync completes and the headings improve when they improve.
+        Task { [weak self] in await self?.refreshTagApplicability() }
+        timer.lap("tag applicability (detached — not awaited)")
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })

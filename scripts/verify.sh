@@ -674,6 +674,35 @@ PYEOF
     fi
 fi
 
+# --- The sync's completion is never gated on an optional enrichment --------
+#
+# ⚠️ Found on the reader's phone 2026-08-07: "Data no longer showing in the app",
+# with a diagnostics log carrying `Refresh started` and **no `Refresh complete`
+# at all** five minutes later, plus a 12.75 s main-thread block.
+#
+# `performRefresh` awaited `refreshTagApplicability()` before its completion
+# marker. That function loops serially over up to twelve tags, building a fresh
+# `LanguageModelSession` and awaiting a full on-device model response for each —
+# right for the classifier, fatal in front of the marker. The sync never
+# finished, so `lastRefreshedAt` never moved and the cards never learnt the data
+# had arrived.
+#
+# **The class this checks: an on-device model call is never awaited on the path
+# that tells the app its data is ready.** Enrichment that "can only improve a
+# heading" must not be able to stop the heading existing.
+if [ -f HealthInsights/Core/State/AppModel.swift ]; then
+    gated=$(awk '/private func performRefresh/,/^    \}/' \
+        HealthInsights/Core/State/AppModel.swift \
+        | grep -nE 'await .*(Applicability|Summarizer|LanguageModel|onDeviceModel)' \
+        | grep -vE '^[0-9]+:[[:space:]]*(//|\*)' \
+        | grep -vE 'Task[[:space:]]*(\{|\.detached)' || true)
+    if [ -n "$gated" ]; then
+        note "performRefresh awaits an on-device model call before it reports the sync complete. Detach it — the reader lost every card to exactly this on 2026-08-07:"
+        printf '%s\n' "$gated"
+        fail=1
+    fi
+fi
+
 # --- The export never reads a lazy view cache ------------------------------
 #
 # Found 2026-08-07 in the reader's own export: all 18 cards carried
