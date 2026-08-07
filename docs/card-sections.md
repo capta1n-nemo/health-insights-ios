@@ -1,8 +1,10 @@
 # Card sections — what each screen actually renders
 
 _Audit of record. Re-derived 2026-07-31 after the consolidation from seventeen
-insight cards to nine, and again 2026-08-01 after the section order changed.
-Every cell was read out of the code._
+insight cards to nine, again 2026-08-01 after the section order changed, and
+**swept against the code 2026-08-07** (backlog D15 + D48) after nine more cards
+had shipped without the hand-written tables moving. Every cell was read out of
+the code._
 
 Written because the app had three families of card-based screen and no record of
 which sections each shows. The first pass found eight inconsistencies; five were
@@ -18,8 +20,9 @@ scanning the same baselines — and they were merged to nine.
 
 ## 1. Insight detail screens
 
-One file renders all nine: `HealthInsights/Features/Insights/InsightDetailView.swift`.
-Its `body` is a fixed sequence. Nothing is per-insight except the gates.
+One file renders **all eighteen**:
+`HealthInsights/Features/Insights/InsightDetailView.swift`. Its `body` is a fixed
+sequence. Nothing is per-insight except the gates.
 
 ### The order, and why
 
@@ -145,8 +148,8 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | 2 | `Drv` | "What's driving this" | **always** |
 | 3 | `ScrHx` | "Score over time" | **always** |
 | 4 | `Chg` | "What changed" — period contrast | **always** |
-| 5 | *bespoke* | the card's own picture of its own subject | one `switch`, all nine cards |
-| 6 | *bespoke 2* | "Weight management" | Body Composition only; `EmptyView` elsewhere |
+| 5 | *bespoke* | the card's own picture of its own subject | one exhaustive `switch`, all **eighteen** ids, no `default:` — Readiness's arm is a deliberate `EmptyView()` |
+| 6 | *bespoke 2* | "Weight management" · "How old does each thing think you are" · "How hard you worked" + "How much you moved" | Body Composition, Biological age and Fitness; `EmptyView` on the other fifteen |
 | 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
 | 8 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
 | 9 | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
@@ -154,8 +157,8 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | 11 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
 | 12 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
 | 13 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
-| 14 | `V&A` | "View & add" | the model's `contributions` is non-empty |
-| 15 | `Fbk` | "Was this accurate?" | `primaryValue != nil` |
+| 14 | `V&A` | "View & add" | the model's `contributions` is non-empty — twelve of eighteen cards |
+| 15 | `Fbk` | "Was this accurate?" / "Is this right about you?" | **always**, since 2026-08-06 (`5330d92`). `primaryValue == nil` now only changes the wording |
 | — | `Disc` | disclaimer | always |
 
 **Every gate above that says "always" was `◐` at the start of 2026-08-01.** The
@@ -195,35 +198,52 @@ three: closed by the reader, opened by the reader, and not yet asked.
 **Key** — `●` always renders · `◐` renders once the data clears a floor ·
 `○` cannot ever render.
 
+⚠️ **Swept against the code 2026-08-07 (backlog D15/D48).** It had **fifteen**
+rows against `InsightID.allCases`' **eighteen** — Symptom radar, Work impact and
+Travel drain had never been added — and three columns were describing the app of
+2026-08-01: `Fbk` was `◐` everywhere after being ungated (`5330d92`, "Q5 feedback
+ungated"), `V&A` was `○` on two cards that have one, and Readiness's bespoke cell
+described a section its `case` renders `EmptyView` for. **Rows come from
+`InsightID.allCases` and nothing generates them**, which is why they go stale
+silently; count the enum before trusting the table.
+
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● "How hard you worked" + "How much you moved" | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ — the age comparison moved to Biological age 2026-08-06 | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Nutrition | Insights | ● | ● | ● | ● | ◐ "Vitamins and minerals" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
-| Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ 3 nested: "Your fortnight", "How fast you fall asleep", "Breathing during sleep"** | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.screenTime` | ● | ● |
+| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
+| Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● "How hard you worked" + "How much you moved" | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ — the age comparison moved to Biological age 2026-08-06 | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Nutrition | Insights | ● | ● | ● | ● | ◐ "Vitamins and minerals" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Work impact | Insights | ● | ● | ● | ● | ◐ "Your work events" — the calendar review list | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.readerIdentity` | ● | ● |
+| Travel drain | Insights | ● | ● | ● | ● | ◐ "Your travel events" — the same list, `.travel` only | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — deliberate: the model reads time-zone changes and no classifications | ● | ● |
 
-**The bespoke slot is one slot, and there is now a second one.** Four cards
-draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
-& Stroke Risk, and — since 2026-08-02 — Sleep), separated by a `Divider()` and
-wrapped in `NestedInsightSection` — the pattern Body Composition established.
+**The bespoke slot is one slot, and there is now a second one.** Five cards
+draw more than one thing *inside* the first slot (Body Composition, Fitness,
+Heart Attack & Stroke Risk, Symptom radar, and — since 2026-08-02 — Sleep, which
+draws four), separated by a `Divider()` and wrapped in `NestedInsightSection` —
+the pattern Body Composition established.
 
 That stopped being enough for Body Composition on 2026-08-02. **"Weight
 management" is a second top-level bespoke section**, at the user's request, and
 it needed no new placement rule: it is a fixed position 6 for every card, and
-`EmptyView` on the eight that have nothing to put there. The thing Phase 1
+`EmptyView` on the fifteen that have nothing to put there. The thing Phase 1
 bought — one placement rule, not one per card — survives, because the rule is
-still positional and not per-insight.
+still positional and not per-insight. **Three cards fill it now**, not one:
+Body Composition's "Weight management", Biological age's "How old does each
+thing think you are" (moved off the risk card 2026-08-06), and Fitness, which is
+the one card putting *two* sections in the second slot — "How hard you worked"
+and "How much you moved".
 
 **Sleep's second picture is "Last night in stages"** (`NightSleepChart`,
 backed by `NightSleepDetail` in InsightKit): one lane per source, stage bands
@@ -255,27 +275,43 @@ those two strips would have arrived hidden inside a collapsed generic section.
 **A card's own picture of its own subject must not be something you have to open
 a shared section to find**, so both were promoted into the bespoke slot itself.
 
-**Every card renders the same sections, in the same order, always.** Three
+**Every card renders the same sections, in the same order, always.** Two
 deliberate exceptions remain, each about the *card* rather than about the data:
 
-- **`V&A` reaches six.** The three without it — Readiness, Sleep, Energy — ask
-  the user for nothing and are built entirely from sensed data. "Add a reading"
-  on a card that takes none is a control that can never do anything.
+- **`V&A` reaches twelve of the eighteen.** The six without it — Readiness,
+  Energy, Stress load, How you walked, Mental health, Travel drain — ask the user
+  for nothing and are built entirely from sensed data. "Add a reading" on a card
+  that takes none is a control that can never do anything.
+  **It is derived, not switched:** `InsightModel.contributions` defaults to
+  `requirements.isEmpty ? [] : [.groundingFacts(…)]`, and six models override it
+  because a dated log is not a profile fact — Sleep (`.screenTime`), Substance
+  Impact (`.substanceLog`), Blood Pressure (`.bloodPressureReadings`), Symptom
+  radar (`.symptomLog`), Work impact (`.readerIdentity`) and Body Composition.
+  *(This bullet said "reaches six … Readiness, Sleep, Energy" until 2026-08-07,
+  which was the count from before the derivation landed and before nine more
+  cards existed.)*
 - **The bespoke slot is per-card by construction** — it is the card's own
   picture of its own subject, so there is nothing generic to draw in its place.
-  It reaches all nine, and four cards draw *two* things in it, nested under one
-  `Divider()`. *(This line previously said five while the paragraph above said
-  three; the real count was three, and Sleep made it four on 2026-08-02.)*
-- **`Fbk` needs a number to rate.** "Was this accurate?" on a card showing no
-  value is a control with no subject, and feedback recorded against nothing
-  pollutes the telemetry the models are tuned on.
+  Its `switch` is exhaustive over all eighteen ids with no `default:`
+  (`adca807`), and five cards draw more than one thing in it under a `Divider()`.
+  **Readiness's arm is `EmptyView()` on purpose** and the comment on it says so:
+  its subject *is* the seventeen-vital scan, which `Nrm` already draws unnarrowed
+  for this one card, and a second copy would be the same strip twice.
+- ~~**`Fbk` needs a number to rate.**~~ **Gone 2026-08-06** (`5330d92`, backlog
+  Q5). `feedbackCard` is now rendered unconditionally and the `primaryValue ==
+  nil` branch only rewords the question — "Is this right about you?" / "Yes" /
+  "No" instead of "Was this accurate?" / "Accurate" / "Not accurate". A card with
+  no number still has a claim worth agreeing or disagreeing with, which is what
+  the old gate had missed.
 
 ### Why the rest are `●` with nothing to show
 
 They were all `◐` until 2026-08-01, and the floors are high: two scored days for
 `ScrHx`, fourteen paired days for `Patt` and `1st`, seven days in each of two
 windows for `Chg`. Measured rather than assumed — a replay over a realistic
-five-signal dataset gives **four of the nine cards zero score-history points** —
+five-signal dataset gives **four of the nine cards zero score-history points**
+(measured 2026-08-01, when there were nine; the ratio has not been re-measured
+against eighteen) —
 so "Score over time" was absent more often than present, and its absence read as
 the chart having been taken away.
 
@@ -637,50 +673,97 @@ _Read out of the code 2026-08-01, because "we made improvements and they only go
 into some cards" is a claim nobody could check against the matrix above: it says
 *which* sections render, never what each one does._
 
-Key — `●` yes · `○` no · `—` not applicable.
+⚠️ **Re-read out of the code 2026-08-07 (backlog D15), and it had drifted three
+ways.** The `#` column was a numbering of its own that had never matched the
+generated map — two schemes for the same fifteen slots in one file — so it now
+uses the map's positions and the bespoke sections are a separate table. The `On`
+column still said `all 9` and still listed "How you compare" as Heart Health's
+and "How far from your normal" as Readiness's, which was the world before those
+two went universal on 2026-08-01. And the eleven bespoke sections added since
+2026-08-06 were missing entirely, which matters because **six of them have no
+empty state at all** — see the note under the second table.
 
-| # | Section | On | Arrives | Empty state | Figure | Caveat | Chart |
-|---|---|---|---|---|---|---|---|
-| 2 | Score over time | all 9 | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
-| 3 | What's driving this | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `.none` | — |
-| 4 | How this is weighted | all 9 | **closed** | ● 5 reasons | `n` weighted | `unscored` | — |
-| 5a | Your readings | BP | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
-| 5b | Heart/Fitness age over time | CVR, Fit | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
-| 5c | If today's numbers hold | CVR | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
-| 5d | Where this is heading | Fit | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
-| 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
-| 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
-| 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
-| 5n | How fast you fall asleep | Sleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
-| 5o | Breathing during sleep | Sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
-| 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
-| 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
-| 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
-| 5j | What you're made of | BodyC | open (closed when empty) | ● | total kg | `.none` | stacked bar |
-| 5k | How that has changed | BodyC | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
-| 5m | Your build | BodyC | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
-| 6b | **How hard you worked** | Fit | open (absent when no effort data) | ● the gate, as a fact | min moderate+ | `partial` | — (seven wear-scaled bars) |
-| 6c | **How much you moved** | Fit | open (absent when nothing recorded) | ● | week's steps | `partial` | — (three totals) |
-| 6a | **Weight management** | BodyC | open (closed when empty) | ● | mg in your system | `.none` | — (the section) |
-| 6a·1 | Since you started | BodyC | nested in 6a | ● | — | `doseAttribution` | — (four figures) |
-| 6a·2 | Medication in your system | BodyC | nested in 6a | ● | mg | `.none` | `MedicationCurveChart` |
-| 6a·3 | Is it working | BodyC | nested in 6a | ● | — | `.none` | `MedicationResponseChart` |
-| 6a·4 | By dose | BodyC | nested in 6a, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
-| 6a·5 | By injection site | BodyC | nested in 6a, if recorded | ● | — | `doseAttribution` | — (grid) |
-| 6a·6 | Side effects | BodyC | nested in 6a, if any | ● | — | `.none` | — (worst avg first) |
-| 6 | Patterns worth a look | all 9 | **closed** | ● 4 reasons | `n` found | `associationsNotCauses` | — |
-| 7 | What comes first | all 9 | **closed** | ● 4 reasons | `n` leading | `fittedThrough` | — |
-| 8 | What goes into this | all 9 | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
-| 9 | What changed | all 9 | open (closed when empty) | ● 2 reasons | `n` signals | `periodContrast` | — |
-| 10 | Full history | all 9 | open | ○ | `n` signals | `.none` | — |
-| 11 | View & add | 6 | open, **not closable** | ○ | per route | own | — |
-| 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
+Key — `●` yes · `○` no · `—` not applicable. `#` is the position in the generated
+map above.
 
-**Every section on every card now has an empty state**, bespoke included, as of
-2026-08-01. The eleven bespoke ones were the last that simply vanished, and their
-absence was the most confusing of any: "Your fortnight" gone could mean no sleep
-data at all or fewer than `CircadianConsistencyModel.minimumNights` nights — a
-provider problem and a patience problem, indistinguishable from the outside.
+**The fifteen generic slots**, every one of them on all eighteen cards:
+
+| # | Section | Arrives | Empty state | Figure | Caveat | Chart |
+|---|---|---|---|---|---|---|
+| 1 | the score itself | — (not an `InsightSection`) | — | dial or headline | — | — |
+| 2 | What's driving this | open (closed when empty) | ● 2 reasons | `n` notes | `.none` | — |
+| 3 | Score over time | open (closed when empty) | ● 3 reasons | trend/week | `scoreFloor` | `ScoreHistoryChart` |
+| 4 | What changed | open (closed when empty) | ● 2 reasons | `n` signals / "No shift" | `periodContrast(days:)` | — |
+| 5 | *bespoke* | see the second table | | | | |
+| 6 | *bespoke 2* | see the second table | | | | |
+| 7 | What goes into this | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
+| 8 | How this is weighted | **closed** | ● 5 reasons | `n` weighted / "None" | `unscored(signals:)` | — |
+| 9 | How you compare | open (closed when empty) | ● `needsInput` (no DOB/sex) or `notComputable` | `n`th centile overall | `approximateNorms` | `PeerStandingStrip` |
+| 10 | How far from your normal | open (closed when empty) | ● `notComputable` | `n` checked | `computed(.partial, …)` from the panel's own footnote | `VitalDepartureStrip` |
+| 11 | Patterns worth a look | **closed** | ● 4 reasons | `n` found / "None yet" | `associationsNotCauses` (`.none` when empty) | — |
+| 12 | What comes first | **closed** | ● 4 reasons | `n` leading / "None yet" | `fittedThrough(points:)` (`.none` when empty) | — |
+| 13 | Full history | open | ○ — the whole section is absent with no metrics and no aux inputs | `n` signals | `.none` | — |
+| 14 | View & add | open, **not closable** | ○ | per route | own | — |
+| 15 | Was this accurate? | open, **not closable** | ○ | — | — | — |
+
+**The bespoke sections** — slot 5 unless marked `6`:
+
+| Card | Section | Arrives | Empty state | Figure | Caveat | Chart |
+|---|---|---|---|---|---|---|
+| BP | Your readings | open (closed when empty) | ● | category | `.none` | `BloodPressureChart` |
+| CVR, Fit | Heart/Fitness age over time | open (closed when empty) | ● | years/year | `replayedHistory` | `AgeHistoryChart` |
+| CVR | If today's numbers hold | open (closed when empty) | ● | out to age | `ifTodaysNumbersHold` | `RiskProjectionBar` |
+| Fit | Where this is heading | open (closed when empty) | ● | in a year | `ifTodaysNumbersHold` | `FitnessProjectionChart` |
+| Energy | Today | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
+| Sleep | Last night in stages | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
+| Sleep | Your fortnight | nested in the night card | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
+| Sleep | How fast you fall asleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| Sleep | Breathing during sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| Subst | Cardiovascular load | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
+| HH | How your heart responds | closed behind its preview either way | ● `needsInput` (a recorded workout, and the remedy says so — nothing under "View & add" can record one) | −`n` bpm in a minute | `approximate` (Cole et al., NEJM 1999) | — (recovery + autonomic rows) |
+| BodyC | What you're made of | open (closed when empty) | ● | total kg | `.none` | stacked bar |
+| BodyC | How that has changed | open (closed when empty) | ● | kg delta | `compositionWindow` | `BodyCompositionTrendChart` |
+| BodyC | Your build | open (closed when empty) | ● | dominant type | `computed` | three-bar rating |
+| Readi | — | — | — | — | — | — (`EmptyView()`; the scan is drawn by slot 10) |
+| Radar | The radar | open | ● `needsMore` | — | `computed(.partial, …)` | `SymptomRadarWebCard` (hand-drawn polar `Path`) |
+| Radar | …its scorecard | nested, **absent** until `flagRate` and `coverage` both exist | ○ | flag days, coverage | prose, not a `SectionCaveat` | — |
+| Gait | Which half moved | closed behind its preview | ◐ **only the "too small to apportion" arm**; nothing at all when `GaitModel.evaluate` returns `nil` | ±`n`% speed | `approximate` | — (one share bar) |
+| Mental | What moved, and which way | closed behind its preview | ○ — **the section vanishes** when `evaluate` returns `nil` | `n` of `m` moved | `approximate` | — (signed departure strip) |
+| Stress | Where the load is sitting | closed behind its preview | ○ — **vanishes** | `n` of `m` leaning | `approximate` | — (the same signed strip) |
+| Nutr | Vitamins and minerals | closed behind its preview | ○ — **vanishes** | `n` of `m` from your log | `estimated`/`partial`, from `MicronutrientEstimate.caveat` | — (per-nutrient bars) |
+| Metab | What you burn against what you should | closed behind its preview | ○ — **vanishes** when there is no predicted TDEE | `n`% speed | `fitted` | — (two bars) |
+| BioAge | What each marker says | closed behind its preview; **open** when there are no markers, because the preview is then `""` | ○ — **vanishes** | ±`n` years | `approximate` | — (per-marker age strip) |
+| Work | Your work events | closed behind its preview | ○ — **vanishes** with no events | `n`% right so far | `computed(.estimated, …)` | — (review rows) |
+| Travel | Your travel events | closed behind its preview | ○ — **vanishes** with no events | `n`% right so far | `computed(.estimated, …)` | — (review rows) |
+| Fit `6` | **How hard you worked** | open (absent when no effort data) | ● the gate, as a fact | min moderate+ | `partial` | — (seven wear-scaled bars) |
+| Fit `6` | **How much you moved** | open (absent when nothing recorded) | ● | week's steps | `partial` | — (three totals) |
+| BodyC `6` | **Weight management** | open (closed when empty) | ● | mg in your system | `.none` | — (the section) |
+| BodyC `6` | ⤷ Since you started | nested | ● | — | `doseAttribution` | — (four figures) |
+| BodyC `6` | ⤷ Medication in your system | nested | ● | mg | `.none` | `MedicationCurveChart` |
+| BodyC `6` | ⤷ Is it working | nested | ● | — | `.none` | `MedicationResponseChart` |
+| BodyC `6` | ⤷ By dose | nested, ≥2 steps | ● | — | `doseAttribution` | — (grid) |
+| BodyC `6` | ⤷ By injection site | nested, if recorded | ● | — | `doseAttribution` | — (grid) |
+| BodyC `6` | ⤷ Side effects | nested, if any | ● | — | `.none` | — (worst avg first) |
+| BioAge `6` | How old does each thing think you are | nested, needs ≥2 estimates | ○ — **vanishes** below two | `n` years apart | `.none` | — (`ageEstimateStrip`, hand-drawn) |
+
+⚠️ **"Every section on every card has an empty state" stopped being true on
+2026-08-06, and this is the regression to fix.** It was made true on 2026-08-01,
+and the reasoning behind it still stands verbatim: "Your fortnight" gone could
+mean no sleep data at all or fewer than `CircadianConsistencyModel.minimumNights`
+nights — a provider problem and a patience problem, indistinguishable from the
+outside. But **eight of the eleven bespoke sections added since** — mental
+health, stress load, nutrition, metabolism, both of biological age's, and the two
+calendar review lists — are written as `if let out { InsightSection(…) }` with no
+`else`, so the card's own picture of its own subject simply disappears and the
+reader is left with the generic sections and no explanation. **"The radar" is the
+only one that took the `emptySection(…)` path.** Gait took it halfway, covering
+"the change is too small to apportion" but not "the model returned nothing"; the
+radar's own scorecard is nested inside a section that does have one, so its
+absence at least leaves something behind.
+
+Nothing enforces this. `verify.sh` has no check for it, and the pattern compiles
+because a `@ViewBuilder` with a bare `if` is legal — it is exactly the shape the
+2026-08-01 pass was written to remove.
 
 Three builders cover them, and the split between the first two is the point:
 `needsMore(subject:have:need:noun:)` for a countable floor, which always quotes
@@ -757,9 +840,35 @@ one beat-to-beat stream and only agreement between them is evidence.
 **Substance shading is universal as of 2026-08-03** and so is not a column:
 `ScrollableMetricChart` draws it for everything wrapping it, `EnergyCurveChart`
 and `NightSleepChart` call `SubstanceShading` themselves, and
-`FitnessProjectionChart` is the one exemption — its x axis is months ahead, so a
-window that happened yesterday has nowhere to land. `verify.sh` fails on any new
-raw `Chart {}` that does none of the three. See the `add-chart` skill ▸ 9a.
+`FitnessProjectionChart` and `SymptomRadarWebCard` carry the written exemption —
+one has months-ahead on its x axis, the other has no axis at all, so a window
+that happened yesterday has nowhere to land. `verify.sh` fails on any new raw
+`Chart {}` that does none of the three. See the `add-chart` skill ▸ 9a.
+
+⚠️ **Recounted 2026-08-07 (backlog D48). The table listed eleven
+`ScrollableMetricChart` wrappers; there are thirteen** — `SleepOnsetChart` and
+`DerivedSeriesChart` had never been added — **and one raw `Chart` in the app was
+missing from the census entirely.** Sizing a "sweep every chart" pass off the old
+table under-counted the charts §B13 applies to by two, which is exactly how such
+a sweep ships having missed some.
+
+The census, as verified against the source:
+
+- **13 wrap `ScrollableMetricChart`** — the thirteen `●` rows below.
+- **4 build a raw `Chart` of their own**: `ScrollableMetricChart` itself,
+  `EnergyCurveChart` and `NightSleepChart` (both call `SubstanceShading`), and
+  `FitnessProjectionChart` (exempt, in writing).
+- **1 more raw chart the lint cannot see** — the inline
+  `Chart(charted) { point in … }` at `DataTabView.swift:1202`, the raw-identifier
+  data page's own line-and-point plot. It wraps nothing, calls nothing and
+  carries no exemption. `verify.sh`'s census greps for `Chart[ ]*\{`, so the
+  `Chart(data) { … }` initialiser form is invisible to it and the file passes.
+  **This is a lint gap, not a decision** — see §4 ▸ Still open.
+- **5 draw a figure by hand, deliberately not with Swift Charts**:
+  `PeerStandingStrip`, `VitalDepartureStrip`, `RiskProjectionBar`,
+  `ScoreBalanceWeb` and `SymptomRadarWebCard`, plus `ageEstimateStrip` and
+  `biologicalAgeRow` inside `InsightDetailView`. None has a time axis; the polar
+  two sidestep the `Chart3DContent` overload hazard as well.
 
 | Chart | Wraps `Scrollable­MetricChart` | Pan / zoom | Scrub line | Honours the card's timeframe |
 |---|---|---|---|---|
@@ -772,13 +881,20 @@ raw `Chart {}` that does none of the three. See the `add-chart` skill ▸ 9a.
 | `SubstanceLoadChart` | ● | ● | ● shared | ● **fixed 2026-08-01** |
 | `BodyCompositionTrendChart` | ● **2026-08-01** | ● | ● shared | ● |
 | `SleepOnsetStripChart` | ● **2026-08-01** | ● | ● shared | ● re-fits per window |
-| `EnergyCurveChart` | ○ | ○ | ● shared **2026-08-01** | — within a single day |
-| `NightSleepChart` | ○ | ○ | ● shared | — within a single night |
+| `SleepOnsetChart` (Sleep ▸ "How fast you fall asleep") | ● **missing from this table until 2026-08-07** | ● | ● shared, or the card's binding | ● takes `window`, and re-fits its band per visible window |
 | `MedicationCurveChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
 | `MedicationResponseChart` | ● **2026-08-02** | ● | ● shared | ● takes `window` |
-| `FitnessProjectionChart` | ○ | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
-| `PeerStandingStrip` | ○ | — | — | — position, not time |
-| `VitalDepartureStrip` | ○ | — | — | — position, not time |
+| `DerivedSeriesChart` (Data ▸ Generated insights) | ● **missing from this table until 2026-08-07** | ● | ● own `selection` | — a data page, no timeframe picker: fixed 90-day default |
+| `EnergyCurveChart` | ○ calls `SubstanceShading` itself | ○ | ● shared **2026-08-01** | — within a single day |
+| `NightSleepChart` | ○ calls `SubstanceShading` itself | ○ | ● shared | — within a single night |
+| `FitnessProjectionChart` | ○ **exempt, in writing** | ○ | ● **2026-08-01**, numeric axis | — twelve months ahead |
+| inline `Chart` at `DataTabView.swift:1202` | ○ ⚠️ **no shading, no exemption, invisible to the lint** | ○ | ○ | ● takes the page's own `timeframe` |
+| `PeerStandingStrip` | — hand-drawn | — | — | — position, not time |
+| `VitalDepartureStrip` | — hand-drawn | — | — | — position, not time |
+| `RiskProjectionBar` | — hand-drawn | — | — | — a projection, not a series |
+| `ScoreBalanceWeb` (Insights list) | — hand-drawn `Path` | — | — | — polar, no axis |
+| `SymptomRadarWebCard` | — hand-drawn `Path`, **exempt in writing** | — | — | — polar, no axis |
+| `ageEstimateStrip`, `biologicalAgeRow` (in `InsightDetailView`) | — hand-drawn | — | — | — the axis is *age*, not time |
 
 ### "Weight management" is a section of its own, and the level is a metric
 
@@ -1114,6 +1230,28 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 
 ### Still open
 
+0. ⚠️ **Eight bespoke sections vanish instead of saying why** — found by the
+   D15 doc-truth sweep, 2026-08-07. Mental health, Stress load, Nutrition,
+   Metabolism, both of Biological age's, and the two calendar review lists are
+   `if let out { InsightSection(…) }` with no `else`, so the card's own picture
+   of its own subject is simply absent when its model returns `nil`. Gait covers
+   one of its two empty arms. This is the exact regression the 2026-08-01 pass
+   closed, reintroduced by every card built after it, and it is undefended:
+   **nothing in `verify.sh` checks that a bespoke section has an `emptySection`
+   path**, and the shape compiles because a bare `if` in a `@ViewBuilder` is
+   legal. The fix has two halves — the eight `else` arms, and a lint that makes a
+   ninth impossible. See the per-section feature audit above for which arm each
+   one is missing.
+0b. ⚠️ **One raw chart is outside the substance-shading lint's reach** — found
+   by D48 the same day. `verify.sh` finds raw charts with
+   `grep -rlE '(^|[^A-Za-z0-9_])Chart[ ]*\{'`, which matches the `Chart { … }`
+   trailing-closure form and **not** `Chart(data) { … }`. The inline plot at
+   `DataTabView.swift:1202` uses the second form, wraps nothing, calls
+   `SubstanceShading` nowhere and carries no exemption — so the reader's
+   raw-identifier data pages draw the one chart in the app with no shading on it,
+   and the gate says nothing. Widening the pattern to `Chart[ ]*[({]` is the
+   whole fix on the lint side; the chart itself then needs a wrapper or a written
+   exemption.
 7. ~~**Three cards have no bespoke section**~~ — ~~**closed.** All nine now have
    one.~~ ⚠️ **REOPENED 2026-08-06 by audit: five of fourteen fall through to
    `default: EmptyView()`** — gait, sustainedLoad, nutrition, metabolism and
@@ -1142,10 +1280,12 @@ cholesterol" to someone who added it last year reads as the app having lost it.
    is weighted"), drawn from `InsightResult.contributors`' renormalised weight —
    no new type and no model change, exactly as Phase 2 predicted. Body
    Composition got "What you're made of", backed by `BodyCompositionSplit` in
-   InsightKit (12 tests). **The bespoke switch keeps its `default:`** even though
-   all nine cases are now named: making it exhaustive would add a sixth
+   InsightKit (12 tests). ~~**The bespoke switch keeps its `default:`** even
+   though all nine cases are now named: making it exhaustive would add a sixth
    build-breaking switch over `InsightID`, which `activeContext.md` singles out
-   as the most expensive way to add a feature here.
+   as the most expensive way to add a feature here.~~ **Reversed 2026-08-06 and
+   the reversal was right** — the `default:` is what let five cards ship with no
+   picture at all, and a build break is cheaper than a silently sectionless card.
 8. ~~**Caveat footnotes and header trailing stats are ad-hoc.**~~ **Closed
    2026-08-01** (`dc5fae6`). Every section now goes through `InsightSection`
    (or `NestedInsightSection`), which carries the title, at most one figure and
@@ -1278,8 +1418,29 @@ cholesterol" to someone who added it last year reads as the app having lost it.
 ## How to keep this current
 
 - **Columns** come from `InsightDetailView.body`.
-- **Rows** come from `InsightID.allCases` — **fourteen** as of 2026-08-06; this line said nine until an audit caught it — see the `add-insight` skill.
+- **Rows** come from `InsightID.allCases` — **eighteen** as of 2026-08-07. This
+  line has now been wrong twice, saying nine and then fourteen while the enum had
+  moved on, so do not read the number: count it.
+
+  ```bash
+  awk '/^public enum InsightID/,/^}/' \
+      InsightKit/Sources/InsightKit/Insights/Insight.swift | grep -c '^    case '
+  ```
+
+  See the `add-insight` skill for the switches a new id feeds.
 - **Cell values** come from each model's `InsightResult` plus its `requirements`
   and `contributions`.
+- **`V&A` is derived, not switched** — `InsightModel.contributions` defaults to
+  `requirements.isEmpty ? [] : [.groundingFacts(…)]`, so a card gains that
+  section by declaring a requirement, with no edit here or anywhere else. That is
+  the good design *and* the reason this table goes stale without anyone touching
+  it.
 
-`docs/activeContext.md` and `docs/progress.md` remain the authority on *why*.
+⚠️ **Only the ordering block is generated.** `card-map.sh --check` compares it
+with `InsightDetailView.body` and `handover-check.sh` runs that — but it says
+nothing about the matrix, the gate table, the two feature audits or the gaps,
+all of which are hand-written and all of which had drifted by 2026-08-07. A green
+`--check` is not evidence that this file is true.
+
+`docs/activeContext.md` is the authority on *why*; `docs/progress.md` is the
+history of how it got that way.
