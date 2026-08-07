@@ -153,6 +153,32 @@ public enum ScreenTimeScreenshotParser {
         /// The old rules stay as the fallback, for a screenshot cropped past the
         /// average — agreement can only decide when there is something to agree
         /// with.
+        ///
+        /// ## Agreement must judge **every** figure, not the labelled ones
+        ///
+        /// **The reader's report, 2026-08-07: whole-week scans "no longer
+        /// working, the model says the numbers do not add up".** That message is
+        /// `totalAgreesWithAverage() == false`, and it fires on a screenshot
+        /// with the right answer printed on it.
+        ///
+        /// Screen Time right-aligns each figure against a left-aligned label, so
+        /// "Total Screen Time" and "99h 33m" are two separate text observations
+        /// on one row and **which one OCR emits first depends on their
+        /// baselines, not on the layout.** Emitted value-first, the figure's
+        /// context is the *category row above it* — so `classify` calls it
+        /// `.unlabelled`, and the agreement rule above never saw it, because it
+        /// only ranked readings OCR had already labelled weekly. The single
+        /// remaining candidate was the chart's y-axis maximum, which disagrees
+        /// with the average, and a valid import was refused.
+        ///
+        /// The labels were never the evidence. **Seven times the printed average
+        /// is**, and it is arithmetic rather than a guess about words — so it
+        /// ranks every duration on the screen. A category subtotal is by
+        /// construction a fraction of the total and still cannot pass; the
+        /// average itself is excluded, since it is the thing being compared
+        /// against. Without an average nothing is promoted: the named-row and
+        /// largest-wins rules stay confined to figures OCR labelled weekly,
+        /// because there is nothing to check a bare number against.
         public var weeklyTotal: Reading? {
             let weeklies = readings.filter { $0.kind == .weeklyTotal }
 
@@ -162,12 +188,18 @@ public enum ScreenTimeScreenshotParser {
             // by which words landed near it.
             if let average = dailyAverage, average.minutes > 0 {
                 let implied = average.minutes * 7
-                let agreeing = weeklies.filter {
-                    abs($0.minutes - implied) / implied <= Self.agreementTolerance
-                }
+                let agreeing = readings
+                    .filter { $0.kind != .dailyAverage }
+                    .filter { abs($0.minutes - implied) / implied <= Self.agreementTolerance }
                 if let best = agreeing.min(by: {
                     abs($0.minutes - implied) < abs($1.minutes - implied)
-                }) { return best }
+                }) {
+                    // Re-kinded: whatever OCR did to the words beside it, this
+                    // figure is the week's total, and every caller reads `kind`
+                    // to decide what it may be recorded as.
+                    return Reading(kind: .weeklyTotal, minutes: best.minutes,
+                                   label: best.label)
+                }
             }
 
             if let named = weeklies.first(where: {
@@ -250,7 +282,7 @@ public enum ScreenTimeScreenshotParser {
             // day or week, which is the exact bug this parser exists to fix,
             // arriving through a different door. Found by a test built from the
             // reader's own screenshots, 2026-08-02.
-            if !isPeriodSwitchButton(lower) {
+            if !isPeriodSwitchButton(lower), !isFooterTimestamp(lower) {
                 if result.weekStart == nil,
                    let week = weekStart(in: line, capturedAt: capturedAt, calendar: calendar) {
                     result.weekStart = week
@@ -331,6 +363,17 @@ public enum ScreenTimeScreenshotParser {
             || lower.contains("show last week")
     }
 
+    /// Whether a line is the "Updated today at 9:04 am" footer.
+    ///
+    /// **It says when the figures were refreshed, not what they are about**, and
+    /// it is on every Screen Time screenshot — so a crop that loses the heading
+    /// leaves it as the only line naming a day, and the whole screenshot files
+    /// itself onto the day it was imported. Same defect as the period-switch
+    /// buttons above, one row further down the screen.
+    static func isFooterTimestamp(_ lower: String) -> Bool {
+        lower.hasPrefix("updated")
+    }
+
     /// Whether these words head up a single day.
     static func namesADay(_ context: String) -> Bool {
         if context.contains("today") || context.contains("yesterday") { return true }
@@ -397,11 +440,38 @@ public enum ScreenTimeScreenshotParser {
         return Int(next.replacingOccurrences(of: ",", with: ""))
     }
 
-    /// "Today" or a weekday name, resolved to an actual date.
+    /// The day a heading is about.
     ///
-    /// Relative to **capture**, so a screenshot taken on a Tuesday three weeks
-    /// ago and imported today still means that Tuesday.
+    /// ## Read the date off the screen before resolving anything relative
+    ///
+    /// **The reader's report, 2026-08-07: the figure was right and "the day/date
+    /// is mostly wrong".** Every date this parser produced came from
+    /// `capturedAt`, and `capturedAt` is the image's EXIF — which an iOS
+    /// *screenshot* frequently does not carry. `ImageCaptureDate.read` then
+    /// returns nil, the caller substitutes `Date()`, and "Yesterday" becomes the
+    /// day before the **import**. The number is untouched, which is exactly the
+    /// shape of the report: correct data on the wrong day.
+    ///
+    /// The resolution was doomed even with a perfect capture date. A weekday
+    /// name is resolved to its most recent occurrence, so *any* Day screenshot
+    /// older than seven days lands in the wrong week by construction.
+    ///
+    /// But the Day view **prints the date** — "Yesterday, 2 August",
+    /// "Tuesday, 5 August" — and that is a statement about the day itself, not
+    /// about when the picture was taken. So it wins outright, and `capturedAt`
+    /// survives only as the upper bound that picks the year (which is never
+    /// printed on this screen). Where the two disagree the printed date is
+    /// believed: on the real screen they always agree, so a disagreement is OCR
+    /// having erred on one of them, and the numeric date is the one that carries
+    /// the answer.
+    ///
+    /// The relative fallback stays, because a cropped heading may say only
+    /// "Today".
     static func namedDay(in lower: String, capturedAt: Date, calendar: Calendar) -> Date? {
+        guard namesADay(lower) else { return nil }
+        if let printed = printedDate(in: lower, capturedAt: capturedAt, calendar: calendar) {
+            return printed
+        }
         if lower.contains("today") { return calendar.startOfDay(for: capturedAt) }
         if lower.contains("yesterday") {
             return calendar.date(byAdding: .day, value: -1,
@@ -417,6 +487,78 @@ public enum ScreenTimeScreenshotParser {
         let current = calendar.component(.weekday, from: captureDay)
         let back = (current - target + 7) % 7
         return calendar.date(byAdding: .day, value: -back, to: captureDay)
+    }
+
+    /// One day-and-month printed on a line — "2 August", "Aug 5" — resolved to
+    /// the most recent such date.
+    ///
+    /// Nil for **two or more** dates, which is a week range and belongs to
+    /// `weekStart(in:)`, and nil when the line names no month at all.
+    ///
+    /// The day number is matched by *adjacency* to the month word rather than by
+    /// scanning the line for integers, so a duration sharing the heading's line
+    /// cannot contribute one: `21h` and `1m` are single tokens and neither is a
+    /// bare number.
+    ///
+    /// The bound is a day past capture rather than capture itself. EXIF carries
+    /// no zone and is parsed in the machine's, so a screenshot taken near
+    /// midnight can read as very slightly earlier than the day it prints — and
+    /// `resolve(onOrBefore:)` would answer that by going back a whole year.
+    static func printedDate(in lower: String, capturedAt: Date,
+                            calendar: Calendar) -> Date? {
+        let parts = tokens(lower)
+        var found: [(day: Int, month: Int)] = []
+        for (index, token) in parts.enumerated() {
+            guard let month = monthNumber(token) else { continue }
+            for neighbour in [index - 1, index + 1] where parts.indices.contains(neighbour) {
+                guard let day = bareNumber(parts[neighbour]), (1...31).contains(day) else {
+                    continue
+                }
+                found.append((day, month))
+            }
+        }
+        guard found.count == 1, let printed = found.first else { return nil }
+        let bound = calendar.date(byAdding: .day, value: 1, to: capturedAt) ?? capturedAt
+        return resolve(day: printed.day, month: printed.month,
+                       onOrBefore: bound, calendar: calendar)
+    }
+
+    /// The runs of letters and digits in a line, in order. `21h` is one token
+    /// and `2 August` is two, which is the whole distinction this rests on.
+    static func tokens(_ lower: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        for character in lower {
+            if character.isLetter || character.isNumber {
+                current.append(character)
+            } else if !current.isEmpty {
+                out.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
+    }
+
+    /// A token that is only digits. `21h` is not one — its digits are hours.
+    static func bareNumber(_ token: String) -> Int? {
+        guard !token.isEmpty, token.allSatisfy(\.isNumber) else { return nil }
+        return Int(token)
+    }
+
+    /// A month named by a whole token — "august", "aug", "sept".
+    ///
+    /// Matched against the full names rather than by three-letter substring, so
+    /// an app or category called "Marketing" is not March.
+    static func monthNumber(_ token: String) -> Int? {
+        guard token.count >= 3 else { return nil }
+        let names = ["january", "february", "march", "april", "may", "june",
+                     "july", "august", "september", "october", "november", "december"]
+        for (index, name) in names.enumerated()
+        where name.hasPrefix(token) || token == String(name.prefix(3)) {
+            return index + 1
+        }
+        return nil
     }
 
     // MARK: - Weeks
@@ -471,7 +613,12 @@ public enum ScreenTimeScreenshotParser {
                                       calendar: Calendar) -> Date? {
         let found = monthOccurrences(lower)
         guard let firstMonth = found.first else { return nil }
-        let numbers = integers(in: lower).filter { $0 >= 1 && $0 <= 31 }
+        // **Bare numbers only.** A duration sharing the line contributes digits
+        // that are hours and minutes, and "Yesterday, 2 August 8h 1m" then read
+        // as the range 2–8 August — a six-day span, so the plausibility check
+        // below waved it through and one day was filed as a week, with its total
+        // relabelled from a day's to a week's on the way. Found 2026-08-07.
+        let numbers = tokens(lower).compactMap(bareNumber).filter { $0 >= 1 && $0 <= 31 }
         // **A single date is not a range.** "Tuesday, 5 August" is the Day
         // view's heading, and reading it as a week relabels that day's total as
         // a week's — which is exactly the confusion the reclassification pass
@@ -546,16 +693,8 @@ public enum ScreenTimeScreenshotParser {
         return calendar.startOfDay(for: date)
     }
 
-    /// Every integer in a string, in order. Hand-rolled for the same reason
-    /// `duration(in:)` is — identical behaviour on Linux, where these run.
-    static func integers(in text: String) -> [Int] {
-        var out: [Int] = []
-        var digits = ""
-        for character in text {
-            if character.isNumber { digits.append(character) }
-            else if !digits.isEmpty { out.append(Int(digits) ?? 0); digits = "" }
-        }
-        if !digits.isEmpty { out.append(Int(digits) ?? 0) }
-        return out
-    }
+    // `integers(in:)` used to live here and pulled every run of digits out of a
+    // line, including the ones inside a duration. `tokens` + `bareNumber`
+    // replaced it: on this screen the difference between "2" and "21h" is the
+    // difference between a date and an hour count.
 }
