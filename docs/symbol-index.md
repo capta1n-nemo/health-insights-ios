@@ -357,6 +357,20 @@ the place to look.
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :100
   - `Timeframe` :5
+- `Notifications/HealthNotification.swift`
+  - `HealthNotification` :152
+  - `HealthNotificationKind` :26
+- `Notifications/NotificationLedger.swift`
+  - `NotificationLedger` :15
+- `Notifications/NotificationPolicy.swift`
+  - `NotificationPolicy` :17
+- `Notifications/NotificationScheduler.swift`
+  - `NotificationScheduler` :16
+- `Notifications/NotificationTriggers.swift`
+  - `CardSnapshot` :9
+  - `ConnectorSnapshot` :31
+  - `NotificationInputs` :54
+  - `NotificationTriggers` :99
 - `Presentation/BalanceWeb.swift`
   - `BalanceWebGeometry` :39
   - `BalanceWebSnapshot` :113
@@ -550,11 +564,13 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :72
+  - `FileImportOutcome` :103
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
   - `SyncActivityPill` :83
+- `Core/Background/BackgroundRefresh.swift`
+  - `BackgroundRefresh` :47
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/DiagnosticsLog.swift`
@@ -587,7 +603,7 @@ the place to look.
 - `Core/Integrations/HealthIntegration.swift`
   - `HealthIntegration` :25
   - `IntegrationCapabilities` :14
-  - `IntegrationRegistry` :72
+  - `IntegrationRegistry` :91
   - `IntegrationStatus` :5
 - `Core/Integrations/OAuthIntegration.swift`
   - `IntegrationError` :20
@@ -621,6 +637,10 @@ the place to look.
   - `FoundationModelSummarizer` :16
 - `Core/Intelligence/TagApplicabilityModel.swift`
   - `TagApplicabilityModel` :44
+- `Core/Notifications/NotificationCentre.swift`
+  - `NotificationCentre` :14
+- `Core/Notifications/NotificationCoordinator.swift`
+  - `NotificationCoordinator` :27
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :8
 - `Core/Persistence/KeychainStore.swift`
@@ -907,15 +927,17 @@ the place to look.
   - `DataExportView` :37
   - `FullExport` :465
   - `OtherDataListView` :478
+- `Features/Settings/NotificationSettingsView.swift`
+  - `NotificationSettingsView` :17
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73
   - `ResearchTopic` :113
   - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :378
-  - `IntegrationRow` :277
-  - `IntegrationSummaryRow` :334
+  - `DisclaimerView` :395
+  - `IntegrationRow` :294
+  - `IntegrationSummaryRow` :351
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

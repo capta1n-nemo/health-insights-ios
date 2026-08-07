@@ -55,6 +55,47 @@
         <string>UIInterfaceOrientationPortrait</string>
     </array>
 
+    <!-- Background delivery, added 2026-08-07 for backlog Q11.
+
+         ⚠️ **Neither of the two keys below is an entitlement, and neither can
+         make a deploy fail at signing.** `Support/HealthInsights.entitlements`
+         is untouched by that work. `UIBackgroundModes` and
+         `BGTaskSchedulerPermittedIdentifiers` are plain Info.plist declarations;
+         they are not codesigned capabilities and are not matched against the
+         provisioning profile. A wrong value here fails at *runtime* —
+         `BGTaskScheduler` refuses to register the identifier and the app
+         otherwise carries on working — never at `codesign`. That distinction
+         matters because `deploy.yml` runs on the reader's own Mac and a red
+         deploy is either a signing refusal or an unreachable phone; guessing
+         between the two has cost a session before.
+
+         Why it exists at all: there was no BGTaskScheduler, no BackgroundTasks
+         import and no UIBackgroundModes anywhere in this repo, so anything
+         built on top would have fired only while the app was on screen. The
+         reader's ruling: "a symptom-radar alert that only fires when you happen
+         to open the app is not the feature that was asked for."
+
+         `processing` is declared alongside `fetch` deliberately, and nothing
+         registers a BGProcessingTask yet. The refresh this wakes for does
+         provider network calls, an ingest and a full insight pass, and if that
+         proves too long for an app-refresh task's short budget the fix is a
+         processing task — which needs this mode present. Declaring a background
+         mode nothing uses costs nothing at runtime; discovering it is missing
+         costs a deploy cycle.
+
+         ⚠️ The identifier below must match `BackgroundRefresh.taskIdentifier`
+         character for character. It is a string in two files with no compiler
+         between them; `BackgroundRefreshTests` asserts they agree. -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.jasonsalway.healthinsights.refresh</string>
+    </array>
+
     <!-- HealthKit usage strings (required for read authorization) -->
     <key>NSHealthShareUsageDescription</key>
     <string>Health Insights reads your heart rate, HRV, cardio fitness, blood pressure and body measurements to estimate your heart health, cardiovascular risk and blood pressure trends. Your data stays on your device.</string>

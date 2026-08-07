@@ -2374,6 +2374,15 @@ final class AppModel {
         // returns having done nothing.
         await refreshTagApplicability()
         timer.lap("tag applicability")
+        // **Last, and after `results` is settled** — the pass compares this
+        // refresh's cards against the ones it saw before, so it must see the
+        // finished ones. It is also what the background wake-up exists to
+        // reach: this same function now runs from a `BGAppRefreshTask`
+        // (`BackgroundRefresh`), which is what lets a finding made at 3am be
+        // held until morning rather than wait for somebody to open the app.
+        // Everything it decides lives in `NotificationCoordinator`.
+        await NotificationCoordinator.shared.evaluate(self, now: Date())
+        timer.lap("notification pass")
         lastRefreshedAt = Date()
         let elapsed = String(format: "%.1f", Date().timeIntervalSince(startedAt))
         let bySource = Dictionary(grouping: samples, by: { $0.source.displayName })

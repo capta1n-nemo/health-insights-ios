@@ -11,6 +11,7 @@ struct SettingsView: View {
             List {
                 integrationsSection
                 inputSection
+                notificationsSection
                 intelligenceSection
                 exportSection
                 privacySection
@@ -117,6 +118,22 @@ struct SettingsView: View {
             }
         } footer: {
             Text("An inventory of every signal in your Data tab — including the imported fields no card reads yet — small enough to send in a message. Stays on this phone until you share it, and never includes account details.")
+        }
+    }
+
+    /// Backlog `Q11`. Its own row rather than a toggle here: seven kinds, quiet
+    /// hours and a cap do not fit on a line, and the reader has to be able to
+    /// read what would be sent *before* the permission prompt — which is why
+    /// the prompt lives on that screen and not on launch.
+    private var notificationsSection: some View {
+        Section {
+            NavigationLink {
+                NotificationSettingsView()
+            } label: {
+                Label("Notifications", systemImage: "bell.badge")
+            }
+        } footer: {
+            Text("What the app may interrupt you for, and when it may not. Nothing is sent until you allow it there.")
         }
     }
 
