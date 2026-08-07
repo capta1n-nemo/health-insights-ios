@@ -89,6 +89,7 @@ final class AppModel {
         circadianCache = nil
         sleepNightsCache = nil
         sleepOnsetCache = nil
+        sleepOnsetHereCache = nil
         scoreChangeCache = nil
     }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
@@ -2396,11 +2397,63 @@ final class AppModel {
         return value
     }
 
+    // MARK: - The one metric whose stored number is not what to show
+
+    /// `.sleepOnset`, re-rendered in the zone the reader is in **now**, cached
+    /// alongside every other derivation of `samples`.
+    ///
+    /// ## Why this exists (backlog `D56`)
+    ///
+    /// `.sleepOnset` stores *signed hours from local midnight*, and "local" was
+    /// resolved once, at ingest, in whatever zone the phone was in that night.
+    /// Every other metric in this app stores a quantity that means the same
+    /// thing wherever it is read — 62 bpm is 62 bpm in Manila and in Sydney —
+    /// and a bedtime is the single exception. The reader flew Manila → Sydney on
+    /// 2026-08-07 and asked for all of it to *"report in MY current timezone"*.
+    ///
+    /// `SleepTravel.onsets(in:)` is the conversion and it needs no migration: a
+    /// stored onset is a night key plus an offset from it, both minted in one
+    /// calendar, so their sum is the original **instant** whatever that calendar
+    /// was. The instant is canonical; this re-renders it here. It is documented
+    /// idempotent, so InsightKit's own callers re-applying it downstream is
+    /// harmless.
+    ///
+    /// ⚠️ **Cached, and it has to be.** The conversion is a compactMap over the
+    /// whole sample buffer — 237k readings on the reader's record — and
+    /// `latest(_:)` is called once per Vitals row per redraw. Uncached, this
+    /// would have been a full scan per row and exactly the class of main-thread
+    /// stall `D54` is chasing. Invalidated with `samples`, like the breakdowns.
+    private var sleepOnsetsHere: [HealthMetricSample] {
+        if let sleepOnsetHereCache { return sleepOnsetHereCache }
+        let built = SleepTravel.onsets(in: samples).sorted { $0.start < $1.start }
+        sleepOnsetHereCache = built
+        return built
+    }
+
+    @ObservationIgnored private var sleepOnsetHereCache: [HealthMetricSample]?
+
+    /// The buffer a **generic** surface must read for `metric` — the metric
+    /// detail screen, the Vitals rows, the Data tab, anything that takes a
+    /// `MetricType` and renders whatever is stored under it.
+    ///
+    /// For all but one metric this is `samples` itself, unchanged and with its
+    /// address intact, so `MultiSource`'s memo (keyed on the buffer's address)
+    /// still hits. For `.sleepOnset` it is the re-rendered onsets above.
+    ///
+    /// ⚠️ **New generic readers of `samples` belong here, not beside it.** The
+    /// sleep card's own sections were fixed one at a time on 2026-08-07 and the
+    /// generic surfaces were missed precisely because they are generic — nobody
+    /// grepping for "sleep" finds `breakdown(_:)`. One named funnel is the only
+    /// version of this that survives the next metric page being added.
+    private func displayBuffer(for metric: MetricType) -> [HealthMetricSample] {
+        metric == .sleepOnset ? sleepOnsetsHere : samples
+    }
+
     /// A source-split breakdown of a metric across all connected devices, cached
     /// until the sample set changes.
     func breakdown(_ metric: MetricType) -> MultiSourceBreakdown {
         if let cached = breakdownCache[metric] { return cached }
-        let built = MultiSource.breakdown(metric, from: samples)
+        let built = MultiSource.breakdown(metric, from: displayBuffer(for: metric))
         breakdownCache[metric] = built
         return built
     }
@@ -2455,6 +2508,15 @@ final class AppModel {
                     dayTotals[sample.type]?.perSource[sample.source.id, default: 0] += sample.value
                 }
             }
+        }
+        // `D56`: the one row whose stored number is a *local* clock reading and
+        // therefore belongs to the zone that ingested it. The loop above picked
+        // the newest stored onset; this swaps it for the same night re-rendered
+        // here, so the Vitals row and the Data tab agree with the sleep card
+        // rather than sitting two hours off it. `sleepOnsetsHere` is sorted
+        // oldest → newest and is already cached, so this is a lookup.
+        if latest[.sleepOnset] != nil, let here = sleepOnsetsHere.last {
+            latest[.sleepOnset] = here
         }
         let built = latest.mapValues { sample in
             let total = dayTotals[sample.type]
@@ -2528,6 +2590,45 @@ final class AppModel {
         otherSamples = []
         await refresh(force: true)
         diag.ok("Rebuild", "Rebuilt \(samples.count) sample(s) from \(registry.integrations.filter { if case .connected = $0.status { return true } else { return false } }.count) connected provider(s)")
+    }
+
+    /// Delete every record this app holds, then empty the app around it.
+    ///
+    /// Backlog `Q13` / `AC4`. `DataStore.deleteEverything()` is the half with the
+    /// guarantee in it — it is driven by the same `Schema` list the container is
+    /// built from, so a `@Model` added next month is wiped on the day it is
+    /// added. This is the half that stops the *app* still showing what the disk
+    /// no longer has: `samples` and `otherSamples` are held in memory, and
+    /// without clearing them a reader who deleted everything would go on looking
+    /// at all of it until they force-quit.
+    ///
+    /// ⚠️ **It deliberately does not refresh afterwards.** Every connected
+    /// provider would immediately hand back its own history, and the reader
+    /// would watch the data they just deleted reappear with no explanation. What
+    /// comes back is theirs at the source — Apple Health's copy, Oura's copy —
+    /// and getting rid of it is a different action in a different app. The
+    /// screen says exactly that; this function's job is to be true when it does.
+    @discardableResult
+    func deleteEverything() -> DataStore.DeletionReport {
+        let report = dataStore.deleteEverything()
+        samples = []
+        otherSamples = []
+        results = []
+        // The written summary is a paragraph *about* the reader's health and its
+        // file has just been removed; leaving the in-memory copy on the Today tab
+        // would be the most visible way possible of not having deleted it.
+        todaySummary = ""
+        summaryFingerprint = nil
+        DiagnosticsLog.shared.ok(
+            "Delete",
+            "Deleted \(report.totalRows) record(s) across \(report.typesCleared) type(s) "
+                + "and \(report.filesRemoved) file(s)",
+            detail: report.failures.isEmpty
+                ? "Nothing from Apple Health or any connected provider was deleted at its "
+                    + "source — those copies are not this app's to remove, and a later sync "
+                    + "will bring them back unless the source is disconnected first."
+                : "Failures: " + report.failures.joined(separator: "; "))
+        return report
     }
 
     /// Coalesces every caller onto one running pipeline.
@@ -3570,12 +3671,17 @@ final class AppModel {
     }
 
     /// Samples of a metric for charting, oldest → newest.
+    ///
+    /// Through `displayBuffer(for:)`, so a bedtime charted here is the bedtime
+    /// by the reader's *current* clock rather than the one baked at ingest.
     func series(_ metric: MetricType) -> [HealthMetricSample] {
-        samples.samples(of: metric)
+        displayBuffer(for: metric).samples(of: metric)
     }
 
     /// Most recent value for a metric, if any (used by the vitals glance row).
+    ///
+    /// Through `displayBuffer(for:)` — see `series(_:)`.
     func latest(_ metric: MetricType) -> Double? {
-        samples.latestValue(metric)
+        displayBuffer(for: metric).latestValue(metric)
     }
 }

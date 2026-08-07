@@ -784,7 +784,7 @@ the place to look.
 - `Core/Notifications/NotificationCoordinator.swift`
   - `NotificationCoordinator` :27
 - `Core/Persistence/DataStore.swift`
-  - `DataStore` :8
+  - `DataStore` :28
 - `Core/Persistence/DocumentRecords.swift`
   - `ECGRecordEntry` :87
   - `LabResultRecord` :30
@@ -1134,6 +1134,8 @@ the place to look.
   - `DataExportView` :37
   - `FullExport` :499
   - `OtherDataListView` :512
+- `Features/Settings/DeleteEverythingView.swift`
+  - `DeleteEverythingView` :33
 - `Features/Settings/ModelAccuracyView.swift`
   - `ModelAccuracyReportView` :258
   - `ModelAccuracyView` :35
@@ -1145,9 +1147,9 @@ the place to look.
   - `ResearchTopic` :113
   - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :428
-  - `IntegrationRow` :327
-  - `IntegrationSummaryRow` :384
+  - `DisclaimerView` :436
+  - `IntegrationRow` :335
+  - `IntegrationSummaryRow` :392
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12

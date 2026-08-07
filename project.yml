@@ -1,9 +1,30 @@
-# XcodeGen spec — the authoritative, reproducible way to (re)generate the Xcode
-# project. If the committed HealthInsights.xcodeproj ever gets out of sync or
-# won't open, install XcodeGen and regenerate:
+# XcodeGen spec for the Xcode project.
 #
-#     brew install xcodegen
-#     cd ios && xcodegen generate
+# ⚠️ **DO NOT RUN `xcodegen generate` — it is currently destructive.** This
+# header used to say the opposite ("the authoritative, reproducible way to
+# (re)generate the Xcode project", plus a `cd ios` that has never existed here).
+# Measured on 2026-08-08 with XcodeGen 2.46.0, from a clean tree, changing
+# nothing:
+#
+#     project.pbxproj                  1401 lines changed
+#     xcshareddata/…/HealthInsights.xcscheme    34 lines changed
+#     Support/Info.plist       197 of 213 lines DELETED
+#
+# The Info.plist is the one that matters. The target declares `info: path:` with
+# no `properties:`, so XcodeGen treats the file as *its* output and overwrites it
+# with a 16-line stub — taking every HealthKit/Health-Records usage description,
+# the background modes, and the launch-screen fix with it. The app would still
+# build and would be rejected by the first permission prompt it reached.
+#
+# The committed .xcodeproj has been hand-maintained since (stable
+# `AAAA0000…` blueprint ids rather than XcodeGen's content hashes are the tell),
+# so this spec is now **documentation of intent, not a generator**. Edit the spec
+# *and* the .xcodeproj together, by hand, and keep them saying the same thing.
+#
+# Making regeneration safe again is its own job and is not small: every key in
+# `Support/Info.plist` has to move into `targets.HealthInsights.info.properties`
+# here, comments and all, and the result has to be diffed against the current
+# plist before anyone trusts it.
 #
 name: HealthInsights
 options:
@@ -36,7 +57,30 @@ targets:
       - package: InsightKit
     info:
       path: Support/Info.plist
+    # ── Scheme ────────────────────────────────────────────────────────────
+    # `D54` item 2: Xcode's **Thread Performance Checker** (Diagnostics ▸
+    # Runtime Sanitization) — main-thread hangs and priority inversions,
+    # reported as runtime issues. It is a *scheme* setting, not a build
+    # setting, which is why it could not ride along with the watchdog and the
+    # MetricKit reporter.
+    #
+    # ⚠️ **`false` here writes nothing.** Verified against XcodeGen 2.46.0:
+    # the key is `disableThreadPerformanceChecker`, it is disable-only, and it
+    # emits `disablePerformanceAntipatternChecker = "YES"` on the LaunchAction
+    # when true and *omits the attribute entirely* when false. The attribute
+    # being absent is Xcode's default, and Xcode's default is **enabled** —
+    # which is precisely why XcodeGen only ever offered a way to turn it off.
+    # So the line below is a pin, not a switch: it records that the checker is
+    # meant to be on, and it is the thing to look at first if someone reports
+    # the runtime issues have stopped appearing.
+    #
+    # The committed `HealthInsights.xcscheme` states it the other way round,
+    # `disablePerformanceAntipatternChecker = "NO"` — explicitly on rather than
+    # on-by-omission — because a default is only a default until a
+    # LastUpgradeVersion bump changes it, and this repo cannot re-run
+    # `xcodegen generate` to repair the scheme (see the header note above).
     scheme:
+      disableThreadPerformanceChecker: false
       testTargets:
         - HealthInsightsTests
     settings:
