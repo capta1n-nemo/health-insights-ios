@@ -105,20 +105,30 @@ struct MetricDetailView: View {
                         timeframe: timeframe,
                         visibleRange: visibleRange))
                     overlayCard
-                    if breakdown.sources.isEmpty {
-                        Card {
-                            Text("No \(metric.displayName.lowercased()) in the window shown. Swipe the chart sideways, or pick a longer timeframe.")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Card {
+                    // **One card either way, and it is always here.** This used
+                    // to be an if/else between two different cards and a
+                    // `breakdown.hasMultipleSources` gate on the stats card
+                    // below — both keyed off the *visible* window, so panning
+                    // into a stretch a device did not cover removed whole cards
+                    // from a `ScrollView` mid-drag. `SourceBreakdown` already
+                    // carries its own honest empty state ("No source reported
+                    // in this window."), so the branch only adds the way out.
+                    Card {
+                        VStack(alignment: .leading, spacing: 8) {
                             SourceBreakdown(breakdown: breakdown,
                                             timeframe: timeframe,
                                             visibleRange: visibleRange,
                                             scrubbed: scrubbed)
+                            if breakdown.sources.isEmpty {
+                                Text("No \(metric.displayName.lowercased()) in the window shown. Swipe the chart sideways, tap the arrows on its edges to jump to your nearest readings, or pick a longer timeframe.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
-                        if breakdown.hasMultipleSources { statsCard }
                     }
+                    // Gated on the whole history, not the window — see
+                    // `statsCard`.
+                    if allData.hasMultipleSources { statsCard }
                 }
         }
     }
@@ -266,21 +276,41 @@ struct MetricDetailView: View {
         }
     }
 
+    /// **Rows come from the whole history; only the figures come from the
+    /// window.** Two defects, one change:
+    ///
+    ///  * it was gated on `breakdown.hasMultipleSources` and iterated the
+    ///    *visible* breakdown, so panning into a stretch only one device covered
+    ///    deleted the card — a sibling of the chart in one `ScrollView`, so the
+    ///    page shortened under the finger and the chart jumped. Fixed by gating
+    ///    on `allData` and keeping the row count constant for the page's life.
+    ///  * `Theme.sourceColor(index)` is positional and
+    ///    `MultiSourceBreakdown.sources` is ordered *most-data-first*, so
+    ///    restricting to a window could **reorder** it and give a device a
+    ///    different swatch from the one the chart drew it in. The chart indexes
+    ///    `allData` (`MultiSourceChart.range`); so does this now.
     private var statsCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Per-source averages").font(.headline)
-                ForEach(Array(breakdown.sources.enumerated()), id: \.element.id) { index, series in
+                ForEach(Array(allData.sources.enumerated()), id: \.element.id) { index, series in
+                    let visible = breakdown.sources.first { $0.id == series.id }
                     HStack(spacing: 9) {
                         Circle().fill(Theme.sourceColor(index)).frame(width: 9, height: 9)
                         Text(series.displayName)
                         Spacer()
-                        if let mean = series.mean {
+                        if let visible, let mean = visible.mean {
                             Text(MetricValueFormatter.detailedString(mean, metric))
                                 .foregroundStyle(.secondary).monospacedDigit()
+                            Text("· \(visible.samples.count) readings")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        } else {
+                            // Named and present, saying nothing it cannot back
+                            // up — rather than silently absent, which reads as
+                            // "this device is gone".
+                            Text("nothing in this period")
+                                .font(.caption).foregroundStyle(.tertiary)
                         }
-                        Text("· \(series.samples.count) readings")
-                            .font(.caption).foregroundStyle(.tertiary)
                     }
                     .font(.subheadline)
                 }

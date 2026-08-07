@@ -78,6 +78,66 @@ struct ScrollableMetricChart<Marks: ChartContent>: View {
         Binding(get: { visibleStart }, set: { scrollX = $0 })
     }
 
+    // MARK: - Jump to the nearest data
+    //
+    // **The reader, 2026-08-07:** *"when no data is visible, show a `<` on the
+    // left edge to auto-pan to the nearest data point to the left, and a `>` on
+    // the right edge for the nearest to the right."*
+    //
+    // It lives here rather than in a caller because this is the app's **only**
+    // pannable chart — `chartScrollableAxes` appears exactly once in the whole
+    // target, on the `Chart` below — so all thirteen wrappers inherit the
+    // affordance without a line of their own. The search asks the caller's own
+    // `isEmpty` predicate, which every wrapper already supplies for the empty
+    // overlay, so there is no second definition of "there is data here" to keep
+    // in step and no call-site change.
+
+    /// The earliest window start the scroll domain allows.
+    private var earliestStart: Date { scrollDomain.lowerBound }
+
+    /// The latest window start the scroll domain allows. `scrollDomain` is never
+    /// shorter than one window (see above), so this cannot precede the earliest.
+    private var latestStart: Date {
+        max(scrollDomain.lowerBound, scrollDomain.upperBound.addingTimeInterval(-window))
+    }
+
+    /// Whether any reading lies before / after what is on screen.
+    ///
+    /// Answered from `dataSpan` rather than by scanning: its bounds *are*
+    /// readings, so the test is O(1) and safe to ask on every redraw. The scan
+    /// only runs when the chevron is actually tapped.
+    private var hasDataBefore: Bool {
+        guard let dataSpan else { return false }
+        return dataSpan.lowerBound < visibleRange.lowerBound && visibleStart > earliestStart
+    }
+
+    private var hasDataAfter: Bool {
+        guard let dataSpan else { return false }
+        return dataSpan.upperBound > visibleRange.upperBound && visibleStart < latestStart
+    }
+
+    /// Nearest window start in the given direction that the caller calls
+    /// non-empty.
+    ///
+    /// **Contiguous whole-window probes, not a widening gallop.** Stepping one
+    /// window at a time tiles the history end to end with no gaps, so the first
+    /// hit really is the nearest window holding data rather than whichever one a
+    /// doubling stride happened to land on. Capped, because `isEmpty` is the
+    /// caller's predicate and a two-day window over a decade of history would
+    /// ask it thousands of times; on the cap it falls back to the far edge of
+    /// the scroll domain, where `dataSpan` guarantees a reading.
+    private func nearestPopulatedStart(before: Bool) -> Date {
+        let edge = before ? earliestStart : latestStart
+        var start = visibleStart
+        for _ in 0..<400 {
+            let next = start.addingTimeInterval(before ? -window : window)
+            start = before ? max(next, edge) : min(next, edge)
+            if !isEmpty(start...start.addingTimeInterval(window)) { return start }
+            if start == edge { return edge }
+        }
+        return edge
+    }
+
     private var tickGranularity: AxisTickGranularity {
         Timeframe.tickGranularity(forSpan: window)
     }
@@ -107,13 +167,7 @@ struct ScrollableMetricChart<Marks: ChartContent>: View {
         .chartXSelection(value: $selection)
         .chartXAxis { axisMarks }
         .frame(height: height)
-        .overlay {
-            if isEmpty(range) {
-                Text(emptyMessage)
-                    .font(.footnote).foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center).padding(.horizontal)
-            }
-        }
+        .overlay { emptyOverlay(range) }
         .onAppear { onVisibleRangeChange?(visibleRange) }
         .onChange(of: scrollX) { onVisibleRangeChange?(visibleRange) }
         .onChange(of: window) {
@@ -121,6 +175,52 @@ struct ScrollableMetricChart<Marks: ChartContent>: View {
             scrollX = nil
             onVisibleRangeChange?(visibleRange)
         }
+    }
+
+    /// What an empty window says, and the two ways out of it.
+    ///
+    /// The message stays centred and the chevrons sit on the edges they point
+    /// at, so the affordance reads as "your data is that way" rather than as a
+    /// pair of unexplained buttons. Each is shown only when there is something
+    /// that way to reach.
+    @ViewBuilder private func emptyOverlay(_ range: ClosedRange<Date>) -> some View {
+        if isEmpty(range) {
+            ZStack {
+                Text(emptyMessage)
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    // Wider than the plain `.horizontal` it replaced, so the
+                    // text cannot run under the chevrons.
+                    .padding(.horizontal, 48)
+                HStack {
+                    if hasDataBefore { jumpButton(before: true) }
+                    Spacer(minLength: 0)
+                    if hasDataAfter { jumpButton(before: false) }
+                }
+            }
+        }
+    }
+
+    private func jumpButton(before: Bool) -> some View {
+        Button {
+            let target = nearestPopulatedStart(before: before)
+            // Animated, because an instant teleport across a year of history
+            // gives no sense of which way you just moved.
+            withAnimation(.easeInOut(duration: 0.35)) { scrollX = target }
+        } label: {
+            Image(systemName: before ? "chevron.left" : "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(8)
+                .background(.thinMaterial, in: Circle())
+                // The material circle is the hit area; without this the tap
+                // target is the glyph's own bounding box, which is tiny.
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+        .accessibilityLabel(before ? "Jump to the nearest earlier readings"
+                                   : "Jump to the nearest later readings")
     }
 
     /// Labels sized to the span on screen, so an all-time chart reads
