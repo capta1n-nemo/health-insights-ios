@@ -282,6 +282,13 @@ the place to look.
 - `Models/HealthMetricSample.swift`
   - `HealthMetricSample` :106
   - `MetricSource` :5
+- `Models/HealthTag.swift`
+  - `HealthTag` :199
+  - `TagApplicability` :22
+  - `TagApplicabilityMapping` :156
+  - `TagMappingMethod` :123
+  - `TagMappingRank` :302
+  - `TagSummary` :238
 - `Models/HolidayLedger.swift`
   - `HolidayLedger` :39
 - `Models/MetricAggregator.swift`
@@ -320,6 +327,11 @@ the place to look.
   - `SymptomPromotion` :229
   - `SymptomSeverity` :179
   - `SymptomType` :27
+- `Models/TagLexicon.swift`
+  - `TagLexicon` :39
+- `Models/TagPromotion.swift`
+  - `TagMappingStore` :182
+  - `TagPromotion` :31
 - `Models/Timeframe.swift`
   - `AxisTickGranularity` :71
   - `Timeframe` :5
@@ -557,6 +569,8 @@ the place to look.
   - `CalendarEventInterpreter` :50
 - `Core/Intelligence/FoundationModelSummarizer.swift`
   - `FoundationModelSummarizer` :16
+- `Core/Intelligence/TagApplicabilityModel.swift`
+  - `TagApplicabilityModel` :44
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :8
 - `Core/Persistence/KeychainStore.swift`
@@ -675,7 +689,7 @@ the place to look.
   - `CardDataView` :24
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1222
+  - `OtherDataDetailView` :1271
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`
@@ -689,6 +703,9 @@ the place to look.
   - `GeneratedCardDataView` :57
   - `GeneratedInsightsDataView` :11
   - `GeneratedSeriesDataView` :129
+- `Features/Data/TagsDataView.swift`
+  - `TagRow` :126
+  - `TagsDataView` :41
 - `Features/Documents/DocumentCameraView.swift`
   - `DocumentCameraView` :26
 - `Features/Documents/ImportLabView.swift`
@@ -772,8 +789,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :389
-  - `OtherDataListView` :402
+  - `FullExport` :394
+  - `OtherDataListView` :407
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :371
   - `IntegrationRow` :272

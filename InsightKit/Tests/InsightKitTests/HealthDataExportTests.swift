@@ -168,7 +168,9 @@ final class HealthDataExportTests: XCTestCase {
             cycles: [CycleDay(day: now, flow: .medium)],
             holidays: [.init(firstDay: now, lastDay: now.addingTimeInterval(6 * 86_400),
                              label: "Leave", source: "entered")],
-            generatedInsights: HealthDataExport.derivedSeries(from: store))
+            generatedInsights: HealthDataExport.derivedSeries(from: store),
+            tags: [HealthTag(name: "Kayaking", code: nil, date: now, source: .oura,
+                             mapping: TagLexicon.classify(name: "Kayaking"))])
     }
 
     /// **The check the D39 defect asked for.** `testEveryDataDomainHasAKeyThat

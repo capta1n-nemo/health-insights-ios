@@ -73,8 +73,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// Bumped when a field is added or renamed, so an export can be read
     /// against the shape it was written with. 3 added `holidays`;
     /// 4 added `generatedInsights`; 5 added `connections`,
-    /// `suggestionDismissals`, `feedback` and `predictionOutcomes`.
-    public static let schemaVersion = 5
+    /// `suggestionDismissals`, `feedback` and `predictionOutcomes`;
+    /// 6 added `tags`.
+    public static let schemaVersion = 6
 
     public struct Medication: Codable, Equatable, Sendable {
         public struct Dose: Codable, Equatable, Sendable {
@@ -494,6 +495,25 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// `derivedScores` is separate from `samples`.
     public let generatedInsights: [DerivedSeries]
 
+    /// **Every tag the reader has applied, with what the app decided it was
+    /// about and how it decided.**
+    ///
+    /// `HealthTag` carries its `TagApplicabilityMapping` whole — applicability,
+    /// method, confidence and the rationale in words — and that is deliberate
+    /// rather than verbose. The applicability is an **inference**, and an
+    /// inference exported without the method that produced it is indistinguishable
+    /// in the file from a fact somebody measured. A pooled dataset that cannot
+    /// tell "Oura's own type code said alcohol" from "an on-device language model
+    /// guessed" cannot honestly use either.
+    ///
+    /// ⚠️ **These are the reader's own words, and they export.** The same call
+    /// as `Holiday.label` — free text the reader typed about themselves is
+    /// theirs and belongs in their file — and the opposite of
+    /// `exportKey(for: .calendarEvents)`, which emits nothing because an event
+    /// title describes *other people* as much as the reader. A tag's free-form
+    /// *comment* is not here at all: `TagPromotion` never reads it.
+    public let tags: [HealthTag]
+
     // MARK: - The four that were in no key at all (backlog Q10)
     //
     // Connection state, suggestion dismissals, the feedback ledger and
@@ -543,6 +563,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 cycles: [CycleDay] = [],
                 holidays: [Holiday] = [],
                 generatedInsights: [DerivedSeries] = [],
+                tags: [HealthTag] = [],
                 connections: [Connection] = [],
                 suggestionDismissals: [SuggestionDismissal] = [],
                 feedback: [Feedback] = [],
@@ -550,6 +571,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         self.cycles = cycles
         self.holidays = holidays
         self.generatedInsights = generatedInsights
+        self.tags = tags
         self.connections = connections
         self.suggestionDismissals = suggestionDismissals
         self.feedback = feedback
@@ -600,6 +622,15 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         // unlike the events above, because the ledger holds no titles.
         case .holidays: return "holidays"
         case .unmodelled: return "unmodelled"
+        // ⚠️ **Its own key, not `unmodelled`, even though the tags are promoted
+        // *out of* `unmodelled` and their raw rows are still in it.** Same call
+        // as `symptoms`, and the same reason: promotion reads rather than moves,
+        // so the raw copy is the safety net and the promoted copy is the one
+        // carrying the applicability the app worked out. A pool reading only
+        // `unmodelled` would get `oura.enhanced_tag.tag_type_code` strings and
+        // none of the classification, which is the part with no published norm
+        // and therefore the part worth pooling.
+        case .tags: return "tags"
         // ⚠️ **Reversed 2026-08-06, hours after it was written.** The
         // superseded reasoning, kept verbatim because it is sound about the
         // job it was reasoning about:
@@ -688,6 +719,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, generatedInsights
+        case tags
         case connections, suggestionDismissals, feedback, predictionOutcomes
     }
 
@@ -715,6 +747,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
         try c.encode(generatedInsights, forKey: .generatedInsights)
+        try c.encode(tags, forKey: .tags)
         try c.encode(connections, forKey: .connections)
         try c.encode(suggestionDismissals, forKey: .suggestionDismissals)
         try c.encode(feedback, forKey: .feedback)

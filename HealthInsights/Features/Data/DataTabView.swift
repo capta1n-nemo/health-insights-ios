@@ -289,6 +289,16 @@ struct DataTabView: View {
             return model.results.contains { $0.score != nil }
                 && (matches(domain.title, "score", "estimate", "risk", "heart age")
                     || model.results.contains { matches($0.title) })
+        case .tags:
+            // Searchable by the tag's **own words**, which is the point: a
+            // reader looking for "kayaking" typed that word themselves and has
+            // no reason to know the app files it under Tags, still less under
+            // "Activity & mobility". The applicability name is searchable too,
+            // so both routes in work.
+            guard !model.tags.isEmpty else { return false }
+            return matches(domain.title, "tag", "label", "note")
+                || model.tags.contains { matches($0.name) }
+                || model.tags.contains { matches($0.mapping.applicability.rawValue) }
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
         case .generatedInsights:
@@ -537,6 +547,7 @@ struct DataTabView: View {
         case .calendarEvents: calendarSection
         case .holidays: holidaysSection
         case .cycles: cycleSection
+        case .tags: tagsSection
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection
         }
@@ -1126,6 +1137,44 @@ struct DataTabView: View {
                 } footer: {
                     Text("Nothing new for two months, while the same source kept sending everything else — so this is the field going quiet rather than the device being off. Your data is untouched; it just isn't being added to.")
                 }
+            }
+        }
+    }
+
+    /// Tags, one row into `TagsDataView` (backlog B12-1).
+    ///
+    /// The row says how many distinct tags there are and how many of them the
+    /// app has **not** placed — the second half deliberately, because "12 tags"
+    /// alone would let a reader assume all twelve carry a meaning the app
+    /// understands. The unplaced count is the honest headline for a feature
+    /// whose whole job is classifying an open set.
+    @ViewBuilder private var tagsSection: some View {
+        let summaries = model.tags.distinctTags()
+        if let newest = summaries.first {
+            let unplaced = summaries.filter { $0.mapping.applicability == .unclassified }.count
+            Section {
+                NavigationLink {
+                    TagsDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(newest.name)
+                            Spacer()
+                            Text(newest.mapping.applicability.rawValue)
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("· \(newest.lastUsed.formatted(.relative(presentation: .named)))")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        Text(unplaced == 0
+                             ? "\(summaries.count) tag\(summaries.count == 1 ? "" : "s"), all grouped"
+                             : "\(summaries.count) tag\(summaries.count == 1 ? "" : "s") · \(unplaced) not yet grouped")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(DataDomain.tags.title)
+            } footer: {
+                Text(DataDomain.tags.summary)
             }
         }
     }

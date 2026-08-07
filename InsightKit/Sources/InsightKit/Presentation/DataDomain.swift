@@ -99,6 +99,29 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// any block exists — and the deduplicated merge is precisely what neither
     /// source shows on its own.
     case holidays
+    /// **Tags** — the words the reader put on a day, imported from Oura and
+    /// from anything else with the same concept.
+    ///
+    /// The reader's brief, 2026-08-07: *"I want to take tags from Oura, and
+    /// other sources that have similar concepts, and allow them to contribute
+    /// to relevant cards… in the data section we use AI to map them to relevant
+    /// high-level categories… eg if we see a sport related tag, it will live
+    /// primarily in its tags section, and whatever it is (eg Kayaking) will have
+    /// an 'applicability' of 'Activity & mobility'."*
+    ///
+    /// **"Lives primarily here" is the whole design.** A tag is not a symptom, a
+    /// substance or an activity — it is a *word*, and which of those it is about
+    /// is an inference the app makes and can get wrong. So the tag stays in one
+    /// place, with its `TagApplicability` shown beside it and the method that
+    /// decided it named on the row. Nothing is filed into another domain on the
+    /// strength of a guess.
+    ///
+    /// Its own domain rather than folded into `symptoms` for the same reason
+    /// `symptoms` is not folded into `sideEffects`: a tag reading "Sick" is the
+    /// reader labelling a day, not a graded symptom record, and merging them
+    /// would let self-reported free text into the symptom radar without anybody
+    /// deciding it should be there.
+    case tags
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -132,6 +155,7 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .cycles: return "Cycles"
         case .calendarEvents: return "Calendar"
         case .holidays: return "Holidays"
+        case .tags: return "Tags"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -162,6 +186,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every bleeding day you have logged or synced, and the cycles they form — with the range your cycles actually fall in rather than one average."
         case .holidays:
             return "Your leave, in one record — holidays found in your calendar and ones you entered yourself, deduplicated, with how long since you last had any."
+        case .tags:
+            return "The words you put on a day, grouped by what the app worked out each one is about — and how it worked that out, so you can disagree with it."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

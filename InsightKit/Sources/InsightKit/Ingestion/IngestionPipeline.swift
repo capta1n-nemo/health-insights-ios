@@ -191,10 +191,17 @@ public extension EnvelopeSpec {
     /// export found the misregistration from the other end — sleep correlating
     /// with the cardiac signals at +0.79 one day out of step, against ≤0.44 at
     /// every other lag — so multi-signal statistics were mixing two nights.
+    /// `start_time` / `start_day` are `enhanced_tag`'s own date fields (B12-1).
+    /// **Placed either side of `day` rather than appended**, because the order
+    /// here *is* the rule the paragraph above states: a precise instant beats a
+    /// date-only field, so `start_time` goes before `day` and `start_day` after
+    /// it. Appending both to the end would have re-created the defect for tags
+    /// — a tag applied at 19:00 stamped at local midnight.
     static let oura = EnvelopeSpec(
         recordsKeyPath: ["data"],
-        startDateKeys: ["bedtime_start", "timestamp", "start_datetime", "day"],
-        endDateKeys: ["bedtime_end", "end_datetime"],
+        startDateKeys: ["bedtime_start", "timestamp", "start_datetime", "start_time",
+                        "day", "start_day"],
+        endDateKeys: ["bedtime_end", "end_datetime", "end_time", "end_day"],
         ignoredKeys: ["id"])
 
     /// Whoop v2: `{"records": [...], "next_token": ...}`.
