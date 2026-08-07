@@ -293,8 +293,15 @@ final class BalanceWebTests: XCTestCase {
     ///    four numbers did not move; drawn as "Mind 80" in green beside Fitness
     ///    33 it reads as *your mind is fine and your body is not*, which is the
     ///    one claim that card exists to refuse. Seen on screen, 2026-08-06.
+    /// 4. `soundExposure` — **its best answer is an absence**, which is
+    ///    `mentalHealth`'s argument again. A week with nothing playing scores
+    ///    100, so a reader who left their headphones in a drawer draws the
+    ///    tallest spoke on the chart. It is also the only score here that is
+    ///    maxed by *not doing* something enjoyable, which the web — read as a
+    ///    picture of how the reader is doing — would render as encouragement.
     func testEveryOtherScoringCardStillBelongsOnTheWeb() {
-        let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge, .mentalHealth]
+        let excluded: Set<InsightID> = [.symptomRadar, .biologicalAge, .mentalHealth,
+                                       .soundExposure]
         for id in InsightID.allCases where !excluded.contains(id) {
             XCTAssertTrue(id.belongsOnBalanceWeb, "\(id) fell off the comparison chart")
         }

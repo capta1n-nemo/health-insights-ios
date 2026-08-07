@@ -344,6 +344,18 @@ public extension InsightID {
             return true
         case .symptomRadar:
             return false
+        // **Off the web, and for the reason the mental-health card is.** Its
+        // top band means *nothing played through your headphones this week* —
+        // a reader who left them in a drawer draws the tallest green spoke on
+        // the chart, beside a Fitness that measured something and found it
+        // wanting. A card whose best answer is an absence cannot share an axis
+        // with cards that grade a level.
+        //
+        // It is also the only score here the reader can max out by *not doing
+        // something they enjoy*, which the web would render as an
+        // encouragement.
+        case .soundExposure:
+            return false
         }
     }
 
@@ -365,6 +377,7 @@ public extension InsightID {
         case .mentalHealth: return "Mind"
         case .workImpact: return "Work"
         case .travelDrain: return "Travel"
+        case .soundExposure: return "Sound"
         case .heartHealth: return "Heart"
         case .fitness: return "Fitness"
         case .cardiovascularRisk: return "Risk"

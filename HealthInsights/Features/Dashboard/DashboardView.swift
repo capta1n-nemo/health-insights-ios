@@ -410,6 +410,9 @@ struct InsightCard: View {
         // been held for weeks, not a beat or a burst.
         case .sustainedLoad: return "gauge.with.needle"
         case .gait: return "figure.walk.motion"
+        // Headphones rather than an ear or a waveform: the number is what the
+        // reader chose to listen to, not what happened to their hearing.
+        case .soundExposure: return "headphones"
         // An hourglass, not a candle or a calendar: this is a rate, and the
         // card leads with the pace rather than the number.
         case .biologicalAge: return "hourglass"

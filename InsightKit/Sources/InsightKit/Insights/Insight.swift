@@ -114,6 +114,20 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// moved. That is why this card needed the calendar integration before it
     /// could exist at all.
     case travelDrain
+    /// **The sound you took on this week** — backlog §B3 #22, §B5 #33.
+    ///
+    /// The one domain on the backlog holding real data *and* a published dose in
+    /// the same form as the exercise guideline: WHO/ITU's 80 dB(A) for 40 hours
+    /// a week is a weekly energy allowance, accumulated exactly as
+    /// `ActivityDoseModel`'s minutes are.
+    ///
+    /// ⚠️ **It is a headphone card with an environmental figure beside it, and
+    /// never a total.** Environmental audio exists on 14 of the reader's last 90
+    /// days; summing the two would count every day the watch spent in a drawer
+    /// as silent. See `SoundExposureModel` for why the same absence means
+    /// opposite things on the two sensors, which is the whole reason one of them
+    /// can carry a cumulative total and the other cannot.
+    case soundExposure
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

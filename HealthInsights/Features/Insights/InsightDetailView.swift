@@ -155,10 +155,20 @@ struct InsightDetailView: View {
         // An audit on 2026-08-06 listed Readiness among the cards "with no
         // bespoke section", which was true of the switch and false of the
         // screen — the cost of reading a `default:` instead of the card.
+        // ⚠️ **Its picture is still the seventeen-vital strip**, which
+        // `vitalDepartureSection` draws for every card and keeps at full width
+        // for this one — so this slot deliberately does *not* redraw it. What
+        // it holds instead is the reader's recovery tracker (backlog §C S6):
+        // the shape of the score trace rather than another view of today's
+        // signals, which is the one question about readiness neither the strip
+        // nor "Score over time" answers.
         case .readiness:
-            noBespokeSection(because: "its picture is the seventeen-vital strip, "
-                                 + "which vitalDepartureSection already draws for "
-                                 + "every card and keeps at full width for this one")
+            RecoverySection(points: model.scoreHistory(for: .readiness), now: Date())
+        // The week's headphone dose against WHO's published allowance, and what
+        // the watch heard beside it with its coverage stated. Two sections in
+        // one slot, which `@ViewBuilder` allows — see the file.
+        case .soundExposure:
+            soundExposureSection
         // Backlog §B6 C8, the reader's own words: *"I want to have a section in
         // both cards that shows the list of items from your calendar, and the
         // relevant details for each item, with an opportunity to correct them or
@@ -169,6 +179,36 @@ struct InsightDetailView: View {
             calendarReviewSection(buckets: [.work], title: "Your work events")
         case .travelDrain:
             calendarReviewSection(buckets: [.travel], title: "Your travel events")
+        }
+    }
+
+    /// The sound card's own picture, memoised like every other bespoke section
+    /// that re-runs a model. Lives here rather than inside
+    /// `SoundExposureSection` so the view stays a pure function of its output
+    /// and can be read without the app's state — the same split
+    /// `effortIntensitySection` uses.
+    @ViewBuilder private var soundExposureSection: some View {
+        let out = model.memoized("soundExposureWeek") {
+            SoundExposureModel.evaluate(samples: model.samples, now: Date())
+        }
+        if let out {
+            SoundExposureSection(output: out)
+        } else {
+            // ⚠️ Not an `EmptyView`: a card whose picture disappears is how two
+            // sections shipped invisible. Nothing has been recorded *ever* here
+            // — a merely quiet week still produces an output, and the section
+            // says so itself.
+            InsightSection(
+                title: "What you took on",
+                trailing: nil,
+                caveat: .none,
+                expansion: .collapsed(preview: "No headphone audio recorded yet")
+            ) {
+                emptySection(.needsInput(
+                    subject: "Your week against the published sound allowance",
+                    what: "the level your iPhone drives your headphones at",
+                    remedy: "listen to something through headphones paired to this phone"))
+            }
         }
     }
 
@@ -193,6 +233,13 @@ struct InsightDetailView: View {
     /// The reason is not rendered anywhere and is not meant to be. Its reader is
     /// the next person to open this switch — and the lint, which will not accept
     /// its absence.
+    ///
+    /// ⚠️ **No call site since 2026-08-07**, when Readiness's slot took the
+    /// recovery tracker (backlog §C S6). Kept rather than deleted: the lint that
+    /// makes it necessary is still there, and the next card that genuinely draws
+    /// its picture elsewhere needs a way to say so that is not a bare
+    /// `EmptyView()`. Deleting it would leave that card's author with only the
+    /// two words the lint rejects.
     @ViewBuilder private func noBespokeSection(because reason: String) -> some View {
         EmptyView()
     }
@@ -2938,7 +2985,27 @@ struct InsightDetailView: View {
         let out = model.memoized("effortWeek") {
             EffortIntensityModel.evaluate(samples: model.samples, now: Date())
         }
-        if !split.isEmpty {
+        if split.isEmpty {
+            // ⚠️ **Backlog S12, and it is the half of #34 that was missing.**
+            // This section was written as `if !split.isEmpty` with no `else`,
+            // so on the metric it exists to show — `physicalEffort`, present on
+            // **14 of the reader's last 90 days** — the card's own picture was
+            // absent more often than it was present, and its absence reads as
+            // the feature having been taken away rather than as the watch
+            // having been off. It is the exact class `docs/card-sections.md`
+            // records as open for the bespoke sections.
+            Divider()
+            InsightSection(
+                title: "How hard you worked",
+                trailing: nil,
+                caveat: .none,
+                expansion: .collapsed(preview: "No effort recorded in the last 7 days")
+            ) {
+                emptySection(.needsMore(
+                    subject: "The week's effort, split by intensity",
+                    have: 0, need: 1, noun: "recorded day"))
+            }
+        } else {
             let scale = split.map { $0.lightMinutes + $0.moderateMinutes + $0.vigorousMinutes }
                 .max() ?? 1
             Divider()

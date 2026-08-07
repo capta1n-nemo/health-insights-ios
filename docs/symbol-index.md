@@ -160,14 +160,14 @@ the place to look.
 - `Insights/HeartResponse.swift`
   - `HeartResponseModel` :37
 - `Insights/Insight.swift`
-  - `GroundingRequirement` :164
-  - `InsightCadence` :122
-  - `InsightConfidence` :156
-  - `InsightDriver` :192
+  - `GroundingRequirement` :178
+  - `InsightCadence` :136
+  - `InsightConfidence` :170
+  - `InsightDriver` :206
   - `InsightID` :15
-  - `InsightModel` :451
-  - `InsightResult` :209
-  - `RequirementStatus` :180
+  - `InsightModel` :465
+  - `InsightResult` :223
+  - `RequirementStatus` :194
 - `Insights/InsightEngine.swift`
   - `InsightEngine` :8
 - `Insights/InsightInputs.swift`
@@ -201,6 +201,8 @@ the place to look.
 - `Insights/ReadinessScore.swift`
   - `ReadinessInsight` :254
   - `ReadinessScore` :15
+- `Insights/RecoveryTracker.swift`
+  - `RecoveryTracker` :49
 - `Insights/RiskAttribution.swift`
   - `RiskAttribution` :45
 - `Insights/ScoreBlend.swift`
@@ -224,6 +226,9 @@ the place to look.
   - `SleepDebtModel` :25
 - `Insights/SleepInsight.swift`
   - `SleepInsight` :18
+- `Insights/SoundExposureInsight.swift`
+  - `SoundExposureInsight` :333
+  - `SoundExposureModel` :73
 - `Insights/SuggestionVisibility.swift`
   - `SuggestionDismissal` :4
   - `SuggestionVisibility` :43
@@ -347,7 +352,7 @@ the place to look.
   - `InputGroup` :280
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
-  - `InsightPalette` :63
+  - `InsightPalette` :64
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -462,7 +467,7 @@ the place to look.
   - `Somatotype` :15
   - `SomatotypeModel` :78
 - `Signals/SoundDose.swift`
-  - `SoundDoseModel` :44
+  - `SoundDoseModel` :46
 - `Signals/TemperatureReconstructor.swift`
   - `TemperatureReconstructor` :38
 - `Substances/Substance.swift`
@@ -736,10 +741,14 @@ the place to look.
   - `DoseEntrySheet` :340
   - `MedicationSection` :45
   - `MedicationSetupSheet` :285
+- `Features/Insights/RecoverySection.swift`
+  - `RecoverySection` :21
 - `Features/Insights/ScoreComparisonDetailView.swift`
   - `ScoreComparisonDetailView` :20
 - `Features/Insights/SomatotypeCard.swift`
   - `SomatotypeCard` :11
+- `Features/Insights/SoundExposureSection.swift`
+  - `SoundExposureSection` :22
 - `Features/Insights/SymptomRadarWebCard.swift`
   - `RadarRingShape` :245
   - `RadarSpokeShape` :270
