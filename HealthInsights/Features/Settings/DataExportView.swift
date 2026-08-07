@@ -11,26 +11,44 @@ import UniformTypeIdentifiers
 /// That has been wrong before — a bedtime sat recorded as unavailable for
 /// several sessions while it was in every payload, being discarded at ingest.
 ///
-/// The report itself is built by `DataInventory` in InsightKit, where it is
-/// tested; this screen is the share sheet around it.
+/// ## ⚠️ One export. Exactly one. (2026-08-07, backlog B20)
+///
+/// This screen used to offer **five**: the full JSON, plus separate Inventory,
+/// Card outputs and Model internals text files, with the troubleshooting log a
+/// sixth surface on another screen. The reader, verbatim:
+///
+/// > *"I hate having all these different export options in the 'Export my
+/// > Data', just have one export option that contains everything. This should
+/// > also include troubleshooting, and the data & model improvements. Currently
+/// > there is no way to export Data and model improvement data, include that in
+/// > the full export."*
+///
+/// So there is one button. **The three prose reports were not deleted** — each
+/// of them was built as a diagnosis instrument and each found a live defect on
+/// first use, and the inventory's per-signal coverage table is the most useful
+/// single artefact this app produces. They are folded in as named sections of
+/// the one file (`HealthDataExport.Reports`), along with `DiagnosticsLog` and
+/// the correction record (`HealthDataExport.Improvements`, backlog R4), which
+/// had no export path at all.
+///
+/// The reports themselves are still built by `DataInventory`,
+/// `CardStateExport` and `ModelInternalsExport` in InsightKit, where they are
+/// tested; this screen is the share sheet around all of it.
 struct DataExportView: View {
     @Environment(AppModel.self) private var model
-    @State private var copied = false
-    @State private var copiedCards = false
-    @State private var copiedInternals = false
     @State private var fullExport: FullExport?
     @State private var preparingFullExport = false
     @State private var exportFailed: String?
 
-    /// The three shareable documents, built once, off the main thread.
+    /// The three prose reports, built once, off the main thread.
     ///
     /// These used to be computed properties, which meant *opening this screen*
     /// walked the full sample set several times over — the inventory sorts
     /// every signal's distribution, the card export scans availability per
     /// declared input, and `signalCount` did yet another full walk — all
-    /// synchronously inside `body`, and again on every tap ("copy takes
-    /// ages"). Now the screen appears instantly, each section shows it is
-    /// preparing, and copy pastes a string that already exists.
+    /// synchronously inside `body`. Now the screen appears instantly and the
+    /// walk happens once, in the background, feeding both the signal count at
+    /// the top and the `reports` section of the export.
     struct Documents: Sendable {
         let inventory: String
         let cardOutputs: String
@@ -79,11 +97,25 @@ struct DataExportView: View {
 
     private var unmodelledCount: Int { model.otherDataGroups.count }
 
+    /// The build in flight, so two callers wait on one walk.
+    ///
+    /// ⚠️ **`guard documents == nil` is not enough on its own, and became wrong
+    /// the moment the export folded the reports in (B20).** `.task` starts the
+    /// build on appear and the button now awaits the same thing; a reader
+    /// tapping Prepare while the first walk is still running would find
+    /// `documents` still nil and start a second full pass over every sample —
+    /// the exact cost this preparation exists to pay only once.
+    @State private var documentBuild: Task<Documents, Never>?
+
     /// Gather main-actor inputs, then build everything detached. The builders
     /// are pure InsightKit functions over Sendable values, so the only
     /// main-thread work left is the state assignment at the end.
     private func prepareDocuments() async {
         guard documents == nil else { return }
+        if let documentBuild {
+            documents = await documentBuild.value
+            return
+        }
         let samples = model.samples
         let rawGroups = model.otherDataGroups
         let results = model.results
@@ -96,7 +128,7 @@ struct DataExportView: View {
         let events = model.substanceEvents
         let stamp = BuildInfo.summary
 
-        let built = await Task.detached(priority: .userInitiated) {
+        let build = Task.detached(priority: .userInitiated) {
             Documents(
                 inventory: DataInventory.markdown(samples: samples, rawGroups: rawGroups),
                 cardOutputs: CardStateExport.markdown(
@@ -108,32 +140,9 @@ struct DataExportView: View {
                     raw: rawGroups.flatMap(\.samples),
                     buildStamp: stamp, now: Date()),
                 signalCount: DataInventory.rows(samples: samples, rawGroups: rawGroups).count)
-        }.value
-        documents = built
-    }
-
-    /// Share/copy controls for one prepared document, or a "preparing" row
-    /// that says what the wait is while the build runs.
-    @ViewBuilder private func documentControls(_ text: String?, title: String,
-                                               copiedFlag: Binding<Bool>) -> some View {
-        if let text {
-            ShareLink(item: text, preview: SharePreview(title)) {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-            Button {
-                UIPasteboard.general.string = text
-                copiedFlag.wrappedValue = true
-            } label: {
-                Label(copiedFlag.wrappedValue ? "Copied" : "Copy",
-                      systemImage: copiedFlag.wrappedValue ? "checkmark" : "doc.on.doc")
-            }
-        } else {
-            HStack(spacing: 10) {
-                ProgressView()
-                Text("Preparing — reading your history…")
-                    .foregroundStyle(.secondary)
-            }
         }
+        documentBuild = build
+        documents = await build.value
     }
 
     var body: some View {
@@ -161,57 +170,32 @@ struct DataExportView: View {
                 // synced, so saying only "never account details or tokens"
                 // would be true but would understate it — see
                 // `HealthDataExport.Connection`.
-                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. It also records which sources are connected and when each last synced, the suggestions you've waved away, and your accuracy ratings — never your passwords, sign-in tokens or account details, which cannot go in this file at all. Your own health data: nothing here goes anywhere until you share it yourself. This file is separate from Settings ▸ Data & model improvement, which is where anything shared automatically would be listed.")
+                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. It also records which sources are connected and when each last synced, the suggestions you've waved away, your accuracy ratings, the troubleshooting log, and your corrections — never your passwords, sign-in tokens or account details, which cannot go in this file at all. Your own health data: nothing here goes anywhere until you share it yourself. Your corrections are included at whichever level you set in Settings ▸ Data & model improvement, which is also where anything shared automatically would be listed.")
             }
 
-            Section {
-                documentControls(documents?.inventory,
-                                 title: "Health Insights — data inventory",
-                                 copiedFlag: $copied)
-            } header: {
-                Text("Inventory")
-            } footer: {
-                Text("One line per signal: how many readings, over what dates, from which device, and the range of values. Small enough to paste into a message — this is the one to send.")
-            }
-
-            Section {
-                documentControls(documents?.cardOutputs,
-                                 title: "Health Insights — card outputs",
-                                 copiedFlag: $copiedCards)
-            } header: {
-                Text("Card outputs")
-            } footer: {
-                Text("Every card as it reads right now — score, drivers, weighted shares, and whether each declared input actually has data — stamped with the build that produced it. This is the one to send when a card looks wrong: it shows what you're seeing, not what the code intends.")
-            }
-
-            Section {
-                documentControls(documents?.modelInternals,
-                                 title: "Health Insights — model internals",
-                                 copiedFlag: $copiedInternals)
-            } header: {
-                Text("Model internals")
-            } footer: {
-                Text("What the cards judge against: the personal baseline behind every \"vs your normal\" figure (with how much history it holds), the substance comparison pools with their sizes, and the last month of nights per source. Send this with the card outputs when the question is why a card judged something.")
-            }
-
+            // ⚠️ **One section, and it stays one.** There were four here — the
+            // inventory, the card outputs, the model internals and the JSON —
+            // and the reader had to know which answered a question before they
+            // had asked it. Everything they held is now inside this one file;
+            // see `HealthDataExport.Reports` and `.Improvements`.
             Section {
                 if preparingFullExport {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text("Building the JSON — every reading, so this is the slow one…")
+                        Text("Building it — every reading, so this takes a moment…")
                             .foregroundStyle(.secondary)
                     }
                 } else {
                     Button {
-                        buildFullExport()
+                        Task { await buildFullExport() }
                     } label: {
-                        Label("Prepare full export", systemImage: "doc.zipper")
+                        Label("Prepare export", systemImage: "doc.zipper")
                     }
                 }
                 if let fullExport {
                     ShareLink(item: fullExport,
                               preview: SharePreview("health-insights-export.json")) {
-                        Label("Share full export", systemImage: "square.and.arrow.up")
+                        Label("Share export", systemImage: "square.and.arrow.up")
                     }
                 }
                 if let exportFailed {
@@ -219,9 +203,9 @@ struct DataExportView: View {
                         .font(.caption).foregroundStyle(Theme.warn)
                 }
             } header: {
-                Text("Full export")
+                Text("Export everything")
             } footer: {
-                Text("Every individual reading, as JSON. This runs to tens of megabytes on a long history, so it's a file to share rather than something to paste. Only needed when a question turns on the actual values.")
+                Text("One file, as JSON, containing all of it: every individual reading; the signal inventory (how many readings each signal has, over what dates, from which device); every card as it reads right now, with its drivers and weighted shares; what the cards judge against — your personal baselines and comparison pools; the troubleshooting log; and your corrections, with what the app guessed and what you said. It runs to tens of megabytes on a long history, so it's a file to share rather than something to paste.")
             }
 
             Section {
@@ -280,9 +264,24 @@ struct DataExportView: View {
         }
     }
 
-    private func buildFullExport() {
+    /// Build the one file.
+    ///
+    /// `async` since B20, because the prose reports are now part of it and they
+    /// are prepared in the background: tapping the button before that finishes
+    /// used to be impossible (each report had its own section, which showed its
+    /// own spinner), and now it is the normal case. `prepareDocuments()` returns
+    /// immediately when they are already built, so the wait is only ever paid
+    /// once.
+    private func buildFullExport() async {
         exportFailed = nil
         preparingFullExport = true
+        await prepareDocuments()
+        let prose = documents
+        // The troubleshooting log, read on the main actor where it lives. The
+        // reader asked for it in the one export by name — it used to be a
+        // separate text file on the Troubleshooting screen and nothing else.
+        let diagnostics = DiagnosticsLog.shared.exportText()
+        let outcomes = model.dataStore.loadPredictionOutcomes()
         // Everything the app holds, not just the measured series — the logged
         // domains, the profile facts and each card's own output travel too. See
         // `HealthDataExport`, whose domain switch is what keeps a future
@@ -374,22 +373,40 @@ struct DataExportView: View {
             // The raw predicted/actual pairs, as the device holds them. The
             // coarsened, DP-noised `TelemetryEvent` is a different type and is
             // what would be transmitted if sharing were ever switched on.
-            predictionOutcomes: model.dataStore.loadPredictionOutcomes())
-        Task {
-            // Detached: the JSON encode runs to tens of megabytes, and it used
-            // to run synchronously on the main thread behind a button that
-            // gave no sign anything was happening.
-            let outcome = await Task.detached(priority: .userInitiated) {
-                Result { try bundle.json() }
-            }.value
-            preparingFullExport = false
-            switch outcome {
-            case .success(let data): fullExport = FullExport(data: data)
-            case .failure(let error):
-                // Said out loud rather than leaving a button that silently does
-                // nothing — a share sheet that never appears reads as a broken app.
-                exportFailed = "Couldn't build the export: \(error.localizedDescription)"
-            }
+            predictionOutcomes: outcomes,
+            // The four documents that used to be four separate files on this
+            // screen and the next one. Backlog B20 — the reader wants one
+            // export, and each of these earns its place inside it rather than
+            // beside it. See `HealthDataExport.Reports`.
+            reports: HealthDataExport.Reports(
+                inventory: prose?.inventory ?? "",
+                cardOutputs: prose?.cardOutputs ?? "",
+                modelInternals: prose?.modelInternals ?? "",
+                diagnostics: diagnostics),
+            // What the app guessed, what the reader corrected it to, and the
+            // artifact it judged — the reader's "data & model improvement",
+            // which had no export path at all (backlog R4). **Shaped by their
+            // own R5 tier**, because this is the one part of the file that
+            // carries an event's words: `HealthDataExport.Improvements` argues
+            // that in full, and `Improvements.build` is where the shaping is
+            // tested.
+            improvements: HealthDataExport.Improvements.build(
+                tier: model.sharingPreferences.effectiveTier,
+                judgements: model.calendarJudgements,
+                outcomes: outcomes))
+        // Detached: the JSON encode runs to tens of megabytes, and it used
+        // to run synchronously on the main thread behind a button that
+        // gave no sign anything was happening.
+        let outcome = await Task.detached(priority: .userInitiated) {
+            Result { try bundle.json() }
+        }.value
+        preparingFullExport = false
+        switch outcome {
+        case .success(let data): fullExport = FullExport(data: data)
+        case .failure(let error):
+            // Said out loud rather than leaving a button that silently does
+            // nothing — a share sheet that never appears reads as a broken app.
+            exportFailed = "Couldn't build the export: \(error.localizedDescription)"
         }
     }
 }

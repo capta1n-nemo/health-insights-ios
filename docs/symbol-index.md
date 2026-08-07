@@ -515,7 +515,7 @@ the place to look.
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/HealthDataExport.swift`
-  - `HealthDataExport` :71
+  - `HealthDataExport` :84
 - `Text/ModelInternalsExport.swift`
   - `ModelInternalsExport` :25
 - `Text/PlainText.swift`
@@ -842,9 +842,9 @@ the place to look.
 - `Features/Settings/BodyScanSettingsView.swift`
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
-  - `DataExportView` :16
-  - `FullExport` :399
-  - `OtherDataListView` :412
+  - `DataExportView` :37
+  - `FullExport` :416
+  - `OtherDataListView` :429
 - `Features/Settings/ResearchView.swift`
   - `FindingRow` :83
   - `ResearchFinding` :73

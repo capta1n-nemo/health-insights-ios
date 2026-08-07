@@ -559,6 +559,104 @@ if [ -f "$exportsrc" ] && [ -f "$exportcaller" ]; then
     fi
 fi
 
+# --- ...and every DataDomain must HAVE an argument, or declare why not ------
+#
+# Backlog D50, found while diagnosing the reader's 2026-08-07 report that new
+# data types *"aren't making it into exports by default"*.
+#
+# The check above closed one half and left the other open: **it only ever
+# covered arguments that already existed.** Nothing required a `DataDomain` to
+# have one at all. So the three things enforced when a new domain lands were
+#
+#   1. it must render a Data-tab section  (compiler, exhaustive switch)
+#   2. it must NAME an export key         (compiler, exhaustive switch)
+#   3. the caller must pass every existing argument   (the check above)
+#
+# — and a domain could satisfy all three with a section, a key, and **no data in
+# the file**. The live instance was `calendarEvents`, which returns the
+# "unmodelled" key and emits nothing into it.
+#
+# So: a domain's key must be an initialiser argument the caller passes, **and
+# where two or more domains share a key, each of them must carry a declaration**
+#
+#     // export-domain: <case> — <why it has no argument of its own>
+#
+# A shared key is the shape the hole takes. At most one of the domains sharing
+# it owns the argument, so for the others nothing in the codebase can tell
+# whether their data is really in the file — only a human sentence can, and this
+# forces one to exist next to the switch. Sharing a key is legitimate (a cuff
+# reading genuinely is a `HealthMetricSample`); sharing one *silently* is not.
+#
+# The em dash and a non-trivial reason are both required, same contract as the
+# substance-shading exemption: "// export-domain: foo —" is not a reason.
+domainsrc=InsightKit/Sources/InsightKit/Presentation/DataDomain.swift
+if [ -f "$exportsrc" ] && [ -f "$exportcaller" ] && [ -f "$domainsrc" ] \
+    && command -v python3 >/dev/null 2>&1; then
+    domainissues=$(python3 - "$exportsrc" "$exportcaller" "$domainsrc" <<'PYEOF'
+import re, sys, pathlib
+
+exportsrc, exportcaller, domainsrc = (pathlib.Path(p) for p in sys.argv[1:4])
+export = exportsrc.read_text()
+caller = exportcaller.read_text()
+domains_text = domainsrc.read_text()
+
+# Every declared DataDomain case. `case foo` only — `case .foo: return …` in the
+# title/summary switches starts with a dot and is not a declaration.
+cases = re.findall(r'^\s*case ([a-z]\w*)\s*$', domains_text, re.M)
+
+# The exportKey switch, brace-matched from its own signature. A line-range
+# heuristic reads on into the next function and then everything looks fine.
+start = export.find('func exportKey(for domain: DataDomain) -> String {')
+key_for = {}
+if start != -1:
+    depth, i = 0, start
+    while i < len(export):
+        if export[i] == '{':
+            depth += 1
+        elif export[i] == '}':
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    body = export[start:i + 1]
+    for match in re.finditer(r'^\s*case ((?:\.\w+\s*,?\s*)+):\s*return "([^"]+)"',
+                             body, re.M):
+        for case in re.findall(r'\.(\w+)', match.group(1)):
+            key_for[case] = match.group(2)
+
+# The initialiser's argument labels, and the ones the caller actually passes.
+init_match = re.search(r'public init\(generatedAt:.*?\)\s*\{', export, re.S)
+labels = set(re.findall(r'(\w+):', init_match.group(0))) if init_match else set()
+passed = {label for label in labels if re.search(rf'\b{label}:', caller)}
+
+# Declarations, with a reason that is actually a reason.
+declared = {m.group(1) for m in
+            re.finditer(r'//\s*export-domain:\s*(\w+)\s*[—-]\s*(\S.{9,})', export)}
+
+shared = {key for key in set(key_for.values())
+          if sum(1 for c in cases if key_for.get(c) == key) > 1}
+
+problems = []
+for case in cases:
+    key = key_for.get(case)
+    if key is None:
+        problems.append(f'{case} (names no export key at all)')
+        continue
+    if key not in passed:
+        problems.append(f'{case} -> "{key}" (no initialiser argument the app passes)')
+        continue
+    if key in shared and case not in declared:
+        problems.append(f'{case} -> "{key}" (shares the key; needs '
+                        f'"// export-domain: {case} — <why>")')
+print('; '.join(problems))
+PYEOF
+)
+    if [ -n "$domainissues" ]; then
+        note "DataDomains whose data may not be in the export (backlog D50) — give the domain its own HealthDataExport.init argument and pass it, or declare '// export-domain: <case> — <why>' beside its branch of exportKey(for:): $domainissues"
+        fail=1
+    fi
+fi
+
 # --- Every chart carries the substance shading -----------------------------
 #
 # The user's rule, 2026-08-03: *"make sure the stimulant impact shading is on
