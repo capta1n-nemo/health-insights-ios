@@ -3,6 +3,75 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
+## Current focus — session 29 (2026-08-06/07), 64 commits
+
+**The reader used the app on their own phone all day and reported defects from
+it.** That is new, and it is the most valuable input this project has had: five
+of the things fixed below were invisible to tests, to CI and to the simulator.
+
+### ⚠️ Read these three first
+
+1. **The repo moved out of iCloud Drive** — see the section below. Canonical
+   checkout is `~/health-insights-ios`.
+2. **`docs/illness-detection-evidence-2026-08-07.md`** — 28 studies. It
+   vindicates the symptom radar's caution *and* constrains the sick-days
+   feature the reader specced (§B11). **Read it before building any illness
+   signal.** Prospective PPV is 4–12%; the one RCT's physiological arm returned
+   zero confirmed infections; two-thirds of genuine infections produce no clear
+   signal at all.
+3. **`docs/backlog.md` §B9–§B19** — the reader's 2026-08-07 brief, eleven
+   sections, none built.
+
+### What shipped, and what found it
+
+| | Found by |
+| --- | --- |
+| **The sync hang** — `recompute()` ran the full 18-model pass on the `@MainActor`, measured at **2.36 s over 380k samples**, from **33 call sites**. Now detached behind a generation guard | The reader, on their phone: *"it hangs the UI/UX and the app becomes unresponsive"* |
+| **Work impact scores the calendar** — exposure × response, four quadrants, `work-impact-v2`. The calendar gap now carries **21% of the score** | The reader: *"where is that in the weighting section?"* |
+| **The review loop** — every axis editable, nothing commits until Save, `Change` un-confirms | The reader, then **verified on their phone before and after** |
+| **Every derived figure is a data source** — all 18 cards swept, `.derived(DerivedSeriesID)` carries identity, exports, trends | The reader's instruction |
+| **A description on every data entry** — `MetricExplainer` is non-optional now, so a new metric cannot compile without one | The reader |
+| **`CoverageGate`** — a withheld figure says what it is waiting for | The reader: *"so users know why things are - or are not showing"* |
+| Fitness sections (#34/#35), breathing disturbance (#30), sound exposure (#33), cycle slice 2, B7 identity + holidays, two-tier sharing | Backlog |
+
+### ⚠️ The environment failed twice, and both are worth knowing
+
+**iCloud revoked read access to the whole tree, mid-session.** `EPERM`
+everywhere, to the main process and to five separately-spawned agents on their
+first call, while `/private/tmp` and `~/HealthSeed` stayed readable and
+disabling the sandbox changed nothing. **An iCloud resync does not fix it** —
+it is TCC. An hour of work was stranded and `CoverageGate` was rewritten from
+scratch into a clone. That clone is now the repo.
+
+**Roughly ten agents died on API stalls or the filesystem loss.** Three had
+written real work that had to be hand-rescued from their worktrees; one lost
+everything. **The pattern that survived: an agent that only needs the web.** The
+two best deliverables of the day — the illness evidence and the watch-capture
+research — came from agents with no filesystem dependency at all.
+
+### Next session, in order
+
+1. **The calendar-drift patch is apply-ready** — 706 lines with tests, at
+   `…/scratchpad/calendar-drift-patch.md` if it survives, otherwise re-derive
+   from D-row. It needs one anchor checked in `InsightDetailView.body`: the
+   `.onDisappear` must attach at body level, **not** to the section, or a
+   `LazyVStack` fires it on scroll.
+2. **§B9–§B19**, the reader's brief. The cheap high-value ones are §B15 (trend
+   indicators — pairs with `CoverageGate` for "Learning trends") and §B14 (the
+   `>` affordance).
+3. **§B11's inversion is constrained, not blocked** — compute and store, never
+   surface as a judgement about honesty. The evidence doc says why.
+4. `docs/watch-capture-setup.md` has three things **the reader must do on their
+   devices** before daylight or falls can record anything.
+
+### ⚠️ Docs debt, now overdue
+
+`activeContext.md` is past 4,100 lines across 29 sessions and is read at every
+session start. The handover protocol has instructed archiving superseded
+sections since 2026-08-06 and **it has not been done twice running**. The next
+session should move sessions 24–27 to `docs/archive/activeContext-history.md`
+before adding to it.
+
 ## ⚠️ The repo moved out of iCloud Drive — 2026-08-07
 
 **Canonical checkout is `~/health-insights-ios`.** The old path under
