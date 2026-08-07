@@ -56,6 +56,14 @@ public enum MetricValueFormatter {
         // between 1.5 L and 2.4 L as "2".
         case .dietaryWater:
             return String(format: "%.1f", value)
+        // Millimoles per litre, and the *whole* clinical range is 3.0 to 14.0 —
+        // so the `default:` branch below rendered a hypo at 3.4 and a normal
+        // 3.9 as the same "3", and the 3.9–10.0 reference band this chart
+        // shades would have had four usable values inside it. Found by the
+        // units audit (2026-08-07); it is a precision defect rather than a unit
+        // one, but it is the same class of wrong number.
+        case .bloodGlucose:
+            return String(format: "%.1f", value)
         // Stored as signed hours from midnight and read as a clock time, which
         // is the only form anybody thinks about a bedtime in. The default
         // branch would render −1.5 as "-2".
@@ -104,6 +112,57 @@ public enum MetricValueFormatter {
         let text = string(value, type, locale: locale)
         guard !includesUnit(type), !type.unit.isEmpty else { return text }
         return "\(text) \(type.unit)"
+    }
+
+    // MARK: - The reader's own units
+
+    /// A stored value restated in the reader's system, with the unit to print
+    /// beside it.
+    ///
+    /// **This is a seam, not a switch that has been thrown.** Nothing in the app
+    /// calls it for display yet, and the reason is in the header of
+    /// `MeasurementSystem.swift`: this package carries roughly 2,500 sentences
+    /// with a metric unit written into the prose ("moving %.2f kg a week"), and
+    /// a headline in pounds above a paragraph in kilograms is a worse lie than a
+    /// headline in kilograms. What *does* call it is the input side, where a
+    /// mislabelled field becomes a permanently wrong stored number.
+    ///
+    /// Height is deliberately excluded and returns its canonical metres: it
+    /// already renders through `Measurement.formatted(usage: .personHeight)`,
+    /// which produces `6 ft 1 in` rather than the `72.8 in` a scalar conversion
+    /// would give — but it keys off `locale`, not off this preference, so a
+    /// metric reader on a US phone still sees feet. That gap is real and
+    /// unfixed; see `lengthString` below.
+    public static func measured(_ value: Double, _ type: MetricType,
+                                in system: MeasurementSystem) -> (value: Double, unit: String) {
+        guard type != .height, let unit = type.displayUnit(in: system) else {
+            return (value, type.unit)
+        }
+        return (unit.fromCanonical(value), unit.abbreviation)
+    }
+
+    /// `measured` rendered, at the same precision the metric already uses.
+    ///
+    /// The precision rules above are keyed on `MetricType` and were chosen
+    /// against the metric range, so two of them need a nudge once converted: a
+    /// day's water in US fluid ounces is a two-figure count and does not want a
+    /// decimal, and a distance in miles keeps one for the same reason it keeps
+    /// one in kilometres.
+    public static func measuredString(_ value: Double, _ type: MetricType,
+                                      in system: MeasurementSystem,
+                                      locale: Locale = .current) -> String {
+        guard type != .height, let unit = type.displayUnit(in: system), !unit.isCanonical else {
+            return detailedString(value, type, locale: locale)
+        }
+        let converted = unit.fromCanonical(value)
+        let digits: Int
+        switch type.measurementQuantity {
+        case .volume: digits = system == .usCustomary ? 0 : 1
+        case .bloodGlucose, .cholesterol: digits = system == .usCustomary ? 0 : 1
+        case .temperature, .temperatureDifference, .bodyMass, .distance,
+             .tapeLength, .speed, .personHeight, .universal: digits = 1
+        }
+        return String(format: "%.\(digits)f %@", converted, unit.abbreviation)
     }
 
     /// Height, in whatever units the reader thinks in.

@@ -30,12 +30,31 @@ struct BodyMeasurementsSheet: View {
 
     @State private var date = Date()
     @State private var clothing: ScanConditions.Clothing = .minimal
-    /// Centimetres as typed, keyed by site **and side** — a paired site has two
-    /// independent fields. Empty means "not measured", which is different from
-    /// zero and must stay that way.
+    /// Whatever unit the toggle says, **as typed**, keyed by site **and side** —
+    /// a paired site has two independent fields. Empty means "not measured",
+    /// which is different from zero and must stay that way.
+    ///
+    /// ⚠️ Not centimetres any more, and the rename of this comment is the whole
+    /// defect. Until 2026-08-07 the field drew a hard-coded `cm` and stored the
+    /// typed number unchanged, so a reader with an inch tape recorded a
+    /// 34-centimetre waist — which `BuildAssessmentModel` would then divide by
+    /// their height and report as an extraordinary result rather than as an
+    /// impossible one. `centimetres(_:_:)` is now the only path to storage.
     @State private var entries: [String: String] = [:]
     /// Paired sites get a second field when the reader wants both sides.
     @State private var showsSides: Set<BodySite> = []
+    /// Shared with every other sheet that takes a measurement; see
+    /// `MeasurementSystemStorage`.
+    @AppStorage(MeasurementSystemStorage.key)
+    private var unitPreference = MeasurementSystemPreference.automatic.rawValue
+
+    /// The unit the fields are being typed in. `tapeLength` is centimetres in a
+    /// metric system and inches in both the British and US ones — a UK reader's
+    /// tape measure is very often imperial even though their thermometer is not.
+    private var tapeUnit: DisplayUnit {
+        MeasurementQuantity.tapeLength
+            .unit(in: MeasurementSystemStorage.resolved(unitPreference)) ?? .centimetres
+    }
 
     /// The order they are asked for: the one that scores, then trunk, then limbs.
     private static let order: [BodySite] = [.waist, .hip, .chest, .neck,
@@ -46,13 +65,13 @@ struct BodyMeasurementsSheet: View {
         var out: [BodyMeasurement] = []
         for site in Self.order {
             if site.isPaired, showsSides.contains(site) {
-                if let left = value(site, .left) {
+                if let left = centimetres(site, .left) {
                     out.append(.init(site: site, side: .left, centimetres: left))
                 }
-                if let right = value(site, .right) {
+                if let right = centimetres(site, .right) {
                     out.append(.init(site: site, side: .right, centimetres: right))
                 }
-            } else if let single = value(site, .centre) {
+            } else if let single = centimetres(site, .centre) {
                 out.append(.init(site: site, side: .centre, centimetres: single))
             }
         }
@@ -63,12 +82,22 @@ struct BodyMeasurementsSheet: View {
         "\(site.rawValue).\(side.rawValue)"
     }
 
-    private func value(_ site: BodySite, _ side: BodySide) -> Double? {
+    /// What the reader typed, in the unit the toggle is showing.
+    private func typed(_ site: BodySite, _ side: BodySide) -> Double? {
         let raw = entries[key(site, side)] ?? ""
         // A comma decimal separator is what half the world's keyboards produce.
         guard let parsed = Double(raw.replacingOccurrences(of: ",", with: ".")),
               parsed > 0 else { return nil }
         return parsed
+    }
+
+    /// The same number in the unit `BodyMeasurement` is defined in.
+    ///
+    /// The single conversion point. `tapeUnit` supplies both the label the
+    /// reader sees and the arithmetic used here, from one `DisplayUnit`, so the
+    /// two cannot drift apart.
+    private func centimetres(_ site: BodySite, _ side: BodySide) -> Double? {
+        typed(site, side).map(tapeUnit.toCanonical)
     }
 
     var body: some View {
@@ -85,6 +114,15 @@ struct BodyMeasurementsSheet: View {
                     }
                 } footer: {
                     Text("What you're wearing changes the numbers more than anything else does. Recording it is what lets the app tell a real change from a different pair of trousers.")
+                }
+
+                Section {
+                    MeasurementUnitToggle(quantity: .tapeLength,
+                                          preference: $unitPreference)
+                } header: {
+                    Text("Your tape")
+                } footer: {
+                    Text("Whichever side of the tape you're reading. Everything below is entered — and converted — in this unit; the app stores centimetres either way, so switching later never changes a measurement you already saved.")
                 }
 
                 Section {
@@ -139,11 +177,11 @@ struct BodyMeasurementsSheet: View {
         HStack {
             Text(label)
             Spacer()
-            TextField("cm", text: binding(site, side))
+            TextField(tapeUnit.abbreviation, text: binding(site, side))
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 80)
-            Text("cm").foregroundStyle(.secondary)
+            Text(tapeUnit.abbreviation).foregroundStyle(.secondary)
         }
     }
 

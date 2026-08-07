@@ -14,6 +14,24 @@ struct GroundingEntryView: View {
     @State private var choice = 0
     @State private var systolic: Double = 120
     @State private var diastolic: Double = 80
+    /// Shared with every other sheet that takes a measurement; see
+    /// `MeasurementSystemStorage`.
+    @AppStorage(MeasurementSystemStorage.key)
+    private var unitPreference = MeasurementSystemPreference.automatic.rawValue
+
+    /// The unit the cholesterol field is being typed in.
+    ///
+    /// ⚠️ **The reason this is not a hard-coded `mmol/L` any more.** A US lipid
+    /// panel prints `Total 195`; the sheet used to offer a box labelled mmol/L
+    /// and no way to say otherwise, and 195 mmol/L would go straight into ASCVD
+    /// and SCORE2 — neither of which can tell an impossible number from a bad
+    /// one. mmol/L → mg/dL for cholesterol is ×38.665, **not** the ×18.0156 that
+    /// applies to glucose; the two factors live in `DisplayUnit` precisely so
+    /// nobody reaches for the familiar one here.
+    private var cholesterolUnit: DisplayUnit {
+        MeasurementQuantity.cholesterol
+            .unit(in: MeasurementSystemStorage.resolved(unitPreference)) ?? .millimolesPerLitre
+    }
 
     var body: some View {
         NavigationStack {
@@ -68,10 +86,13 @@ struct GroundingEntryView: View {
             .pickerStyle(.segmented)
         case .totalCholesterol, .hdlCholesterol:
             HStack {
-                TextField("Value", value: $number, format: .number)
+                TextField("Value", value: displayNumber,
+                          format: .number.precision(
+                            .fractionLength(cholesterolUnit.isCanonical ? 1 : 0)))
                     .keyboardType(.decimalPad)
-                Text("mmol/L").foregroundStyle(.secondary)
+                Text(cholesterolUnit.abbreviation).foregroundStyle(.secondary)
             }
+            MeasurementUnitToggle(quantity: .cholesterol, preference: $unitPreference)
         case .cuffSystolic, .cuffDiastolic:
             // Capture both halves together for convenience, whichever was tapped.
             Stepper(value: $systolic, in: 70...220) { Text("Systolic: \(Int(systolic)) mmHg") }
@@ -81,10 +102,36 @@ struct GroundingEntryView: View {
         }
     }
 
+    /// The typed value, converted on the way in and out.
+    ///
+    /// `number` stays canonical mmol/L — what the profile stores and what
+    /// ASCVD and SCORE2 read — so `seed()` and `save()` need no unit knowledge
+    /// at all, and switching the toggle restates the figure already on screen
+    /// rather than reinterpreting it.
+    private var displayNumber: Binding<Double> {
+        Binding(get: { cholesterolUnit.fromCanonical(number) },
+                set: { number = cholesterolUnit.toCanonical($0) })
+    }
+
+    /// The same guidance in whichever units the reader's lab printed.
+    ///
+    /// Converted rather than written twice: a second hard-coded sentence is a
+    /// second thing to get wrong, and the numbers in it are the ones a reader
+    /// checks their own result against.
+    private var cholesterolGuidance: String {
+        let unit = cholesterolUnit
+        func band(_ low: Double, _ high: Double) -> String {
+            let digits = unit.isCanonical ? 1 : 0
+            return String(format: "%.\(digits)f–%.\(digits)f",
+                          unit.fromCanonical(low), unit.fromCanonical(high))
+        }
+        return "From a recent blood test, in the units it was printed in. Typical total is \(band(3.5, 6.5)) \(unit.abbreviation); HDL \(band(1.0, 2.0)) \(unit.abbreviation)."
+    }
+
     private var footer: String {
         switch kind {
         case .totalCholesterol, .hdlCholesterol:
-            return "From a recent blood test. Typical total is 3.5–6.5 mmol/L; HDL 1.0–2.0 mmol/L."
+            return cholesterolGuidance
         case .cuffSystolic, .cuffDiastolic:
             return "Use a real upper-arm cuff, seated and rested. This measured reading is what the app trusts."
         case .ascvdRaceGroup:
