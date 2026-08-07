@@ -265,8 +265,23 @@ struct VitalsGlance: View {
                             MetricDetailView(metric: vital.metric)
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
-                                Image(systemName: vital.icon)
-                                    .foregroundStyle(Theme.accent)
+                                // The tile is a `NavigationLink`, but outside a
+                                // `List` nothing draws the system disclosure
+                                // chevron for you — so a tile that opens a
+                                // whole metric page looked exactly like a tile
+                                // that was only a readout. Drawn here rather
+                                // than trailing the value because the tile is a
+                                // fixed 108pt and a trailing chevron would eat
+                                // the width the number needs.
+                                HStack(spacing: 4) {
+                                    Image(systemName: vital.icon)
+                                        .foregroundStyle(Theme.accent)
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                        .accessibilityHidden(true)
+                                }
                                 Text(formatted(vital))
                                     .font(.title3.weight(.semibold))
                                     .contentTransition(.numericText())
@@ -307,6 +322,12 @@ struct InsightCard: View {
     private var change: ScoreChange? { model.scoreChange(for: result.id) }
 
     var body: some View {
+        // 16 between the dial and the text, 8 before the chevron. Uniform 16
+        // cost the row 27pt of text width once the chevron was added, and it
+        // showed: "Blood Pressure" beside its "Experimental" badge wrapped onto
+        // two lines and two driver lines gained an ellipsis. The chevron is a
+        // 9pt glyph doing a signposting job — it does not need a gutter the size
+        // of the one separating the score from the words.
         Card {
             HStack(spacing: 16) {
                 if let score = result.score {
@@ -351,6 +372,17 @@ struct InsightCard: View {
                             .font(.caption).foregroundStyle(Theme.accent)
                     }
                 }
+                // This row is the one card shared by Today and Insights, and it
+                // is a `NavigationLink` on both — but it is not inside a `List`,
+                // so it never got the system's free disclosure chevron and had
+                // no other mark saying it opened anything. The inner `Spacer()`
+                // on the title row is what pushes this to the trailing edge; the
+                // VStack expands to fill because of it.
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, -8)
+                    .accessibilityHidden(true)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(result.title): \(result.headline). \(changeSpeech)\(result.drivers.first ?? "")")
@@ -364,7 +396,7 @@ struct InsightCard: View {
         switch change.direction {
         case .up: return "Up \(Int(abs(change.delta).rounded())) points \(change.comparison). "
         case .down: return "Down \(Int(abs(change.delta).rounded())) points \(change.comparison). "
-        case .steady: return "No change \(change.comparison). "
+        case .steady: return "Stable \(change.comparison). "
         }
     }
 

@@ -535,7 +535,15 @@ public struct EnergyInsight: InsightModel {
 
         return InsightResult(
             id: id, title: title, primaryValue: output.level,
-            headline: "\(Int(output.level.rounded())) · \(output.band)",
+            // Words only, no number (reader's rule for line 2, 2026-08-07).
+            // This used to read "10 · Drained" and was the only interpolated
+            // number in a headline anywhere in InsightKit — every other card's
+            // subtitle is already words. The digit was also a duplicate: the
+            // score bubble beside it renders `primaryValue`, which is the same
+            // `output.level` rounded the same way, so the card said ten twice
+            // and the second time in the slot that is supposed to say what ten
+            // *means*.
+            headline: output.band,
             score: output.level,
             // A model, not a measurement, and it should never claim otherwise.
             confidence: output.exertionHours == nil ? .low : .moderate,

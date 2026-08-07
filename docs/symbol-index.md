@@ -207,7 +207,7 @@ the place to look.
   - `SupportingSignal` :24
 - `Insights/ScoreChange.swift`
   - `ScoreChange` :40
-  - `ScoreChangeReader` :106
+  - `ScoreChangeReader` :117
 - `Insights/ScoreCurve.swift`
   - `ScoreCurve` :33
 - `Insights/ScoreDecomposition.swift`
@@ -455,6 +455,8 @@ the place to look.
   - `SleepOnset` :23
 - `Signals/SleepOnsetModel.swift`
   - `SleepOnsetModel` :38
+- `Signals/SleepStageAverages.swift`
+  - `SleepStageAverages` :41
 - `Signals/Somatotype.swift`
   - `Somatotype` :15
   - `SomatotypeModel` :78
@@ -628,7 +630,7 @@ the place to look.
   - `WebSpokesShape` :429
   - `WebWedgeShape` :547
 - `DesignSystem/ScoreChangeChip.swift`
-  - `ScoreChangeChip` :40
+  - `ScoreChangeChip` :42
 - `DesignSystem/ScoreComparisonChart.swift`
   - `ScoreComparisonChart` :12
 - `DesignSystem/ScoreDial.swift`
@@ -645,6 +647,8 @@ the place to look.
   - `SleepOnsetChart` :18
 - `DesignSystem/SleepOnsetStripChart.swift`
   - `SleepOnsetStripChart` :38
+- `DesignSystem/SleepStageAverageChart.swift`
+  - `SleepStageAverageChart` :31
 - `DesignSystem/SourceBreakdownCard.swift`
   - `SourceBreakdown` :13
 - `DesignSystem/SubstanceLoadChart.swift`
@@ -660,7 +664,7 @@ the place to look.
 - `Features/Cycle/CycleTabView.swift`
   - `CycleTabView` :38
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :301
+  - `InsightCard` :316
   - `LastNightCard` :151
   - `TodayView` :8
   - `VitalsGlance` :226

@@ -141,7 +141,7 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | # | Key | Section | Gate |
 |---|---|---|---|
 | — | *picker* | the timeframe control, pinned above the tab bar | **always** |
-| 1 | `Hdr` | the score — dial or headline, confidence badge, explanation | always |
+| 1 | `Hdr` | the score — dial, **title and headline beside it**, trend chip, confidence badge, subheadline, explanation | always |
 | 2 | `Drv` | "What's driving this" | **always** |
 | 3 | `ScrHx` | "Score over time" | **always** |
 | 4 | `Chg` | "What changed" — period contrast | **always** |
@@ -198,7 +198,7 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Readiness | Today | ● | ● | ● | ● | ◐ the full seventeen-vital scan | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
-| Sleep | Today | ● | ● | ● | ● | ◐ "Last night in stages" **+ "Your fortnight"** | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
 | Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ◐ | ● |
@@ -213,10 +213,24 @@ three: closed by the reader, opened by the reader, and not yet asked.
 | Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "How old does each thing think you are" | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 | Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
 
-**The bespoke slot is one slot, and there is now a second one.** Four cards
+**The bespoke slot is one slot, and there is now a second one.** Three cards
 draw two things *inside* the first slot (Body Composition, Fitness, Heart Attack
-& Stroke Risk, and — since 2026-08-02 — Sleep), separated by a `Divider()` and
-wrapped in `NestedInsightSection` — the pattern Body Composition established.
+& Stroke Risk), separated by a `Divider()` and wrapped in
+`NestedInsightSection` — the pattern Body Composition established.
+
+⚠️ **Sleep left that pattern on 2026-08-07 and renders five top-level sections
+from the slot instead** (backlog §B18, the reader's ask). The slot is a
+`@ViewBuilder`, so it has always been able to return more than one view; nobody
+had needed it to. What forced it was that nesting had started to lie: the
+fortnight of bedtimes, the sleep-onset trend and the breathing index were all
+filed under a heading reading *"Last night in stages"*, and a
+`NestedInsightSection` has no chevron, no collapsed state and therefore no
+preview line — so three subjects could only be reached by opening a fourth, and
+none of them could say anything to a reader who did not.
+
+The rule that comes out of it: **nest a section only when it is genuinely part
+of its host's subject** (Body Composition's "How that has changed" is another
+view of what you are made of). Two subjects sharing a slot are two sections.
 
 That stopped being enough for Body Composition on 2026-08-02. **"Weight
 management" is a second top-level bespoke section**, at the user's request, and
@@ -237,16 +251,34 @@ totals (`OuraResponseParser.isMorningReSleep`), afternoon and evening naps and
 untimed rest records stay excluded, and a re-sleep still never provides the
 night's bedtime or latency.
 
-**Sleep's night card carries three nested deep-dives** — "Your fortnight"
-(5f), "How fast you fall asleep" (5n), and, since 2026-08-06, **"Breathing
-during sleep"** (5o): Oura's nightly breathing-disturbance index promoted from
-the raw catalogue (backlog #30/S9), drawn with the shared `MultiSourceChart`
-against the reader's own recent range and reported by the model as a weight-0
-contribution — trended, never scored, and its caveat says outright that it is
-not an apnoea test. The onset and breathing deep-dives are their own
-`@ViewBuilder` members rather than more lines in `sleepNightCard`, because
-`card-map.sh` reads titles from a 4,000-character window per member and fails
-open past it (activeContext finding 3).
+**Sleep's other four sections**, all top-level since 2026-08-07 (backlog B18-3,
+B18-4, B18-5 and P22) and each its own `@ViewBuilder` member:
+
+- **"A typical night"** (5p, `SleepStageAverageChart` over
+  `SleepStageAverages`) — per-stage averages across sources, **obeying the page
+  timeframe**, which is backlog P22's third and final part. It exists because
+  the timeframe control drove five sections and drove nothing on the card's own
+  subject: the stage picture was one fixed night, so *"has my deep sleep been
+  getting worse?"* could not be asked. One bar per source, never pooled, and
+  each source averaged over **the nights it recorded** rather than the nights in
+  the window — the other denominator draws a ring worn nine nights in thirty as
+  somebody sleeping two hours a night.
+- **"Your fortnight"** (5f) — the bedtime strip.
+- **"How fast you fall asleep"** (5n) — nightly latency, its drift, and the four
+  things the app can see that move it.
+- **"Breathing during sleep"** (5o): Oura's nightly breathing-disturbance index
+  promoted from the raw catalogue (backlog #30/S9), drawn with the shared
+  `MultiSourceChart` against the reader's own recent range and reported by the
+  model as a weight-0 contribution — trended, never scored, and its caveat says
+  outright that it is not an apnoea test. **Backlog B18-1 wants this contained
+  by a dedicated sleep-apnoea indicator section**, which does not exist yet;
+  when it is built, this is the section it wraps.
+
+Keeping each in its own member is not tidiness. `card-map.sh` reads titles from
+a 4,000-character window per member and **fails open** past it (activeContext
+finding 3), and `sleepNightCard` was at 3,124 characters while holding all five
+— one added paragraph from silently dropping a title from the generated map.
+Split, the largest of them is well under half the window.
 
 It was five until 2026-08-01. Heart Health and Readiness had their centile strip
 and their departure panel nested under "How this is weighted", which was their
@@ -263,9 +295,11 @@ deliberate exceptions remain, each about the *card* rather than about the data:
   on a card that takes none is a control that can never do anything.
 - **The bespoke slot is per-card by construction** — it is the card's own
   picture of its own subject, so there is nothing generic to draw in its place.
-  It reaches all nine, and four cards draw *two* things in it, nested under one
-  `Divider()`. *(This line previously said five while the paragraph above said
-  three; the real count was three, and Sleep made it four on 2026-08-02.)*
+  It reaches all nine. Three cards draw *two* things in it nested under one
+  `Divider()`, and **Sleep returns five top-level sections from it** since
+  2026-08-07. *(This line previously said five while the paragraph above said
+  three; the real count was three, Sleep made it four on 2026-08-02, and Sleep
+  then left the nesting pattern entirely.)*
 - **`Fbk` needs a number to rate.** "Was this accurate?" on a card showing no
   value is a control with no subject, and feedback recorded against nothing
   pollutes the telemetry the models are tuned on.
@@ -651,8 +685,9 @@ Key — `●` yes · `○` no · `—` not applicable.
 | 5e | Today | Energy | open (closed when empty) | ● | spent of charge | `modelledCurve` | `EnergyCurveChart` |
 | 5f | Your fortnight | Sleep | open (closed when empty) | ● | social jetlag | `fittedCentre` | `SleepOnsetStripChart` |
 | 5l | Last night in stages | Sleep | open (closed when empty) | ● | h asleep | `.none` | `NightSleepChart` |
-| 5n | How fast you fall asleep | Sleep | nested in the night card | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
-| 5o | Breathing during sleep | Sleep | nested in the night card | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
+| 5p | **A typical night** | Sleep | open (closed when empty) | ● `needsInput` — says "widen the timeframe" first | `n` nights · the timeframe | `estimated` — a mean; sources never pooled | `SleepStageAverageChart` |
+| 5n | How fast you fall asleep | Sleep | open (closed when empty) | ● | min typical | `associationsNotCauses` | `SleepOnsetChart` |
+| 5o | Breathing during sleep | Sleep | open (closed when empty) | ● `needsInput` | latest index | `estimated` — trended, never scored, not an apnoea test | `MultiSourceChart` |
 | 5g | Cardiovascular load | Subst | open (closed when empty) | ● | trend/week | `decayingLoad` | `SubstanceLoadChart` |
 | 5h | How you compare | HH | open (closed when empty) | ● | centile | `approximateNorms` | `PeerStandingStrip` |
 | 5i | How far from your normal | Readi | open (closed when empty) | ● | `n` checked | computed | `VitalDepartureStrip` |
@@ -751,6 +786,16 @@ age — 12 bpm or fewer in the first minute marked roughly double six-year
 mortality across 2 428 adults (Cole et al., NEJM 1999) — so it reads the same at
 25 and 65. Beside it sit resting rate and rMSSD as a pair, because they come off
 one beat-to-beat stream and only agreement between them is evidence.
+
+⚠️ **One row owed to the table below (left for its owner, 2026-08-07).**
+`SleepStageAverageChart` is new and belongs in the chart audit as:
+`○` wraps the wrapper · `○` pan/zoom · `○` scrub · **`●` honours the card's
+timeframe** — it is the only chart on the sleep card that does, which was the
+whole of backlog P22. It does not wrap `ScrollableMetricChart` because its x
+axis is *hours per night*, not time, and it is `substance-shading: exempt` for
+the same reason — the second honest exemption after `FitnessProjectionChart`,
+so the sentence below saying that chart is "the one exemption" now needs a
+second name.
 
 ### Feature audit — what each chart supports
 
