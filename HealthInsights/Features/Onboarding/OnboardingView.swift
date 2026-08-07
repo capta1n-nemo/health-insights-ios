@@ -15,7 +15,8 @@ struct OnboardingView: View {
     @State private var dob: Date?
     @State private var sex: Int?
 
-    /// Whether either value actually came from Apple Health.
+    /// Whether each value actually came from Apple Health — **one flag per
+    /// fact**, because Health can supply one and not the other.
     ///
     /// **Not derivable from `dob != nil`, which is what this screen used to
     /// ask.** Tapping *Set* below fills the date with today minus thirty years
@@ -30,12 +31,31 @@ struct OnboardingView: View {
     /// than on a card, because a reader told the date came from Health has been
     /// given a reason *not* to check it, and age drives every cardiovascular
     /// risk score the app computes.
-    @State private var prefilledFromHealth = false
+    ///
+    /// The 2026-08-04 fix used a single `Bool` for both facts, which left the
+    /// mixed case still wrong: Health commonly holds a sex and no birthdate, so
+    /// one flag was set, the reader tapped *Set* for the date, and the screen
+    /// said *"We pre-filled these from Apple Health"* over a placeholder. Found
+    /// 2026-08-07 (backlog D12) — the same defect, one case narrower.
+    @State private var dobFromHealth = false
+    @State private var sexFromHealth = false
+
+    /// Whether the date on screen is still the *Set* button's seed rather than
+    /// the reader's own.
+    ///
+    /// This is what stops the mandatory ask being skippable. Before it, two
+    /// taps — *Set*, then a sex — completed onboarding, and "today minus thirty
+    /// years" was written to `GroundingKind.dateOfBirth` as an ordinary fact,
+    /// indistinguishable from a confirmed one, to be used by every
+    /// cardiovascular model the app runs. A mandatory fact that can be
+    /// satisfied without being answered is not mandatory.
+    @State private var dobIsPlaceholder = false
 
     private let lastPage = 3
 
-    /// The last page can't be completed until both required facts are set.
-    private var canFinish: Bool { dob != nil && sex != nil }
+    /// The last page can't be completed until both required facts are set —
+    /// and a placeholder is not a set date.
+    private var canFinish: Bool { dob != nil && !dobIsPlaceholder && sex != nil }
 
     var body: some View {
         VStack {
@@ -159,9 +179,14 @@ struct OnboardingView: View {
                 // rather than crediting Apple Health for it.
                 if let dobBinding = Binding($dob) {
                     DatePicker("Date of birth", selection: dobBinding, in: ...Date(), displayedComponents: .date)
+                        // Fires only on a change the reader made: the seeding
+                        // assignment happens *before* this view exists, so the
+                        // first call is always a real adjustment.
+                        .onChange(of: dob) { _, _ in dobIsPlaceholder = false }
                 } else {
                     Button {
                         dob = Calendar.current.date(byAdding: .year, value: -30, to: Date()) ?? Date()
+                        dobIsPlaceholder = true
                     } label: {
                         HStack {
                             Text("Date of birth")
@@ -186,8 +211,8 @@ struct OnboardingView: View {
                     confirmationRow("Height", String(format: "%.0f cm", height * 100))
                 }
 
-                if !canFinish {
-                    Text("Set your date of birth and sex to continue.")
+                if let outstanding = outstandingPrompt {
+                    Text(outstanding)
                         .font(.caption2).foregroundStyle(Theme.accent)
                 }
             }
@@ -206,19 +231,52 @@ struct OnboardingView: View {
 
     /// What the profile step says above the two fields.
     ///
-    /// Three states, because there are three: a value Apple Health supplied, a
-    /// value the reader is being asked to confirm because *Set* seeded it, and
-    /// nothing at all. The middle one used to be told it came from Health.
+    /// **Built per fact, not per screen.** Health can supply a sex and no
+    /// birthdate (or the reverse), so any single sentence covering "these"
+    /// credits Health for something it never provided — which is the exact
+    /// defect this screen has now been fixed for twice. Each fact says where
+    /// its own value came from, and a placeholder is called a placeholder.
     private var basicsPrompt: String {
-        if prefilledFromHealth {
-            return "We pre-filled these from Apple Health — please check they're right. Both are required by the risk models."
+        var parts: [String] = []
+        var toSet: [String] = []
+
+        if dobFromHealth {
+            parts.append("Your date of birth came from Apple Health — please check it's right.")
+        } else if dobIsPlaceholder {
+            parts.append("The date below is a placeholder, not a reading — move it to your own date of birth.")
+        } else if dob == nil {
+            toSet.append("date of birth")
         }
-        if dob != nil || sex != nil {
-            // Deliberately does not say where the date came from, because it
-            // came from nowhere: it is a starting point for the picker.
-            return "Please set these to your own details — the date starts at a placeholder, not a reading. Both are required by the risk models."
+
+        if sexFromHealth {
+            parts.append("Your sex came from Apple Health — please check it's right.")
+        } else if sex == nil {
+            toSet.append("biological sex")
         }
-        return "These two are required by the risk models. Please set them."
+
+        // One sentence for whatever is still blank, rather than one apiece —
+        // "Please set your date of birth. Please set your biological sex."
+        // is what building it per fact reads like on a fresh install.
+        if !toSet.isEmpty {
+            parts.append("Please set your \(toSet.joined(separator: " and ")).")
+        }
+
+        parts.append("Both are required by the risk models.")
+        return parts.joined(separator: " ")
+    }
+
+    /// What is still outstanding, named — shown in the accent colour beside the
+    /// disabled button so "Get started" being dead is never a mystery.
+    private var outstandingPrompt: String? {
+        var missing: [String] = []
+        if dob == nil {
+            missing.append("set your date of birth")
+        } else if dobIsPlaceholder {
+            missing.append("move the date of birth off the placeholder")
+        }
+        if sex == nil { missing.append("choose your biological sex") }
+        guard !missing.isEmpty else { return nil }
+        return "To continue, \(missing.joined(separator: " and "))."
     }
 
     /// Pre-fill date of birth and sex from Apple Health characteristics if we
@@ -229,8 +287,17 @@ struct OnboardingView: View {
     /// could not previously ask for.
     private func prefillBasicsFromHealth() {
         let chars = model.healthService.biologicalCharacteristics()
-        if dob == nil, let d = chars.dateOfBirth { dob = d; prefilledFromHealth = true }
-        if sex == nil, let s = chars.sex { sex = (s == .male) ? 0 : 1; prefilledFromHealth = true }
+        if dob == nil, let d = chars.dateOfBirth {
+            dob = d
+            dobFromHealth = true
+            // A Health birthdate is a real one, so it is not a placeholder even
+            // though it arrived without the reader touching the picker.
+            dobIsPlaceholder = false
+        }
+        if sex == nil, let s = chars.sex {
+            sex = (s == .male) ? 0 : 1
+            sexFromHealth = true
+        }
     }
 
     private var oauthProviders: [OAuthIntegration] {
@@ -238,7 +305,10 @@ struct OnboardingView: View {
     }
 
     private func finish() {
-        guard let dob, let sex else { return }   // button is disabled until both set
+        // The button is disabled until both are set and the date is the
+        // reader's own — checked again here so a future caller cannot write a
+        // placeholder birthdate into the grounding facts by accident.
+        guard let dob, let sex, !dobIsPlaceholder else { return }
         model.saveGrounding(kind: .dateOfBirth, value: dob.timeIntervalSince1970)
         model.saveGrounding(kind: .biologicalSex, value: Double(sex))
         // Australia is best matched by SCORE2's low-risk region; seed it so the
