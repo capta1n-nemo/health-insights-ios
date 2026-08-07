@@ -1334,6 +1334,50 @@ an empty window (§9b). It is the **fifth** non-panning raw chart, after
 `EnergyCurveChart`, `NightSleepChart`, `FitnessProjectionChart` and
 `DataTabView`'s inline one.
 
+### Social battery's four sections — B9-1, 2026-08-07
+
+⚠️ **The tables above do not yet carry this card's rows.** It shipped from a
+parallel agent's worktree with eleven others in flight, and rewriting six
+hand-written tables from an isolated branch is how two agents' edits to one table
+both land and neither is right. **The matrix (§The matrix), the gate table, the
+per-section audit, the per-chart audit, "Per-insight facts" and "How each card's
+number divides" all still need a `socialBattery` row.** What follows is the
+material for them, so whoever folds it in is not re-deriving it.
+
+Everything lives in `HealthInsights/Features/Insights/SocialBatterySection.swift`
+plus one three-line case in `InsightDetailView.bespokeSection`.
+
+| Section | Arrives | Figure | Caveat | Chart | Empty state |
+|---|---|---|---|---|---|
+| Where your time with people went | open | typical day, in hours | `.estimated` — the hour weightings are the app's assumption | `SocialContactChart`, wraps `ScrollableMetricChart` | own placeholder, never absent |
+| What company does to you | open | pooled departure, SD | `.fitted` — the interval assumes independent signals and they are not | `SignedIntervalRow` ×4, hand-drawn | own placeholder |
+| Does company restore you or drain you? | open | the verdict word, including "can't tell yet" | `.fitted` — chosen/owed are proxies | `SignedIntervalRow` ×2 | a row saying "not enough days yet", never a dropped row |
+| Today | open | today's contact hours | `.partial` — read straight off the diary | hand-drawn bar, elapsed solid + ahead hatched | the refusal, always |
+
+Then `calendarReviewSection(buckets: [.work, .personal])` — **both** buckets,
+unlike the two cards above it, because personal contact is the entire point.
+
+**Chart facts for the per-chart audit.** `SocialContactChart` pans, scrubs,
+honours the timeframe, passes a real `isEmpty:` predicate and therefore gets the
+`‹` `›` jump-to-nearest-data affordances and the substance shading for free
+(§9a, §9b). The other three draw no `Chart` at all — no date axis, nothing to
+pan — which is `SoundExposureSection`'s reasoning and needs no exemption comment
+because there is no raw `Chart {` in the file.
+
+**How the number divides**, for that table: the calendar and the body are shares
+of one number via `ScoreBlend.blend(metrics:factors:metricShare:)`, the body's
+share rising with the contrast exactly as Work impact's does. The calendar's two
+rows are the **contact-hours gap** (0.65) and the **headcount gap** (0.35 scaled
+by how much of the reader's calendar states a guest list, as a 0→1 ramp — a
+threshold there would make a share appear and vanish as events sync).
+
+⚠️ **The one thing about this card that has no precedent in any table here:
+the *direction* of its exposure term is learnt.** `restorationIndex` interpolates
+the exposure curve continuously between "heavy costs you" and "heavy suits you"
+from the reader's own nights, and sits near the middle while the evidence is
+thin. Any audit that records this card as "more company scores worse" has
+recorded it wrong.
+
 ---
 
 ## 2. Metric detail screens

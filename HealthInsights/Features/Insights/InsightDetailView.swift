@@ -210,6 +210,15 @@ struct InsightDetailView: View {
             calendarReviewSection(buckets: [.work], title: "Your work events")
         case .travelDrain:
             calendarReviewSection(buckets: [.travel], title: "Your travel events")
+        // B9-1. Four sections, in its own file — see `SocialBatterySection`.
+        // The review list follows them because correcting an event is what
+        // moves contact between "chosen" and "owed", which is the axis the
+        // card's most novel finding rests on. Work and personal both, unlike
+        // the two cards above: personal contact is the whole point here.
+        case .socialBattery:
+            SocialBatterySection(timeframe: timeframe)
+            calendarReviewSection(buckets: [.work, .personal],
+                                  title: "The events behind this")
         }
     }
 

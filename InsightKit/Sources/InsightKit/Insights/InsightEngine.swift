@@ -76,7 +76,14 @@ public struct InsightEngine: Sendable {
             // cautionary case for forgetting is `SubstanceImpactInsight`, three
             // lines above.
             WorkImpactInsight(),
-            TravelDrainInsight()
+            TravelDrainInsight(),
+            // The third calendar card (B9-1), and bound the same way. Last
+            // because it is the newest; registering it is what makes it visible
+            // to score recording, replay, the balance web and the comparison
+            // chart, and `SubstanceImpactInsight` — built as a free function and
+            // skipped silently by all four for as long as it existed — is the
+            // standing cautionary case for forgetting.
+            SocialBatteryInsight()
         ]
     }
 
@@ -85,10 +92,11 @@ public struct InsightEngine: Sendable {
     /// Idempotent, and for the same reason `withSubstanceLog` is: a caller
     /// applies it on every recompute, so it must replace rather than append.
     ///
-    /// ⚠️ **Two models, one call.** Binding them separately is how one of them
-    /// ends up holding an empty calendar while the other does not, and the
+    /// ⚠️ **Three models, one call.** Binding them separately is how one of them
+    /// ends up holding an empty calendar while the others do not, and the
     /// symptom would be a card that says "connect your calendar" beside one that
-    /// is reading it.
+    /// is reading it. It was two until B9-1 added Social battery; a fourth goes
+    /// here rather than into a second method for exactly that reason.
     public func withCalendar(events: [CalendarEvent],
                              judgements: [CalendarEventJudgement]) -> InsightEngine {
         InsightEngine(models: models.map { model in
@@ -97,6 +105,9 @@ public struct InsightEngine: Sendable {
             }
             if model is TravelDrainInsight {
                 return TravelDrainInsight(events: events)
+            }
+            if model is SocialBatteryInsight {
+                return SocialBatteryInsight(events: events, judgements: judgements)
             }
             return model
         })

@@ -128,6 +128,23 @@ public enum InsightID: String, Codable, Sendable, CaseIterable {
     /// opposite things on the two sensors, which is the whole reason one of them
     /// can carry a cumulative total and the other cannot.
     case soundExposure
+    /// **What your time with other people costs you, or gives you** — backlog
+    /// B9-1, named on the list for weeks with no scope and finally scoped by the
+    /// reader on 2026-08-07, who asked for all three framings rather than one.
+    ///
+    /// ⚠️ It is not Work impact with the word "people" substituted, and
+    /// `SocialBatteryModel`'s own note is the place that argument is made:
+    /// personal contact and weekends are **in** the data here, the weekend
+    /// confound is handled by splitting inside each block rather than by
+    /// throwing the weekend away, and — the part with no precedent on any other
+    /// card — the *direction* of its exposure term is read off the reader's own
+    /// nights rather than assumed. For some people a full diary is restorative,
+    /// and scoring their busiest fortnight as their worst would be this app
+    /// asserting a personality it never measured.
+    ///
+    /// ⚠️ It prints no battery percentage. See
+    /// `SocialBatteryModel.capacityRefusal`.
+    case socialBattery
 }
 
 /// Where an insight belongs in the app's navigation. `daily` insights answer

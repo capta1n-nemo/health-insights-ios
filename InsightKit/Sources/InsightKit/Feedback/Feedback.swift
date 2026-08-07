@@ -193,6 +193,12 @@ public extension InsightID {
         // stored scores stay comparable. Reasoned out at
         // `TravelDrainModel`'s "What the calendar contributes here".
         case .travelDrain: return "travel-drain-v1"
+        // B9-1. The version matters here more than on most cards: the exposure
+        // term's *direction* is learnt from the reader's own nights, so a score
+        // recorded before the model had enough evidence to say which way company
+        // cuts for them is not measuring the same thing as one recorded after.
+        // Any change to `restorationIndex` or to the stratification bumps this.
+        case .socialBattery: return "social-battery-v1"
         }
     }
 }
