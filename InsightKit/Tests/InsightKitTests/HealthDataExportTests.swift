@@ -210,6 +210,25 @@ final class HealthDataExportTests: XCTestCase {
             sickDays: [.init(firstDay: now.addingTimeInterval(-10 * 86_400),
                              lastDay: now.addingTimeInterval(-8 * 86_400),
                              label: nil, severity: "moderate", source: "detected")],
+            // §B11-2. One **corrected** day rather than a confirmed one, for the
+            // reason the flagged-event fixture below gives: a guess and an
+            // answer that disagree is the shape that actually carries
+            // information, and it is the only shape in which the correction
+            // fields can be seen to travel at all.
+            illnessAnswers: [HealthDataExport.IllnessAnswer(
+                IllnessJudgement(
+                    day: now.addingTimeInterval(-9 * 86_400),
+                    estimate: IllnessEstimate(
+                        assessment: IllnessAssessment(kind: .feverish, severity: .mild),
+                        basis: ["Two overnight signals were leaning."],
+                        uncertainty: "A prompt, not a finding.",
+                        artifact: IllnessArtifact(physiologicalExcess: 2.4,
+                                                  accumulatedStatistic: 1.8,
+                                                  reportedExcess: 0,
+                                                  leaningSignals: 2, wasJudged: true)))
+                    .reviewed(correction: IllnessAssessment(kind: .respiratory,
+                                                            severity: .moderate),
+                              confirmed: false, at: now))],
             generatedInsights: HealthDataExport.derivedSeries(from: store),
             // §B12. One custom Oura tag, classified — the fixture holds a name
             // the lexicon has never seen, because a fixed lookup table is

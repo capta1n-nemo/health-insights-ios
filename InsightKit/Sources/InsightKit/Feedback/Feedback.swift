@@ -170,7 +170,17 @@ public extension InsightID {
         case .substanceImpact: return "substance-v1"
         case .nutrition: return "nutrition-v1"
         case .metabolism: return "metabolism-v1"
-        case .symptomRadar: return "symptom-radar-v1"
+        // **v2, 2026-08-08 — backlog B11-8.** What the reader recorded —
+        // symptom tags, days marked ill, the medication tracker's own
+        // side-effect log — now joins the verdict as a third quantity beside
+        // today's readings and the accumulation (`ReportedIllness`). The
+        // physiological arithmetic is untouched and a day with nothing recorded
+        // scores exactly what it scored before; a day the reader said they were
+        // ill on does not, and that is precisely the kind of change this field
+        // exists to mark. Carrying v1 forward would make every score recorded
+        // before today silently non-comparable with every score after it. The
+        // `fitness-v2` precedent.
+        case .symptomRadar: return "symptom-radar-v2"
         case .sustainedLoad: return "sustained-load-v1"
         case .gait: return "gait-v1"
         case .soundExposure: return "sound-exposure-v1"

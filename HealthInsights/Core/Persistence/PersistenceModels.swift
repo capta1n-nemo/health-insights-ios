@@ -607,3 +607,57 @@ final class SideEffectRecord {
         self.externalID = externalID
     }
 }
+
+/// **What the app guessed a day was, and what the reader said back** — backlog
+/// `B11-2`.
+///
+/// The reader: *"an estimated sickness they can correct — type and severity,
+/// similar to how you can correct a work or travel event (same concept - then
+/// we can learn from it)."* So this is `CalendarJudgementRecord`'s shape, keyed
+/// by day instead of by event id, and the three parts are separate for the same
+/// reason: merged, the app could never measure how often it was right, and a
+/// re-estimate would silently overwrite the reader.
+///
+/// ⚠️ **`estimateData` is written by the estimator and never by a review.** A
+/// snapshot taken at correction time would attribute to the model a version of
+/// the day it may never have seen — the same rule
+/// `CalendarJudgementRecord.artifactData` states at length.
+///
+/// ⚠️ **No new `@Model` for the estimate or its artifact.** Both are one-to-one
+/// with the day and have no identity of their own, so they are blobs on this
+/// row — which also keeps them out of the trap `DataStore`'s schema comment
+/// names, where an unregistered `@Model` silently never persists.
+@Model
+final class IllnessJudgementRecord {
+    /// Start of day. Unique, because a day has one answer.
+    @Attribute(.unique) var day: Date
+    /// JSON of `IllnessEstimate` — the guess and the numbers behind it.
+    var estimateData: Data
+    /// JSON of `IllnessAssessment` — the reader's correction, where they made
+    /// one. Nil and "confirmed correct" are different records and both are kept.
+    var correctionData: Data?
+    var isConfirmed: Bool
+    var reviewedAt: Date?
+
+    init(day: Date, estimateData: Data, correctionData: Data? = nil,
+         isConfirmed: Bool = false, reviewedAt: Date? = nil) {
+        self.day = day
+        self.estimateData = estimateData
+        self.correctionData = correctionData
+        self.isConfirmed = isConfirmed
+        self.reviewedAt = reviewedAt
+    }
+
+    /// Nil only for a row whose blobs no longer decode — skipped, not fatal,
+    /// the same posture every other record takes.
+    var judgement: IllnessJudgement? {
+        guard let estimate = try? JSONDecoder().decode(IllnessEstimate.self,
+                                                       from: estimateData)
+        else { return nil }
+        let correction = correctionData.flatMap {
+            try? JSONDecoder().decode(IllnessAssessment.self, from: $0)
+        }
+        return IllnessJudgement(day: day, estimate: estimate, correction: correction,
+                                isConfirmed: isConfirmed, reviewedAt: reviewedAt)
+    }
+}

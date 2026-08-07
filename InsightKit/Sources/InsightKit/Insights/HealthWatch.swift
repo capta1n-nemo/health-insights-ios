@@ -763,17 +763,47 @@ public enum SymptomRadarModel {
     public struct Verdict: Sendable, Equatable {
         public let today: HealthWatchModel.Output
         public let accumulation: Accumulation
+        /// **What the reader said about the day** — backlog `B11-8`, and the
+        /// third quantity this verdict is a maximum over. `.silent` on a day
+        /// nothing was recorded, which is the overwhelming majority and the case
+        /// in which this whole channel is arithmetically absent.
+        public let reported: ReportedIllness.Output
         public let score: Double
         public let status: SymptomRadarStatus
         /// True when the accumulation is saying more than today is — the case
         /// the reader reported, where the signals are still away from normal but
         /// a single-day comparison has stopped noticing.
         public let isCarriedForward: Bool
+        /// True when **the reader's own records** are saying more than either
+        /// their readings or the accumulation. The card's copy has to be able to
+        /// tell that case apart: a number set by what somebody said is not a
+        /// finding about their body, and printing it as one would be the
+        /// modelled-dressed-as-measured failure in its purest form.
+        public let isReaderReported: Bool
+
+        /// Spelled out rather than left to the memberwise default so the two
+        /// fields `B11-8` added default to *silence* — a fixture built before
+        /// this channel existed describes a day nobody recorded anything about,
+        /// which is exactly what `.silent` and `false` mean.
+        public init(today: HealthWatchModel.Output, accumulation: Accumulation,
+                    reported: ReportedIllness.Output = .silent,
+                    score: Double, status: SymptomRadarStatus,
+                    isCarriedForward: Bool, isReaderReported: Bool = false) {
+            self.today = today
+            self.accumulation = accumulation
+            self.reported = reported
+            self.score = score
+            self.status = status
+            self.isCarriedForward = isCarriedForward
+            self.isReaderReported = isReaderReported
+        }
     }
 
     public static func verdict(today: HealthWatchModel.Output,
-                               timeline: [DaySnapshot]) -> Verdict {
-        verdict(today: today, accumulation: accumulation(over: timeline))
+                               timeline: [DaySnapshot],
+                               reported: ReportedIllness.Output = .silent) -> Verdict {
+        verdict(today: today, accumulation: accumulation(over: timeline),
+                reported: reported)
     }
 
     /// The same verdict against an accumulation already in hand.
@@ -784,10 +814,23 @@ public enum SymptomRadarModel {
     /// accumulation from the start on every row, turning one pass into `n²`.
     /// Splitting rather than copying is what stops the chart's bands drifting
     /// from the card's.
+    /// ⚠️ **Three quantities now, not two** (backlog `B11-8`). The reader's own
+    /// records join here rather than inside `HealthWatchModel.concern`, and
+    /// `ReportedIllness`'s type note carries the arithmetic showing why the pool
+    /// cannot hold them: a weighted mean divides the one voice that knows by the
+    /// number of voices that do not, and a reader who has just said they are
+    /// severely ill would come out at an excess of 0.76 — "nothing stirring".
+    ///
+    /// Joining at the verdict has the property that matters: on a day nothing
+    /// was reported `reported.excess` is 0, the maximum is unchanged, and the
+    /// physiological null calibration — the stated budget of about two alarming
+    /// mornings a year — is untouched.
     public static func verdict(today: HealthWatchModel.Output,
-                               accumulation memory: Accumulation) -> Verdict {
-        let carried = memory.excess > today.excess
-        let excess = Swift.max(today.excess, memory.excess)
+                               accumulation memory: Accumulation,
+                               reported: ReportedIllness.Output = .silent) -> Verdict {
+        let carried = memory.excess > today.excess && memory.excess >= reported.excess
+        let readerLed = reported.excess > today.excess && reported.excess > memory.excess
+        let excess = Swift.max(today.excess, Swift.max(memory.excess, reported.excess))
         let score = HealthWatchModel.score(excess: excess)
 
         // The gates from `Output.status`, plus one for the accumulated path.
@@ -800,7 +843,19 @@ public enum SymptomRadarModel {
         } else if score >= 50 {
             status = .someSigns
         } else if today.leaning.count >= 2
-                    || memory.statistic >= Memory.decisionInterval {
+                    || memory.statistic >= Memory.decisionInterval
+                    // ⚠️ **A reported channel at the strong edge reaches
+                    // `strongSigns` on its own, and none of the physiological
+                    // ones may.** The two-signal gate exists because agreement
+                    // across independent channels is what a *proxy* has instead
+                    // of knowledge. A person saying they are severely ill is not
+                    // a proxy — it is the closest thing this app holds to the
+                    // reference standard the whole literature is measured
+                    // against — so requiring their vitals to corroborate it
+                    // would make the card contradict the only person who was
+                    // there. `ReportedIllness.excess(for:)` is anchored so only
+                    // a stated *severe* reaches this edge.
+                    || reported.excess >= HealthWatchModel.strongSignsExcess {
             // Today's path needs two signals leaning, because agreement across
             // channels is the finding. The accumulated clause substitutes
             // agreement across *time* for it: sustained departure is evidence
@@ -828,8 +883,9 @@ public enum SymptomRadarModel {
         } else {
             status = .someSigns
         }
-        return Verdict(today: today, accumulation: memory, score: score,
-                       status: status, isCarriedForward: carried)
+        return Verdict(today: today, accumulation: memory, reported: reported,
+                       score: score, status: status, isCarriedForward: carried,
+                       isReaderReported: readerLed)
     }
 
     // MARK: - S3: how many nights it takes
@@ -1259,6 +1315,16 @@ public struct SymptomRadarInsight: InsightModel {
     /// `evaluate`, which is what keeps score replay honest.
     public let symptoms: [SymptomEvent]
     public let medication: MedicationSchedule?
+    /// **The reader's recorded illness, backlog `B11-8`.** Construction state
+    /// for the same reason the tags are: a merged ledger of dated periods is not
+    /// a `HealthMetricSample` and never will be. Empty by default, so every
+    /// existing caller and every samples-only fixture behaves exactly as before.
+    public let sickDays: SickDayLedger
+    /// **The medication tracker's own symptom record** — the half
+    /// `SymptomReconciliation` exists because the radar has never been able to
+    /// read. Same shape the reconciliation takes it in, so nothing has to be
+    /// converted twice.
+    public let sideEffects: [SymptomReconciliation.LoggedEffect]
     /// `.current` in production (the engine rebinds with the default); injected
     /// as `TestClock.utc` by tests, because day-precise assertions made against
     /// a machine-local calendar fail abroad — the exact class the Oura parser's
@@ -1266,9 +1332,13 @@ public struct SymptomRadarInsight: InsightModel {
     let calendar: Calendar
 
     public init(symptoms: [SymptomEvent] = [], medication: MedicationSchedule? = nil,
+                sickDays: SickDayLedger = SickDayLedger(),
+                sideEffects: [SymptomReconciliation.LoggedEffect] = [],
                 calendar: Calendar = .current) {
         self.symptoms = symptoms
         self.medication = medication
+        self.sickDays = sickDays
+        self.sideEffects = sideEffects
         self.calendar = calendar
     }
 
@@ -1302,9 +1372,18 @@ public struct SymptomRadarInsight: InsightModel {
                                               medication: schedule, now: now,
                                               calendar: calendar)
         let today = calendar.startOfDay(for: now)
+        // **What the reader said about today** — backlog `B11-8`. Clipped to
+        // `date <= now` like every other piece of construction state here: the
+        // ledger is filtered by day inside `evaluate`, and the tags already are.
+        let reported = ReportedIllness.evaluate(
+            day: today, symptoms: tags,
+            sickDays: sickDays,
+            sideEffects: sideEffects.filter { $0.date <= now },
+            calendar: calendar)
         // The verdict, not the day: `watch.status` alone is what put the reader
         // back at 99% the morning after a correct flag.
-        let verdict = SymptomRadarModel.verdict(today: watch, timeline: timeline)
+        let verdict = SymptomRadarModel.verdict(today: watch, timeline: timeline,
+                                                reported: reported)
         let status = verdict.status
 
         // The episode the reader is in, or just out of. Ongoing while the last
@@ -1362,6 +1441,31 @@ public struct SymptomRadarInsight: InsightModel {
                 + "health-care workers — it caught 43% of confirmed illnesses at "
                 + "95% specificity. Quiet here misses more than half of them. If "
                 + "you feel unwell, that is the better information."
+        } else if verdict.isReaderReported {
+            // ⚠️ **The number came from what the reader said, so the sentence
+            // under it must too.** The physiological lead below would print
+            // "N of M watched signals are leaning" over a morning on which the
+            // answer was set by a symptom tag — a card stating a finding about
+            // somebody's body that its own arithmetic did not make. That is the
+            // modelled-dressed-as-measured failure, and it is the one this app
+            // is least allowed to commit on this card.
+            let sources = reported.components.map { $0.source.displayName.lowercased() }
+            let list = sources.count == 1 ? sources[0]
+                : sources.count == 2 ? "\(sources[0]) and \(sources[1])"
+                : sources.dropLast().joined(separator: ", ") + " and \(sources.last ?? "")"
+            explanation = "This is what you recorded yourself, not what your readings "
+                + "found — it comes from \(list). Your own record outranks these "
+                + "signals here, and deliberately: run forward against a real test, "
+                + "detectors like this one are right between 4 and 12 times in every "
+                + "100, and about two-thirds of real illnesses never move these "
+                + "signals at all. "
+                + (watch.leaning.isEmpty
+                   ? "None of your overnight signals is leaning today. That is not "
+                     + "a reason to doubt what you recorded — it is the ordinary "
+                     + "reading for most real illness."
+                   : "\(watch.leaning.count) of your overnight signals "
+                     + "\(watch.leaning.count == 1 ? "is" : "are") leaning as well, "
+                     + "judged against your own three-week baseline.")
         } else {
             let suffix = status == .someSigns
                 ? " Signs, not certainty — this pattern also follows a poor night, alcohol, or hard training."
@@ -1509,10 +1613,30 @@ public struct SymptomRadarInsight: InsightModel {
                     + "off."))
             }
 
+            // **What the reader recorded goes first** (backlog `B11-8`). It
+            // outranks every physiological row below it, and on a day it set the
+            // number the rows below it are context rather than evidence.
+            for component in reported.components {
+                lines.append(.notable(
+                    "\(component.detail). Your own record counts for more here than "
+                    + "any of these readings — it is the thing they are a proxy for."))
+            }
             let leaning = watch.leaning
-            lines.append(.notable(lead(count: leaning.count,
-                                       single: leaning.first?.metric,
-                                       neutral: leadIsNeutral)))
+            // ⚠️ **Guarded, because the reported channel can carry the verdict
+            // on a morning nothing is leaning.** `lead(count:single:neutral:)`
+            // has no zero case — its `count < 2` branch says "One signal is
+            // leaning", which over an empty `leaning` is a sentence about a
+            // signal that does not exist.
+            if !leaning.isEmpty {
+                lines.append(.notable(lead(count: leaning.count,
+                                           single: leaning.first?.metric,
+                                           neutral: leadIsNeutral)))
+            } else {
+                lines.append(.routine(
+                    "None of your overnight signals is leaning today. About "
+                    + "two-thirds of real illnesses never move them, so that is "
+                    + "not evidence against what you recorded."))
+            }
             for signal in leaning {
                 let hard = abs(signal.zScore) >= HealthWatchModel.strongZ
                 lines.append(.notable(
@@ -1564,10 +1688,78 @@ public struct SymptomRadarInsight: InsightModel {
             driverLines: lines.filter { $0.isNotable == true }
                 + lines.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: contributors(for: watch),
+            contributors: contributors(for: watch,
+                                       reportedShare: Self.reportedShare(verdict)),
             weighting: .accumulative,
-            otherFactors: Self.producedFigures(verdict),
+            otherFactors: Self.producedFigures(verdict) + Self.reportedFactors(verdict),
             derivedOutputs: Self.derivedOutputs(verdict))
+    }
+
+    // MARK: - B11-8: what the reader said, in the weightings
+    //
+    // The reader: *"Symptoms must go into this card's weightings — as must
+    // calendar sick days and other derived symptom scores."*
+    //
+    // ⚠️ **These carry a real share, and the card's other derived rows carry
+    // zero.** That is not an inconsistency and the difference is worth stating,
+    // because `producedFigure`'s doc comment forbids exactly what this does:
+    //
+    // - `accumulatedStatistic` is a **function of the rows below it**. It is
+    //   where the votes pile up, so a share for it would count every one of them
+    //   twice and put 140% on a card whose bars sum to one.
+    // - What the reader recorded is **not a function of anything below it**. No
+    //   signal on this card produced it, nothing here can be derived from it,
+    //   and it is independent evidence about the same question. An input like
+    //   that either carries a share or the section is lying about what made the
+    //   number.
+    //
+    // **The share, stated:** the two independent records divide the number in
+    // proportion to how far each sits past an ordinary day. The physiological
+    // half's total is `today.excess`, split among its signals by their existing
+    // vote weights; each reported source contributes its own excess. On a day
+    // nothing was recorded every reported excess is zero, the share is zero, and
+    // every metric row keeps exactly the weight it has today — which is what
+    // makes this change invisible on the overwhelming majority of days.
+
+    /// The reported channel's collective share of the number, 0…1.
+    static func reportedShare(_ verdict: SymptomRadarModel.Verdict) -> Double {
+        let reported = verdict.reported.components.reduce(0) { $0 + $1.excess }
+        let total = verdict.today.excess + reported
+        guard total > 0 else { return 0 }
+        return reported / total
+    }
+
+    /// One weighted row per source the reader keeps, whether or not it spoke.
+    ///
+    /// ⚠️ **Every source gets a row every day, including the silent ones.** A
+    /// row that appears only on the days it fires teaches the reader that its
+    /// absence means "not built"; and a silent row at weight 0 is exactly where
+    /// the app gets to say *what it is waiting for*, which is rule 7 applied one
+    /// level down from the card. The em-dash clause on a zero row is also
+    /// load-bearing — `ScoreAttributionTests.testAnUnweightedRowAlwaysSaysWhy`
+    /// fails the build without it.
+    static func reportedFactors(_ verdict: SymptomRadarModel.Verdict) -> [ScoreFactor] {
+        let share = reportedShare(verdict)
+        let spoken = verdict.reported.components.reduce(0) { $0 + $1.excess }
+        return ReportedIllness.Source.allCases.map { source in
+            let id = DerivedSeriesID(.symptomRadar, source.seriesKey)
+            guard let component = verdict.reported.component(source), component.excess > 0
+            else {
+                return .producedFigure(
+                    id, name: source.displayName,
+                    detail: "Nothing recorded for today — it carries no share "
+                        + "because there is nothing to weigh, not because it "
+                        + "would not count.")
+            }
+            // Its part of the reported half, times the reported half's part of
+            // the number. Guarded rather than assumed non-zero: `spoken` is a
+            // sum of positive excesses here, but a future source returning zero
+            // must not divide by it.
+            let weight = spoken > 0 ? share * component.excess / spoken : 0
+            return .derived(
+                id, name: source.displayName, weight: weight,
+                detail: component.detail + String(format: ", which sits %.1f past an ordinary day on this card's own scale.", component.excess))
+        }
     }
 
     // MARK: - What this card works out (2026-08-06)
@@ -1602,7 +1794,31 @@ public struct SymptomRadarInsight: InsightModel {
             .init(key: daysRunningKey, displayName: "Days running above your usual",
                   unit: "days", value: Double(verdict.accumulation.daysRunning),
                   higherIsBetter: false, precision: 0),
-        ]
+        ] + reportedOutputs(verdict)
+    }
+
+    /// **The reader's three records, as three first-class derived series** —
+    /// backlog `B11-9`: *"All of this derived data must go into the relevant
+    /// data tab sections."*
+    ///
+    /// One series per source rather than one combined figure, because the
+    /// weighting rows link to them (`ScoreFactor.derived` carries a
+    /// `DerivedSeriesID` precisely so a row can answer "what has that been doing
+    /// all month") and a single merged series would leave three rows pointing at
+    /// one page. `DerivedFactorIdentityTests` fails a build where a factor names
+    /// a series the same result does not produce, so these two lists are held
+    /// together by the compiler's neighbour rather than by memory.
+    ///
+    /// ⚠️ **Recorded on every day, including zero.** A silent day is a real
+    /// zero — "you recorded nothing" — and leaving it absent would make the
+    /// history unreadable: `DerivedSeriesStore` distinguishes "never computed"
+    /// from "computed and got nothing", and this is the second one.
+    static func reportedOutputs(_ verdict: SymptomRadarModel.Verdict) -> [DerivedOutput] {
+        ReportedIllness.Source.allCases.map { source in
+            .init(key: source.seriesKey, displayName: source.displayName,
+                  unit: "", value: verdict.reported.excess(source),
+                  higherIsBetter: false, precision: 2)
+        }
     }
 
     /// ⚠️ Weight 0 — see `ScoreFactor.producedFigure`. This card's basis is
@@ -1678,9 +1894,34 @@ public struct SymptomRadarInsight: InsightModel {
     /// The zero rows are also what keeps every declared candidate reachable
     /// (`CandidateReachabilityTests`) — the collapse spans whole measurement
     /// bases, wider than `interchangeableGroups`.
-    private func contributors(for watch: HealthWatchModel.Output) -> [MetricContribution] {
-        let votingTotal = watch.signals.reduce(0.0) {
+    ///
+    /// ⚠️ **Scaled by what the reader recorded** (backlog `B11-8`). The
+    /// measured signals divide `1 − reportedShare` between them rather than the
+    /// whole of 1, because on a day the reader said they were ill their own
+    /// record genuinely carries part of the number. Scaling here rather than
+    /// leaving it to `InsightResult.weightedFactors.normalised` is deliberate:
+    /// the same weights are read by the overlay chart's legend and by
+    /// `ScoreDecomposition`, and a bar chart that renormalised while a legend
+    /// did not would show two different shares for one signal.
+    ///
+    /// `reportedShare` is 0 on every day nothing was recorded, so the scale is
+    /// the identity for the overwhelming majority of days and every existing
+    /// fixture.
+    private func contributors(for watch: HealthWatchModel.Output,
+                              reportedShare: Double = 0) -> [MetricContribution] {
+        let measuredShare = min(1, max(0, 1 - reportedShare))
+        let voteSum = watch.signals.reduce(0.0) {
             $0 + HealthWatchModel.weight(for: $1.metric)
+        }
+        /// A signal's share of the whole number: its share of the measured half,
+        /// times the measured half's share of the number. ⚠️ **Reaches exactly
+        /// zero when the reader's own record carries the whole of it**, which
+        /// happens on a perfectly ordinary morning that somebody tagged a fever
+        /// on — `today.excess` is 0 there, and a bar saying these signals
+        /// contributed half of that day's number would be an invention.
+        func share(_ metric: MetricType) -> Double {
+            guard voteSum > 0 else { return 0 }
+            return measuredShare * HealthWatchModel.weight(for: metric) / voteSum
         }
         func direction(_ metric: MetricType) -> Bool? {
             HealthWatchModel.risingIsConcerning(for: metric).map { !$0 }
@@ -1729,11 +1970,7 @@ public struct SymptomRadarInsight: InsightModel {
         }
 
         var out: [MetricContribution] = watch.signals.map { signal in
-            decomposed(signal,
-                       weight: votingTotal > 0
-                           ? HealthWatchModel.weight(for: signal.metric) / votingTotal
-                           : 0,
-                       detail: reading(signal))
+            decomposed(signal, weight: share(signal.metric), detail: reading(signal))
         }
         for signal in watch.discounted {
             let winner = watch.signals.first {

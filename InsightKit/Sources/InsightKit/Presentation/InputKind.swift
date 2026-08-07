@@ -120,6 +120,19 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
     /// `.bodyMeasurements` is one case for a tape and a scan: they are one
     /// screen answering one question, and three rows would bury it.
     case supplement
+    /// **Telling the app what a day actually was, when it has guessed** —
+    /// backlog `B11-2`.
+    ///
+    /// The reader's own framing: *"an estimated sickness they can correct —
+    /// type and severity, similar to how you can correct a work or travel event
+    /// (same concept - then we can learn from it)."* So it is `.eventConfirmation`'s
+    /// twin, one level up: the app guesses about a day, the reader answers, and
+    /// the guess and the answer are stored apart so accuracy stays measurable.
+    ///
+    /// **One case for confirm and correct**, for the reason `.eventConfirmation`
+    /// is one: they answer one question ("what was this day?") in one sheet, and
+    /// two near-identical rows would bury it.
+    case illnessCorrection
 
     public var id: String { rawValue }
 
@@ -142,6 +155,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .holiday: return "Holiday or leave"
         case .eventConfirmation: return "Confirm a flagged event"
         case .supplement: return "Supplement"
+        case .illnessCorrection: return "Were you ill?"
         }
     }
 
@@ -181,6 +195,8 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
             return "Time off, past or planned. Goes into one leave record beside what your calendar shows, so the app can know how long since you last had any."
         case .eventConfirmation:
             return "The app flags stretches where your heart rate ran high with nothing moving to explain it, and guesses what they were. Tell it what actually happened — the guess and your answer are kept apart, so it can show you how often it's right."
+        case .illnessCorrection:
+            return "The app guesses what a day was from your overnight signals and whatever you recorded, and it is wrong far more often than it is right. Tell it what actually happened — the guess and your answer are kept apart, so it can show you how often it is right, and a day you mark as illness joins your sick-day record."
         case .supplement:
             return "A bottle you take, and what its Supplement Facts panel says. Nothing senses a supplement, so this is the only way in — and once several are in, every ingredient is added up across them and shown against the published upper intake limits for your age."
         }
@@ -205,6 +221,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .holiday: return "beach.umbrella"
         case .eventConfirmation: return "questionmark.bubble"
         case .supplement: return "pills"
+        case .illnessCorrection: return "bandage"
         }
     }
 
@@ -219,7 +236,10 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
              // Answering a flag is a dated act about a dated window, not a
              // standing fact — the same shape as logging a substance, entered
              // again and again.
-             .eventConfirmation:
+             .eventConfirmation,
+             // Answering "was I ill on Tuesday" is a dated act about a dated
+             // day, the same shape as answering a flagged window.
+             .illnessCorrection:
             return .asItHappens
         // Identity is entered once and changed rarely — the profile's shape,
         // even though it is not a grounding fact.
@@ -255,7 +275,7 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .profileFacts, .cuffBloodPressure, .substanceEvent, .medicationRegimen,
              .sideEffect, .bloodTestPhoto, .fileImport, .bodyType, .screenTime,
              .bodyMeasurements, .readerIdentity, .holiday, .labResultManual,
-             .ecgImport, .supplement:
+             .ecgImport, .supplement, .illnessCorrection:
             return nil
         // ⚠️ **`nil`, deliberately, even though there is often nothing to
         // answer.** Making the row unavailable when the queue is empty was the
@@ -393,6 +413,31 @@ public extension InputKind {
         // hints that this app can add a stack of labels up, and a card the
         // reader never opens cannot tell them.
         case .supplement: return .offeredAndPrompted
+        // ⚠️ **Settings and the `+` menu only, and here the reason genuinely is
+        // a principle rather than a date.** The symptom radar *does* score off
+        // this input — a correction joins `SickDayLedger`, which
+        // `ReportedIllness` reads (B11-8) — so the usual "no card reads it yet"
+        // argument does not apply and the card offer would be honest.
+        //
+        // It is still wrong, because **the question cannot be asked without a
+        // day attached to it.** A button on the card would have to invent one,
+        // and "today" is the worst possible default for this input: today is the
+        // day the reader has least often finished having. The question belongs
+        // where the day is already named — the per-day sick page, reached from
+        // the log and the calendar (`SickDayDetailView`) — and the `+` menu
+        // entry opens that page on today rather than asking in the abstract.
+        //
+        // ⚠️ **Not the same as being unprompted.** Nagging somebody to say
+        // whether they were ill is the one nudge this app must never send: it is
+        // a question about their body, raised by a detector whose prospective
+        // positive predictive value is 4–12%, and a dismissible "you have not
+        // tried this" row about illness would be exactly the accusation
+        // `docs/illness-detection-evidence-2026-08-07.md` forbids.
+        case .illnessCorrection:
+            return .settingsOnly("The question is always about a particular day, "
+                + "so it is asked on that day's page — reached from the sick-day "
+                + "log and calendar. A button on the card would have to guess "
+                + "which day you meant.")
         case .holiday:
             return .settingsOnly("No shipped card reads the holiday ledger yet "
                 + "(B7 H6). Offering the log on a card whose score ignores it "

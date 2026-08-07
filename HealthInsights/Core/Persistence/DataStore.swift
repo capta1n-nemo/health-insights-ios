@@ -20,6 +20,9 @@ final class DataStore {
                              CycleDayRecord.self,
                              CalendarEventRecord.self, CalendarJudgementRecord.self,
                              HolidayEntry.self,
+                             // B11-2 — the app's per-day illness guess and the
+                             // reader's answer to it.
+                             IllnessJudgementRecord.self,
                              // Q7 / I7 — see DocumentRecords.swift.
                              LabResultRecord.self, ECGRecordEntry.self,
                              // Q8 — the stack the reader types in.
@@ -748,6 +751,43 @@ final class DataStore {
 
     func deleteHolidayEntry(_ entry: HolidayEntry) {
         context.delete(entry)
+        try? context.save()
+    }
+
+    // MARK: - Illness judgements (B11-2)
+
+    func loadIllnessJudgements() -> [IllnessJudgement] {
+        let descriptor = FetchDescriptor<IllnessJudgementRecord>(
+            sortBy: [SortDescriptor(\.day, order: .reverse)])
+        return ((try? context.fetch(descriptor)) ?? []).compactMap(\.judgement)
+    }
+
+    /// Store the reader's answer about one day, keeping the app's guess beside
+    /// it.
+    ///
+    /// **An upsert on the day, and the guess is written only when the row is
+    /// new.** Re-estimating a day the reader has already answered would move the
+    /// artifact under their answer, so the stored pair would stop being a real
+    /// training example — the rule `recordClassification` / `recordReview`
+    /// already draw the same line for calendar events.
+    func recordIllnessReview(day: Date, estimate: IllnessEstimate,
+                             correction: IllnessAssessment?, confirmed: Bool,
+                             at date: Date = Date(),
+                             calendar: Calendar = .current) {
+        let start = calendar.startOfDay(for: day)
+        let correctionData = correction.flatMap { try? JSONEncoder().encode($0) }
+        let descriptor = FetchDescriptor<IllnessJudgementRecord>(
+            predicate: #Predicate { $0.day == start })
+        if let existing = try? context.fetch(descriptor).first {
+            existing.correctionData = correctionData
+            existing.isConfirmed = confirmed
+            existing.reviewedAt = date
+        } else if let estimateData = try? JSONEncoder().encode(estimate) {
+            context.insert(IllnessJudgementRecord(day: start, estimateData: estimateData,
+                                                  correctionData: correctionData,
+                                                  isConfirmed: confirmed,
+                                                  reviewedAt: date))
+        }
         try? context.save()
     }
 

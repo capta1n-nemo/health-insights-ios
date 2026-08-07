@@ -384,6 +384,14 @@ struct DataExportView: View {
                                          severity: $0.severity?.rawValue,
                                          source: $0.source.rawValue)
             },
+            // **Every day the reader answered the app's illness guess about**
+            // (B11-2). The guess and the answer travel as separate fields, so a
+            // pool can measure how often this model was right — which is the
+            // whole reason the reader asked to be able to correct it: *"then we
+            // can learn from it."* Numbers only, no symptom names, no titles.
+            illnessAnswers: model.illnessJudgements
+                .filter(\.isAnswered)
+                .map(HealthDataExport.IllnessAnswer.init),
             // Every figure the app worked out, day by day. These used to be
             // left out as "a cache that replays from samples" — true on this
             // phone, false of a pooled server-side dataset, which is the only

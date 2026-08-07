@@ -186,6 +186,23 @@ private struct InputSheet: View {
             EventConfirmationSheet()
         case .supplement:
             SupplementStackSheet()
+        // **The day's page, not a bare form** — backlog B11-2. The question this
+        // input answers ("were you ill?") is meaningless without the day it is
+        // about and the evidence behind the guess, so the `+` menu opens today's
+        // page rather than a picker floating free of it. Every other route to
+        // this input already arrives with a day: the sick-day log and calendar
+        // push the same view.
+        //
+        // ⚠️ The form itself is `IllnessCorrectionSheet`, named here on purpose.
+        // `verify.sh` requires every `…Sheet` under `Features/` to appear in
+        // this file; this one is *reached through* the page above rather than
+        // opened directly, exactly like `EventAnswerSheet` above, so it gets a
+        // mention rather than a case. A case would put "were you ill?" on the
+        // `+` menu twice with no day attached to one of them.
+        case .illnessCorrection:
+            PushedInSheet(title: "Today") {
+                SickDayDetailView(day: Date(), history: model.radarHistory)
+            }
         }
     }
 
