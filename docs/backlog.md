@@ -673,10 +673,34 @@ closing*, not re-asking.
       between *nothing stirring* and *the ring was on the charger*. Oura's
       `non_wear_time` (81 of your last 90 days) sits unread as the denominator
 
-- `B3-20` ⬜ `w3` `sleep` `build` `gate:none` — **"When you settled"**
+- `B3-20` ✅ `w3` `sleep` `build` `gate:none` — **"When you settled"**
       Last night's overnight HR and HRV *curve* against your typical curve. Every
       product reports a summary; none draws the within-night shape. Probably a Sleep
       section
+
+      Shipped `ae160c5` as `SettlingSection.swift`, a standalone Sleep section.
+      `OvernightCardiac.curve` bins the readings inside the sleep window into
+      twenty-minute medians from lights-out — medians, because one 145 bpm
+      roll-over reading would otherwise draw a spike nobody experienced — and the
+      band behind it is the middle half (quartiles) of the last thirty nights.
+
+      Three decisions worth not re-deriving:
+
+      1. **The x axis is hours since sleep started, not clock time.** Two nights
+         beginning at 22:40 and 00:30 are the same shape an hour and fifty
+         minutes apart; a clock axis smears the band until it describes nothing.
+         That is also the chart's substance-shading exemption and why it cannot
+         strand a reader in an empty window.
+      2. **The band excludes the night drawn over it**
+         (`typicalHeartRate(excluding:)`). Holding a night against a band it is
+         inside is comparing it with itself, and on a short history it hides the
+         unusual night worth noticing.
+      3. **"Settled" is defined and the definition is on screen** — the first bin
+         at or below a tenth of the way back up from the night's floor to where
+         it opened, not the minimum itself (one bin, wanders with one noisy
+         reading). A night that never came down returns `nil` and says so, rather
+         than reporting "settled immediately", which would be the opposite of the
+         truth.
 
 - `B3-21` ⬜ `w3` `substances` `build` `gate:none` — **"What the drug is doing"**
       Every metric folded onto days-since-dose rather than the calendar, with the dose
@@ -1277,13 +1301,45 @@ so the decision is deliberate rather than inherited. See
       and the reader has asked for it again without settling which. That
       ruling comes first.
 
-- `S9` ⬜ `w3` `sleep` `build` `gate:none` — **Breathing disturbance, charted not scored**
+- `S9` ✅ `w3` `sleep` `build` `gate:none` — **Breathing disturbance, charted not scored**
       Sleep. 107 days, only 10% redundant. Oura publishes no validated curve,
       so it must not be scored.
 
-- `S10` ⬜ `w3` `sleep` `build` `gate:none` — **Overnight HRV**
+      Shipped `ae160c5`. **S9 and B18-1 are one section, not two** — the trend is
+      the content of the dedicated apnoea-indicator section, contained by it as a
+      `NestedInsightSection` so the app never grows two headings about one
+      measurement. See B18-1 for what the section is and is not allowed to say.
+      `BreathingDisturbanceTrend` adds the drift sentence (a direction only when
+      the slope beats the night-to-night scatter) and the latest night's
+      placement among the reader's own; still no score, no band, no verdict, and
+      `MetricType.breathingDisturbanceIndex.referenceRange` stays nil with a test
+      pinning it — a reference range appearing on it would put a band on every
+      chart that draws it, which is the apnoea claim arriving through the back
+      door.
+
+- `S10` ✅ `w3` `sleep` `build` `gate:none` — **Overnight HRV**
       Sleep is the only card grading a night that reads nothing from the
       heartbeat stream recorded during it.
+
+      Shipped `ae160c5` as `OvernightHRVSection.swift`, on `OvernightCardiac`.
+      The row was literally true and is no longer: the card now reads the HRV and
+      heart rate recorded **inside the sleep window** — windows from
+      `NightSleepDetail`, so there is one definition of a night rather than a
+      second one that would disagree on exactly the nights that matter.
+
+      ⚠️ **It is charted, not scored, and that is a decision rather than an
+      omission.** Two reasons, both said on screen: HRV is already weighted by
+      Readiness, Heart Health, Biological Age, Energy and Vital Signs, so a sixth
+      would count one night's reading six ways; and nothing published grades a
+      person's own overnight variability — it moves with age, alcohol, illness
+      and room temperature, and the literature describes the population, not a
+      threshold a night can be held to. **If a future session wants to score it,
+      that is a question for the reader, not a gap to close quietly.**
+
+      Also deliberate: SDNN and rMSSD are never pooled. The section picks
+      whichever the reader has more of and names it on screen — Apple reports
+      SDNN, Oura rMSSD, and one series made of both would step every time the
+      reader changed which device they slept in.
 
 - `S11` ⬜ `w3` `sleep` `hard` `gate:none` — **Sleep Regularity Index replacing two crude estimators**
       Sleep. Beat duration head-to-head for mortality in UK Biobank
@@ -2288,11 +2344,42 @@ update the card building skill/rules."*
 (backlog finding, 2026-08-06) — splitting them out should *help* that, but the
 generated block must be eyeballed rather than trusted to the exit code.
 
-- `B18-1` ⬜ `w3` `sleep` `build` `gate:none` `ask` — **Sleep apnoea indicator — dedicated, and it contains "Breathing during sleep"**
+- `B18-1` ✅ `w3` `sleep` `build` `gate:none` `ask` — **Sleep apnoea indicator — dedicated, and it contains "Breathing during sleep"**
       New section. Dedicated, and it **contains** "Breathing during sleep".
 
-- `B18-2` ⬜ `w3` `screentime` `build` `gate:none` `ask` — **Screen time impact — dedicated**
+      Shipped `ae160c5` as `SleepApnoeaSection.swift`. `sleepBreathingSection`
+      moved out of `InsightDetailView` and is now the `NestedInsightSection`
+      inside it, exactly as the row asks — one measurement, one heading.
+
+      **What makes a section with this title safe is the refusal, and the refusal
+      is in InsightKit where it is tested.** It opens with
+      `BreathingDisturbanceTrend.notAnApnoeaTest` ("this is not an apnoea test
+      and this app does not screen for apnoea") and closes with
+      `whatWouldAnswerIt`, which names a sleep study arranged through a doctor.
+      Neither is decoration; a section headed "Sleep apnoea indicator" that
+      showed a chart and stopped would have asserted the thing this app must not
+      assert. **Nothing added here may screen for apnoea** — see S9.
+
+- `B18-2` ✅ `w3` `screentime` `build` `gate:none` `ask` — **Screen time impact — dedicated**
       New section. Dedicated.
+
+      Shipped `ae160c5` as `SleepScreenTimeSection.swift`, on
+      `ScreenTimeSleepLink`. `SleepOnsetModel` already asked *"is it tech time?"*
+      of latency alone, as one driver row among five; this asks it of the whole
+      night — duration, latency and efficiency — and has its own heading.
+
+      **The keying is the correctness question**, and a reader could never check
+      it: screen time is stamped on the day it was clocked up, and the night that
+      follows is keyed to the next morning (`SleepOnset.night(of:)`). Pairing day
+      D with night D would hold an evening's phone use against sleep that
+      happened before it. There is a test.
+
+      Coverage is stated rather than implied: 26 days on the export, so the
+      section leads with a `CoverageGate` line and **refuses a contrast below
+      fourteen pairs** rather than reporting a weak one — a median split over six
+      nights reads on screen exactly like one over sixty. A median split, not a
+      correlation, for `SleepOnsetModel`'s own reason: the difference between two
+      and four hours is not the difference between eight and ten.
 
 - `B18-3` ✅ `w2` `sleep` `mech` `gate:none` `ask` — **Last night in stages must become standalone**
       Currently nested. Must become **standalone**.
