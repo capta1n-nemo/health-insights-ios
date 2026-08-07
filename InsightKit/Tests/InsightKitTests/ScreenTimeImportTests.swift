@@ -187,6 +187,71 @@ final class ScreenTimeImportTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 1261)
     }
 
+    // MARK: - B10-1: the date printed on a Day screenshot
+
+    /// **The defect the reader reported: the figure was right and the day was
+    /// wrong.** Every date this parser produced came from `capturedAt`, and
+    /// `capturedAt` comes from the image's EXIF — which an iOS screenshot very
+    /// often does not carry, in which case `AddDataView` passes `Date()` and
+    /// every relative phrase resolves against the *import*.
+    ///
+    /// But the Day view prints the date. "Yesterday, 2 August" says which day
+    /// it is in words that do not depend on when the picture was taken, so read
+    /// that and the whole failure mode goes away.
+    func testThePrintedDateBeatsTheRelativeWord() throws {
+        // Imported nearly three weeks after the screenshot, with no EXIF —
+        // exactly what a screenshot picked out of the library looks like.
+        let result = parse("Yesterday, 2 August\n21h 1m", capturedAt: date(2026, 8, 20))
+        XCTAssertEqual(result.date, date(2026, 8, 2),
+                       "the screen says 2 August; 'yesterday' resolved against the "
+                       + "import would have said the 19th")
+        XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 1261)
+    }
+
+    /// The same for a weekday heading. Resolving "Tuesday" backwards from
+    /// capture can only ever land inside the last seven days, so a screenshot
+    /// of any older day was filed wrong by construction.
+    func testAWeekdayHeadingUsesItsPrintedDateNotTheMostRecentWeekday() {
+        let result = parse("Tuesday, 5 August\n4h 32m", capturedAt: date(2026, 8, 20))
+        XCTAssertEqual(result.date, date(2026, 8, 5),
+                       "not the 18th, which is the Tuesday before the import")
+    }
+
+    /// A day and month with no year on the screen is the most recent one, so a
+    /// December screenshot imported in January is last year's.
+    func testAPrintedDateFromLastYearRollsBack() {
+        let result = parse("Wednesday, 31 December\n3h", capturedAt: date(2026, 1, 5))
+        XCTAssertEqual(result.date, date(2025, 12, 31))
+    }
+
+    /// A relative heading with no date printed still resolves against capture —
+    /// the fallback has to survive, because "Today" alone is all some crops say.
+    func testABareRelativeHeadingStillResolvesAgainstCapture() {
+        XCTAssertEqual(parse("Yesterday\n21h 1m", capturedAt: date(2026, 8, 20)).date,
+                       date(2026, 8, 19))
+    }
+
+    /// **A duration's digits are not dates.** OCR sometimes puts the heading and
+    /// the figure on one line, and "Yesterday, 2 August 8h 1m" then offered
+    /// 2 and 8 to the week-range reader, which is a six-day span — so a single
+    /// day was filed as the week of 2–8 August and its total relabelled as a
+    /// week's.
+    func testADurationOnTheHeadingLineIsNotAWeekRange() throws {
+        let result = parse("Yesterday, 2 August 8h 1m", capturedAt: date(2026, 8, 3))
+        XCTAssertNil(result.weekStart, "one day is not a range")
+        XCTAssertEqual(result.date, date(2026, 8, 2))
+        XCTAssertEqual(try XCTUnwrap(result.dayTotal).minutes, 481)
+    }
+
+    /// **"Updated today at 9:04 am" is a refresh time, not a heading.** It is on
+    /// every Screen Time screenshot, so a crop that loses the heading leaves it
+    /// as the only line naming a day — and the figures then file themselves onto
+    /// the day the screenshot was imported, which is the whole class B10-1 is.
+    func testTheUpdatedFooterIsNotTheDayBeingShown() {
+        let result = parse("21h 1m\nUpdated today at 9:04 am", capturedAt: date(2026, 8, 20))
+        XCTAssertNil(result.date, "no day was named on that crop, and saying so is the answer")
+    }
+
     /// A week wins over a day: the weekday letters down a Week chart's axis
     /// (M Tu W Th F Sa Su) will resolve, and filing a week onto one Tuesday is
     /// the worst available outcome.

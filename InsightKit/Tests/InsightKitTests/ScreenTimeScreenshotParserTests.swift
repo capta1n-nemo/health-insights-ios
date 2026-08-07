@@ -245,4 +245,92 @@ final class ScreenTimeScreenshotParserTests: XCTestCase {
         XCTAssertNotNil(result.weeklyTotal)
         XCTAssertNotEqual(result.totalAgreesWithAverage(), false)
     }
+
+    // MARK: - B10-2: "the numbers do not add up" on a valid week screenshot
+
+    /// **The same screenshot, with the total row's two halves the other way
+    /// round.** Screen Time right-aligns the figure against a left-aligned
+    /// label, so "Total Screen Time" and "99h 33m" are two separate text
+    /// observations on one row — and which of them OCR emits first depends on
+    /// their baselines, not on the layout.
+    ///
+    /// Emitted value-first, the figure's context is the *category* above it,
+    /// so `classify` calls it `.unlabelled` and the previous selection never
+    /// considered it: agreement only looked at readings already labelled
+    /// weekly. The one candidate left was the chart's y-axis maximum, which
+    /// disagrees with the average — and the import refused a screenshot with
+    /// the right answer printed on it, saying the numbers do not add up.
+    private var deviceWeekScreenshotValueFirst: String {
+        """
+        Screen Time
+        Show This Week
+        Last Week's Average
+        14h 13m
+        55% from last week
+        22h
+        avg.
+        0
+        M
+        Tu
+        W
+        Th
+        F
+        Sa
+        Su
+        Productivity & Finance
+        43h 14m
+        Other
+        18h 12m
+        Entertainment
+        8h 35m
+        99h 33m
+        Total Screen Time
+        Updated today at 9:04 am
+        """
+    }
+
+    /// **The regression the reader reported.** Nothing about this screenshot is
+    /// ambiguous: 99h 33m is on it, and 99h33m ÷ 7 is the 14h 13m printed above.
+    func testTheWeeksTotalIsFoundEvenWhenOcrEmitsItBeforeItsLabel() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshotValueFirst,
+                                                      capturedAt: now, calendar: cal)
+        XCTAssertEqual(result.weeklyTotal?.minutes, 99 * 60 + 33)
+        XCTAssertEqual(result.totalAgreesWithAverage(), true,
+                       "a screenshot carrying its own total must not be refused")
+    }
+
+    /// Agreement now considers every duration, so the guard that stopped it
+    /// picking a category has to be re-proved from the wider pool.
+    func testAgreementStillRefusesACategorySubtotal() {
+        let result = ScreenTimeScreenshotParser.parse(deviceWeekScreenshotValueFirst,
+                                                      capturedAt: now, calendar: cal)
+        for category in [43 * 60 + 14, 18 * 60 + 12, 8 * 60 + 35, 22 * 60] {
+            XCTAssertNotEqual(result.weeklyTotal?.minutes, Double(category))
+        }
+    }
+
+    /// The printed average is a statement about the week, never a candidate to
+    /// *be* the week — seven times itself is what it is being tested against.
+    func testTheAverageIsNeverChosenAsTheWeeksTotal() {
+        let result = ScreenTimeScreenshotParser.parse("""
+        Last Week's Average
+        1h
+        Total Screen Time
+        7h
+        """, capturedAt: now, calendar: cal)
+        XCTAssertEqual(result.weeklyTotal?.minutes, 420)
+    }
+
+    /// Without an average there is nothing to agree with, so an unlabelled
+    /// figure must **not** be promoted — the old named-row rule stands alone.
+    func testAnUnlabelledFigureIsNotPromotedWithoutAnAverage() {
+        let result = ScreenTimeScreenshotParser.parse("""
+        This Week
+        Instagram
+        900h 12m
+        Total Screen Time
+        64h 16m
+        """, capturedAt: now, calendar: cal)
+        XCTAssertEqual(result.weeklyTotal?.minutes, 64 * 60 + 16)
+    }
 }
