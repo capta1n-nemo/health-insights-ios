@@ -201,11 +201,18 @@ extension AppModel {
         case .sideEffect:
             let count = sideEffects.count
             return count == 0 ? nil : "\(count) recorded"
-        case .bloodTestPhoto:
-            // No standing: a photographed report becomes cholesterol facts, and
-            // those are counted on the profile row. Counting them twice would
-            // read as two separate sets of numbers.
-            return nil
+        // Since Q7 a report becomes a store of analytes rather than two
+        // cholesterol facts, so both document and typed routes now have a
+        // standing to show — and it is the **same** figure for both, because
+        // the reader has one set of blood results however they arrived. Showing
+        // each route only its own count would read as two separate histories.
+        case .bloodTestPhoto, .labResultManual:
+            let count = labResults.count
+            guard count > 0 else { return nil }
+            return count == 1 ? "1 value" : "\(count) values"
+        case .ecgImport:
+            let count = ecgRecords.count
+            return count == 0 ? nil : (count == 1 ? "1 recording" : "\(count) recordings")
         case .fileImport:
             return ShotsyIntegration.lastImportDate.map {
                 $0.formatted(.relative(presentation: .named))

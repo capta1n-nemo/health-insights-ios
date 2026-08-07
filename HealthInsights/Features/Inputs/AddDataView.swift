@@ -154,6 +154,10 @@ private struct InputSheet: View {
             SideEffectEntrySheet()
         case .bloodTestPhoto:
             PushedInSheet(title: "Import") { ImportLabView() }
+        case .labResultManual:
+            LabResultEntrySheet()
+        case .ecgImport:
+            ECGImportSheet()
         case .fileImport:
             PushedInSheet(title: "Shotsy") { ShotsyIntegrationView() }
         case .bodyMeasurements:

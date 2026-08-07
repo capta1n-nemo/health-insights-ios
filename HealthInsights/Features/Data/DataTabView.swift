@@ -307,6 +307,18 @@ struct DataTabView: View {
             return matches(domain.title, "tag", "label", "note")
                 || model.tags.contains { matches($0.name) }
                 || model.tags.contains { matches($0.mapping.applicability.rawValue) }
+        case .labResults:
+            // Searchable by the analyte's **own name**, which is the point: a
+            // reader looking for "ferritin" typed that word themselves and has
+            // no reason to know the app files it under Blood tests.
+            guard !model.labResults.isEmpty else { return false }
+            return matches(domain.title, "blood", "lab", "pathology", "test",
+                           "cholesterol", "hba1c", "result")
+                || model.labResults.contains { matches($0.analyte.displayName) }
+        case .ecgRecords:
+            guard !model.ecgRecords.isEmpty else { return false }
+            return matches(domain.title, "ecg", "ekg", "electrocardiogram",
+                           "heart trace", "rhythm")
         case .unmodelled:
             return !filteredOtherGroups.isEmpty
         case .generatedInsights:
@@ -324,6 +336,53 @@ struct DataTabView: View {
 
     private var visibleDomains: [DataDomain] {
         DataDomain.allCases.filter { isVisible($0) }
+    }
+
+    /// Blood tests — backlog Q7. One row into `LabResultsDataView`.
+    @ViewBuilder private var labResultsSection: some View {
+        if !model.labResults.isEmpty {
+            Section(DataDomain.labResults.title) {
+                NavigationLink {
+                    LabResultsDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Analytes")
+                            Spacer()
+                            Text("\(model.labResults.count)").foregroundStyle(.secondary)
+                        }
+                        if let newest = model.labResults.map(\.collectedAt).max() {
+                            Text("Most recent: \(newest.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Imported ECGs — backlog I7. ⚠️ Nothing here is interpreted; the row
+    /// counts documents and the page quotes what the source printed.
+    @ViewBuilder private var ecgSection: some View {
+        if !model.ecgRecords.isEmpty {
+            Section(DataDomain.ecgRecords.title) {
+                NavigationLink {
+                    ECGDataView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text("Recordings")
+                            Spacer()
+                            Text("\(model.ecgRecords.count)").foregroundStyle(.secondary)
+                        }
+                        if let newest = model.ecgRecords.map(\.recordedAt).max() {
+                            Text("Most recent: \(newest.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// The substance log's own row in the Data tab.
@@ -611,6 +670,8 @@ struct DataTabView: View {
         case .sickDays: sickDaysSection
         case .cycles: cycleSection
         case .tags: tagsSection
+        case .labResults: labResultsSection
+        case .ecgRecords: ecgSection
         case .unmodelled: otherDataSection
         case .generatedInsights: generatedInsightsSection
         }

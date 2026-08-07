@@ -19,7 +19,9 @@ final class DataStore {
                              // ⚠️ A @Model not listed here silently never persists.
                              CycleDayRecord.self,
                              CalendarEventRecord.self, CalendarJudgementRecord.self,
-                             HolidayEntry.self])
+                             HolidayEntry.self,
+                             // Q7 / I7 — see DocumentRecords.swift.
+                             LabResultRecord.self, ECGRecordEntry.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         do {
             container = try ModelContainer(for: schema, configurations: [config])
@@ -163,6 +165,75 @@ final class DataStore {
     /// this only answers which rows are candidates.
     func bodyScansAwaitingReparse(currentVersion: Int) -> [BodyScan] {
         bodyScans().filter { $0.parserVersion < currentVersion && $0.isReparseable }
+    }
+
+    // MARK: - Lab results and ECGs (Q7, I6, I7)
+
+    /// Every stored analyte value, newest collection first.
+    ///
+    /// A row whose payload will not decode is **skipped**, never
+    /// default-constructed. A lab value invented by a decoding fallback is
+    /// exactly the misread class `LabReportParser` spends four hundred lines
+    /// avoiding, and it would arrive with no evidence attached to give it away.
+    func labResults() -> [LabResult] {
+        let records = (try? context.fetch(FetchDescriptor<LabResultRecord>(
+            sortBy: [SortDescriptor(\.collectedAt, order: .reverse)]))) ?? []
+        return records.compactMap(\.result)
+    }
+
+    /// Save results, replacing any row with the same id.
+    ///
+    /// An upsert for the reason `saveBodyScan` is one: confirming an imported
+    /// value a second time must update it rather than leave two versions of one
+    /// measurement for the reader to tell apart.
+    func saveLabResults(_ results: [LabResult]) {
+        for result in results {
+            let id = result.id
+            let existing = (try? context.fetch(FetchDescriptor<LabResultRecord>(
+                predicate: #Predicate { $0.id == id }))) ?? []
+            for record in existing { context.delete(record) }
+            if let record = LabResultRecord(result) { context.insert(record) }
+        }
+        try? context.save()
+    }
+
+    func deleteLabResult(id: UUID) {
+        let records = (try? context.fetch(FetchDescriptor<LabResultRecord>(
+            predicate: #Predicate { $0.id == id }))) ?? []
+        for record in records { context.delete(record) }
+        try? context.save()
+    }
+
+    /// Every imported ECG, newest recording first.
+    func ecgRecords() -> [ECGRecord] {
+        let records = (try? context.fetch(FetchDescriptor<ECGRecordEntry>(
+            sortBy: [SortDescriptor(\.recordedAt, order: .reverse)]))) ?? []
+        return records.compactMap(\.record)
+    }
+
+    func saveECGRecord(_ record: ECGRecord) {
+        let id = record.id
+        let existing = (try? context.fetch(FetchDescriptor<ECGRecordEntry>(
+            predicate: #Predicate { $0.id == id }))) ?? []
+        for entry in existing { context.delete(entry) }
+        if let entry = ECGRecordEntry(record) { context.insert(entry) }
+        try? context.save()
+    }
+
+    /// Delete a record **and the document it names.** The bytes are the reader's
+    /// and deleting the row while leaving the file is how an app quietly keeps a
+    /// picture of somebody's heart trace after being told to forget it.
+    func deleteECGRecord(id: UUID) {
+        let entries = (try? context.fetch(FetchDescriptor<ECGRecordEntry>(
+            predicate: #Predicate { $0.id == id }))) ?? []
+        for entry in entries {
+            if let name = entry.attachmentFileName,
+               let url = DocumentAttachmentStore.url(for: name) {
+                try? FileManager.default.removeItem(at: url)
+            }
+            context.delete(entry)
+        }
+        try? context.save()
     }
 
     // MARK: - Manual samples

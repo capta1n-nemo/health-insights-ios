@@ -357,6 +357,8 @@ final class AppModel {
         calendarEvents = dataStore.loadCalendarEvents()
         calendarJudgements = dataStore.loadCalendarJudgements()
         holidayEntries = dataStore.loadHolidayEntries()
+        labResults = dataStore.labResults()
+        ecgRecords = dataStore.ecgRecords()
     }
 
     // MARK: - Calendar
@@ -803,11 +805,17 @@ final class AppModel {
                 hasBeenUsed = !(activeMedication?.doses.isEmpty ?? true)
             case .sideEffect:
                 hasBeenUsed = !sideEffects.isEmpty
+            // Since Q7 there *is* a record of how a value arrived — every
+            // `LabResult` carries its `source` — so this is no longer the
+            // hard-coded `true` it was when nothing was stored. It still never
+            // prompts (`.settingsOnly`), so the answer is only ever read as
+            // "stop suggesting".
             case .bloodTestPhoto:
-                // No record is kept of *how* a cholesterol value arrived, so
-                // there is nothing to test. It never prompts, so this is only
-                // ever read as "don't ask".
-                hasBeenUsed = true
+                hasBeenUsed = labResults.contains { $0.source.isMachineRead }
+            case .labResultManual:
+                hasBeenUsed = labResults.contains { $0.source == .typed }
+            case .ecgImport:
+                hasBeenUsed = !ecgRecords.isEmpty
             case .fileImport:
                 hasBeenUsed = ShotsyIntegration.lastImportDate != nil
             case .bodyType:
@@ -917,6 +925,61 @@ final class AppModel {
     /// a computed property reading SwiftData is invisible to SwiftUI observation,
     /// which is the defect `sideEffects` and `activeMedication` were fixed for.
     private(set) var bodyScans: [BodyScan] = []
+
+    /// Every blood-test analyte the reader has given the app — backlog `Q7`.
+    ///
+    /// A **stored** property reloaded in `reloadLoggedData()`, never a computed
+    /// property reading SwiftData: a computed one is invisible to SwiftUI
+    /// observation, which is the defect `sideEffects` and `activeMedication`
+    /// were both fixed for and the trap `docs/data-conventions.md` names.
+    private(set) var labResults: [LabResult] = []
+
+    /// Every imported ECG — backlog `I7`. Metadata and a file name; the trace
+    /// itself is in `DocumentAttachmentStore`.
+    private(set) var ecgRecords: [ECGRecord] = []
+
+    /// Store confirmed lab results.
+    ///
+    /// ⚠️ **The two lipids also become grounding facts**, and only when the
+    /// reading is not doubtful. That duplication is deliberate — SCORE2 and
+    /// ASCVD read the profile, this store is the history — and the confidence
+    /// gate is the point: a value the parser flagged goes into the reader's
+    /// record where they can see it beside its warning, and does not go into a
+    /// ten-year risk estimate that will never ask.
+    func saveLabResults(_ results: [LabResult]) {
+        guard !results.isEmpty else { return }
+        dataStore.saveLabResults(results)
+        for result in results {
+            guard let kind = result.analyte.groundingKind else { continue }
+            guard result.confidence != .doubtful else { continue }
+            saveGrounding(kind: kind, value: result.value)
+        }
+        labResults = dataStore.labResults()
+        recompute()
+    }
+
+    func deleteLabResult(id: UUID) {
+        dataStore.deleteLabResult(id: id)
+        labResults = dataStore.labResults()
+        recompute()
+    }
+
+    /// Store an imported ECG.
+    ///
+    /// ⚠️ Nothing is computed from it and nothing scores it — see `ECGRecord`.
+    /// `recompute()` is still called so the Data tab's row count refreshes,
+    /// which is the only thing downstream of this.
+    func saveECGRecord(_ record: ECGRecord) {
+        dataStore.saveECGRecord(record)
+        ecgRecords = dataStore.ecgRecords()
+        recompute()
+    }
+
+    func deleteECGRecord(id: UUID) {
+        dataStore.deleteECGRecord(id: id)
+        ecgRecords = dataStore.ecgRecords()
+        recompute()
+    }
 
     /// What a scan may use, and separately what it may keep.
     ///

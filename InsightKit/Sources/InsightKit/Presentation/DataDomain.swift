@@ -139,6 +139,35 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
     /// would let self-reported free text into the symptom radar without anybody
     /// deciding it should be there.
     case tags
+    /// **Blood test results** — every analyte, not only the two a card scores.
+    ///
+    /// Backlog `Q7`/`I6`. Its own domain rather than a shape of `metrics`, and
+    /// the reason is the same one `bodyScans` gives: a lab result is not a
+    /// series, it is a *document's worth of readings taken at one moment*. It
+    /// carries the unit the laboratory printed, the reference interval it
+    /// printed beside the value, how the value reached the app (typed, photo,
+    /// PDF, scanner) and **how confident the app is that it read the number
+    /// correctly** — none of which a `HealthMetricSample` has a field for, and
+    /// the last of which is the one that must never be lost.
+    ///
+    /// ⚠️ **The two lipids still become grounding facts as well**, because
+    /// SCORE2 and ASCVD read the profile and not this store. That is a
+    /// deliberate duplication: the risk models want one current value each and
+    /// this domain wants the history, and collapsing them would make a
+    /// three-year-old cholesterol the input to a ten-year risk estimate.
+    case labResults
+    /// **Imported ECGs** — the document, its metadata, and what the *source*
+    /// printed on it.
+    ///
+    /// Backlog `I7`. ⚠️ **Nothing here is interpreted and nothing ever will be**
+    /// — reading a trace is a regulated device claim. `ECGRecord` has no field
+    /// for a conclusion this app reached, and `ECGFindingProvenance` has no case
+    /// for one; the absence is the design, not an omission waiting to be filled.
+    ///
+    /// Its own domain rather than a flavour of `labResults` for the reason both
+    /// of those are separate from `metrics`: a trace is a picture with metadata
+    /// around it, not a value with a unit.
+    case ecgRecords
     /// Everything imported but not yet modelled, from the raw catalogue.
     case unmodelled
     /// **Every figure the app has derived, kept as a day-by-day series** — the
@@ -174,6 +203,8 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .holidays: return "Holidays"
         case .sickDays: return "Sick days"
         case .tags: return "Tags"
+        case .labResults: return "Blood tests"
+        case .ecgRecords: return "ECGs"
         case .unmodelled: return "Other data"
         case .generatedInsights: return "Generated insights"
         }
@@ -208,6 +239,10 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
             return "Every day you were ill, from your calendar and from what you told the app — what you said, never what a sensor decided."
         case .tags:
             return "The words you put on a day, grouped by what the app worked out each one is about — and how it worked that out, so you can disagree with it."
+        case .labResults:
+            return "Every analyte from every report you have given the app — typed, photographed, scanned or imported as a PDF — with the unit and reference range your laboratory printed, and how sure the app is that it read each number right."
+        case .ecgRecords:
+            return "The ECGs you have imported, with the date, device and whatever the recording device or your clinician printed on them. This app does not interpret an ECG."
         case .unmodelled:
             return "Imported and catalogued, but no card reads it yet."
         case .generatedInsights:

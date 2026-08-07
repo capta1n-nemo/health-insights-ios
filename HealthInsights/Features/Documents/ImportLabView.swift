@@ -1,26 +1,58 @@
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 import InsightKit
 #if canImport(UIKit)
 import UIKit
 #endif
 
-/// "Take a photo of your blood test." Pick an image, OCR it on-device, and let
-/// the user confirm the values before they're saved as grounding inputs. This is
-/// the first slice of the broader "import anything" capability.
+/// **Bring a blood test in as a document** — scan it, photograph it, or pick a
+/// PDF. Backlog `Q7`, and the reader settled the question it was asked as:
+/// *"both? What do you mean? We should be able to accept all of these."*
+///
+/// Typed entry is the fourth route and lives in `LabResultEntrySheet`, because a
+/// reader holding a printout and a reader holding a phone are answering
+/// different questions. This screen points at it when a scan comes back
+/// unreadable, which is the moment it is most wanted.
+///
+/// ## What changed on 2026-08-07
+///
+/// It used to extract two analytes — total and HDL cholesterol — and throw the
+/// rest of the page away. It now reads **every** analyte the report prints
+/// (`LabReportParser`), names the ones a language model can name and the parser
+/// cannot (`LabAnalyteExtractor`, `I6`), and shows each value with **how sure it
+/// is that it read the number correctly**.
+///
+/// ⚠️ **Nothing is saved until the reader taps.** A misread lab value is worse
+/// than no lab value, so every candidate is shown with its checks and the reader
+/// confirms. The lipids additionally become grounding facts, and only when the
+/// reading is not doubtful — see `AppModel.saveLabResults`.
 struct ImportLabView: View {
     @Environment(AppModel.self) private var model
     @State private var pickerItem: PhotosPickerItem?
-    @State private var extracted: [LabReportParser.Extracted] = []
+    @State private var candidates: [LabResult] = []
     @State private var isProcessing = false
     @State private var processedOnce = false
     @State private var savedMessage: String?
     @State private var isScanning = false
-    /// How many pages the last scan carried, so the "nothing found" line can
-    /// say what it looked at. Two blank pages and one blank photo are the same
-    /// message otherwise, and they are not the same problem.
+    @State private var isChoosingFile = false
+    @State private var isShowingTypedEntry = false
+    /// How many pages the last document carried, so "nothing found" can say what
+    /// it looked at. Two blank pages and one blank photo are the same message
+    /// otherwise, and they are not the same problem.
     @State private var pagesRead = 0
+    /// Whether the on-device model contributed. Shown, because "the app read
+    /// nine values" and "the app read nine and a model named two more" are
+    /// different claims about where a number came from.
+    @State private var modelContributed = false
+    /// Set when a PDF's own text layer was used. A value read from characters
+    /// the laboratory wrote has no OCR uncertainty, and the reader is told which
+    /// kind of reading they are looking at.
+    @State private var usedTextLayer = false
+
     private let scanner = DocumentScanService()
+    private let importer = DocumentImportService()
+    private let extractor = LabAnalyteExtractor()
 
     var body: some View {
         ScrollView {
@@ -28,25 +60,15 @@ struct ImportLabView: View {
                 Card {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Import a blood test").font(.headline)
-                        // Leads with scanning, because the button below does.
-                        // The prose still said "choose a photo" after the
-                        // scanner became the primary action, so it pointed at
-                        // the tinted secondary button — spotted in the
-                        // simulator on 2026-08-04. Copy that names an action
-                        // has to name the one the eye lands on.
-                        Text("Scan your pathology report with the camera, or pick a photo you already have. The text is read on your device — nothing is uploaded — and any cholesterol values are pulled out for you to confirm.")
+                        Text("Scan your pathology report, pick a photo, or choose a PDF. Every value on it is read on your device — nothing is uploaded — and you confirm each one before it is kept.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
 
-                // The camera first, the library second: a reader holding the
-                // report in their hand is the common case, and until now the
-                // only route was to photograph it, leave the app, and come back
-                // to pick the photo they had just taken. The system scanner
-                // also does the two things a raw camera photo does not — edge
-                // detection and perspective correction — and a straight-on,
-                // cropped page is exactly what the OCR asks for in the failure
-                // message below.
+                // The camera first: a reader holding the report in their hand is
+                // the common case, and the system scanner does the two things a
+                // raw photo does not — edge detection and perspective
+                // correction, which is exactly what the OCR asks for.
                 if DocumentCameraView.isAvailable {
                     Button {
                         savedMessage = nil
@@ -68,39 +90,37 @@ struct ImportLabView: View {
                     libraryPicker.buttonStyle(.borderedProminent)
                 }
 
+                Button {
+                    savedMessage = nil
+                    isChoosingFile = true
+                } label: {
+                    Label("Choose a PDF", systemImage: "doc.richtext")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
                 if isProcessing {
                     HStack { ProgressView(); Text("Reading your report…").foregroundStyle(.secondary) }
                         .frame(maxWidth: .infinity)
                 }
 
-                if !extracted.isEmpty {
-                    Card {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Found these values").font(.headline)
-                            ForEach(extracted, id: \.kind) { value in
-                                HStack {
-                                    Text(value.kind.displayName)
-                                    Spacer()
-                                    Text(String(format: "%.1f %@", value.value, value.displayUnit))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            Button {
-                                for value in extracted { model.saveGrounding(kind: value.kind, value: value.value) }
-                                savedMessage = "Saved \(extracted.count) value(s) to your profile."
-                                extracted = []
-                            } label: {
-                                Text("Save to my profile").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
+                if !candidates.isEmpty {
+                    resultsCard
                 } else if processedOnce && !isProcessing {
                     Card {
-                        Text(pagesRead > 1
-                             ? "Couldn't find recognised values across those \(pagesRead) pages. Blood-test reports vary — you can add the numbers manually in Settings."
-                             : "Couldn't find recognised values in that image. Try a sharper, straight-on photo, or add the numbers manually in Settings.")
-                            .font(.subheadline).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(pagesRead > 1
+                                 ? "Couldn't find any values across those \(pagesRead) pages. Blood-test reports vary."
+                                 : "Couldn't find any values in that document. Try a sharper, straight-on photo.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            // The fallback named at the moment it is wanted,
+                            // rather than left in Settings for the reader to go
+                            // looking for after being told the scan failed.
+                            Button("Type the numbers in instead") {
+                                isShowingTypedEntry = true
+                            }
+                        }
                     }
                 }
 
@@ -121,6 +141,10 @@ struct ImportLabView: View {
                 process(pages)
             }
         }
+        .fileImporter(isPresented: $isChoosingFile, allowedContentTypes: [.pdf]) { outcome in
+            if case .success(let url) = outcome { process(pdf: url) }
+        }
+        .sheet(isPresented: $isShowingTypedEntry) { LabResultEntrySheet() }
     }
 
     private var libraryPicker: some View {
@@ -131,16 +155,68 @@ struct ImportLabView: View {
         .controlSize(.large)
     }
 
-    /// Read a scan's pages and keep the first value found for each kind.
-    ///
-    /// **All the pages, not the first.** A pathology report runs to several
-    /// sheets and the panel this app reads is rarely on the one scanned first;
-    /// reading only page one would make a two-page report look unreadable.
-    ///
-    /// First-found wins per kind, in page order. A report that states a value
-    /// twice states it identically — a repeated cholesterol is the summary line
-    /// and the table row — so the tie-break only decides which of two equal
-    /// numbers is shown, and page order is the one the reader can predict.
+    @ViewBuilder private var resultsCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Found \(candidates.count) value\(candidates.count == 1 ? "" : "s")")
+                    .font(.headline)
+
+                if usedTextLayer {
+                    Text("Read from the PDF's own text rather than from a picture of it, so these are the characters your laboratory wrote.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                if modelContributed {
+                    Text("Some names were worked out by the on-device model. Every number was still taken from the document itself and checked against it.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+
+                ForEach(candidates) { candidate in
+                    LabResultRow(result: candidate, showsChecks: true)
+                    Divider()
+                }
+
+                if doubtfulCount > 0 {
+                    Label("\(doubtfulCount) of these could not be checked out. Compare them against your report before you keep them — the lipids among them will not be used for your heart-risk estimate.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(Theme.warn)
+                }
+
+                Button {
+                    save()
+                } label: {
+                    Text("Keep these values").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Type them in instead") { isShowingTypedEntry = true }
+                    .font(.caption)
+            }
+        }
+    }
+
+    private var doubtfulCount: Int {
+        candidates.filter { $0.confidence == .doubtful }.count
+    }
+
+    private func save() {
+        // Confirmed by the reader's tap. What that confirms is *the reading*,
+        // which is why the flag lives on the result and not on the import: a
+        // month later this is the only record that a person looked at it.
+        let confirmed = candidates.map { candidate in
+            LabResult(id: candidate.id, analyte: candidate.analyte, value: candidate.value,
+                      unit: candidate.unit, referenceRange: candidate.referenceRange,
+                      collectedAt: candidate.collectedAt,
+                      collectedAtIsExact: candidate.collectedAtIsExact,
+                      source: candidate.source, evidence: candidate.evidence,
+                      isConfirmedByReader: true)
+        }
+        model.saveLabResults(confirmed)
+        savedMessage = "Saved \(confirmed.count) value(s)."
+        candidates = []
+    }
+
+    // MARK: - Reading a document
+
     private func process(_ pages: [PlatformImage]) {
         guard !pages.isEmpty else { return }
         savedMessage = nil
@@ -148,19 +224,8 @@ struct ImportLabView: View {
         Task {
             isProcessing = true
             defer { isProcessing = false; processedOnce = true }
-            var found: [LabReportParser.Extracted] = []
-            for page in pages {
-                for value in await scanner.extractLabValues(from: page)
-                where !found.contains(where: { $0.kind == value.kind }) {
-                    found.append(value)
-                }
-            }
-            extracted = found
-            if found.isEmpty {
-                DiagnosticsLog.shared.null("Import", "Scanned \(pages.count) page(s) — no recognised values")
-            } else {
-                DiagnosticsLog.shared.ok("Import", "Scanned \(pages.count) page(s) — \(found.count) value(s) found")
-            }
+            let document = await importer.readImages(pages)
+            await extract(document, source: .documentScan)
         }
     }
 
@@ -172,18 +237,46 @@ struct ImportLabView: View {
             isProcessing = true
             defer { isProcessing = false; processedOnce = true }
             #if canImport(UIKit)
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
-                extracted = await scanner.extractLabValues(from: image)
-                if extracted.isEmpty {
-                    DiagnosticsLog.shared.null("Import", "Blood-test photo read — no recognised values")
-                } else {
-                    DiagnosticsLog.shared.ok("Import", "Blood-test photo read — \(extracted.count) value(s) found")
-                }
-            } else {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else {
                 DiagnosticsLog.shared.fail("Import", "Couldn't load the selected image")
+                return
             }
+            let document = await importer.readImages([image])
+            await extract(document, source: .photo)
             #endif
+        }
+    }
+
+    private func process(pdf url: URL) {
+        savedMessage = nil
+        Task {
+            isProcessing = true
+            defer { isProcessing = false; processedOnce = true }
+            // ⚠️ A file picked from Files is unreadable without this, and the
+            // failure is a silent empty document rather than an error.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let document = await importer.readPDF(at: url)
+            pagesRead = document.pageCount
+            await extract(document, source: .pdf)
+        }
+    }
+
+    private func extract(_ document: DocumentImportService.DocumentText,
+                         source: LabResultSource) async {
+        usedTextLayer = document.pdfSource == .textLayer
+        let outcome = await extractor.extract(from: document.text, source: source)
+        modelContributed = outcome.modelRan
+            && outcome.results.contains { $0.evidence?.method == .onDeviceModel }
+        candidates = outcome.results
+        for refusal in outcome.refusals {
+            DiagnosticsLog.shared.null("Import", "Model proposal refused — \(refusal)")
+        }
+        if outcome.results.isEmpty {
+            DiagnosticsLog.shared.null("Import", "Read \(pagesRead) page(s) — no values found")
+        } else {
+            DiagnosticsLog.shared.ok("Import", "Read \(pagesRead) page(s) — \(outcome.results.count) value(s) found")
         }
     }
 }
