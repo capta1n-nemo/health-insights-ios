@@ -13,6 +13,7 @@ struct SettingsView: View {
                 inputSection
                 notificationsSection
                 intelligenceSection
+                widgetSection
                 exportSection
                 privacySection
                 aboutSection
@@ -105,6 +106,29 @@ struct SettingsView: View {
         GroundingKind.directlyEntered.filter { model.profile.value($0) != nil }.count
     }
 
+
+    /// Backlog `D8`. The widget cannot be installed yet — it needs an App Group
+    /// and an Xcode account on the deploy Mac, neither of which this repo can
+    /// grant itself — so this row shows what it *would* say and names both
+    /// blockers. Same rule as `CoverageGate` on the cards: a missing thing has
+    /// to say what it is waiting for, rather than simply not being there.
+    private var widgetSection: some View {
+        Section {
+            NavigationLink {
+                WidgetPreviewView()
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Home screen widget", systemImage: "square.grid.2x2")
+                    Text(WidgetSnapshotStore.isVisibleToWidgets
+                         ? "Ready to add from your home screen"
+                         : "Not available yet — see why")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } footer: {
+            Text("Your readiness score at a glance, without opening the app. Shows what the widget would say, and what it's allowed to say — a number never appears there without the words that qualify it.")
+        }
+    }
 
     /// The development feedback loop: hand back what the app has actually
     /// imported, so a decision about which signals deserve a card is made

@@ -487,6 +487,10 @@ the place to look.
 - `Presentation/VitalDeparture.swift`
   - `VitalDeparture` :27
   - `VitalDeparturePanel` :132
+- `Presentation/WidgetSnapshot.swift`
+  - `WidgetSnapshot` :45
+- `Presentation/WidgetSnapshotStore.swift`
+  - `WidgetSnapshotStore` :31
 - `Signals/BodyCompositionSplit.swift`
   - `BodyCompositionSplit` :13
 - `Signals/BodyMeasurementSource.swift`
@@ -1101,9 +1105,9 @@ the place to look.
   - `ResearchTopic` :113
   - `ResearchView` :30
 - `Features/Settings/SettingsView.swift`
-  - `DisclaimerView` :404
-  - `IntegrationRow` :303
-  - `IntegrationSummaryRow` :360
+  - `DisclaimerView` :428
+  - `IntegrationRow` :327
+  - `IntegrationSummaryRow` :384
   - `SettingsView` :4
 - `Features/Settings/ShortcutsIntegrationView.swift`
   - `ShortcutsIntegrationView` :12
@@ -1121,4 +1125,12 @@ the place to look.
 - `Features/Substances/SupplementStackSheet.swift`
   - `SupplementNutrientRow` :143
   - `SupplementStackSheet` :27
+- `Features/Widgets/AppModel+WidgetSnapshot.swift`
+  - `WidgetPublishState` :79
+- `Features/Widgets/DailyNumberWidgetView.swift`
+  - `DailyNumberWidgetView` :59
+  - `WidgetChrome` :139
+  - `WidgetRenderSize` :41
+- `Features/Widgets/WidgetPreviewView.swift`
+  - `WidgetPreviewView` :20
 
