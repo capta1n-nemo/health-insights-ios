@@ -1,8 +1,9 @@
 import SwiftUI
 import InsightKit
 
-/// Every score on one time axis — the old Insights hero, kept whole and moved
-/// one tap away.
+/// **The deep dive under the insight web.** Every score on one time axis, why
+/// the lowest one is what it is, and the web itself walked back through the
+/// reader's own history.
 ///
 /// ## Why it moved rather than went
 ///
@@ -17,6 +18,24 @@ import InsightKit
 /// second scroll freezes that came of starting them all on tab open. Behind a
 /// tap, the same replays cost only the reader who asked for the answer, and they
 /// are the only thing on screen so there is nothing for them to stutter.
+///
+/// ## The order of the three sections, and why the morph is last
+///
+/// _Backlog P20._ The reader placed the decomposition here themselves, directly
+/// under the comparison chart, and gave the argument for the adjacency: the
+/// chart says **which** of your scores is low, and the decomposition says **why
+/// that one is** — the natural next question, one screen down. So the morph
+/// section, which arrived later, goes underneath both rather than between them.
+/// It is a third question ("and how did the whole shape get here"), not an
+/// interruption of the first two.
+///
+/// ## "Life-wide", stated rather than implied
+///
+/// Both time-based sections here draw the reader's **whole recorded history**,
+/// not the card timeframe — and both print the span they actually cover, from
+/// the data, every time. The span is not fixed: it grows as replays land and as
+/// the app stores another day. A chart that silently changes the stretch of life
+/// it covers is precisely the ambiguity this app exists to avoid.
 struct ScoreComparisonDetailView: View {
     @Environment(AppModel.self) private var model
 
@@ -25,6 +44,13 @@ struct ScoreComparisonDetailView: View {
     /// lowest score changes under the reader and a seeded default would pin the
     /// section to whichever card was worst the first time they opened it.
     @State private var selectedInsight: InsightID?
+
+    /// The morph slider's frames. Built off the view body — see `WebMorphModel`.
+    @State private var morph = WebMorphModel()
+    /// The reader's step width. Monthly to begin with: it is the width most
+    /// likely to have every card present on a young record, and the coverage
+    /// rule means a step nobody clears draws nothing at all.
+    @State private var granularity: WebTimeGranularity = .month
 
     var body: some View {
         ScrollView {
@@ -37,7 +63,18 @@ struct ScoreComparisonDetailView: View {
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         if series.count >= 2 {
-                            ScoreComparisonChart(series: series)
+                            // The whole recorded history in one window rather
+                            // than a trailing 90 days: this is the screen the
+                            // reader opened to see the long shape, and a window
+                            // shorter than the data hides the beginning of it
+                            // behind a scroll nothing announces.
+                            ScoreComparisonChart(series: series,
+                                                 window: lifeWideWindow(series))
+                            if let span = seriesSpan(series) {
+                                Text(spanSentence(span))
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         } else {
                             placeholder
                         }
@@ -49,12 +86,77 @@ struct ScoreComparisonDetailView: View {
                     .padding(.horizontal, 4)
 
                 decompositionSection
+
+                WebMorphSection(timeline: morph.timeline,
+                                isReplaying: morph.isReplaying,
+                                granularity: $granularity)
             }
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("Scores over time")
+        .navigationTitle("Deep dive")
         .navigationBarTitleDisplayMode(.inline)
+        // Three triggers, one idempotent call. The histories arrive over
+        // several seconds — two replays at a time — so the timeline has to be
+        // rebuilt as they land, and again whenever the reader changes the step
+        // width. `WebMorphModel.refresh` fingerprints its inputs, so the two
+        // that changed nothing cost a hash.
+        .task { refreshMorph() }
+        .onChange(of: model.scoreHistories.count) { refreshMorph() }
+        .onChange(of: granularity) { refreshMorph() }
+    }
+
+    // MARK: - The morph slider's inputs
+
+    /// Every web-eligible card's scored days, gathered **outside the view body**.
+    ///
+    /// `AppModel.scoreHistory(for:)` returns `[]` and queues a replay on first
+    /// ask, so a card whose replay has not landed falls back to
+    /// `storedScoreHistory(for:)` — the rows already on disk. That is not a
+    /// consolation prize: stored rows are what the app actually told the reader
+    /// on the day, they reach back further than the 90-day replay window, and
+    /// they are what makes the span here *life-wide* rather than a quarter.
+    private func refreshMorph() {
+        var histories: [InsightID: [ScorePoint]] = [:]
+        var titles: [InsightID: String] = [:]
+        var pending = false
+        for result in model.results where result.id.belongsOnBalanceWeb {
+            titles[result.id] = result.title
+            let replayed = model.scoreHistory(for: result.id)
+            if replayed.isEmpty {
+                if model.scoreHistoryIsPending(for: result.id) { pending = true }
+                let stored = model.storedScoreHistory(for: result.id)
+                if !stored.isEmpty { histories[result.id] = stored }
+            } else {
+                histories[result.id] = replayed
+            }
+        }
+        morph.refresh(histories: histories, titles: titles,
+                      granularity: granularity, isReplaying: pending)
+    }
+
+    // MARK: - The span the comparison chart actually covers
+
+    private func seriesSpan(_ series: [ScoreComparisonChart.Series]) -> ClosedRange<Date>? {
+        let dates = series.flatMap { $0.points.map(\.date) }
+        guard let first = dates.min(), let last = dates.max(), first <= last else { return nil }
+        return first...last
+    }
+
+    /// A visible window wide enough to hold the whole history, with a floor so a
+    /// two-day record does not draw two points at opposite edges of the chart.
+    private func lifeWideWindow(_ series: [ScoreComparisonChart.Series]) -> TimeInterval {
+        let floor: TimeInterval = 30 * 24 * 3600
+        guard let span = seriesSpan(series) else { return floor }
+        return max(floor, span.upperBound.timeIntervalSince(span.lowerBound))
+    }
+
+    private func spanSentence(_ span: ClosedRange<Date>) -> String {
+        let days = Int((span.upperBound.timeIntervalSince(span.lowerBound) / 86_400).rounded()) + 1
+        return "Your full recorded history: "
+            + "\(span.lowerBound.formatted(date: .abbreviated, time: .omitted)) to "
+            + "\(span.upperBound.formatted(date: .abbreviated, time: .omitted)) — "
+            + "\(days) \(days == 1 ? "day" : "days"). Not the card timeframe, and it grows as the app records more."
     }
 
     // MARK: - Why is my score low
