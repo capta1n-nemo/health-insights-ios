@@ -41,8 +41,24 @@ for line in body.splitlines():
     m = re.match(r"^([A-Za-z][A-Za-z0-9]*)(\(result\)|\(\))?$", line)
     if m:
         order.append(m.group(1))
-    elif line.startswith("ViewAndAddSection("):
-        order.append("ViewAndAddSection")
+    else:
+        # A section rendered as its own `View` type, with arguments — and
+        # possibly spread over several lines, which the regex above cannot see.
+        #
+        # ⚠️ This used to be `elif line.startswith("ViewAndAddSection(")`: one
+        # section, special-cased by name. The next section written that way
+        # (`InstrumentAgreementSection`, backlog B3-23) was therefore dropped
+        # from the map **without a word**, and `--check` reported the doc up to
+        # date while the doc was missing a section. A generated map whose
+        # generator silently skips input is worse than a hand-written one,
+        # because nobody re-reads a table the script says is fine.
+        #
+        # Matching the *opening* line of the initialiser is enough: the
+        # continuation lines are argument labels, which are lower-case and so
+        # cannot match a capitalised type name.
+        m = re.match(r"^([A-Z][A-Za-z0-9]*)\(", line)
+        if m:
+            order.append(m.group(1))
 
 # Section titles, per declaring member. A member may render more than one
 # title (the age chart is two cards' worth), so all of them are kept.
@@ -72,6 +88,9 @@ HAND = {
     "bespokeSection": ["*(one `switch`, per card — see the matrix)*"],
     "ViewAndAddSection": ["View & add"],
     "feedbackCard": ["Was this accurate?"],
+    # Sections whose `InsightSection(title:)` lives in their own file, which
+    # this script does not read.
+    "InstrumentAgreementSection": ["Which instrument to believe"],
 }
 
 # The timeframe control is not in the scroll — it is a `safeAreaInset`, pinned

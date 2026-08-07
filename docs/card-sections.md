@@ -41,13 +41,14 @@ appendices.**_
 | 6 | *the second bespoke section* | Two cards have one. **Body Composition**: *what your body is made of* and *what you are doing about it* were sharing a slot, and the medication half had grown five sub-sections inside somebody else's heading (the user's call, 2026-08-02). **Cardiovascular Risk**, added 2026-08-05: *how old does each thing think you are* — every age estimate the app and its connectors produce, each attributed and each carrying its own error. It is a genuinely different question from *what is your risk*, which is why it earns the slot rather than becoming a thirteenth card. |
 | 7 | What goes into this | Which sources feed the score. |
 | 8 | How this is weighted | The deep dive on those weightings, for the reader who wants the science. |
-| 9 | How you compare | You against everyone else. |
-| 10 | How far from your normal | You against you. |
-| 11 | Patterns worth a look | What the app noticed across the inputs. |
-| 12 | What comes first | What runs ahead of the score. |
-| 13 | Full history | An appendix — one link per input. |
-| 14 | View & add | What the card asks *of* you. |
-| 15 | Was this accurate? | The other thing asked of you. |
+| 9 | Which instrument to believe | *Whose* reading each of those was. Added 2026-08-07 (backlog B3-23 / S8, the reader's ask and not the first time they made it): where Watch, ring and scale disagree, both numbers, which one the app used and why. It sits **after** 7 and 8 rather than between them, because "the overview of what feeds the score, then the arithmetic" is an argument the user made and splitting the pair would break it. |
+| 10 | How you compare | You against everyone else. |
+| 11 | How far from your normal | You against you. |
+| 12 | Patterns worth a look | What the app noticed across the inputs. |
+| 13 | What comes first | What runs ahead of the score. |
+| 14 | Full history | An appendix — one link per input. |
+| 15 | View & add | What the card asks *of* you. |
+| 16 | Was this accurate? | The other thing asked of you. |
 
 **Two things are not sections and are not in that list.** The *disclaimer* is
 chrome and is always last. The *timeframe picker* has no position at all: it is
@@ -71,8 +72,15 @@ so everything can still be scrolled clear of it. The inset also stacks above the
 tab bar's own safe area with no hard-coded guess at its height.
 
 **7 before 8 is deliberate**: the overview of what feeds the score, then the
-arithmetic. **9 before 10** for the same shape — the outside comparison, then
+arithmetic. **10 before 11** for the same shape — the outside comparison, then
 the personal one.
+
+**9 is after that pair and not inside it** (2026-08-07). "Which instrument to
+believe" qualifies both 7 and 8 — it says *whose reading* each input was — so
+the tempting placement is between them, next to the list of inputs it is about.
+It is not there, because 7-then-8 is a single argument the user made and a
+section wedged into the middle of it breaks the sentence. Provenance is the
+third thing said about the inputs, not an interruption of the first two.
 
 **Body Composition's first bespoke slot now nests three things (2026-08-03).**
 In order: **"Your body over time"** (the body model — a silhouette drawn from the
@@ -119,13 +127,14 @@ file having been brought along.
 | 6 | `secondaryBespokeSection` | *(untitled)* |
 | 7 | `contributorsCard` | What goes into this |
 | 8 | `weightedContributionCard` | How this is weighted |
-| 9 | `peerStandingSection` | How you compare |
-| 10 | `vitalDepartureSection` | How far from your normal |
-| 11 | `patternsCard` | Patterns worth a look |
-| 12 | `laggedCard` | What comes first |
-| 13 | `contributorLinksCard` | Full history |
-| 14 | `ViewAndAddSection` | View & add |
-| 15 | `feedbackCard` | Was this accurate? |
+| 9 | `InstrumentAgreementSection` | Which instrument to believe |
+| 10 | `peerStandingSection` | How you compare |
+| 11 | `vitalDepartureSection` | How far from your normal |
+| 12 | `patternsCard` | Patterns worth a look |
+| 13 | `laggedCard` | What comes first |
+| 14 | `contributorLinksCard` | Full history |
+| 15 | `ViewAndAddSection` | View & add |
+| 16 | `feedbackCard` | Was this accurate? |
 | — | `disclaimerCard` | *(chrome, not a section)* |
 | — | `timeframeBar` | *(screen control, pinned above the tab bar)* |
 
@@ -152,13 +161,14 @@ section needs before it draws content rather than a `SectionPlaceholder`.
 | 6 | *bespoke 2* | "Weight management" · "How old does each thing think you are" · "How hard you worked" + "How much you moved" | Body Composition, Biological age and Fitness; `EmptyView` on the other fifteen |
 | 7 | `Goes` | "What goes into this" — overlay, scale picker, legend | **always** |
 | 8 | `Wgt` | "How this is weighted" — arrives **closed** | **always** |
-| 9 | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
-| 10 | `Nrm` | "How far from your normal" — against your own baseline | **always** |
-| 11 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
-| 12 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
-| 13 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
-| 14 | `V&A` | "View & add" | the model's `contributions` is non-empty — twelve of eighteen cards |
-| 15 | `Fbk` | "Was this accurate?" / "Is this right about you?" | **always**, since 2026-08-06 (`5330d92`). `primaryValue == nil` now only changes the wording |
+| 9 | `Inst` | "Which instrument to believe" — every device's own reading, which one the app used, and why. Arrives **closed** | **always** — it draws its own empty state ("one instrument each, so nothing to choose between"), which is the *good* answer on most cards and must not read as a gap |
+| 10 | `Cmp` | "How you compare" — the card's inputs against published norms | **always** |
+| 11 | `Nrm` | "How far from your normal" — against your own baseline | **always** |
+| 12 | `Patt` | "Patterns worth a look" — arrives **closed** | **always** |
+| 13 | `1st` | "What comes first" — lag, arrives **closed** | **always** |
+| 14 | `Hist` | "Full history" — one link per input | contributors non-empty — but `candidateMetrics` is never empty (`ContributorsTests`), so in practice always |
+| 15 | `V&A` | "View & add" | the model's `contributions` is non-empty — twelve of eighteen cards |
+| 16 | `Fbk` | "Was this accurate?" / "Is this right about you?" | **always**, since 2026-08-06 (`5330d92`). `primaryValue == nil` now only changes the wording |
 | — | `Disc` | disclaimer | always |
 
 **Every gate above that says "always" was `◐` at the start of 2026-08-01.** The
@@ -168,7 +178,7 @@ sequence with holes in it is not a sequence the reader can learn.
 
 ### Every section closes; only some arrive closed
 
-Sections 2–10 are all `InsightSection`, and **every `InsightSection` has a
+Sections 2–11 are all `InsightSection`, and **every `InsightSection` has a
 chevron**. The two that do not — `V&A` and `Fbk` — are plain `Card`s and were
 excluded by the user by name, which is also why nothing had to be opted out: the
 capability comes from the container, and those two were never in it.
@@ -181,9 +191,12 @@ that had nothing in it, and then lost the chevron the moment the replay landed
 and it had something. `SectionExpansion` is now a struct whose `startsExpanded`
 says only what the section does before anyone touches it.
 
-Which arrive closed: `Wgt`, `Patt`, `1st` always, plus **any section with
-nothing to show**, which shows its `SectionPlaceholder` headline as the preview
-line. Everything else arrives open. A section that arrives open has no preview:
+Which arrive closed: `Wgt`, `Inst`, `Patt`, `1st` always, plus **any section
+with nothing to show**, which shows its `SectionPlaceholder` headline as the
+preview line. `Inst` joined that group on 2026-08-07 for the group's own reason
+— it is a transparency deep dive rather than a headline — and its preview
+carries the finding out onto the closed header, so a reader who never opens it
+has still been told that two of their devices disagree and by how much. Everything else arrives open. A section that arrives open has no preview:
 `trailing` is already the one number worth opening it for, and somebody who
 closed a section themselves does not need telling what they closed.
 
@@ -238,6 +251,26 @@ silently; count the enum before trusting the table.
 | Work impact | Insights | ● | ● | ● | ● | ◐ "Your work events" — the calendar review list | ○ | ● | ● | ● | ● | ● | ● | ● | ● `.readerIdentity` | ● | ● |
 | Travel drain | Insights | ● | ● | ● | ● | ◐ "Your travel events" — the same list, `.travel` only | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — deliberate: the model reads time-zone changes and no classifications | ● | ● |
 | Sound you took on | Insights | ● | ● | ● | ● | ● **two sections**: "What you took on" + "What was around you" | ○ | ● | ● | ● | ● | ● | ● | ● | ○ — every input is sensed; there is no fact a reader could type that improves a headphone's own output estimate | ● | ● |
+| Insight | Tab | `Hdr` | `Drv` | `ScrHx` | `Chg` | bespoke | bespoke 2 | `Goes` | `Wgt` | `Inst` | `Cmp` | `Nrm` | `Patt` | `1st` | `Hist` | `V&A` | `Fbk` | `Disc` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Readiness | Today | ● | ● | ● | ● | ○ — `case .readiness: EmptyView()`; the scan *is* `Nrm`, kept at all seventeen rows here | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Sleep | Today | ● | ● | ● | ● | ◐ **five top-level sections**: "Last night in stages" + "A typical night" + "Your fortnight" + "How fast you fall asleep" + "Breathing during sleep" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ◐ | ● |
+| Energy | Today | ● | ● | ● | ● | ◐ "Today" curve | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Symptom radar | Today | ● | ● | ● | ● | ◐ "The radar" **+ its own scorecard** | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● `.symptomLog` | ● | ● |
+| Substance Impact | Insights | ● | ● | ● | ● | ◐ "Cardiovascular load" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Heart Health | Insights | ● | ● | ● | ● | ◐ "How your heart responds" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Fitness | Insights | ● | ● | ● | ● | ◐ "Fitness age over time" **+ "Where this is heading"** | ● "How hard you worked" + "How much you moved" | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Heart Attack & Stroke Risk | Insights | ● | ● | ● | ● | ◐ "Heart age over time" **+ "If today's numbers hold"** | ○ — the age comparison moved to Biological age 2026-08-06 | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Blood Pressure | Insights | ● | ● | ● | ● | ◐ "Your readings" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Body Composition | Insights | ● | ● | ● | ● | ◐ "What you're made of" + "How that has changed" + "Your build" | ● "Weight management" (6 nested) | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Nutrition | Insights | ● | ● | ● | ● | ◐ "Vitamins and minerals" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Metabolism | Insights | ● | ● | ● | ● | ◐ "What you burn against what you should" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Stress load | Insights | ● | ● | ● | ● | ◐ "Where the load is sitting" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| How you walked | Insights | ● | ● | ● | ● | ◐ "Which half moved" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Biological age | Insights | ● | ● | ● | ● | ◐ "What each marker says" | ● "Your ages over time" **+ "How old does each thing think you are"** | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● |
+| Mental health | Insights | ● | ● | ● | ● | ◐ "What moved, and which way" | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ | ● | ● |
+| Work impact | Insights | ● | ● | ● | ● | ◐ "Your work events" — the calendar review list | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ● `.readerIdentity` | ● | ● |
+| Travel drain | Insights | ● | ● | ● | ● | ◐ "Your travel events" — the same list, `.travel` only | ○ | ● | ● | ● | ● | ● | ● | ● | ● | ○ — deliberate: the model reads time-zone changes and no classifications | ● | ● |
 
 **The bespoke slot is one slot, and there is now a second one.** Five cards
 draw more than one thing *inside* the first slot (Body Composition, Fitness,
@@ -850,7 +883,9 @@ map above.
 | 11 | View & add | 6 | open, **not closable** | ○ | per route | own | — |
 | 12 | Was this accurate? | ◐ | open, **not closable** | ○ | — | — | — |
 
-**The fifteen generic slots**, every one of them on all eighteen cards:
+**The generic slots**, every one of them on all eighteen cards (no count in this
+line on purpose — it was "fifteen" and went stale the day a section was added;
+the generated map above is the authority for how many there are):
 
 | # | Section | Arrives | Empty state | Figure | Caveat | Chart |
 |---|---|---|---|---|---|---|
@@ -862,13 +897,14 @@ map above.
 | 6 | *bespoke 2* | see the second table | | | | |
 | 7 | What goes into this | open (closed when empty) | ● 2 reasons | `n` of `m` | `.none` | `MetricOverlayChart` |
 | 8 | How this is weighted | **closed** | ● 5 reasons | `n` weighted / "None" | `unscored(signals:)` | — |
-| 9 | How you compare | open (closed when empty) | ● `needsInput` (no DOB/sex) or `notComputable` | `n`th centile overall | `approximateNorms` | `PeerStandingStrip` |
-| 10 | How far from your normal | open (closed when empty) | ● `notComputable` | `n` checked | `computed(.partial, …)` from the panel's own footnote | `VitalDepartureStrip` |
-| 11 | Patterns worth a look | **closed** | ● 4 reasons | `n` found / "None yet" | `associationsNotCauses` (`.none` when empty) | — |
-| 12 | What comes first | **closed** | ● 4 reasons | `n` leading / "None yet" | `fittedThrough(points:)` (`.none` when empty) | — |
-| 13 | Full history | open | ○ — the whole section is absent with no metrics and no aux inputs | `n` signals | `.none` | — |
-| 14 | View & add | open, **not closable** | ○ | per route | own | — |
-| 15 | Was this accurate? | open, **not closable** | ○ | — | — | — |
+| 9 | Which instrument to believe | **closed** | ● 2 reasons (nothing reporting / one instrument each) | `n` signals with more than one | `computed(.partial, …)` naming the window, and refusing calibration | — (rows, not a chart) |
+| 10 | How you compare | open (closed when empty) | ● `needsInput` (no DOB/sex) or `notComputable` | `n`th centile overall | `approximateNorms` | `PeerStandingStrip` |
+| 11 | How far from your normal | open (closed when empty) | ● `notComputable` | `n` checked | `computed(.partial, …)` from the panel's own footnote | `VitalDepartureStrip` |
+| 12 | Patterns worth a look | **closed** | ● 4 reasons | `n` found / "None yet" | `associationsNotCauses` (`.none` when empty) | — |
+| 13 | What comes first | **closed** | ● 4 reasons | `n` leading / "None yet" | `fittedThrough(points:)` (`.none` when empty) | — |
+| 14 | Full history | open | ○ — the whole section is absent with no metrics and no aux inputs | `n` signals | `.none` | — |
+| 15 | View & add | open, **not closable** | ○ | per route | own | — |
+| 16 | Was this accurate? | open, **not closable** | ○ | — | — | — |
 
 **The bespoke sections** — slot 5 unless marked `6`:
 
