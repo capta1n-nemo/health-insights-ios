@@ -61,6 +61,32 @@ One rule survives for anyone editing the hooks themselves: **a hook command in
 inherit the shell's drifted cwd, and a relative hook path fails silently
 (exit 127 is a non-blocking hook error, not a denial).
 
+## Parallel agents: whose tree, whose file?
+
+Twelve agents commit into twelve worktrees of this repo at once and **share one
+scratchpad directory**. Two collisions have cost real work: a git-helper script
+in that scratchpad was twice rewritten by other agents to point at *their*
+worktrees with the safety check removed (two agents lost commits, one lost its
+work entirely), and an agent screenshotted another agent's simulator build and
+believed it. Both are one shape — **a shared name with no owner in it.** In the
+2026-08-07 wave only 32 of 138 scratchpad entries carried any agent label; the
+rest were `verify.log`, `gate.log`, `sim.py`, names a sibling picks too.
+
+`simulator.sh` fixed its half with a per-worktree slot. The other half is a
+command, because writing the rule more firmly had already been tried and had
+already failed:
+
+```bash
+./scripts/agent-guard.sh                       # who am I, am I staging into my own tree
+./scripts/agent-guard.sh --scratch verify.log  # a scratchpad path nobody else can pick
+```
+
+**`verify.sh` runs the guard first**, so the self-check lands immediately before
+staging without anyone remembering it. It fails on a gate run from a different
+checkout than the tree being committed, and on a scratchpad script carrying your
+label that hardcodes another worktree. **Never hardcode a worktree path in a
+helper** — `root=$(git rev-parse --show-toplevel)`, always.
+
 ## Check before you Write
 
 `BodyModelParameters` was implemented **twice in one session** (2026-08-03): a

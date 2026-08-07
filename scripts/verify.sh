@@ -11,10 +11,27 @@
 # Exit 0 = clean. Anything else = read the output before pushing.
 
 set -uo pipefail
+
+# Captured BEFORE the `cd`, because that `cd` destroys the evidence. It is the
+# only way `agent-guard.sh` can tell that the scripts you ran and the tree you
+# are editing are two different checkouts of this repo — which is a live hazard
+# with twelve worktree agents and one repo. See the guard's header.
+AGENT_GUARD_CWD="${AGENT_GUARD_CWD:-$PWD}"
+export AGENT_GUARD_CWD
+
 cd "$(dirname "$0")/.."
 
 fail=0
 note() { printf '\n\033[1m%s\033[0m\n' "$1"; }
+
+# --- Which tree am I about to commit? (D32) --------------------------------
+#
+# **First, before anything else**, because this is the check that has to be
+# tripped over rather than remembered. D32's rule is that every agent verifies
+# `git rev-parse --show-toplevel` immediately before staging — and the moment
+# immediately before staging is this gate. Writing that rule down more firmly
+# had already been tried and had already failed; two agents lost commits.
+./scripts/agent-guard.sh || fail=1
 
 # Flag any match of $1 in the given paths. $2 is the explanation.
 # A banned pattern, **in code**. Comment lines are skipped.

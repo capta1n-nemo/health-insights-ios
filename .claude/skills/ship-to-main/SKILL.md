@@ -14,10 +14,49 @@ branch and open a draft PR when done. **For this repo that is wrong**, and
 `CLAUDE.md` says so explicitly. If a session starts you on a `claude/*` branch,
 land it on `main` yourself rather than leaving a PR open.
 
+## ⚠️ First, if anything else is running: whose tree is this?
+
+**Twelve agents commit into twelve worktrees of this repo at once, and they
+share one scratchpad directory.** Two collisions have already cost work:
+
+- A git-helper script in the shared scratchpad was **twice rewritten by other
+  agents to point at their worktrees, with the safety check removed**. Two
+  agents lost commits; one lost its work entirely and its document had to be
+  rescued by hand. (D32, 2026-08-06.)
+- An agent screenshotted another agent's simulator build and believed it — it
+  only noticed because a string its own commit had already replaced was still
+  on screen. (`simulator.sh` got a per-worktree slot for that on 2026-08-07.)
+
+Both had one shape: **a shared name with no owner in it.** In the 2026-08-07
+wave the scratchpad held 138 entries and only 32 carried any agent label; the
+rest were `verify.log`, `gate.log`, `oura.json`, `sim.py` — names a sibling
+picks independently. `verify.log` was written at 19:34 and rewritten at 19:46
+by different agents.
+
+So, mechanically, not from memory:
+
+```bash
+./scripts/agent-guard.sh              # who am I, and am I staging into my own tree?
+./scripts/agent-guard.sh --scratch verify.log
+#   -> …/scratchpad/wf_4e2b886a-525-9--verify.log   (nobody else can pick it)
+```
+
+`verify.sh` runs the guard first, so **the gate below already performs the
+self-check immediately before you stage** — which is where D32 says it belongs.
+It hard-fails on two things: the scripts you ran belonging to a different
+checkout than the tree you are editing, and a scratchpad script *carrying your
+own label* that hardcodes someone else's worktree. It warns about unowned
+scripts pointing at other trees — do not run those.
+
+**Never hardcode a worktree path in a helper.** Derive it:
+`root=$(git rev-parse --show-toplevel)`. A hardcoded path is what got rewritten.
+
 ## The sequence
 
 ```bash
 ./scripts/verify.sh --tests        # full suite + lint, locally. THE GATE.
+                                   # (runs agent-guard.sh first — read its block)
+git rev-parse --show-toplevel      # D32: confirm it is YOUR worktree, every time
 git add -A && git commit
 git push origin HEAD:main          # NOT `git push -u origin main`
 ./scripts/ci-status.sh --wait      # does it compile?  0 passed / 1 failed / 2 none
