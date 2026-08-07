@@ -60,7 +60,10 @@ final class ContributionRouteTests: XCTestCase {
                                    "\(model.id) offers an empty grounding route")
                 case .bloodPressureReadings, .substanceLog, .fileImport,
                      .medication, .bodyType, .bodyMeasurements, .screenTime,
-                     .symptomLog, .readerIdentity, .supplementStack:
+                     .symptomLog, .readerIdentity, .supplementStack,
+                     // B7 H6 — offered by the four cards that score time since
+                     // the reader's last leave.
+                     .holidayLog:
                     continue
                 }
             }
@@ -85,6 +88,11 @@ final class ContributionRouteTests: XCTestCase {
         // anything to say.
         let overriders: Set<InsightID> = [.substanceImpact, .sleep, .symptomRadar,
                                           .workImpact, .screenTime]
+        // `.sustainedLoad`, `.mentalHealth` and `.travelDrain` joined with B7
+        // H6: none declares a grounding fact, and all three now score time
+        // since the reader's last leave, so all three offer the holiday log.
+                                          .workImpact, .sustainedLoad,
+                                          .mentalHealth, .travelDrain]
         for model in engine.models
         where model.requirements.isEmpty && !overriders.contains(model.id) {
             XCTAssertTrue(model.contributions.isEmpty,
@@ -123,14 +131,38 @@ final class ContributionRouteTests: XCTestCase {
     }
 
     /// Work impact offers identity (B7 H1) — the input that decides whose OOO
-    /// block a working day contains. Travel drain deliberately does not: its
+    /// block a working day contains. Travel drain deliberately does **not**: its
     /// model reads time-zone changes and no classifications, and a card
     /// offering an input its model ignores would be claiming a sensitivity it
     /// does not have.
+    ///
+    /// ⚠️ **Both offer the holiday log as of B7 H6**, and that is the same rule
+    /// pointing the other way: both models now read the ledger, so both say so.
+    /// The identity asymmetry is what this test is really pinning, and it
+    /// survives.
     func testWorkImpactOffersIdentityAndTravelDrainDoesNot() {
-        XCTAssertEqual(model(.workImpact).contributions, [.readerIdentity])
-        XCTAssertTrue(model(.travelDrain).contributions.isEmpty)
+        XCTAssertEqual(model(.workImpact).contributions,
+                       [.readerIdentity, .holidayLog])
+        XCTAssertEqual(model(.travelDrain).contributions, [.holidayLog])
+        XCTAssertFalse(model(.travelDrain).contributions.contains(.readerIdentity),
+                       "travel drain reads no classifications — offering identity "
+                           + "would claim a sensitivity it has not got")
         XCTAssertEqual(ContributionRoute.readerIdentity.inputKinds, [.readerIdentity])
+        XCTAssertEqual(ContributionRoute.holidayLog.inputKinds, [.holiday])
+    }
+
+    /// **Every card that scores leave offers the log** — B7 H6, and the rule
+    /// `.holiday` was held to while it was `settingsOnly`: a card offers an
+    /// input once its model reads it, and not before.
+    func testEveryCardThatScoresLeaveOffersTheLog() {
+        for id in [InsightID.workImpact, .travelDrain, .sustainedLoad, .mentalHealth] {
+            XCTAssertTrue(model(id).contributions.contains(.holidayLog),
+                          "\(id) scores time since leave and offers no way to enter it")
+        }
+        XCTAssertTrue(InputKind.holiday.mustBeOfferedOnACard,
+                      "the log is scored by four cards and still marked Settings-only")
+        XCTAssertFalse(InputKind.holiday.promptsWhenNeverUsed,
+                       "nobody is nagged to tell an app about their holidays")
     }
 
     // MARK: - Dispatch

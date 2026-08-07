@@ -150,7 +150,7 @@ the place to look.
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
-  - `TravelDrainInsight` :974
+  - `TravelDrainInsight` :1005
   - `TravelDrainModel` :668
   - `WorkImpactInsight` :882
   - `WorkImpactModel` :40
@@ -213,6 +213,9 @@ the place to look.
 - `Insights/LaggedCorrelation.swift`
   - `LagFinder` :27
   - `LaggedRelationship` :14
+- `Insights/LeaveSuggestion.swift`
+  - `LeaveSuggestionInput` :162
+  - `LeaveWindowFinder` :30
 - `Insights/MentalHealthModel.swift`
   - `MentalHealthInsight` :278
   - `MentalHealthModel` :55
@@ -312,9 +315,9 @@ the place to look.
 - `Models/CalendarEventArtifact.swift`
   - `CalendarEventArtifact` :47
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :470
+  - `CalendarClassifierAccuracy` :492
   - `CalendarEventClassification` :35
-  - `CalendarEventJudgement` :309
+  - `CalendarEventJudgement` :331
 - `Models/CalendarEventClassifier.swift`
   - `CalendarEventBucket` :468
   - `CalendarEventClassifier` :31
@@ -356,6 +359,9 @@ the place to look.
   - `IllnessEstimate` :188
   - `IllnessJudgement` :217
   - `IllnessKind` :54
+- `Models/LeaveRecency.swift`
+  - `LeaveBlend` :261
+  - `LeaveRecency` :37
 - `Models/MetricAggregator.swift`
   - `AggregatedPoint` :29
   - `BucketSize` :9
@@ -443,8 +449,8 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :465
-  - `InputGroup` :476
+  - `CardRequirement` :477
+  - `InputGroup` :488
   - `InputKind` :27
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :67
@@ -988,11 +994,11 @@ the place to look.
 - `Features/Grounding/GroundingSheet.swift`
   - `GroundingSheet` :8
 - `Features/Grounding/ViewAndAddHubView.swift`
-  - `GroundingKindList` :287
+  - `GroundingKindList` :310
   - `ViewAndAddHubView` :31
 - `Features/Grounding/ViewAndAddSection.swift`
   - `ContributionRouteStatus` :102
-  - `GroundedSummary` :179
+  - `GroundedSummary` :190
   - `ViewAndAddSection` :35
 - `Features/Inputs/AddDataView.swift`
   - `AddDataView` :20

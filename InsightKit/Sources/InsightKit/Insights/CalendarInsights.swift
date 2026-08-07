@@ -885,11 +885,27 @@ public struct WorkImpactInsight: InsightModel {
 
     public let events: [CalendarEvent]
     public let judgements: [CalendarEventJudgement]
+    /// **The reader's leave, B7 H6.** Bound the same way the events are, and for
+    /// the same reason. Empty by default, which is the state in which this card
+    /// scores nothing off it — see `LeaveRecency`.
+    public let holidays: HolidayLedger
 
-    public init(events: [CalendarEvent] = [], judgements: [CalendarEventJudgement] = []) {
+    public init(events: [CalendarEvent] = [], judgements: [CalendarEventJudgement] = [],
+                holidays: HolidayLedger = HolidayLedger()) {
         self.events = events
         self.judgements = judgements
+        self.holidays = holidays
     }
+
+    /// What time since a break carries, as a share of the whole number.
+    ///
+    /// ⚠️ **The largest of the four, and the argument is this card's own.** It
+    /// already scores *exposure* — how much work there was — on the reader's
+    /// stated principle that every input carries some weight. Leave is the other
+    /// side of exactly that ledger: the hours that were not work and were meant
+    /// to undo them. It stays a minority share all the same, because what the
+    /// card is *for* is the measured difference between busy and quiet days.
+    public static let leaveShare = 0.12
 
     public var candidateMetrics: [MetricType] { WorkImpactModel.watched.map(\.metric) }
     public var requirements: [GroundingRequirement] { [] }
@@ -903,10 +919,10 @@ public struct WorkImpactInsight: InsightModel {
     /// changes and no classifications, and a card offering an input its model
     /// ignores would be claiming a sensitivity it does not have.
     ///
-    /// ⚠️ H6 — this model reading the holiday *ledger* ("you have not had
-    /// leave in N months") is deliberately not wired yet; it changes the score
-    /// and needs a `modelVersion` bump, per the fitness-v2 precedent.
-    public var contributions: [ContributionRoute] { [.readerIdentity] }
+    /// ⚠️ **H6 landed**: the holiday ledger is now an input here, so the log
+    /// joins identity on this card's "View & add" — a card offers what its model
+    /// reads, and as of `work-impact-v3` this one reads leave.
+    public var contributions: [ContributionRoute] { [.readerIdentity, .holidayLog] }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
@@ -951,9 +967,23 @@ public struct WorkImpactInsight: InsightModel {
         drivers.append(.routine("Only working days are compared, on both sides. A busy-versus-quiet comparison that included weekends would mostly be measuring the weekend — more sleep, later mornings, no meetings — and would report that work wrecks your recovery when what it found is that Saturday exists."))
         drivers.append(.routine("An hour is not an hour here: a formal meeting in a room counts for more than blocked focus time, and a reminder counts for nothing. Those weightings are the app's stated assumption, not a measurement — correct any event on the list and this recomputes."))
 
+        // **B7 H6.** The other side of the same ledger: exposure is the hours
+        // that were work, and this is how long it has been since any that were
+        // not. Folded in after the blend, so the two halves the card already
+        // states keep their proportions to each other.
+        let recency = LeaveRecency.read(holidays, asOf: now)
+        let blended = LeaveBlend.fold(score: out.score,
+                                      contributions: out.contributions,
+                                      factors: WorkImpactModel.calendarFactors(out),
+                                      recency: recency, on: id,
+                                      share: Self.leaveShare)
+        drivers.append(InsightDriver(
+            text: recency.driverLine(share: Self.leaveShare),
+            isNotable: blended.didScore && recency.standing == .longAgo))
+
         return InsightResult(
-            id: id, title: title, primaryValue: out.score,
-            headline: WorkImpactModel.headline(out), score: out.score,
+            id: id, title: title, primaryValue: blended.score,
+            headline: WorkImpactModel.headline(out), score: blended.score,
             // Thin contrast is thin evidence about work whatever the body did,
             // so it caps the confidence as well as the response's share.
             confidence: out.channels.count >= 3 && out.gapRatio >= 0.5 ? .moderate : .low,
@@ -961,12 +991,13 @@ public struct WorkImpactInsight: InsightModel {
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: out.contributions,
+            contributors: blended.contributions,
             weighting: .weightedAverage,
             // The calendar, carrying a share at last — see
-            // `WorkImpactModel.exposureTerms`.
-            otherFactors: WorkImpactModel.calendarFactors(out),
-            derivedOutputs: WorkImpactModel.derivedOutputs(out))
+            // `WorkImpactModel.exposureTerms` — plus the leave row (H6).
+            otherFactors: blended.factors,
+            derivedOutputs: WorkImpactModel.derivedOutputs(out)
+                + (blended.didScore ? [recency.derivedOutput].compactMap { $0 } : []))
     }
 }
 
@@ -976,13 +1007,39 @@ public struct TravelDrainInsight: InsightModel {
     public let title = "Travel drain"
 
     public let events: [CalendarEvent]
+    /// **The reader's leave, B7 H6.** Bound with the events. Empty by default,
+    /// which is the state in which this card scores nothing off it.
+    public let holidays: HolidayLedger
 
-    public init(events: [CalendarEvent] = []) { self.events = events }
+    public init(events: [CalendarEvent] = [],
+                holidays: HolidayLedger = HolidayLedger()) {
+        self.events = events
+        self.holidays = holidays
+    }
+
+    /// What time since a break carries here.
+    ///
+    /// ⚠️ **The smallest share of the three calendar-fed cards, and this card's
+    /// own reasoning is why.** Its standing refusal — stated at length in
+    /// `TravelDrainModel`'s "What the calendar contributes here" — is that a
+    /// *count of trips* is not a distribution and must not be scored. That
+    /// refusal does not reach here: a date is not a count, the ledger says when
+    /// leave happened rather than how often it should, and the curve through it
+    /// is the same one the other three cards read. But the card's subject is
+    /// what crossing zones does to a body, so leave stays a small correction to
+    /// it and never a rival explanation.
+    public static let leaveShare = 0.08
 
     public var candidateMetrics: [MetricType] { WorkImpactModel.watched.map(\.metric) }
     public var requirements: [GroundingRequirement] { [] }
     /// The calendar is construction state, not `samples`.
     public var readsOnlySamples: Bool { false }
+
+    /// The leave log — `travel-drain-v2` reads it. ⚠️ Identity is still
+    /// deliberately **not** offered here: this model reads time-zone changes and
+    /// no classifications, so offering identity would claim a sensitivity it has
+    /// not got. The ledger it does read.
+    public var contributions: [ContributionRoute] { [.holidayLog] }
 
     public func evaluate(samples: [HealthMetricSample], profile: UserHealthProfile,
                          now: Date) -> InsightResult {
@@ -1025,18 +1082,31 @@ public struct TravelDrainInsight: InsightModel {
             drivers.append(.routine("Zones seen: \(out.zones.joined(separator: ", "))."))
         }
 
+        // **B7 H6.** Whether a break has happened, folded in after the body
+        // comparison — see `Self.leaveShare` for why this does not reopen the
+        // card's refusal to score its trip count.
+        let recency = LeaveRecency.read(holidays, asOf: now)
+        let blended = LeaveBlend.fold(score: out.score,
+                                      contributions: out.contributions,
+                                      factors: TravelDrainModel.calendarFactors(out),
+                                      recency: recency, on: id,
+                                      share: Self.leaveShare)
+        drivers.append(InsightDriver(text: recency.driverLine(share: Self.leaveShare),
+                                     isNotable: false))
+
         return InsightResult(
-            id: id, title: title, primaryValue: out.score,
-            headline: headline(out), score: out.score,
+            id: id, title: title, primaryValue: blended.score,
+            headline: headline(out), score: blended.score,
             confidence: out.trips >= 4 ? .moderate : .low,
             explanation: "What crossing time zones costs you, measured on your own body. The app records no location and no time zone on any health reading, so your calendar is the only thing on the phone that knows you moved — which is why this card needed the calendar before it could exist at all.",
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: out.contributions,
+            contributors: blended.contributions,
             weighting: .weightedAverage,
-            otherFactors: TravelDrainModel.calendarFactors(out),
-            derivedOutputs: TravelDrainModel.derivedOutputs(out))
+            otherFactors: blended.factors,
+            derivedOutputs: TravelDrainModel.derivedOutputs(out)
+                + (blended.didScore ? [recency.derivedOutput].compactMap { $0 } : []))
     }
 
     private func headline(_ out: TravelDrainModel.Output) -> String {

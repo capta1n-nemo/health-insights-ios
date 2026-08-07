@@ -110,6 +110,7 @@ struct CardDataView: View {
         case .symptomLog: symptomSection
         case .readerIdentity: readerIdentitySection
         case .supplementStack: supplementSection
+        case .holidayLog: holidaySection
         case .groundingFacts(let kinds): factsSection(kinds)
         }
     }
@@ -153,6 +154,31 @@ struct CardDataView: View {
                     Text(emails == 0 ? "no emails"
                          : "\(emails) email\(emails == 1 ? "" : "s")")
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    /// The reader's leave, as this card sees it — B7 H6.
+    ///
+    /// One line and a way through to the ledger, not a second copy of it:
+    /// `HolidaysDataView` is the page for that, and `data-conventions.md`
+    /// forbids a parallel one. What is worth saying here is the figure the four
+    /// scoring cards actually read.
+    @ViewBuilder private var holidaySection: some View {
+        let ledger = model.holidayLedger
+        if !ledger.periods.isEmpty {
+            Section("Holidays & leave") {
+                NavigationLink {
+                    HolidaysDataView()
+                } label: {
+                    HStack {
+                        Text("Time since your last leave")
+                        Spacer()
+                        Text(LeaveRecency.read(ledger).daysSinceLastLeave
+                            .map { $0 == 0 ? "on leave" : "\($0)d" } ?? "none taken")
+                            .foregroundStyle(.secondary).monospacedDigit()
+                    }
                 }
             }
         }

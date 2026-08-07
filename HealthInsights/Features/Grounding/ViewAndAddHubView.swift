@@ -114,6 +114,7 @@ struct ViewAndAddHubView: View {
         case .symptomLog: symptomSection(status)
         case .readerIdentity: readerIdentitySection(status)
         case .supplementStack: supplementSection(status)
+        case .holidayLog: holidaySection(status)
         }
     }
 
@@ -241,6 +242,28 @@ struct ViewAndAddHubView: View {
     /// same shape as screen time.
     private func readerIdentitySection(_ status: ContributionRouteStatus) -> some View {
         sectionBody(status, addAction: { activeInput = .readerIdentity })
+    }
+
+    // MARK: - Holidays and leave (B7 H6)
+
+    /// The sheet plus a way through to the ledger. The history link goes to the
+    /// Data tab's own holidays page rather than a second list built here —
+    /// `data-conventions.md` forbids the parallel page, and the same rule the
+    /// symptom route follows.
+    private func holidaySection(_ status: ContributionRouteStatus) -> some View {
+        sectionBody(
+            status,
+            addAction: { activeInput = .holiday },
+            extra: {
+                if status.summary.detailLabel != nil {
+                    NavigationLink {
+                        HolidaysDataView()
+                    } label: {
+                        Text("See your leave record")
+                            .font(.caption.weight(.medium))
+                    }
+                }
+            })
     }
 
     // MARK: - Grounding facts

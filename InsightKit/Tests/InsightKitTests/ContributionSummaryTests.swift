@@ -382,7 +382,14 @@ final class ContributionSummaryTests: XCTestCase {
         // from one that does not, because those totals are floors.
         ("supplementStack", [.supplementStack(products: 0, nutrients: 0, unresolved: 0),
                              .supplementStack(products: 3, nutrients: 12, unresolved: 0),
-                             .supplementStack(products: 3, nutrients: 12, unresolved: 2)])
+                             .supplementStack(products: 3, nutrients: 12, unresolved: 2)]),
+        // B7 H6. The second case is the one that matters and it is the reason
+        // this route exists at all: a ledger holding **only booked leave** is
+        // not grounded, because nothing has happened for a card to read.
+        ("holidays", [.holidays(recorded: 0, daysSinceLastLeave: nil, nextInDays: nil),
+                      .holidays(recorded: 1, daysSinceLastLeave: nil, nextInDays: 21),
+                      .holidays(recorded: 2, daysSinceLastLeave: 0, nextInDays: nil),
+                      .holidays(recorded: 3, daysSinceLastLeave: 142, nextInDays: 60)])
     ]
 
     private var all: [ContributionSummary] { Self.routes.flatMap(\.cases) }

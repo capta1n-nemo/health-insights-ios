@@ -169,6 +169,17 @@ struct ContributionRouteStatus {
             title = "Name & emails"
             summary = .readerIdentity(name: model.readerIdentity.name,
                                       emails: model.readerIdentity.allEmails.count)
+        case .holidayLog:
+            title = "Holidays & leave"
+            // The merged ledger, not `holidayEntries`: what the cards score is
+            // detected *and* entered leave together, and a row counting only
+            // what was typed would under-report a reader whose calendar already
+            // says it.
+            let ledger = model.holidayLedger
+            let recency = LeaveRecency.read(ledger)
+            summary = .holidays(recorded: ledger.periods.count,
+                                daysSinceLastLeave: recency.daysSinceLastLeave,
+                                nextInDays: recency.nextLeaveInDays)
         }
     }
 }

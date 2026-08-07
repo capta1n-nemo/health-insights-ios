@@ -247,18 +247,23 @@ final class CalendarInsightTests: XCTestCase {
         XCTAssertTrue(text.contains("calendar"), text)
     }
 
-    /// **`work-impact-v2`.** The number now measures a different quantity, so
-    /// every score recorded under v1 is non-comparable with every score after —
-    /// the `fitness-v2` precedent, and the one failure this field exists to
-    /// prevent.
+    /// **The version moves whenever the arithmetic does** — the `fitness-v2`
+    /// precedent, and the one failure this field exists to prevent.
+    ///
+    /// `work-impact-v3` and `travel-drain-v2` are B7 H6: both cards now fold in
+    /// time since the reader's last recorded leave, so a score from before today
+    /// is not comparable with one from after.
+    ///
+    /// ⚠️ Travel drain moving does **not** reopen its refusal to score its trip
+    /// *count* — that stands, for the three reasons at `TravelDrainModel`'s own
+    /// note. A date is not a count.
     func testTheWorkImpactModelVersionMoved() {
-        XCTAssertEqual(InsightID.workImpact.modelVersion, "work-impact-v2")
-        // ⚠️ Travel drain deliberately did **not** move: its equivalent figure
-        // is a count of two-to-four time-zone changes, which is not a
-        // distribution to score against and is not established as travel at
-        // all. Its arithmetic is untouched, so its stored scores stay
-        // comparable — see `TravelDrainModel`'s own note.
-        XCTAssertEqual(InsightID.travelDrain.modelVersion, "travel-drain-v1")
+        XCTAssertEqual(InsightID.workImpact.modelVersion, "work-impact-v3")
+        XCTAssertEqual(InsightID.travelDrain.modelVersion, "travel-drain-v2")
+        // The other two cards H6 wired, pinned in the same place so a future
+        // change to the leave share cannot move one version and forget three.
+        XCTAssertEqual(InsightID.sustainedLoad.modelVersion, "sustained-load-v2")
+        XCTAssertEqual(InsightID.mentalHealth.modelVersion, "mental-health-v2")
     }
 
     // MARK: - Fixture

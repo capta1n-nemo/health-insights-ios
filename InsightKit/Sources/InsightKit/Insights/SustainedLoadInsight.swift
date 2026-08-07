@@ -168,13 +168,40 @@ public struct SustainedLoadInsight: InsightModel {
     /// person who asked for it.
     public let title = "Stress load"
 
-    public init() {}
+    /// **The reader's leave, B7 H6.** Construction state rather than a
+    /// `HealthMetricSample`, the same device the calendar cards use for their
+    /// events: `InsightEngine` carries samples and a profile and nothing else,
+    /// and a ledger is neither. Empty by default, which is exactly the state in
+    /// which this card scores nothing off it — see `LeaveRecency`.
+    public let holidays: HolidayLedger
+
+    public init(holidays: HolidayLedger = HolidayLedger()) {
+        self.holidays = holidays
+    }
+
+    /// What time since a break carries, as a share of the whole number.
+    ///
+    /// ⚠️ **A tenth, and the ceiling is the point.** The four measured signals
+    /// below are this card's subject and a diary must not be able to outvote
+    /// them: at this share, no length of time without leave can move the dial by
+    /// more than five points, which is roughly the difference the curve spans
+    /// between a fortnight ago and a year ago. Large enough to be visible in
+    /// "How this is weighted" — the reader's own standing rule that every input
+    /// carries some weight — and too small to make a calendar the diagnosis.
+    public static let leaveShare = 0.10
 
     public var candidateMetrics: [MetricType] { SustainedLoadModel.watchedMetrics }
 
     /// None. Built entirely from sensed data — there is no fact a reader could
     /// type in that would make this more accurate.
     public var requirements: [GroundingRequirement] { [] }
+
+    /// The leave log, because this card now scores time since a break.
+    ///
+    /// The rule `InputKind.holiday` was held to until today: a card offers an
+    /// input only once its model reads it, or it claims a sensitivity it has
+    /// not got. This one reads it as of `sustained-load-v2`.
+    public var contributions: [ContributionRoute] { [.holidayLog] }
 
     public func evaluate(samples: [HealthMetricSample],
                          profile: UserHealthProfile, now: Date) -> InsightResult {
@@ -236,20 +263,36 @@ public struct SustainedLoadInsight: InsightModel {
             text: "This measures \(out.channels.count) signals that load moves — it cannot tell stress from illness, alcohol, heat or hard training. What it can say is that the shift has lasted weeks rather than days.",
             isNotable: false))
 
+        // **B7 H6 — the ledger, folded in after the fact.** A stretch with no
+        // leave behind it is a stretch in which nothing on the calendar was
+        // rest, which is the one thing about sustained load a wearable cannot
+        // see. `sustained-load-v2` marks every score recorded before this as
+        // non-comparable, per the fitness-v2 precedent.
+        let recency = LeaveRecency.read(holidays, asOf: now)
+        let blended = LeaveBlend.fold(score: out.score,
+                                      contributions: contributions,
+                                      factors: Self.producedFigures(out),
+                                      recency: recency, on: id,
+                                      share: Self.leaveShare)
+        drivers.append(InsightDriver(
+            text: recency.driverLine(share: Self.leaveShare),
+            isNotable: blended.didScore && recency.standing == .longAgo))
+
         return InsightResult(
             id: id, title: title,
-            primaryValue: out.score,
-            headline: SustainedLoadModel.band(out.score),
-            score: out.score,
+            primaryValue: blended.score,
+            headline: SustainedLoadModel.band(blended.score),
+            score: blended.score,
             confidence: out.channels.count >= 3 ? .moderate : .low,
             explanation: "Your last \(SustainedLoadModel.recentDays) days against the \(SustainedLoadModel.referenceDays) before them, across \(out.channels.count) signals. Readiness answers how you are this morning and the symptom radar watches for something acute; this is the only one that can see a drift too slow to trip either.",
             driverLines: drivers.filter { $0.isNotable == true }
                 + drivers.filter { $0.isNotable != true },
             unmetRequirements: [],
-            contributors: contributions,
+            contributors: blended.contributions,
             weighting: .weightedAverage,
-            otherFactors: Self.producedFigures(out),
-            derivedOutputs: Self.derivedOutputs(out))
+            otherFactors: blended.factors,
+            derivedOutputs: Self.derivedOutputs(out)
+                + (blended.didScore ? [recency.derivedOutput].compactMap { $0 } : []))
     }
 
     // MARK: - What this card works out (2026-08-06)

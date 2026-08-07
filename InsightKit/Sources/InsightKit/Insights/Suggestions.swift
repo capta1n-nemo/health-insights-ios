@@ -112,6 +112,11 @@ public enum SuggestionEngine {
                                    /// emitting a permission row it never asked
                                    /// for.
                                    locationAccess: LocationAccess = .always,
+                                   /// The holiday ledger and the calendar the
+                                   /// leave recommendation reads — B7 H7. Nil
+                                   /// emits nothing, which is what every caller
+                                   /// that has no calendar gets.
+                                   leave: LeaveSuggestionInput? = nil,
                                    now: Date = Date(),
                                    calendar: Calendar = .current,
                                    limit: Int = defaultLimit) -> [Suggestion] {
@@ -127,6 +132,9 @@ public enum SuggestionEngine {
         out += eventsAwaitingReview(count: pendingEventCount)
         out += locationPermission(access: locationAccess)
         out += bodyScanDue(lastScan: lastBodyScan, now: now, calendar: calendar)
+        // B7 H7 — see `LeaveSuggestion.swift`. It emits at `.signalOffBaseline`,
+        // the bottom basis, which is what keeps it below every grounding gap.
+        out += leaveWindow(leave, results: results, now: now, calendar: calendar)
         // A signal named in the convergence row must not appear again three
         // rows further down as a lone departure. The same reading twice, once
         // as part of a pattern and once as an isolated fact, reads as two

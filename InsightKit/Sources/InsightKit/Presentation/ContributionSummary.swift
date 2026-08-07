@@ -313,6 +313,51 @@ public struct ContributionSummary: Sendable, Equatable {
             detailLabel: nil)
     }
 
+    /// **The reader's leave** — B7 H4/H6, the route that reaches the four cards
+    /// scoring time since a break.
+    ///
+    /// ⚠️ **"Grounded" means leave that has actually happened**, not merely a
+    /// row in the ledger, and the distinction is the same one `LeaveRecency` is
+    /// built around: a fortnight booked for next month is a real entry and it
+    /// answers nothing about recovery, so a seal beside it would say the card
+    /// has what it needs when the card is scoring nothing.
+    ///
+    /// No target and no progress bar. Setting a number of days a person should
+    /// take would be this view inventing the exact norm the model refuses to.
+    public static func holidays(recorded: Int, daysSinceLastLeave: Int?,
+                                nextInDays: Int?) -> ContributionSummary {
+        let booked = nextInDays.map {
+            $0 == 0 ? " Leave starts today." : " Leave booked in \($0) \(SectionCaveat.plural($0, "day"))."
+        } ?? ""
+        return ContributionSummary(
+            isGrounded: daysSinceLastLeave != nil,
+            figure: {
+                guard let days = daysSinceLastLeave else {
+                    return recorded > 0 ? "Booked, none taken" : "None recorded"
+                }
+                return days == 0 ? "On leave" : "\(days)d ago"
+            }(),
+            guidance: {
+                guard let days = daysSinceLastLeave else {
+                    return "Nothing recorded has happened yet.\(booked) Cards that "
+                        + "read this can't tell a year without a break from a break "
+                        + "they were never told about, so they score nothing off it "
+                        + "until there is something to read."
+                }
+                let since = days == 0
+                    ? "You are on leave today"
+                    : "\(days) \(SectionCaveat.plural(days, "day")) since your last leave"
+                return "\(since), across \(recorded) recorded "
+                    + "\(SectionCaveat.plural(recorded, "period")).\(booked) "
+                    + "Detected from your calendar and whatever you enter by hand — "
+                    + "dates only, never the words on the event."
+            }(),
+            progress: nil,
+            addLabel: recorded == 0 ? "Record some leave" : "Add or view leave",
+            detailLabel: recorded > 0
+                ? "All \(recorded) \(SectionCaveat.plural(recorded, "period"))" : nil)
+    }
+
     /// The reader's supplement stack — Q8 / B3-25.
     ///
     /// "Grounded" is having one product, not a target number of them: the sum
