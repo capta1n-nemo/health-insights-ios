@@ -475,7 +475,7 @@ the place to look.
   - `SubstanceLoadPoint` :4
 - `Substances/SubstanceResponseAnalyzer.swift`
   - `SubstanceResponseAnalyzer` :12
-  - `SubstanceWindow` :937
+  - `SubstanceWindow` :967
 - `Testing/SyntheticSeed.swift`
   - `SyntheticSeed` :41
 - `Text/CardStateExport.swift`
@@ -492,7 +492,7 @@ the place to look.
 ## HealthInsights
 
 - `App/HealthInsightsApp.swift`
-  - `FileImportOutcome` :58
+  - `FileImportOutcome` :64
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5

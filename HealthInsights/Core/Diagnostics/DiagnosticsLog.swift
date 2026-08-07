@@ -143,6 +143,34 @@ final class DiagnosticsLog {
 
     func clear() { entries.removeAll() }
 
+    /// The first line of every launch: which build is running, and when it
+    /// started.
+    ///
+    /// **Two jobs, and the second one is the reason it exists** (backlog D26).
+    ///
+    /// In the log itself it separates one launch from the next. `entries` holds
+    /// a thousand lines and survives well past a relaunch in a long debugging
+    /// session, so "the sync that went wrong" and "the sync before the fix"
+    /// otherwise run together in the export with nothing between them.
+    ///
+    /// Through the unified-log mirror it is also **the only line this app emits
+    /// unprompted**. Every other producer is the sync pipeline, an integration
+    /// or an import — none of which fire on a simulator, which has no Health app
+    /// and no connected provider. So `./scripts/simulator.sh logs` came back
+    /// with nothing app-shaped at all, and a session could not tell "the mirror
+    /// is broken" from "nothing has happened yet". One guaranteed line answers
+    /// that in the first second, before anything is driven.
+    ///
+    /// Idempotent: `AppModel` is a shared singleton and the root view's `task`
+    /// can run again on a scene change, and a launch banner per re-entry would
+    /// be worse than none.
+    @ObservationIgnored private var hasRecordedLaunch = false
+    func recordLaunch() {
+        guard !hasRecordedLaunch else { return }
+        hasRecordedLaunch = true
+        info("App", "Launched — \(BuildInfo.summary) on \(Self.deviceDescription)")
+    }
+
     /// A plain-text export the user can copy/share when asking for help.
     ///
     /// Leads with the build and device so a pasted log identifies which deploy

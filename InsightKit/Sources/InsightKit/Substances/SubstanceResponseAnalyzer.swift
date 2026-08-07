@@ -789,7 +789,37 @@ public enum SubstanceResponseAnalyzer {
                 higherIsBetter: Self.higherIsBetter(effect.metric),
                 weight: share,
                 detail: "\(Self.deltaLabel(effect)) after use"
-                    + Self.zeroShareReason(effect, share: share))
+                    + Self.zeroShareReason(effect, share: share),
+                // **The decomposition, backlog D25.** Every row here carried a
+                // share and nothing else, so the deep dive could say a signal
+                // was 87% of the score and never what it scored.
+                //
+                // `severity` is already this signal's own 0–100 on the card's
+                // own scale — how far it moved the unwelcome way, judged
+                // against the reader's own spread and discounted for how well
+                // that move is evidenced — and the dial is `100 − deduction`.
+                // So `100 − severity` is the sub-score the model computed and
+                // then dropped, not one invented here. A welcome move has
+                // severity 0 and reports 100: it took nothing off, which is the
+                // correct reading of it and is what the row already says in
+                // words.
+                //
+                // The counterfactual stays refused regardless — the card
+                // declares `.worstOffender`, and `ScoreDecomposition` gates
+                // headroom on the weighting, not on this field. That is the
+                // point: a worst-offender pool is not linear in its parts even
+                // though its parts each have a number.
+                componentScore: 100 - Self.severity(effect),
+                // The after-use mean and the clean-night baseline it was
+                // compared with, in the metric's own unit, and the departure
+                // between them in baseline SDs — **signed as the metric is
+                // measured**, unlike `effectSize`, which is absolute because
+                // severity only cares how far. A flat baseline has no spread to
+                // divide by and yields nil rather than infinity.
+                value: effect.afterUse,
+                baseline: effect.baseline,
+                z: effect.baselineSD > 0
+                    ? effect.deltaAbsolute / effect.baselineSD : nil)
         }
         // The fortnight's load is a penalty in its own right and is not a metric
         // — it is a decaying figure over the log — so it reaches the weighting
