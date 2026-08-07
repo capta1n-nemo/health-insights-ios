@@ -87,12 +87,12 @@ while about thirty were open. **A parser that silently returns nothing reads as
 | Wave | `mech` | `design` | `build` | `hard` | `ultra` | Total |
 |---|---|---|---|---|---|---|
 | **w0** Blockers — tooling and truth | 14 |  | 1 |  |  | 15 |
-| **w1** Shipped but wrong | 3 |  | 7 | 5 |  | 15 |
+| **w1** Shipped but wrong | 3 |  | 7 | 4 | 1 | 15 |
 | **w2** Quick wins | 24 | 2 | 7 | 1 |  | 34 |
 | **w3** Substantial builds | 2 | 2 | 55 | 11 |  | 70 |
 | **w4** Complex, last |  |  | 14 | 3 | 4 | 21 |
 
-Gates on open rows: **none** 103 · **decision** 16 · **phone** 16 · **needs** 15 · **external** 5.
+Gates on open rows: **none** 104 · **phone** 16 · **decision** 15 · **needs** 15 · **external** 5.
 
 | # | Item | Wave | Tier | Gate |
 |---|---|---|---|---|
@@ -121,11 +121,11 @@ Gates on open rows: **none** 103 · **decision** 16 · **phone** 16 · **needs**
 | 23 | `C11` Nothing has been seen with real calendar data in it | w1 | `build` | phone |
 | 24 | `D43` The app announces a discovery for data it then throws away | w1 | `build` | decision |
 | 25 | `F1` Resting Heart Rate page cross-device defect | w1 | `build` | phone |
-| 26 | `B19` "The card doesn't seem accurate" ⭐ | w1 | `hard` | decision |
-| 27 | `D45` Sleep Duration's trend chip and its detail describe different things, side… | w1 | `hard` | decision |
-| 28 | `P27` Ingestion defects — two of four remain | w1 | `hard` |  |
-| 29 | `P36` Exact zeros as "missing" — the fix needs rework before building | w1 | `hard` |  |
-| 30 | `P38` VitalReader.reading has no reference gap | w1 | `hard` |  |
+| 26 | `D45` Sleep Duration's trend chip and its detail describe different things, side… | w1 | `hard` | decision |
+| 27 | `P27` Ingestion defects — two of four remain | w1 | `hard` |  |
+| 28 | `P36` Exact zeros as "missing" — the fix needs rework before building | w1 | `hard` |  |
+| 29 | `P38` VitalReader.reading has no reference gap | w1 | `hard` |  |
+| 30 | `B19` The Energy card has no calibration — five invented constants set its whole… ⭐ | w1 | `ultra` |  |
 | 31 | `B13-3` Write the rule into the chart skill ⭐ | w2 | `mech` | needs:B13-1,B13-2 |
 | 32 | `B14` A chevron on every card and every clickable section ⭐ | w2 | `mech` |  |
 | 33 | `B15-1` The steady state must read "Stable", in grey, with a flat arrow ⭐ | w2 | `mech` |  |
@@ -2425,21 +2425,62 @@ generated block must be eyeballed rather than trusted to the exit code.
 
 ## §B19 — Energy card accuracy
 
-- `B19` ⬜ `w1` `pipeline` `hard` `gate:decision` `ask` — **"The card doesn't seem accurate"**
-      *"The card doesn't seem accurate."* No further detail given — **needs a
-      diagnosis pass against the reader's real data before any change**, and
-      probably a question back about what looked wrong.
+- `B19` ⬜ `w1` `energy` `ultra` `gate:none` `ask` — **The Energy card has no calibration — five invented constants set its whole range**
+      **Re-scoped by the reader 2026-08-07**, when asked what looked wrong:
+      *"I Just want more data sources to go into it, plus go and research the
+      best way to calculate this. I want to use every possible data source that
+      we have in our app, that is applicable to energy. Like.. every
+      substances.. they can help with energy.. they should go into this, but
+      short-lived, we just need to learn how substances do or do not impact me
+      (by substance type)."*
 
-      Related known fact: `EnergyModel.curve` cannot be verified on a simulator
-      at all (activeContext, 2026-08-05) — this one needs the phone.
+      ⚠️ **The research answered it, and the answer is worse than a miscalibration.
+      The card is not miscalibrated — it has no calibration.** Five constants in
+      `Energy.swift` set its entire dynamic range and **none of them appears in
+      any literature**:
 
-      ⚠️ The ruling owed is *what specifically looked wrong*. The report is one
-      line, `EnergyModel.curve` cannot be verified on a simulator at all, and
-      changing the model on a one-line report risks fixing the wrong thing.
+      | Constant | Line | What it decides |
+      | --- | --- | --- |
+      | `fullChargeSleepHours = 8.0` | :133 | 4 h vs 8 h moves the morning charge **37.5 points** |
+      | `minimumMorningCharge = 25.0` | :136 | the floor |
+      | `recoveryPointsPerSD = 8.0` | :140 | ±2 SD of overnight HRV moves **16 points** |
+      | `fullDrainActiveKilocalories = 1100` | :144 | 550 kcal drains **50 points** |
+      | `fullDrainExertionHours = 8.0` | :147 | 4 h above resting drains **50 points** |
+      | `trickleRechargePerHour = 2.5` | :153 | a quiet 8 h returns **20 points** |
 
----
+      Two are checkable against evidence and both come out badly:
 
----
+      - **Sleep duration is roughly 4× too strong.** The only within-person
+        effect size found (Kuula/Bauducco 2025, n = 205, 4,868 actigraphy
+        nights) is β = −0.19 KSS per hour of sleep. Four fewer hours ≈ 0.76 KSS
+        ≈ **9.5 points** on this scale. The card moves **37.5**. (Adolescent
+        sample — indicative, not a calibration, and it is still the only
+        within-person number available.)
+      - **HRV moves the card 16 points on an association nobody has found.**
+        Smyth/van Berkel 2023 (n = 8, 125–386 paired observations each) found
+        wearable HRV predicted subjective *vigor* in **0 of 8** participants.
+
+      ⚠️ **And the finding that reframes the ask: more sources cannot fix it.**
+      The honest resolution of a published alertness curve on a 0–100 scale is
+      about ±21 points, while the entire diurnal swing of a well-slept day is
+      about 26. The model's own residual dominates the error budget, so adding
+      inputs narrows nothing.
+
+      ⚠️ **The proposed replacement was REFUTED — see `docs/energy-design-2026-08-07.md`,
+      which carries a not-build-ready banner.** Three hostile reviewers returned
+      `needs-rework`: a fabricated statistic in its own headline, substance
+      thresholds understated ~2× by dividing a paired effect by the wrong SD, no
+      multiple-comparison policy over ≥20 tests, two of four bands unreachable
+      under its own parameters, and a weight-bearing input set of sleep timing
+      alone — which **turns the number into a clock**. It also rebuilt the
+      shipped `SubstanceImpactInsight` without noticing.
+
+      **So the next step is a re-design, not a build.** What must hold: the
+      published model supplies the parameters; the error bar is printed and
+      derived; measurements taken after waking must carry weight or the card is
+      a clock; and the per-substance layer is a published prior with the
+      reader's own episodes plotted against it plus a counter saying how far
+      short their record is — **not** a claim at n≈4.
 
 ## F. Device-gated — need the phone, not the simulator
 
