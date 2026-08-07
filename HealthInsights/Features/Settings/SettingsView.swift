@@ -146,6 +146,11 @@ struct SettingsView: View {
                 Label("Troubleshooting", systemImage: "stethoscope")
             }
             NavigationLink {
+                ResearchView()
+            } label: {
+                Label("Research", systemImage: "text.book.closed")
+            }
+            NavigationLink {
                 DisclaimerView()
             } label: {
                 Label("About & medical disclaimer", systemImage: "info.circle")
@@ -153,7 +158,7 @@ struct SettingsView: View {
             LabeledContent("Version", value: BuildInfo.summary)
             LabeledContent("Built", value: BuildInfo.formattedDate)
         } footer: {
-            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Version and build time tell you which deploy is on the phone.")
+            Text("Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Research is the published work behind what the cards will and won't claim. Version and build time tell you which deploy is on the phone.")
         }
 
         #if DEBUG

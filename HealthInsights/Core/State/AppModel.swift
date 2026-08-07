@@ -1399,20 +1399,33 @@ final class AppModel {
     ///
     /// Built for every insight at once and cached, because the alternative is a
     /// fetch per card per redraw.
-    @ObservationIgnored private var scoreChangeCache: [InsightID: ScoreChange]?
+    /// ⚠️ **The state, not the change.** This used to cache `ScoreChange` and
+    /// drop everything else on the floor, so *never scored*, *not scored today*
+    /// and *not scored enough* all arrived at `InsightCard` as one `nil` — which
+    /// it rendered as an empty space, because there was nothing left to render.
+    /// Backlog B15-2. The reason now survives the cache.
+    @ObservationIgnored private var scoreChangeCache: [InsightID: ScoreChangeState]?
 
-    func scoreChange(for id: InsightID) -> ScoreChange? {
+    /// Which way a card's score has gone, **or why that cannot be said**.
+    ///
+    /// `nil` only for a card with no score at all, whose absence is already
+    /// explained by its own empty state — a "Learning trends" chip beside "Tap
+    /// to add the details needed" would be a second answer to a question the
+    /// card has already answered.
+    func scoreChangeState(for id: InsightID) -> ScoreChangeState? {
         if scoreChangeCache == nil {
-            var built: [InsightID: ScoreChange] = [:]
+            var built: [InsightID: ScoreChangeState] = [:]
             for result in results where result.score != nil {
-                if let change = ScoreChangeReader.trend(
-                    for: result.id, history: dataStore.scoreHistory(for: result.id)) {
-                    built[result.id] = change
-                }
+                built[result.id] = ScoreChangeReader.state(
+                    for: result.id, history: dataStore.scoreHistory(for: result.id))
             }
             scoreChangeCache = built
         }
         return scoreChangeCache?[id]
+    }
+
+    func scoreChange(for id: InsightID) -> ScoreChange? {
+        scoreChangeState(for: id)?.change
     }
 
     /// Dismissals, loaded once and kept in memory. Small by construction — there
