@@ -2727,6 +2727,23 @@ final class AppModel {
         return []
     }
 
+    /// **Every stored day, straight from SwiftData — no cache, no queue.**
+    ///
+    /// ⚠️ **The export must use this, never `scoreHistory(for:)`.** That one is a
+    /// lazy view cache: it returns `[]` and queues a background replay when a
+    /// card's chart has not been drawn, which is correct for a view getting to
+    /// a first frame and wrong for an export that asks about all eighteen cards
+    /// at once and waits for nothing.
+    ///
+    /// Found 2026-08-07 in the reader's own export: **all 18 cards carried
+    /// `history: []`** while the rows were sitting in SwiftData. Same class as
+    /// D39 — the key existed, the data existed, the payload was empty — and no
+    /// InsightKit test could catch it, because the export's tests build their
+    /// own bundle instead of going through `DataExportView`.
+    func storedScoreHistory(for id: InsightID) -> [ScorePoint] {
+        dataStore.scoreHistory(for: id)
+    }
+
     /// Whether the 90-day replay for this card is still running.
     ///
     /// `scoreHistory(for:)` returns `[]` on first ask and fills in behind the

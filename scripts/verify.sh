@@ -657,6 +657,37 @@ PYEOF
     fi
 fi
 
+# --- The export never reads a lazy view cache ------------------------------
+#
+# Found 2026-08-07 in the reader's own export: all 18 cards carried
+# `history: []` while SwiftData held the rows. `DataExportView.buildFullExport()`
+# called `model.scoreHistory(for:)`, which is a **lazy view cache** — it returns
+# `[]` and queues a background replay when a card's chart has not been drawn.
+# Correct for a view racing to a first frame; wrong for an export that asks
+# about every card at once and waits for nothing.
+#
+# ⚠️ **Why this is a lint and not a test.** It is D39's class exactly — the key
+# existed, the data existed, the payload was empty — and `HealthDataExportTests`
+# cannot catch it, because it builds its own bundle rather than going through
+# this caller. The app target has no test host reaching `DataExportView`.
+#
+# ⚠️ **And this one mattered beyond the file:** with no exported history there
+# are no prediction-versus-actual pairs, so nothing could ever grade a model.
+# The app could not learn from itself.
+exportcaller=HealthInsights/Features/Settings/DataExportView.swift
+if [ -f "$exportcaller" ]; then
+    # Skip comment lines — this repo's house style is that a fix records the
+    # shape it replaced, right where it was made, so the banned pattern is
+    # quoted in the very file that no longer commits it. Same filter `ban` uses.
+    lazy=$(grep -nE 'model\.scoreHistory\(for:' "$exportcaller" \
+        | grep -vE '^[0-9]+:[[:space:]]*(//|\*|///)' || true)
+    if [ -n "$lazy" ]; then
+        note "The export reads AppModel's lazy score-history cache, which returns [] until a card's chart has been drawn — use model.storedScoreHistory(for:), which fetches from SwiftData:"
+        printf '%s\n' "$lazy"
+        fail=1
+    fi
+fi
+
 # --- Every chart carries the substance shading -----------------------------
 #
 # The user's rule, 2026-08-03: *"make sure the stimulant impact shading is on

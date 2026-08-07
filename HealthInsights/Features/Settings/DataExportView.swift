@@ -121,8 +121,16 @@ struct DataExportView: View {
         let results = model.results
         let candidates = Dictionary(uniqueKeysWithValues:
             model.engine.models.map { ($0.id, $0.candidateMetrics) })
+        // Same fix as `buildFullExport()` below, and the same reason: this is a
+        // document the reader hands to someone, not a chart racing to a first
+        // frame. The lazy cache would emit "no scored days yet" for every card
+        // whose chart happened not to have been drawn — which on a fresh launch
+        // is all of them.
         let histories = Dictionary(uniqueKeysWithValues:
-            results.map { ($0.id, model.scoreHistory(for: $0.id)) })
+            results.map { ($0.id, model.storedScoreHistory(for: $0.id)) })
+        // ⚠️ `pending` stays on the LAZY reader on purpose: it answers "is the
+        // replay still running", which is a fact about the cache and not about
+        // the store. Reading it from SwiftData would always say "not pending".
         let pending = Set(results.map(\.id).filter { model.scoreHistoryIsPending(for: $0) })
         let profile = model.profile
         let events = model.substanceEvents
@@ -311,7 +319,26 @@ struct DataExportView: View {
                     score: result.score, primaryValue: result.primaryValue,
                     headline: result.headline,
                     confidence: result.confidence.rawValue,
-                    history: model.scoreHistory(for: result.id)
+                    // ⚠️ **`dataStore`, NOT `model.scoreHistory(for:)`** — found
+                    // 2026-08-07 in the reader's own export, where all 18 cards
+                    // exported `history: []` while SwiftData held the rows.
+                    //
+                    // `AppModel.scoreHistory(for:)` is a **lazy view cache**: it
+                    // returns `[]` and queues a background replay when the card's
+                    // chart has not been drawn yet, because a 90-day replay per
+                    // card is too slow to do on the way to a first frame. That is
+                    // right for a view and wrong for an export, which asks about
+                    // every card at once and waits for nothing.
+                    //
+                    // The class is D39's exactly: **the key existed, the data
+                    // existed, and the payload was empty** — and no InsightKit
+                    // test can catch it, because `HealthDataExportTests` builds
+                    // its own bundle rather than going through this caller.
+                    //
+                    // ⚠️ It is also the reason the app could not learn from
+                    // itself: with no exported history there are no
+                    // prediction-versus-actual pairs for anything to grade.
+                    history: model.storedScoreHistory(for: result.id)
                         .map { .init(date: $0.date, score: $0.score) })
             },
             // Every logged bleeding day. The derived cycles stay out by design —
