@@ -100,12 +100,19 @@ struct InsightDetailView: View {
         // The bespoke slot renders more than one view, which `@ViewBuilder`
         // has always allowed; `secondaryBespokeSection` exists for Body
         // Composition's *two* and would not have stretched to four.
+        // The last three arrived on 2026-08-07 (backlog B18-6/7/8) and live in
+        // their own files, which is now the convention for anything new here:
+        // this member is ~3,700 lines and every section added inline is another
+        // merge conflict for the next agent.
         case .sleep:
             sleepNightCard
             sleepTypicalNightCard
             sleepFortnightCard
             sleepOnsetSection
             sleepBreathingSection
+            SleepDebtSection(window: window(spanning: nightsSpan(model.sleepOnsetNights())))
+            IdealSleepWindowSection()
+            SleepInfluencesSection()
         case .substanceImpact:
             substanceLoadCard
         // Heart Health and Readiness used to own "How you compare" and "How far
