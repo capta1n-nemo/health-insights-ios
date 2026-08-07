@@ -1,6 +1,7 @@
 # Watch capture setup — daylight, UV, falls
 
-**Move to `docs/watch-capture-setup.md` once iCloud access is restored.**
+**Setup instructions for the reader.** Every claim is sourced; anything Apple
+does not state is marked ⚠️ unconfirmed rather than asserted.
 Backlog §B5 #37. Every claim below is sourced; anything Apple does not state is
 marked ⚠️ **unconfirmed** rather than asserted.
 

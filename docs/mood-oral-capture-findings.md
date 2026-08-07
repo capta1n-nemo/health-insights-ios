@@ -1,6 +1,7 @@
 # Mood + oral health capture — the reading, salvaged (2026-08-07)
 
-**Move this into `docs/` or a backlog row once iCloud access is restored.**
+**Findings from an agent that lost filesystem access before writing code.**
+The reading is the expensive half; a retry starts here rather than at zero.
 An agent did the full codebase reading for backlog §B5 #37's mood and
 oral-health capture, then lost filesystem access before writing a line of code.
 Its worktree is clean — no partial edits, no `COMMIT_MESSAGE.txt`. This is the

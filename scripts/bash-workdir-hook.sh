@@ -21,7 +21,11 @@
 # and every existing rule keeps matching its original part.
 #
 # The prefix is *quoted*. On the user's Mac the repo lives in iCloud Drive,
-# under a path containing a space ("…/Library/Mobile Documents/…"), so the
+# under a path containing a space. ⚠️ The repo moved out of iCloud Drive on
+# 2026-08-07 and `~/health-insights-ios` has no space in it — **the quoting
+# stays anyway.** It was a shipped defect once (every unanchored shell call
+# died), the worktrees and any future relocation can reintroduce a space,
+# and an unquoted cd is wrong even where it happens to work. So the
 # unquoted form this hook shipped with expanded to three words and every
 # unanchored shell call in the first Mac session died on
 # `cd:1: no such file or directory`. A hook that rewrites commands must

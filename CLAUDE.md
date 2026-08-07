@@ -1,5 +1,32 @@
 # Health Insights iOS App
 
+## ⚠️ Where this repo lives — `~/health-insights-ios`
+
+**Canonical checkout: `/Users/jason.salway/health-insights-ios`.** Not iCloud
+Drive. If a session finds itself under
+`~/Library/Mobile Documents/com~apple~CloudDocs/HealthAppLocal/…`, it is in the
+**abandoned** copy — stop, and move.
+
+It was moved on 2026-08-07 after the third and worst thing iCloud did to it:
+
+1. **Codesigning broke** — iCloud stamps extended attributes and `codesign`
+   refuses them ("resource fork, Finder information, or similar detritus").
+   Fixed by moving derived data out.
+2. **766 MB of build output synced to the reader's account.** `.gitignore`
+   means nothing to iCloud, which syncs by folder; `fileproviderd` was measured
+   at 150% CPU.
+3. **A live session lost read access to the whole tree mid-flight** — `EPERM`
+   on every path, to the main process *and* to five separately-spawned agents
+   on their first call, while `/private/tmp` and `~/HealthSeed` stayed
+   readable and disabling the sandbox changed nothing. macOS TCC, not sync
+   state. An hour of work was stranded and had to be rebuilt from a clone.
+
+Any one of those is survivable. The third is not: **a repo whose access can be
+revoked out from under a running session cannot be the working copy.**
+
+The old path still exists on disk and is **not** kept in step. Do not pull it,
+push from it, or read the docs in it.
+
 ## First thing, every session
 
 ```bash

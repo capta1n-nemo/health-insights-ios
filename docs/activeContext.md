@@ -3,6 +3,33 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
+## ⚠️ The repo moved out of iCloud Drive — 2026-08-07
+
+**Canonical checkout is `~/health-insights-ios`.** The old path under
+`~/Library/Mobile Documents/com~apple~CloudDocs/HealthAppLocal/` is abandoned,
+still on disk, and **not** kept in step — do not pull it, push from it, or read
+its docs.
+
+The trigger was the third iCloud failure and the only unsurvivable one: **a
+live session lost read access to the entire tree mid-flight.** `EPERM` on every
+path, to the main process and to five separately-spawned agents on their first
+call, while `/private/tmp` and `~/HealthSeed` stayed readable and disabling the
+sandbox changed nothing — macOS TCC, not sync state, and an iCloud resync does
+not fix it. An hour of work was stranded; `CoverageGate` had to be rewritten
+from scratch into a fresh clone.
+
+The two earlier failures are recorded below (codesigning refusing iCloud's
+extended attributes; 766 MB of build output syncing because `.gitignore` means
+nothing to iCloud). **The general shape worth carrying: a working copy whose
+access can be revoked by the OS, mid-session, without warning, is not a working
+copy.** Cloud sync is for files a human edits, not for a tree a build reads
+thousands of times.
+
+Almost nothing in the repo needed changing — the workdir hook already used
+`$CLAUDE_PROJECT_DIR`, and `verify.sh`/`simulator.sh` already wrote derived
+data to `~/Library/Caches/health-insights/`. Only three tracked files even
+mentioned the old path, all in prose.
+
 ## Read `docs/backlog.md` first (added 2026-08-06)
 
 Every open question, every card ever mentioned, every requested section,
