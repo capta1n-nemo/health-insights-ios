@@ -26,7 +26,11 @@ public struct Cohort: Codable, Sendable, Hashable {
 /// A recorded "the model predicted X, the truth turned out to be Y" pair. Held
 /// **on device**; it keeps the raw numbers locally so the app can show you your
 /// own history, but only the coarsened error ever becomes a `TelemetryEvent`.
-public struct PredictionOutcome: Codable, Sendable, Identifiable {
+// `Equatable` so `HealthDataExport` can synthesise it: the export's
+// round-trip test compares whole values rather than a field list, which is
+// the part that ages well — a field added later is compared without anyone
+// remembering to add it. See HealthDataExport's "Why it decodes" note.
+public struct PredictionOutcome: Codable, Equatable, Sendable, Identifiable {
     public let id: UUID
     public let insightID: InsightID
     public let metric: MetricType

@@ -55,12 +55,26 @@ import Foundation
 /// here for the same reason and is the part that ages well: the round-trip test
 /// compares whole values, so a field added later is compared without anyone
 /// remembering to add it to a list.
+///
+/// ## The one exclusion, and why it is a compile error rather than a rule
+///
+/// **Credentials.** The reader approved the four remaining fields with one
+/// condition — *"do not include tokens"* — and that condition is not held by
+/// this file remembering to leave them out. `OAuthTokens` is not `Codable`, so
+/// a token cannot be a stored property of anything `Encodable`; and
+/// `Connection` below carries a closed `ConnectionState` enum rather than a
+/// string, so the free text a provider wraps a failed token in has no field to
+/// arrive in either. This repo is public — `docs/privacy-and-ip.md` records
+/// what was found exposed once, and that git history cannot be redacted in
+/// place. "The export happens not to contain tokens today" and "an export
+/// containing tokens does not compile" are different promises.
 public struct HealthDataExport: Codable, Equatable, Sendable {
 
     /// Bumped when a field is added or renamed, so an export can be read
     /// against the shape it was written with. 3 added `holidays`;
-    /// 4 added `generatedInsights`.
-    public static let schemaVersion = 4
+    /// 4 added `generatedInsights`; 5 added `connections`,
+    /// `suggestionDismissals`, `feedback` and `predictionOutcomes`.
+    public static let schemaVersion = 5
 
     public struct Medication: Codable, Equatable, Sendable {
         public struct Dose: Codable, Equatable, Sendable {
@@ -306,6 +320,96 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         }
     }
 
+    /// **What a source's connection is doing — and nothing about how it
+    /// authenticates.**
+    ///
+    /// A closed set, deliberately, and this is the point of the type. The app's
+    /// own `IntegrationStatus` carries free text on two of its five cases
+    /// (`unavailable(reason:)`, `error(String)`), and free text from a provider
+    /// is the one place an access token can arrive without anyone writing it
+    /// down on purpose — an OAuth failure body is quoted straight into
+    /// `.error`. Mapping onto a `String` here would have let that through and
+    /// left "no credentials in the export" resting on the vigilance of whoever
+    /// next edits the mapper.
+    ///
+    /// So the file records *which* of the five states a source is in and gets no
+    /// vocabulary for anything else. It pairs with `OAuthTokens` giving up
+    /// `Codable` (backlog Q10, 2026-08-06): between them, neither a token nor
+    /// the text a provider wrapped one in has a shape it could take in this
+    /// file. The reader's condition was *"do not include tokens"*, and a
+    /// condition kept by construction is a different thing from one kept by
+    /// habit.
+    public enum ConnectionState: String, Codable, Sendable {
+        case notConnected, connecting, connected, unavailable, error
+    }
+
+    /// One data source and where its connection stands.
+    ///
+    /// **Why this is in the export at all**, when it is plainly not a health
+    /// measurement: the reader's standing rule 11 — *a quantity missing from
+    /// the export is a quantity that can never become a norm*. Which sources a
+    /// person has connected, and how recently each last delivered, is the
+    /// provenance of every other key in this file. A pooled dataset that cannot
+    /// tell a phone with four connected wearables from one running on Apple
+    /// Health alone cannot honestly compare the two, and there is nowhere else
+    /// for it to learn that: connection state lives in the Keychain and
+    /// SwiftData, neither of which leaves the device.
+    public struct Connection: Codable, Equatable, Sendable {
+        /// The integration's stable id — the same string as `MetricSource.id`,
+        /// so a connection joins to the samples it produced.
+        public let integration: String
+        public let state: ConnectionState
+        /// When this source last delivered, where the source records it. `null`
+        /// where it is connected but has never synced, or does not track it.
+        public let lastSync: Date?
+
+        public init(integration: String, state: ConnectionState, lastSync: Date?) {
+            self.integration = integration
+            self.state = state
+            self.lastSync = lastSync
+        }
+
+        /// Hand-written for the reason every encoder in this file is: the
+        /// synthesised one drops a nil `lastSync`, and "connected but has never
+        /// brought anything back" — which is a real and diagnostic state — must
+        /// not read as "the exporter forgot to say when".
+        enum CodingKeys: String, CodingKey {
+            case integration, state, lastSync
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(integration, forKey: .integration)
+            try c.encode(state, forKey: .state)
+            try c.encode(lastSync, forKey: .lastSync)
+        }
+    }
+
+    /// One "was this right?" tap, as the ledger recorded it.
+    ///
+    /// The cohort travels with it because it was recorded with it: a rating is
+    /// only interpretable against who gave it, and re-deriving the cohort from
+    /// `profile` at read time would attribute an old rating to today's age band.
+    /// Every field is already a coarse bucket — see `Cohort`.
+    public struct Feedback: Codable, Equatable, Sendable {
+        public let card: InsightID
+        public let rating: FeedbackRating
+        /// The model revision the rating was about. A rating is not comparable
+        /// across versions, which is what this string exists to say.
+        public let modelVersion: String
+        public let cohort: Cohort
+        public let recordedAt: Date
+
+        public init(card: InsightID, rating: FeedbackRating, modelVersion: String,
+                    cohort: Cohort, recordedAt: Date) {
+            self.card = card
+            self.rating = rating
+            self.modelVersion = modelVersion
+            self.cohort = cohort
+            self.recordedAt = recordedAt
+        }
+    }
+
     public let schemaVersion: Int
     public let generatedAt: Date
     public let build: String
@@ -390,6 +494,44 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
     /// `derivedScores` is separate from `samples`.
     public let generatedInsights: [DerivedSeries]
 
+    // MARK: - The four that were in no key at all (backlog Q10)
+    //
+    // Connection state, suggestion dismissals, the feedback ledger and
+    // prediction outcomes were each held on the phone and named by nothing in
+    // this file. The token half of Q10 shipped first and separately — see
+    // `ConnectionState` and `OAuthTokens` — because "export the connections"
+    // and "never export a credential" are the same sentence, and the second
+    // half had to be a compile error before the first could be written at all.
+    //
+    // None of the four is a `DataDomain`: they are not things the Data tab
+    // shows. They are in `additionalKeys` instead, which is what
+    // `testTheProfileAndDerivedScoresAreExportedToo` walks.
+
+    /// Every registered source and where its connection stands. **Never a
+    /// credential** — `Connection` has no field one could occupy.
+    public let connections: [Connection]
+
+    /// Every suggestion the reader has waved away, and when.
+    ///
+    /// A dismissal is a *judgement*, not a derivation: it is the reader saying
+    /// this app was wrong to raise something, and it cannot be recomputed from
+    /// anything else in the file. `SuggestionVisibility` prunes a dismissal once
+    /// its suggestion stops being true, so what is here is what is still live.
+    public let suggestionDismissals: [SuggestionDismissal]
+
+    /// Every "was this accurate?" tap.
+    public let feedback: [Feedback]
+
+    /// Every recorded "the model predicted X, the truth was Y" pair, with the
+    /// raw numbers as the device holds them.
+    ///
+    /// ⚠️ **This is the personal export, so the raw pair travels.** The
+    /// coarsened, DP-noised thing that would leave the phone if sharing were
+    /// ever switched on is `TelemetryEvent`, built by `Telemetry.event(from:)`,
+    /// and it is a different type on purpose. Nothing in this build transmits
+    /// either.
+    public let predictionOutcomes: [PredictionOutcome]
+
     public init(generatedAt: Date, build: String,
                 samples: [HealthMetricSample], unmodelled: [RawMetricSample],
                 substances: [SubstanceEvent], medication: Medication?,
@@ -400,10 +542,18 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
                 derivedScores: [DerivedScore],
                 cycles: [CycleDay] = [],
                 holidays: [Holiday] = [],
-                generatedInsights: [DerivedSeries] = []) {
+                generatedInsights: [DerivedSeries] = [],
+                connections: [Connection] = [],
+                suggestionDismissals: [SuggestionDismissal] = [],
+                feedback: [Feedback] = [],
+                predictionOutcomes: [PredictionOutcome] = []) {
         self.cycles = cycles
         self.holidays = holidays
         self.generatedInsights = generatedInsights
+        self.connections = connections
+        self.suggestionDismissals = suggestionDismissals
+        self.feedback = feedback
+        self.predictionOutcomes = predictionOutcomes
         self.schemaVersion = Self.schemaVersion
         self.generatedAt = generatedAt
         self.build = build
@@ -499,8 +649,15 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
 
     /// Keys that are not a `DataDomain` but must still be present — the things
     /// the Data tab doesn't file as "data" yet the reader's numbers depend on.
+    ///
+    /// The last four are Q10's: connection state, suggestion dismissals, the
+    /// feedback ledger and prediction outcomes. None is a `DataDomain` — the
+    /// Data tab does not show any of them — so the domain switch above cannot
+    /// speak for them and this list is what holds them in the file.
     public static let additionalKeys = ["profile", "derivedScores",
-                                        "schemaVersion", "generatedAt", "build"]
+                                        "schemaVersion", "generatedAt", "build",
+                                        "connections", "suggestionDismissals",
+                                        "feedback", "predictionOutcomes"]
 
     public func json() throws -> Data {
         let encoder = JSONEncoder()
@@ -531,6 +688,7 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         case schemaVersion, generatedAt, build, samples, unmodelled, substances
         case medication, previousMedication, sideEffects, symptoms
         case bodyScans, profile, derivedScores, cycles, holidays, generatedInsights
+        case connections, suggestionDismissals, feedback, predictionOutcomes
     }
 
     /// Written by hand for **one** reason: the synthesised encoder uses
@@ -557,5 +715,9 @@ public struct HealthDataExport: Codable, Equatable, Sendable {
         try c.encode(cycles, forKey: .cycles)
         try c.encode(holidays, forKey: .holidays)
         try c.encode(generatedInsights, forKey: .generatedInsights)
+        try c.encode(connections, forKey: .connections)
+        try c.encode(suggestionDismissals, forKey: .suggestionDismissals)
+        try c.encode(feedback, forKey: .feedback)
+        try c.encode(predictionOutcomes, forKey: .predictionOutcomes)
     }
 }

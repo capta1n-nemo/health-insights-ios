@@ -54,10 +54,10 @@ the place to look.
   - `ScreenTimeScreenshotParser` :26
 - `Feedback/Feedback.swift`
   - `Cohort` :6
-  - `FeedbackRating` :55
-  - `PredictionOutcome` :29
-  - `Telemetry` :75
-  - `TelemetryEvent` :61
+  - `FeedbackRating` :59
+  - `PredictionOutcome` :33
+  - `Telemetry` :79
+  - `TelemetryEvent` :65
 - `Feedback/NormContribution.swift`
   - `NormContribution` :47
   - `NormContributionBuilder` :150
@@ -483,7 +483,7 @@ the place to look.
 - `Text/DataInventory.swift`
   - `DataInventory` :19
 - `Text/HealthDataExport.swift`
-  - `HealthDataExport` :58
+  - `HealthDataExport` :71
 - `Text/ModelInternalsExport.swift`
   - `ModelInternalsExport` :25
 - `Text/PlainText.swift`
@@ -768,8 +768,8 @@ the place to look.
   - `BodyScanSettingsView` :24
 - `Features/Settings/DataExportView.swift`
   - `DataExportView` :16
-  - `FullExport` :329
-  - `OtherDataListView` :342
+  - `FullExport` :389
+  - `OtherDataListView` :402
 - `Features/Settings/SettingsView.swift`
   - `DisclaimerView` :371
   - `IntegrationRow` :272

@@ -156,7 +156,12 @@ struct DataExportView: View {
                 // a different thing from the model-improvement tiers — those
                 // shape a small, stated payload; this is the whole record,
                 // handed over by hand.
-                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. Your own health data — nothing here goes anywhere until you share it yourself, and it never contains account details or tokens. This file is separate from Settings ▸ Data & model improvement, which is where anything shared automatically would be listed.")
+                // The wording tracks what the file actually holds. It now also
+                // carries which sources are connected and when each last
+                // synced, so saying only "never account details or tokens"
+                // would be true but would understate it — see
+                // `HealthDataExport.Connection`.
+                Text("Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. It also records which sources are connected and when each last synced, the suggestions you've waved away, and your accuracy ratings — never your passwords, sign-in tokens or account details, which cannot go in this file at all. Your own health data: nothing here goes anywhere until you share it yourself. This file is separate from Settings ▸ Data & model improvement, which is where anything shared automatically would be listed.")
             }
 
             Section {
@@ -252,6 +257,29 @@ struct DataExportView: View {
         }
     }
 
+    /// The app's five-case `IntegrationStatus` narrowed to the four-value,
+    /// no-free-text `ConnectionState` the export can hold.
+    ///
+    /// ⚠️ **The two cases that carry a `String` deliberately drop it.**
+    /// `.unavailable(reason:)` and `.error(_)` quote whatever the provider said,
+    /// and an OAuth failure body is exactly where an access token turns up
+    /// without anyone having decided to export one. The export type has no field
+    /// for the text, so this switch cannot pass it on even by accident — see
+    /// `HealthDataExport.ConnectionState`, and `OAuthTokens`, which gave up
+    /// `Codable` for the same reason.
+    ///
+    /// Exhaustive on purpose: a new `IntegrationStatus` case does not compile
+    /// until it says what the export should call it.
+    private static func exported(_ status: IntegrationStatus) -> HealthDataExport.ConnectionState {
+        switch status {
+        case .notConnected: return .notConnected
+        case .connecting: return .connecting
+        case .connected: return .connected
+        case .unavailable: return .unavailable
+        case .error: return .error
+        }
+    }
+
     private func buildFullExport() {
         exportFailed = nil
         preparingFullExport = true
@@ -304,7 +332,39 @@ struct DataExportView: View {
             // place the norms the reader wants can be built. See
             // `HealthDataExport.exportKey(for:)`, which keeps the superseded
             // reasoning, and `docs/norms-and-telemetry.md`.
-            generatedInsights: HealthDataExport.derivedSeries(from: model.derivedSeries))
+            generatedInsights: HealthDataExport.derivedSeries(from: model.derivedSeries),
+            // Which sources are connected and when each last delivered — the
+            // provenance every other key in the file rests on, and held nowhere
+            // that leaves the phone otherwise (Keychain and SwiftData). **Never
+            // the credential**: `HealthDataExport.Connection` has no field a
+            // token could occupy, and `exported(_:)` above discards the free
+            // text on the two statuses that carry it.
+            connections: model.registry.integrations.map { integration in
+                HealthDataExport.Connection(
+                    integration: integration.id,
+                    state: Self.exported(model.status(for: integration)),
+                    lastSync: {
+                        if case .connected(let lastSync) = model.status(for: integration) {
+                            return lastSync
+                        }
+                        return nil
+                    }())
+            },
+            // The reader telling the app it was wrong to raise something. Not
+            // recomputable from anything else here — a judgement, not a
+            // derivation.
+            suggestionDismissals: model.suggestionDismissals,
+            // The two model-improvement ledgers. Both were on the phone and in
+            // no export key at all until backlog Q10.
+            feedback: model.dataStore.loadFeedback().map {
+                HealthDataExport.Feedback(card: $0.insight, rating: $0.rating,
+                                          modelVersion: $0.modelVersion,
+                                          cohort: $0.cohort, recordedAt: $0.at)
+            },
+            // The raw predicted/actual pairs, as the device holds them. The
+            // coarsened, DP-noised `TelemetryEvent` is a different type and is
+            // what would be transmitted if sharing were ever switched on.
+            predictionOutcomes: model.dataStore.loadPredictionOutcomes())
         Task {
             // Detached: the JSON encode runs to tens of megabytes, and it used
             // to run synchronously on the main thread behind a button that

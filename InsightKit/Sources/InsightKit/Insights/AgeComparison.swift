@@ -285,7 +285,13 @@ public enum AgeComparison {
         if let chronological {
             let readings = MultiSource.breakdown(.vo2Max, from: samples).sources
                 .compactMap { VitalReader.reading(.vo2Max, from: $0.samples,
-                                                  now: now, calendar: calendar) }
+                                                  now: now,
+                                                  // An age is a level — "where am I
+                                                  // now", not "is this unusual" — so no
+                                                  // reference gap, matching what
+                                                  // HeartHealthScore passes for this
+                                                  // same metric. See ReferenceGap.
+                                                  gap: .none, calendar: calendar) }
             for reading in readings {
                 let output = FitnessAgeModel.evaluate(vo2: reading.value, sex: sex,
                                                       chronologicalAge: chronological)
@@ -355,7 +361,11 @@ public enum AgeComparison {
                 .compactMap { series -> (VitalReading, HeartAgeModel.Output)? in
                     guard let reading = VitalReader.reading(.bloodPressureSystolic,
                                                             from: series.samples,
-                                                            now: now, calendar: calendar)
+                                                            now: now,
+                                                            // A level, not an anomaly —
+                                                            // same choice as
+                                                            // CardiovascularRiskInsight.
+                                                            gap: .none, calendar: calendar)
                     else { return nil }
                     var perSource = subject
                     perSource.systolicBP = reading.value
