@@ -1,0 +1,95 @@
+# Mandatory (non-optional, no default) stored properties on shipped @Model types.
+#
+# This repo has NO SchemaMigrationPlan and relies on SwiftData's implicit
+# lightweight migration, which CANNOT fill a new mandatory column. Adding one to
+# a shipped model makes the store fail to migrate, and DataStore.init turns that
+# into a fatalError — the app dies on launch for every existing install. That
+# shipped on 2026-08-09 (189a5e1, LabResultRecord.shapeRaw) and the reader hit it
+# within minutes.
+#
+# ⚠️ A fresh simulator install CANNOT reproduce it: with no store to migrate,
+# broken and fixed builds both launch. Only a device with history fails.
+#
+# Everything below shipped together and is therefore safe. verify.sh fails on any
+# NEW entry. If you are adding a stored property to a @Model: make it optional,
+# or give it a default. There is no third option here.
+CalendarEventRecord.calendarName
+CalendarEventRecord.end
+CalendarEventRecord.eventID
+CalendarEventRecord.hasVideoLink
+CalendarEventRecord.isAllDay
+CalendarEventRecord.kindRaw
+CalendarEventRecord.start
+CalendarEventRecord.title
+CalendarJudgementRecord.classificationData
+CalendarJudgementRecord.eventID
+CalendarJudgementRecord.isConfirmed
+CycleDayRecord.day
+CycleDayRecord.flowRaw
+DoseLogRecord.isInferred
+DoseLogRecord.milligrams
+DoseLogRecord.takenAt
+ECGRecordEntry.id
+ECGRecordEntry.payload
+ECGRecordEntry.recordedAt
+ECGRecordEntry.sourceRaw
+FeedbackRecord.ageBand
+FeedbackRecord.ethnicity
+FeedbackRecord.id
+FeedbackRecord.insightRaw
+FeedbackRecord.modelVersion
+FeedbackRecord.ratingRaw
+FeedbackRecord.recordedAt
+FeedbackRecord.region
+FeedbackRecord.sex
+GroundingRecord.kindRaw
+GroundingRecord.recordedAt
+GroundingRecord.value
+HolidayEntry.firstDay
+HolidayEntry.lastDay
+HolidayEntry.sourceRaw
+IllnessJudgementRecord.day
+IllnessJudgementRecord.estimateData
+IllnessJudgementRecord.isConfirmed
+InsightScoreRecord.confidenceRaw
+InsightScoreRecord.contributorCount
+InsightScoreRecord.day
+InsightScoreRecord.insightRaw
+InsightScoreRecord.score
+IntegrationRecord.connected
+IntegrationRecord.integrationID
+LabResultRecord.analyteKey
+LabResultRecord.analyteName
+LabResultRecord.collectedAt
+LabResultRecord.confidenceRaw
+LabResultRecord.id
+LabResultRecord.payload
+LabResultRecord.sourceRaw
+LabResultRecord.unit
+ManualSampleRecord.date
+ManualSampleRecord.metricRaw
+ManualSampleRecord.sourceID
+ManualSampleRecord.value
+MedicationRecord.compoundRaw
+MedicationRecord.doses
+MedicationRecord.isActive
+MedicationRecord.startedOn
+PredictionOutcomeRecord.actual
+PredictionOutcomeRecord.ageBand
+PredictionOutcomeRecord.ethnicity
+PredictionOutcomeRecord.id
+PredictionOutcomeRecord.insightRaw
+PredictionOutcomeRecord.metricRaw
+PredictionOutcomeRecord.modelVersion
+PredictionOutcomeRecord.predicted
+PredictionOutcomeRecord.recordedAt
+PredictionOutcomeRecord.region
+PredictionOutcomeRecord.sex
+SideEffectRecord.date
+SideEffectRecord.name
+SideEffectRecord.severity
+SubstanceEventRecord.id
+SubstanceEventRecord.substanceRaw
+SubstanceEventRecord.timestamp
+SuggestionDismissalRecord.dismissedAt
+SuggestionDismissalRecord.suggestionID

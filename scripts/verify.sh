@@ -33,6 +33,14 @@ note() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 # had already been tried and had already failed; two agents lost commits.
 ./scripts/agent-guard.sh || fail=1
 
+# **A new mandatory column on a shipped @Model kills the app at launch**, and it
+# is invisible to every other check in this file: no test can see it, and a fresh
+# simulator install has no store to migrate so the broken build launches happily.
+# Only a device with history fails. Shipped 2026-08-09 (`189a5e1`); the reader
+# hit it within minutes. Runs early because it is instant and because a red here
+# means "do not push" more absolutely than anything else in this gate.
+./scripts/check-swiftdata-schema.sh || fail=1
+
 # Flag any match of $1 in the given paths. $2 is the explanation.
 # A banned pattern, **in code**. Comment lines are skipped.
 #
