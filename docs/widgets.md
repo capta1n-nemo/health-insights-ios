@@ -77,6 +77,8 @@ device.
 Stated plainly, because this repo has already spent a day on a misread deploy
 failure:
 
+**2026-08-07 (honesty rules, snapshot, in-app preview):**
+
 - **Nothing.** No target was added to `HealthInsights.xcodeproj`. No entitlement
   was added or changed — `Support/HealthInsights.entitlements` still contains
   only `com.apple.developer.healthkit`. No new framework is linked by the app
@@ -86,8 +88,29 @@ failure:
 - The only edits to shipping code are three Swift files under
   `HealthInsights/Features/Widgets/`, two under `InsightKit/…/Presentation/`, one
   line in `AppModel.applyRecomputed`, and one section in `SettingsView`.
-- `project.yml` gained a **commented** target block. Comments do not reach
-  `xcodegen generate`.
+
+**2026-08-08 (the extension target itself):**
+
+- The `HealthInsightsWidgets` app-extension target now exists in
+  `HealthInsights.xcodeproj` (hand-edited; ids `AAAA…AA21`–`AA2E`) — but
+  **nothing the deploy signs changed**, verified by building
+  `-scheme HealthInsights` before pushing: the new target is **not** a
+  dependency of the app target, there is **no embed phase**, and it is in no
+  scheme that `ci.yml`, `verify.sh` or `deploy.yml` builds. `deploy.yml` signs
+  the same one bundle, with the same
+  `Support/HealthInsights.entitlements` (still HealthKit only), as before.
+- `Support/HealthInsightsWidgets.entitlements` (App Group) and
+  `Support/HealthInsightsWidgets-Info.plist` (the `NSExtension` dict) are new
+  files **referenced only by the widget target's build settings** — nothing
+  reads them until something builds or signs that target.
+- The extension compiles on demand via its own build-only scheme:
+  `xcodebuild build -project HealthInsights.xcodeproj -scheme
+  HealthInsightsWidgets -destination 'generic/platform=iOS'
+  CODE_SIGNING_ALLOWED=NO` — so the glue in `HealthInsightsWidgets/` can no
+  longer rot uncompiled (it built first try after one fix: the `@main` bundle
+  type was renamed `HealthInsightsWidgetsBundle`, since it shared its name with
+  the module). Neither CI nor `verify.sh` builds this scheme yet; until one of
+  them does, it compiles only when someone runs the line above.
 
 ### What ships today instead
 
@@ -112,27 +135,38 @@ path on Linux, so the round trip is covered by `swift test`.
 
 ## 3. Switching it on, when the prerequisites exist
 
+Since 2026-08-08 the target, its entitlements and its Info.plist all exist and
+the extension compiles (see above) — what remains is exactly the app-side
+wiring that would today break signing:
+
 1. Sign in to Xcode on the deploy runner Mac (Settings ▸ Accounts) as the user
    the Actions runner runs as.
 2. With a paid team, add the App Group `group.com.jasonsalway.healthinsights` to
-   both `Support/HealthInsights.entitlements` and a new
-   `Support/HealthInsightsWidgets.entitlements`.
-3. Uncomment the `HealthInsightsWidgets` target block in `project.yml` **and**
-   the `- target: HealthInsightsWidgets / embed: true` dependency on the app
-   target. Regenerate: `xcodegen generate`.
+   `Support/HealthInsights.entitlements` (the widget-side
+   `Support/HealthInsightsWidgets.entitlements` already carries it — its header
+   comment explains why the app side was left out).
+3. Embed the extension — **by hand in the `.xcodeproj`; `xcodegen generate` is
+   destructive** (see `project.yml`'s header). On the app target
+   (`AAAA0000000000000000AA06`): a `PBXTargetDependency` +
+   `PBXContainerItemProxy` on `HealthInsightsWidgets`
+   (`AAAA0000000000000000AA23`), and a new `PBXCopyFilesBuildPhase` ("Embed
+   Foundation Extensions", `dstSubfolderSpec = 13`) carrying
+   `HealthInsightsWidgets.appex` with `RemoveHeadersOnCopy`. Mirror the same
+   two lines in `project.yml` (the `- target: HealthInsightsWidgets /
+   embed: true` dependency) so spec and project keep saying the same thing.
 4. `./scripts/verify.sh --tests`, then push and watch
    `./scripts/deploy-status.sh --wait` — and on a red,
    `./scripts/deploy-status.sh --errors`, which distinguishes a signing refusal
-   from an unreachable phone. **If it goes red, revert the two uncomments
-   immediately** rather than debugging on `main`.
-5. `HealthInsightsWidgets/DailyNumberWidget.swift` is in **no target** and so has
-   never been compiled by CI. Expect to fix it, and expect that to be quick — it
-   is glue and nothing else, by design.
-6. Once it builds, add `import WidgetKit` and
+   from an unreachable phone. **If it goes red, revert step 3 immediately**
+   rather than debugging on `main`.
+5. Once it deploys, add `import WidgetKit` and
    `WidgetCenter.shared.reloadTimelines(ofKind: DailyNumberWidget.kind)` to
    `AppModel.publishWidgetSnapshot`. It is left out today because a reload call
    with no installed widget is a no-op that would link WidgetKit into the app
    for nothing.
+6. Give the extension a standing gate: add the `HealthInsightsWidgets` scheme
+   build (signing off) to `verify.sh`'s Darwin block and/or `ci.yml`, so a
+   regression in the glue is caught before the day someone ships it.
 
 ## Not attempted, and why
 

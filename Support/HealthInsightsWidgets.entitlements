@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The one channel between the widget and the containing app. The group id
+         must match `WidgetSnapshotStore.appGroupIdentifier` (InsightKit), which
+         is where `widget-snapshot.json` is written and read.
+
+         ⚠️ The MATCHING entry in Support/HealthInsights.entitlements is
+         deliberately ABSENT today. A free personal team cannot sign App Groups,
+         and the app target is what deploy.yml signs on every push to main —
+         adding the group there turns every deploy red at signing
+         (docs/deployment.md quotes the exact refusal, from ShotsyImportAction).
+         This file, by contrast, is only read when something signs the widget
+         target, and nothing does until the paid-team prerequisites in
+         docs/widgets.md §3 exist. Until then the app writes the snapshot into
+         its own container and the in-app preview reads it from there
+         (WidgetSnapshotStore.resolve()). -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.jasonsalway.healthinsights</string>
+    </array>
+</dict>
+</plist>
