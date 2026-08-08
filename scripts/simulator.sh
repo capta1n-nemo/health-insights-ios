@@ -28,6 +28,9 @@
 #                                          # the app's own diagnostic lines;
 #                                          # --all for the framework chatter too
 #   ./scripts/simulator.sh reset --yes     # erase the simulator's data
+#   ./scripts/simulator.sh tpc-check       # prove the Thread Performance
+#                                          # Checker injects (run after any
+#                                          # Xcode / iOS-runtime update)
 #
 # WHAT IT CANNOT TELL YOU
 #
@@ -188,9 +191,101 @@ cmd_run() {
 
     open -a Simulator 2>/dev/null || true
     xcrun simctl install "$udid" "$(app_path)"
-    xcrun simctl launch "$udid" "$BUNDLE_ID" >/dev/null
+
+    # --- Thread Performance Checker (Xcode's, not ours) — backlog D69 --------
+    #
+    # TPC is not compiled into the app: Xcode *injects* libRPAC.dylib at
+    # launch, and `simctl launch` reads no scheme — so before 2026-08-08 every
+    # session driving the app through this script ran WITHOUT the checker, and
+    # the scheme checkbox D54 asked for would only ever have helped someone
+    # pressing ⌘R in Xcode.
+    #
+    # The dylib ships inside the SIMULATOR RUNTIME, not in Xcode's own tree
+    # (the SDK carries only a .tbd stub). The path handed to dyld is the
+    # runtime-RELATIVE `/usr/lib/libRPAC.dylib`, which dyld resolves against
+    # DYLD_ROOT_PATH inside every simulator process — verified 2026-08-08 on
+    # Xcode 26 / iOS 26.3: dyld loads it from
+    # `<runtime root>/usr/lib/libRPAC.dylib` and reports "has interposing
+    # tuples", i.e. actively interposing. So the value cannot rot with an
+    # Xcode update; what CAN change is the runtime no longer shipping the
+    # dylib, which is exactly what the host-side existence check below
+    # notices. When it does, we say so plainly and launch without the checker
+    # rather than exporting an insert dyld would ignore with a warning nobody
+    # reads.
+    #
+    # When TPC catches something it logs a FAULT in the app's process under
+    # subsystem `com.apple.runtime-issues` (category "Hang Risk" — observed
+    # firing on a deliberate priority inversion, 2026-08-08), so its reports
+    # land in `./scripts/simulator.sh logs`, whose predicate includes that
+    # subsystem. `./scripts/simulator.sh tpc-check` proves the injection
+    # engages after an Xcode/runtime update. `SIM_TPC=0` opts a launch out.
+    local tpc=""
+    if [ "${SIM_TPC:-1}" != "0" ]; then
+        local sim_root
+        sim_root="$(xcrun simctl getenv "$udid" SIMULATOR_ROOT 2>/dev/null || true)"
+        if [ -n "$sim_root" ] && [ -f "$sim_root/usr/lib/libRPAC.dylib" ]; then
+            tpc="/usr/lib/libRPAC.dylib"
+        else
+            printf '\033[33mThread Performance Checker: OFF\033[0m — no libRPAC.dylib at <runtime>/usr/lib/\n' >&2
+            printf '  (runtime root: %s)\n' "${sim_root:-could not read SIMULATOR_ROOT}" >&2
+            printf '  This iOS runtime moved or dropped the checker dylib. Find it with\n' >&2
+            printf "  \`find \"\$(xcrun simctl getenv booted SIMULATOR_ROOT)\" -name 'libRPAC*'\` and fix cmd_run.\n" >&2
+        fi
+    fi
+    if [ -n "$tpc" ]; then
+        SIMCTL_CHILD_DYLD_INSERT_LIBRARIES="$tpc" \
+            xcrun simctl launch "$udid" "$BUNDLE_ID" >/dev/null
+    else
+        xcrun simctl launch "$udid" "$BUNDLE_ID" >/dev/null
+    fi
     printf '\033[32mLaunched\033[0m %s on %s\n' "$BUNDLE_ID" "$device"
+    if [ -n "$tpc" ]; then
+        printf 'Thread Performance Checker: on — hang-risk/priority-inversion reports appear in ./scripts/simulator.sh logs\n'
+    fi
     printf 'Screenshot it with: ./scripts/simulator.sh shot\n'
+}
+
+# Prove the Thread Performance Checker injection engages — not that TPC exists,
+# but that dyld actually loads libRPAC into *this* app on *this* runtime.
+# Run it once after any Xcode or iOS-runtime update.
+#
+# Mechanism: relaunch the installed app with dyld's own load listing turned on
+# (`SIMCTL_CHILD_DYLD_PRINT_LIBRARIES=1`) and the insert set, capture the
+# console for a few seconds, and look for libRPAC in dyld's output. dyld
+# prints the listing at load time, so a few seconds is enough; the app is then
+# terminated — this check is disruptive to a running session on purpose only
+# in the sense that it restarts the app.
+cmd_tpc_check() {
+    require_darwin
+    local device udid; device="$(pick_device)"; udid="$(udid_for "$device")"
+    [ -n "$udid" ] || die "Could not resolve a UDID for '$device'."
+    [ "$(xcrun simctl list devices | grep "$udid" | grep -c Booted)" -gt 0 ] \
+        || die "'$device' is not booted — run ./scripts/simulator.sh run first."
+    xcrun simctl get_app_container "$udid" "$BUNDLE_ID" app >/dev/null 2>&1 \
+        || die "$BUNDLE_ID is not installed on '$device' — run ./scripts/simulator.sh run first."
+    note "Relaunching $BUNDLE_ID with dyld's load listing to prove libRPAC engages…"
+    xcrun simctl terminate "$udid" "$BUNDLE_ID" 2>/dev/null || true
+    local out; out="$(mktemp -t tpc-check)"
+    SIMCTL_CHILD_DYLD_INSERT_LIBRARIES="/usr/lib/libRPAC.dylib" \
+    SIMCTL_CHILD_DYLD_PRINT_LIBRARIES=1 \
+        xcrun simctl launch --console-pty "$udid" "$BUNDLE_ID" >"$out" 2>&1 &
+    local launch_pid=$!
+    sleep 8
+    xcrun simctl terminate "$udid" "$BUNDLE_ID" 2>/dev/null || true
+    wait "$launch_pid" 2>/dev/null || true
+    if grep -q "libRPAC.dylib" "$out"; then
+        printf '\033[32mEngaged.\033[0m dyld loaded:\n'
+        # The whole dyld line, not a token: the runtime root contains a space
+        # ("iOS 26.3.simruntime"), so any word-based extraction truncates it.
+        grep "libRPAC.dylib" "$out" | head -1 | sed 's/^/  /'
+        printf 'Reports (when it catches something) are FAULT lines under subsystem\n'
+        printf 'com.apple.runtime-issues in the app process — ./scripts/simulator.sh logs shows them.\n'
+        rm -f "$out"
+    else
+        printf '\033[31mNOT engaged\033[0m — dyld never mentioned libRPAC. Console kept at:\n  %s\n' "$out" >&2
+        printf 'Either the runtime moved the dylib (see cmd_run) or the insert was stripped.\n' >&2
+        exit 1
+    fi
 }
 
 cmd_shot() {
@@ -240,7 +335,13 @@ cmd_shot() {
 # thing being read.
 cmd_logs() {
     require_darwin
-    local minutes=2 predicate="subsystem == \"$BUNDLE_ID\"" what="the app's own diagnostics"
+    # The second clause is the Thread Performance Checker (and any other
+    # runtime issue): libRPAC logs FAULTs under `com.apple.runtime-issues`
+    # *inside the app's process* (observed 2026-08-08, category "Hang Risk").
+    # Without it, the one command a session runs to look for hangs would
+    # filter out the hang detector's own report.
+    local minutes=2 what="the app's own diagnostics (incl. runtime-issue faults)"
+    local predicate="(subsystem == \"$BUNDLE_ID\") OR (subsystem == \"com.apple.runtime-issues\" AND process == \"$SCHEME\")"
     for arg in "$@"; do
         case "$arg" in
             --all) predicate="process == \"$SCHEME\""; what="everything in the app's process" ;;
@@ -291,5 +392,6 @@ case "${1:-doctor}" in
     shot)   shift; cmd_shot "${1:-}" ;;
     logs)   shift; cmd_logs "$@" ;;
     reset)  shift; cmd_reset "${1:-}" ;;
-    *)      die "Unknown command '$1'. One of: doctor build run shot logs reset" ;;
+    tpc-check) cmd_tpc_check ;;
+    *)      die "Unknown command '$1'. One of: doctor build run shot logs reset tpc-check" ;;
 esac
