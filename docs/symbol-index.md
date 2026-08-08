@@ -464,10 +464,10 @@ the place to look.
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
-  - `CardRequirement` :472
-  - `InputGroup` :483
+  - `CardRequirement` :478
+  - `InputGroup` :489
   - `InputKind` :27
-  - `InputTopic` :572
+  - `InputTopic` :578
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :67
 - `Presentation/InstrumentCoverage.swift`
@@ -951,7 +951,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1593
+  - `OtherDataDetailView` :1629
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

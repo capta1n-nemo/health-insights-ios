@@ -144,8 +144,14 @@ public enum InputKind: String, Sendable, CaseIterable, Identifiable {
         case .medicationRegimen: return "Medication"
         case .medicationDose: return "Dose"
         case .sideEffect: return "Side effect"
-        case .bloodTestPhoto: return "Blood test (photo, scan or PDF)"
-        case .labResultManual: return "Blood test results (typed)"
+        // ⚠️ **"Test result", not "blood test".** The Data tab's section was
+        // renamed on 2026-08-09 because a urine NAT, an eye swab and a faecal
+        // antigen are not blood tests — and these two titles were left saying
+        // it, so the input surface contradicted the section it feeds. Caught by
+        // looking at the `+` menu, not by a test: nothing can compare a title
+        // here against a title there.
+        case .bloodTestPhoto: return "Test result (photo, scan or PDF)"
+        case .labResultManual: return "Test result (typed)"
         case .ecgImport: return "ECG"
         case .fileImport: return "File from another app"
         case .bodyType: return "Your build"

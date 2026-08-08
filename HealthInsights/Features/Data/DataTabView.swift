@@ -412,6 +412,15 @@ struct DataTabView: View {
                             Image(systemName: "chevron.right")
                                 .font(.caption2).foregroundStyle(.tertiary)
                         }
+                        // ⚠️ **Without this the row only answers a tap that
+                        // lands on the words.** A `.plain` button hit-tests its
+                        // label, and this label is mostly `Spacer` — so
+                        // "Flagged events" took a tap on the text and ignored
+                        // the whole middle of the row, which is where a thumb
+                        // goes. Measured on the simulator, 2026-08-09: the same
+                        // tap at the row's centre did nothing and at x=90pt
+                        // scrolled correctly.
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -546,6 +555,25 @@ struct DataTabView: View {
                             // reader last saw it.
                             ForEach(visible) { domain in
                                 section(for: domain)
+                                    // ⚠️ **The anchor `needsYouSection` scrolls
+                                    // to.** Without it every row in "You can add
+                                    // or correct these" was inert: `jump(to:)`
+                                    // was handed `domain.rawValue` and nothing
+                                    // in this file ever carried that id, so
+                                    // `proxy.scrollTo` had no target and
+                                    // returned silently. Measured on the
+                                    // simulator, 2026-08-09 — the rows rendered
+                                    // with a chevron, took the tap and did
+                                    // nothing, which is the exact thing
+                                    // `changedRow` refuses to ship one section
+                                    // above ("a row that looks tappable and does
+                                    // nothing").
+                                    //
+                                    // `ForEach`'s own element identity is not
+                                    // this: it decides which section is which
+                                    // across updates, not what `scrollTo` can
+                                    // name. The id has to be stated.
+                                    .id(domain.rawValue)
                             }
                         }
                         // The flash decays on its own — a highlight that stayed
@@ -1387,6 +1415,14 @@ struct DataTabView: View {
                     Image(systemName: "arrow.down")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
+                // Same reason as `needsYouSection`: a `.plain` button hit-tests
+                // its label, and the `Spacer` above is not part of it. A short
+                // name made most of the row inert — "Vitamin A" ignored a tap
+                // two thirds of the way across while "Cardio Fitness (VO₂max)",
+                // whose name reaches that far, answered it. The bug was
+                // invisible precisely because it depended on the length of the
+                // word.
+                .contentShape(Rectangle())
             }
             // Without this a `Button` in a `List` tints its whole label, and the
             // row stops looking like the rows either side of it.
@@ -1850,6 +1886,13 @@ extension AppModel {
     /// badge permanent, and a badge that never clears is one a reader learns to
     /// ignore — which is worse than no badge, because it also hides the ones
     /// that matter.
+    /// How far back a calendar day is still a question worth asking.
+    ///
+    /// Six weeks: long enough to cover a trip the reader has not got round to
+    /// reclassifying, short enough that the number stays a to-do list rather
+    /// than an archive. See `outstandingCount(for:)`.
+    static let outstandingCalendarWindow: TimeInterval = 42 * 24 * 3600
+
     var outstandingDataItems: [Outstanding] {
         DataDomain.inDisplayOrder
             .filter(\.canHaveOutstandingItems)
@@ -1874,12 +1917,25 @@ extension AppModel {
         case .flaggedEvents:
             return EventFeedModel.shared.feed.pending.count
         case .calendarEvents:
-            // Classified by the app and not confirmed by the reader. An event
-            // with no judgement at all and one with an unconfirmed judgement are
-            // both outstanding — and reclassifying these is exactly what the
-            // reader asked to be able to reach.
+            // Classified by the app and not confirmed by the reader — and
+            // **only within the last few weeks**.
+            //
+            // ⚠️ This counted every unconfirmed event ever, which on the
+            // reader's own phone is 2,487 of them: the badge would have read in
+            // the thousands and the row "Calendar 2487", defeating the rule
+            // three paragraphs above it. Caught on the simulator before the
+            // reader saw it, by looking rather than by a test.
+            //
+            // A window rather than a cap, because a cap lies about the size of
+            // the job while a window says what is actually being asked: nobody
+            // is going to reclassify a meeting from 2021, and an event old
+            // enough to have left every card's baseline is no longer a question
+            // anybody needs answered.
+            let horizon = Date().addingTimeInterval(-Self.outstandingCalendarWindow)
             let confirmed = Set(calendarJudgements.filter(\.isConfirmed).map(\.eventID))
-            return calendarEvents.filter { !confirmed.contains($0.id) }.count
+            return calendarEvents
+                .filter { $0.start >= horizon && !confirmed.contains($0.id) }
+                .count
         case .sickDays:
             // Detected from the calendar and never confirmed. An entered spell is
             // already the reader's own statement and asks nothing.
