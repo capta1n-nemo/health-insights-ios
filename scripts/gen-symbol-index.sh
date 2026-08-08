@@ -10,8 +10,21 @@
 #
 # Run it after adding or moving a type. `scripts/verify.sh` warns when the index
 # is stale.
+#
+# ⚠️ **`LC_ALL=C`, and it is not cosmetic.** Both `sort`s below decide the file's
+# byte content, and macOS and glibc collate differently — case, `_`, `-` and
+# digits against letters all order differently under a UTF-8 locale. So the
+# generator produced one file on the developer's Mac and a different one on the
+# Linux CI runner, `verify.sh` diffed the committed file against a freshly
+# generated one, and **CI went red twice on a symbol index that was correct**
+# — with the local gate green both times, which is the worst version of this
+# failure: the check that is supposed to catch you passes.
+#
+# Byte order, not locale order. Anything that sorts into a committed file wants
+# this line; `check-swiftdata-schema.sh` carries it for the same reason.
 
 set -euo pipefail
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 
 out=docs/symbol-index.md
