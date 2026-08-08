@@ -61,7 +61,7 @@ the place to look.
 - `Documents/LabModelVerifier.swift`
   - `LabModelVerifier` :39
 - `Documents/LabReportParser.swift`
-  - `LabReportParser` :39
+  - `LabReportParser` :59
 - `Documents/LabResult.swift`
   - `LabConfidence` :193
   - `LabExtractionEvidence` :424

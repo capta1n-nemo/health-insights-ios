@@ -154,6 +154,10 @@ jobs:
         run: |
           set -o pipefail
           STATUS=0
+          # The one place the configuration is named. Both the build below and
+          # the install step's product path read it.
+          CONFIGURATION=Release
+          echo "CONFIGURATION=$CONFIGURATION" >> "$GITHUB_ENV"
           # ⚠️ **Release, not Debug — this is the reader's phone, not a test rig.**
           # Switched 2026-08-09. Unoptimised Swift ran this code about 3.5x
           # slower on their own data: the main-actor half of `recompute()`
@@ -168,7 +172,7 @@ jobs:
           xcodebuild \
             -project HealthInsights.xcodeproj \
             -scheme HealthInsights \
-            -configuration Release \
+            -configuration "$CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             -allowProvisioningUpdates \
@@ -189,7 +193,13 @@ jobs:
           # deploy was a single bit and the only way to see why was the Actions
           # API — 457 KB for one line of cause.
           exec > >(tee -a "$RUNNER_TEMP/install.log") 2>&1
-          APP_PATH=$(find build/Build/Products/Debug-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          # ⚠️ **Derived from the configuration, never hardcoded.** This line
+          # said `Debug-iphoneos` and the build step said `-configuration`, so
+          # the moment those two disagreed the deploy died at *install* with
+          # "No such file or directory" while the build had succeeded — which
+          # is exactly what happened when the phone was switched to Release on
+          # 2026-08-09. One name, one place.
+          APP_PATH=$(find "build/Build/Products/${CONFIGURATION}-iphoneos" -maxdepth 1 -name '*.app' | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "::error::No .app was produced by the build step."
             exit 1

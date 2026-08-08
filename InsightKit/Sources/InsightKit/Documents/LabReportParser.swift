@@ -22,6 +22,26 @@ import Foundation
 /// returns the same type, because the grounding path calls it and a cholesterol
 /// reaching SCORE2 deserves the narrowest, oldest, most-tested route.
 ///
+/// ## What changed on 2026-08-09: a real corpus
+///
+/// Measured against the reader's own Australian reports — Sullivan Nicolaides,
+/// My Health Record, InstantScripts/QML — this parser was wrong in five ways
+/// that a synthetic fixture cannot show you, and each of them is now a named
+/// rule with a named test:
+///
+/// 1. **Five dates on a page and only one of them is the collection date.** See
+///    `collectionMarkers`. Two of the three laboratories print a *later*
+///    contradicting date in a wrapper or a header, above the document that knows
+///    better.
+/// 2. **Two results in five are not numbers.** A word (`Negative`), a bound
+///    (`<5`), or a stated failure (`N/A  SpecimenUnsuitable`). See `parseLine`,
+///    which now recognises those three shapes **before** it looks for a number —
+///    `HSV 1 DNA (NAA)  Not Detected` carries a `1` that the numeric path
+///    happily filed as a herpes PCR result of one.
+/// 3. **`L` is both a unit and a flag.** See `abnormalFlag(after:in:)`.
+/// 4. **A number inside a date is not a result.** See `valueCells(in:)`.
+/// 5. **The specimen was being discarded as furniture.** See `specimen(in:)`.
+///
 /// ## The misread guard
 ///
 /// ⚠️ **A misread lab value is worse than no lab value.** So every extracted
@@ -108,13 +128,23 @@ public enum LabReportParser {
         /// The recognised text, kept so a model proposal can be checked against
         /// it. Never leaves the device; see `LabModelVerifier`.
         public let sourceText: String
+        /// What was tested, as the report named it — "Serum", "EDTA whole
+        /// blood", "Mid-stream urine".
+        ///
+        /// ⚠️ **Nil is not "blood".** A potassium from serum and a potassium
+        /// from plasma are different numbers, and a urine protein filed as a
+        /// serum one is a different test entirely, so nothing here may be
+        /// defaulted. See `specimen(in:)` for why this used to be thrown away.
+        public let specimen: String?
 
         public init(results: [LabResult], collectedAt: Date?,
-                    unpairedLines: [String], sourceText: String) {
+                    unpairedLines: [String], sourceText: String,
+                    specimen: String? = nil) {
             self.results = results
             self.collectedAt = collectedAt
             self.unpairedLines = unpairedLines
             self.sourceText = sourceText
+            self.specimen = specimen
         }
 
         /// Results whose analyte the catalogue did not recognise — the ones a
@@ -140,6 +170,11 @@ public enum LabReportParser {
                                    importedAt: Date = Date()) -> Scan {
         let printedDate = collectionDate(in: text)
         let collectedAt = printedDate ?? importedAt
+        // ⚠️ Read before the noise filter runs, not after. `isNoiseLine` throws
+        // the specimen row away — rightly, since "Specimen Type Serum" parses
+        // into nothing — and until this line existed that discarded the only
+        // statement on the page of *what was tested*.
+        let specimenType = specimen(in: text)
         var results: [LabResult] = []
         var unpaired: [String] = []
         var seenKeys = Set<String>()
@@ -172,14 +207,18 @@ public enum LabReportParser {
         }
 
         return Scan(results: results, collectedAt: printedDate,
-                    unpairedLines: unpaired, sourceText: text)
+                    unpairedLines: unpaired, sourceText: text,
+                    specimen: specimenType)
     }
 
     // MARK: - One line
 
     struct Row {
         let analyte: LabAnalyte
-        let value: Double
+        /// ⚠️ Was a `Double` until 2026-08-09. See `LabValue`: a censored bound
+        /// that arrives here as a number is a ceiling filed as a reading, and
+        /// nothing downstream can tell afterwards.
+        let value: LabValue
         let unit: String
         let range: LabReferenceRange?
         let evidence: LabExtractionEvidence
@@ -188,6 +227,12 @@ public enum LabReportParser {
     /// Lines that are furniture, not data. Cheap to skip and expensive not to:
     /// a column header reading "Result 0.0 - 5.0 mmol/L" parses beautifully into
     /// a value nobody measured.
+    ///
+    /// ⚠️ **"specimen type" is here and "specimen" is not**, and the difference
+    /// is a whole class of result: `Iron  N/A  SpecimenUnsuitable` is a
+    /// laboratory saying a test failed, which is a fact about the reader's record
+    /// worth keeping. Widening this to the bare word would silently delete every
+    /// one of them.
     static func isNoiseLine(_ line: String) -> Bool {
         let lower = line.lowercased()
         // A header row: names the columns and carries no analyte.
@@ -195,7 +240,8 @@ public enum LabReportParser {
                            "result units", "test result", "analyte result",
                            "units range", "page ", "printed on", "report date",
                            "authorised by", "authorized by", "reported by",
-                           "specimen type", "laboratory no", "lab no",
+                           "specimen type", "specimen:", "sample type",
+                           "laboratory no", "lab no",
                            "nhs no", "patient name", "date of birth", "d.o.b"]
         if headerWords.contains(where: { lower.contains($0) }) { return true }
         // No letters at all: a stray number, a page rule, an artefact.
@@ -203,29 +249,207 @@ public enum LabReportParser {
         return false
     }
 
+    /// Read one line, in the order the failures demand.
+    ///
+    /// ⚠️ **Everything that is not a measurement is recognised first, and that
+    /// ordering is the fix for a live misread.** `HSV 1 DNA (NAA)  Not Detected`
+    /// carries a `1` that is not inside a word, so the numeric path scored it as
+    /// the result and filed a herpes PCR as *HSV = 1*; `Syphilis (CMIA) Screen`
+    /// prints a signal-to-cutoff index beside its word on some layouts, and that
+    /// index is not the finding either. The numeric path therefore only ever sees
+    /// lines that no other shape claimed.
     static func parseLine(_ line: String) -> Row? {
+        if let row = notMeasuredRow(line) { return row }
+        if let row = qualitativeRow(line) { return row }
+        return numericRow(line)
+    }
+
+    // MARK: - Shape one: the laboratory produced no value
+
+    /// What a report prints in the value column when there is no value.
+    ///
+    /// ⚠️ **`N/A` keeps its slash on purpose.** A bare "NA" is sodium, and
+    /// "(NAA)" is the nucleic-acid method printed beside half the serology in
+    /// this corpus — matching either would turn a real result into a failure.
+    static let noValueTokens = ["n/a", "n.a.", "not performed", "not tested",
+                                "quantity not sufficient", "qns"]
+
+    /// Sentences a laboratory writes instead of a value, when the reason is too
+    /// long for the column.
+    ///
+    /// The corpus case is a full blood count whose platelet row is simply absent,
+    /// with *"An accurate platelet count could not be provided due to platelet
+    /// clumping"* printed underneath. Dropping that line loses the one thing the
+    /// reader needs to know about their own platelets that day.
+    static let failureSentences = ["could not be provided", "could not be performed",
+                                   "could not be reported", "unable to be performed",
+                                   "not able to be performed", "no result could be",
+                                   "could not be calculated"]
+
+    static func notMeasuredRow(_ line: String) -> Row? {
+        // Form one: the value cell itself says there is no value, with the
+        // laboratory's reason printed after it.
+        if let found = firstOccurrence(ofAny: noValueTokens, in: line) {
+            let label = trimmedLabel(String(line[line.startIndex..<found.lowerBound]))
+            guard isAnalyteLabel(label) else { return nil }
+            let tail = String(line[found.upperBound...])
+                .trimmingCharacters(in: CharacterSet(charactersIn: " \t:|-"))
+            // The laboratory's own words where it gave any, and the token it
+            // printed where it did not. Never the app's paraphrase: the reason is
+            // the useful half, and "SpecimenUnsuitable" is a sentence the reader
+            // can take back to whoever took the blood.
+            let reason = tail.contains(where: \.isLetter) ? tail : String(line[found])
+            return notMeasuredRow(label: label,
+                                  entry: LabAnalyteCatalog.match(label: label),
+                                  reason: reason, line: line)
+        }
+
+        // Form two: a comment sentence naming a test that could not be produced.
+        guard failureSentences.contains(where: {
+            line.range(of: $0, options: .caseInsensitive) != nil
+        }) else { return nil }
+        // ⚠️ Only a **catalogued** analyte, and only from the sentence itself. An
+        // uncatalogued one would have to be named by guessing which words of an
+        // English sentence were the analyte, and a wrong guess here invents a
+        // test the reader never had.
+        guard let entry = LabAnalyteCatalog.match(label: line) else { return nil }
+        return notMeasuredRow(label: entry.displayName, entry: entry,
+                              reason: line.trimmingCharacters(in: .whitespaces),
+                              line: line)
+    }
+
+    static func notMeasuredRow(label: String, entry: LabAnalyteCatalog.Entry?,
+                               reason: String, line: String) -> Row {
+        let analyte = entry?.analyte ?? LabAnalyte.unknown(label: label, unit: nil)
+        let evidence = LabExtractionEvidence(rawLabel: label, rawValueText: reason,
+                                             rawLine: line, method: .deterministic,
+                                             checks: [.notMeasuredStated(reason)])
+        // No unit, because there is no value to put one on. `LabResult`
+        // suppresses it anyway, and storing one here would leave "Not measured
+        // mmol/L" one refactor away.
+        return Row(analyte: analyte, value: .notMeasured(.statedByLaboratory(reason)),
+                   unit: "", range: nil, evidence: evidence)
+    }
+
+    // MARK: - Shape two: the result is a word
+
+    /// Words a pathology report prints where a number would go, **longest
+    /// first** at match time.
+    ///
+    /// ⚠️ **Order is load-bearing and negatives come first.** "Not detected"
+    /// contains "detected"; taking the shorter match would file every negative
+    /// PCR in this reader's record as a positive one. `LabQualitativeOrdinal`
+    /// carries the same warning for placing the word on a scale — this list is
+    /// the half that *finds* it on the line.
+    ///
+    /// The tail of the list is words the ordinal scale deliberately cannot place.
+    /// They are here so a report printing one is **kept and flagged**
+    /// (`.qualitativeWordUnrecognised`) rather than silently dropped — the
+    /// qualitative twin of `unitUnrecognised`, and the reason that check has
+    /// anything to fire on at all.
+    static let qualitativeWords: [String] = [
+        "not detected", "non reactive", "non-reactive", "nonreactive",
+        "nil detected", "not isolated", "no growth", "not seen", "undetected",
+        "weakly reactive", "weak positive", "indeterminate", "inconclusive",
+        "equivocal", "borderline", "negative", "detected", "reactive",
+        "positive", "isolated", "present", "absent",
+        // Not on the negative/equivocal/positive scale, on purpose.
+        "normal", "abnormal", "trace", "seen", "insufficient", "pending"
+    ]
+
+    /// The word a line ended on, verbatim, and where it started.
+    ///
+    /// ⚠️ **The word must be the last thing on the line.** In a two-column report
+    /// the result is the last column, and requiring that is what keeps an
+    /// interpretive comment — *"A negative result does not exclude recent
+    /// infection"* — from becoming an analyte. Only characters that carry no
+    /// meaning may follow it; a full stop may not, because a full stop means a
+    /// sentence.
+    static func qualitativeWord(in line: String) -> Range<String.Index>? {
+        var best: Range<String.Index>?
+        for word in qualitativeWords.sorted(by: { $0.count > $1.count }) {
+            var searchStart = line.startIndex
+            while searchStart < line.endIndex,
+                  let found = line.range(of: word, options: [.caseInsensitive],
+                                         range: searchStart..<line.endIndex) {
+                searchStart = found.upperBound
+                // A word boundary in front: "isolated" inside "re-isolated" is
+                // not a result, and neither is one inside an analyte's name.
+                if found.lowerBound > line.startIndex {
+                    let previous = line[line.index(before: found.lowerBound)]
+                    if previous.isLetter || previous.isNumber { continue }
+                }
+                let trailing = line[found.upperBound...]
+                guard trailing.allSatisfy({ $0.isWhitespace || "*†!)]".contains($0) })
+                else { continue }
+                // Among the matches that end the line, the one that starts
+                // earliest reaches furthest back — "not detected" over "detected".
+                if best == nil || found.lowerBound < best!.lowerBound { best = found }
+            }
+        }
+        return best
+    }
+
+    static func qualitativeRow(_ line: String) -> Row? {
+        guard let wordRange = qualitativeWord(in: line) else { return nil }
+        let label = trimmedLabel(String(line[line.startIndex..<wordRange.lowerBound]))
+        guard isAnalyteLabel(label) else { return nil }
+
+        let entry = LabAnalyteCatalog.match(label: label)
+        if let entry {
+            // ⚠️ A catalogued analyte the laboratory reports as a **number** does
+            // not get to be a word because a word appeared at the end of its
+            // line. `Glucose 5.4 mmol/L Normal` is a glucose of 5.4, and reading
+            // it as the word "Normal" would throw the measurement away.
+            guard entry.isQualitative else { return nil }
+        } else if lineCarriesAMeasurement(line, before: wordRange) {
+            // The same guard for an analyte the catalogue has never met: a number
+            // with a unit beside it is a measurement whatever else the line says.
+            return nil
+        }
+
+        // Verbatim. Three laboratories write the same finding three ways, and the
+        // report's own word is what the reader compares against their paperwork.
+        let printed = String(line[wordRange])
+        let result = LabQualitativeResult(printed: printed)
+        let check: LabValueCheck = result.ordinal == nil
+            ? .qualitativeWordUnrecognised(printed)
+            : .qualitativeWordRecognised(printed)
+        let analyte = entry?.analyte ?? LabAnalyte.unknown(label: label, unit: nil)
+        let evidence = LabExtractionEvidence(rawLabel: label, rawValueText: printed,
+                                             rawLine: line, method: .deterministic,
+                                             checks: [check])
+        return Row(analyte: analyte, value: .qualitative(result),
+                   unit: "", range: nil, evidence: evidence)
+    }
+
+    /// Whether the line prints a number with a unit beside it, before the word.
+    static func lineCarriesAMeasurement(_ line: String,
+                                        before word: Range<String.Index>) -> Bool {
+        let cells = valueCells(in: line).filter { $0.range.upperBound <= word.lowerBound }
+        guard !cells.isEmpty else { return false }
+        let interval = printedRange(in: line, cells: cells)?.range
+        return cells.contains { cell in
+            guard let unit = unitToken(after: cell.range.upperBound, in: line,
+                                       excluding: interval) else { return false }
+            return isUnitLike(unit)
+        }
+    }
+
+    // MARK: - Shape three: a number, measured or bounded
+
+    static func numericRow(_ line: String) -> Row? {
         var checks: [LabValueCheck] = []
 
-        // 1. The printed reference interval, taken out of play first so its own
-        //    numbers can never be mistaken for the result.
-        let rangeFind = printedRange(in: line)
-        let withoutRange: String
-        if let rangeFind {
-            withoutRange = line.replacingCharacters(in: rangeFind.range, with: " ")
-        } else {
-            withoutRange = line
-        }
+        // 1. Every number the line prints that could be a result, with the
+        //    censoring operator in front of it where there was one.
+        let cells = valueCells(in: line)
+        guard !cells.isEmpty else { return nil }
 
-        // 2. Every remaining number is a candidate value — except digits that
-        //    are *inside a word*. "HbA1c", "Vitamin B12" and "1.73m2" all carry
-        //    a digit that belongs to the analyte's name; reading the `1` out of
-        //    HbA1c as the result was the first thing this parser did when it
-        //    stopped being a two-analyte special case.
-        let candidates = numberTokens(in: withoutRange).filter { token in
-            guard token.range.lowerBound > withoutRange.startIndex else { return true }
-            let preceding = withoutRange[withoutRange.index(before: token.range.lowerBound)]
-            return !preceding.isLetter
-        }
+        // 2. The printed reference interval, taken out of play so its own numbers
+        //    can never be mistaken for the result.
+        let rangeFind = printedRange(in: line, cells: cells)
+        let candidates = cells.filter { !overlaps($0.range, rangeFind?.range) }
         guard !candidates.isEmpty else { return nil }
 
         // 3. Choose between the candidates. **Select, don't merely reject** —
@@ -235,26 +459,34 @@ public enum LabReportParser {
         //    Three independent signals, each worth the same: words before it,
         //    a unit after it, and agreement with the printed interval. A tie
         //    goes to the leftmost, which is where a result column sits.
-        func score(_ token: NumberToken) -> Int {
+        func score(_ cell: ValueCell) -> Int {
             var score = 0
-            let before = String(withoutRange[withoutRange.startIndex..<token.range.lowerBound])
+            let before = line[line.startIndex..<cell.range.lowerBound]
             if before.filter(\.isLetter).count >= 2 { score += 2 }
-            if let unit = unitToken(after: token.range, in: withoutRange),
+            let afterFlag = abnormalFlag(after: cell.range, in: line)?.end
+            if let unit = unitToken(after: afterFlag ?? cell.range.upperBound, in: line,
+                                    excluding: rangeFind?.range),
                isUnitLike(unit) { score += 2 }
-            if let printed = rangeFind?.parsed, printed.contains(token.value) { score += 2 }
+            if let printed = rangeFind?.parsed, printed.contains(cell.value) { score += 2 }
             return score
         }
-        let scored = candidates.map { (token: $0, score: score($0)) }
+        let scored = candidates.map { (cell: $0, score: score($0)) }
         let best = scored.max { lhs, rhs in
             lhs.score == rhs.score
-                ? lhs.token.range.lowerBound > rhs.token.range.lowerBound
+                ? lhs.cell.range.lowerBound > rhs.cell.range.lowerBound
                 : lhs.score < rhs.score
         }
-        guard let chosen = best?.token else { return nil }
+        guard let chosen = best?.cell else { return nil }
 
-        // 4. The label is whatever precedes the chosen candidate. An empty label
-        //    means a bare number — a continuation line or an artefact.
-        let rawLabel = String(withoutRange[withoutRange.startIndex..<chosen.range.lowerBound])
+        // 4. The label is whatever precedes the chosen candidate, minus a
+        //    reference interval that happened to be printed to its left. An empty
+        //    label means a bare number — a continuation line or an artefact.
+        var labelText = String(line[line.startIndex..<chosen.range.lowerBound])
+        if let interval = rangeFind?.range, interval.upperBound <= chosen.range.lowerBound {
+            labelText = String(line[line.startIndex..<interval.lowerBound]) + " "
+                + String(line[interval.upperBound..<chosen.range.lowerBound])
+        }
+        let rawLabel = labelText
             .trimmingCharacters(in: CharacterSet(charactersIn: " \t0123456789.:|"))
         guard rawLabel.contains(where: \.isLetter) else { return nil }
         // A label made only of a flag or an ordinal is not an analyte name.
@@ -272,38 +504,62 @@ public enum LabReportParser {
             checks.append(.selectedByPrintedRange(chosen: chosen.value, rejected: rejected))
         }
 
-        // 5. The unit sits after the chosen number, past any high/low flag.
-        let printedUnit = unitToken(after: chosen.range, in: withoutRange)
+        // 5. The laboratory's own out-of-range marker, then the unit past it.
+        let flag = abnormalFlag(after: chosen.range, in: line)
+        if let flag { checks.append(.printedAbnormalFlag(flag.text)) }
+        let printedUnit = unitToken(after: flag?.end ?? chosen.range.upperBound,
+                                    in: line, excluding: rangeFind?.range)
 
-        // 6. Convert, or keep verbatim, and say which.
-        var value = chosen.value
+        // 6. A bound is not a measurement, and saying so is the whole job of
+        //    `LabValue`. Recorded before any conversion, because the operator
+        //    survives the conversion: a `<5 mg/dL` is still a `<` afterwards.
+        if chosen.op != nil { checks.append(.censoredBound(chosen.printed)) }
+
+        // 7. Convert, or keep verbatim, and say which.
+        var number = chosen.value
         var unit = printedUnit ?? ""
         var analyte: LabAnalyte
 
         if let entry {
             analyte = entry.analyte
-            if let printedUnit, !printedUnit.isEmpty {
-                if let converted = LabAnalyteCatalog.convert(value, from: printedUnit, for: entry) {
-                    value = converted
-                    unit = entry.canonicalUnit
-                    checks.append(.unitRecognised(printedUnit))
-                } else {
-                    // ⚠️ Never convert on a guess. A wrong factor is invisible
-                    // afterwards — the number looks perfectly reasonable.
-                    unit = printedUnit
-                    checks.append(.unitUnrecognised(printedUnit))
-                }
-            } else if let inferred = inferUnit(for: entry, value: value,
-                                               range: rangeFind?.parsed) {
-                value = inferred.value
-                unit = entry.canonicalUnit
-                checks.append(.unitInferredFromRange(inferred.assumedUnit))
+            if entry.isQualitative, chosen.op != nil {
+                // ⚠️ **A bound on an analyte the catalogue expects as a word is
+                // exempt from the magnitude guard, and only a bound is.**
+                // `Entry.noMagnitude` exists to stop a signal-to-cutoff *index*
+                // being filed as the finding — but `LabValue.measuredNumber` is
+                // nil for a censored value, so a bound cannot be filed as one at
+                // all and there is nothing left for the guard to protect. Without
+                // this, a cleanly-read `HepB surface antibody <5 IU/L` — a line
+                // the reader can check against their own paperwork in one glance
+                // — comes back "check this one", which is the false alarm this
+                // file spends its length avoiding.
+                unit = printedUnit ?? ""
+                checks.append(.magnitudeUncheckable)
             } else {
-                unit = entry.canonicalUnit
-                checks.append(.unitMissing)
+                if let printedUnit, !printedUnit.isEmpty {
+                    if let converted = LabAnalyteCatalog.convert(number, from: printedUnit,
+                                                                 for: entry) {
+                        number = converted
+                        unit = entry.canonicalUnit
+                        checks.append(.unitRecognised(printedUnit))
+                    } else {
+                        // ⚠️ Never convert on a guess. A wrong factor is invisible
+                        // afterwards — the number looks perfectly reasonable.
+                        unit = printedUnit
+                        checks.append(.unitUnrecognised(printedUnit))
+                    }
+                } else if let inferred = inferUnit(for: entry, value: number,
+                                                   range: rangeFind?.parsed) {
+                    number = inferred.value
+                    unit = entry.canonicalUnit
+                    checks.append(.unitInferredFromRange(inferred.assumedUnit))
+                } else {
+                    unit = entry.canonicalUnit
+                    checks.append(.unitMissing)
+                }
+                checks.append(entry.plausible.contains(number)
+                              ? .plausibleMagnitude : .implausibleMagnitude)
             }
-            checks.append(entry.plausible.contains(value)
-                          ? .plausibleMagnitude : .implausibleMagnitude)
         } else {
             analyte = LabAnalyte.unknown(label: rawLabel, unit: printedUnit)
             unit = printedUnit ?? ""
@@ -317,7 +573,7 @@ public enum LabReportParser {
             checks.append(.magnitudeUncheckable)
         }
 
-        // 7. The printed interval, against the value that was finally chosen.
+        // 8. The printed interval, against the value that was finally chosen.
         //
         //    ⚠️ The interval is compared in the unit it was *printed* in, which
         //    is the unit the value was printed in too. Comparing a converted
@@ -337,8 +593,8 @@ public enum LabReportParser {
             checks.append(.noPrintedRange)
         }
 
-        // 8. Characters OCR is known to confuse, in the value itself.
-        if let confusing = ambiguity(in: chosen.text) {
+        // 9. Characters OCR is known to confuse, in the value itself.
+        if let confusing = ambiguity(in: chosen.token.text) {
             checks.append(.ambiguousCharacters(confusing))
         }
 
@@ -348,10 +604,12 @@ public enum LabReportParser {
                                          entry: entry, printedUnit: printedUnit)
 
         let evidence = LabExtractionEvidence(rawLabel: rawLabel,
-                                             rawValueText: chosen.text,
+                                             rawValueText: chosen.printed,
                                              rawLine: line,
                                              method: .deterministic,
                                              checks: checks)
+        let value: LabValue = chosen.op.map { LabValue.censored($0, number) }
+            ?? .quantitative(number)
         return Row(analyte: analyte, value: value, unit: unit,
                    range: storedRange, evidence: evidence)
     }
@@ -366,12 +624,140 @@ public enum LabReportParser {
     /// mis-placed decimal point lives and real physiology does not.
     public static let grossExcursion: Double = 8
 
+    // MARK: - Labels
+
+    /// Words that open a sentence rather than name an analyte.
+    ///
+    /// ⚠️ This list is half of a guard against a shape a real report prints on
+    /// every page: its interpretive comments end in the same vocabulary its
+    /// results do. *"...could not be provided due to platelet clumping"* and
+    /// *"A negative result does not exclude recent infection"* both look exactly
+    /// like a two-column row to anything that only checks for a trailing word,
+    /// and without this the reader's record gains an analyte called "This test
+    /// was".
+    static let proseWords: Set<String> = [
+        "a", "an", "the", "this", "these", "those", "that", "please", "note",
+        "notes", "comment", "comments", "result", "results", "was", "were",
+        "is", "are", "be", "been", "because", "due", "no", "not", "all", "some",
+        "further", "if", "and", "or", "but", "however", "we", "your", "you",
+        "it", "there", "has", "have", "had", "may", "can", "could", "should",
+        "would", "sample", "specimen", "report", "reported", "suggest",
+        "suggests", "recommend", "recommended", "clinical", "correlation",
+        "advised", "interpretation", "performed"
+    ]
+
+    /// Whether a string could be the name of an analyte.
+    ///
+    /// Eight words is the backstop; `proseWords` does the real work. The corpus's
+    /// longest genuine label is six tokens (`HIV 1 / 2 total antibody`), so the
+    /// cap is set where a laboratory stops and a sentence keeps going.
+    static func isAnalyteLabel(_ label: String) -> Bool {
+        let words = label.split(whereSeparator: \.isWhitespace)
+        guard (1...8).contains(words.count) else { return false }
+        guard label.filter(\.isLetter).count >= 2 else { return false }
+        for word in words {
+            let key = String(word).lowercased().filter(\.isLetter)
+            if !key.isEmpty, proseWords.contains(key) { return false }
+        }
+        return true
+    }
+
+    static func trimmedLabel(_ raw: String) -> String {
+        var label = raw.trimmingCharacters(in: CharacterSet(charactersIn: " \t|"))
+        while let last = label.last, last == ":" || last == "." || last == "-" {
+            label.removeLast()
+            label = label.trimmingCharacters(in: .whitespaces)
+        }
+        return label
+    }
+
+    /// The earliest occurrence of any of `needles`, case-insensitively.
+    static func firstOccurrence(ofAny needles: [String],
+                                in haystack: String) -> Range<String.Index>? {
+        var best: Range<String.Index>?
+        for needle in needles {
+            guard let found = haystack.range(of: needle, options: .caseInsensitive)
+            else { continue }
+            if best == nil || found.lowerBound < best!.lowerBound { best = found }
+        }
+        return best
+    }
+
     // MARK: - Number scanning
 
     struct NumberToken: Equatable {
         let text: String
         let value: Double
         let range: Range<String.Index>
+    }
+
+    /// A number on a line together with the censoring operator printed in front
+    /// of it, so the two are never separated by anything downstream.
+    struct ValueCell: Equatable {
+        /// `<`, `>`, `≤`, `≥` where the report printed one.
+        let op: LabCensorOperator?
+        let token: NumberToken
+        /// Operator and number together. An interval that covers the number
+        /// covers its sign with it, and blanking one blanks both.
+        let range: Range<String.Index>
+        /// Exactly as printed — "<5", ">90", "146".
+        let printed: String
+
+        var value: Double { token.value }
+    }
+
+    static func censorOperator(_ character: Character) -> LabCensorOperator? {
+        switch character {
+        case "<": return .lessThan
+        case ">": return .greaterThan
+        case "\u{2264}": return .lessOrEqual
+        case "\u{2265}": return .greaterOrEqual
+        default: return nil
+        }
+    }
+
+    /// Every number on a line that could be a result.
+    ///
+    /// Two things are excluded, and both are misreads this parser has actually
+    /// made:
+    ///
+    /// - **Digits inside a word.** "HbA1c", "Vitamin B12" and "1.73m2" all carry
+    ///   one that belongs to the analyte's name; reading the `1` out of HbA1c as
+    ///   the result was the first thing this parser did when it stopped being a
+    ///   two-analyte special case.
+    /// - ⚠️ **Digits inside a date.** `Collected: 20/04/2026 11:38` used to yield
+    ///   an analyte called "Collected" with a value of 20, and a My Health Record
+    ///   table row yielded one called "-Dec" with a value of 25. A number that is
+    ///   part of a date is never a result, and the date scanner already knows
+    ///   exactly where each one starts and ends.
+    static func valueCells(in line: String) -> [ValueCell] {
+        let dateRanges = dates(in: line).map(\.range)
+        return numberTokens(in: line).compactMap { token -> ValueCell? in
+            if token.range.lowerBound > line.startIndex,
+               line[line.index(before: token.range.lowerBound)].isLetter {
+                return nil
+            }
+            if dateRanges.contains(where: { $0.overlaps(token.range) }) { return nil }
+
+            var start = token.range.lowerBound
+            var op: LabCensorOperator?
+            var cursor = token.range.lowerBound
+            while cursor > line.startIndex {
+                let previous = line.index(before: cursor)
+                let character = line[previous]
+                if character == " " || character == "\t" { cursor = previous; continue }
+                if let found = censorOperator(character) { op = found; start = previous }
+                break
+            }
+            return ValueCell(op: op, token: token,
+                             range: start..<token.range.upperBound,
+                             printed: String(line[start..<token.range.upperBound]))
+        }
+    }
+
+    static func overlaps(_ range: Range<String.Index>, _ other: Range<String.Index>?) -> Bool {
+        guard let other else { return false }
+        return range.overlaps(other)
     }
 
     /// Every number in a string, with the characters it was read from.
@@ -445,28 +831,67 @@ public enum LabReportParser {
         return nil
     }
 
-    // MARK: - Units
+    // MARK: - Flags and units
 
-    /// The unit printed after a value.
+    /// Markers that are only ever a flag, never a unit.
+    static let alwaysFlags: Set<String> = ["h", "hh", "ll", "a", "*", "**", "\u{2020}",
+                                           "(h)", "(l)", "!", "h*", "l*", "hi", "lo"]
+
+    /// The laboratory's own out-of-range marker, printed between the value and
+    /// the reference interval.
     ///
-    /// Skips a single high/low flag first: reports print `5.2 H mmol/L` and
-    /// `5.2 * mmol/L`, and reading `H` as the unit would fail every conversion
-    /// and stamp the value `unitUnrecognised`.
-    static func unitToken(after valueRange: Range<String.Index>, in s: String) -> String? {
-        var rest = String(s[valueRange.upperBound...])
-        rest = rest.trimmingCharacters(in: .whitespaces)
-        // Strip an abnormal flag: one or two letters, or a symbol, standing alone.
-        let flagCandidates = ["hh", "ll", "h", "l", "a", "*", "†", "(h)", "(l)", "!"]
-        for flag in flagCandidates {
-            if rest.lowercased().hasPrefix(flag) {
-                let after = rest.index(rest.startIndex, offsetBy: flag.count)
-                let remainder = String(rest[after...])
-                if remainder.first?.isWhitespace ?? remainder.isEmpty {
-                    rest = remainder.trimmingCharacters(in: .whitespaces)
-                    break
-                }
-            }
+    /// ⚠️ **`L` is a flag *and* a unit, and only its position tells them apart.**
+    /// `Bicarbonate 19 L 20 - 32 mmol/L` marks a low bicarbonate; `Urine volume
+    /// 1.2 L` measures litres. A flag never ends the line — the interval or the
+    /// unit always follows it — so a lone `L` with nothing after it is litres and
+    /// a lone `L` with anything after it is a flag. Reading a flagged `L` as
+    /// litres was live here until 2026-08-09 and stamps a bicarbonate
+    /// `unitUnrecognised`; reading litres as a flag loses the only unit the line
+    /// printed. `H` needs none of this — nothing is measured in H.
+    ///
+    /// ⚠️ The flag is **recorded, never interpreted** (`printedAbnormalFlag`). It
+    /// is the laboratory's statement about the reader's result, not the app's
+    /// check on its own reading, and it is the one entry in `LabValueCheck` that
+    /// says nothing about the extraction.
+    static func abnormalFlag(after valueRange: Range<String.Index>,
+                             in line: String) -> (text: String, end: String.Index)? {
+        var index = valueRange.upperBound
+        while index < line.endIndex, line[index] == " " || line[index] == "\t" {
+            index = line.index(after: index)
         }
+        var end = index
+        while end < line.endIndex, !line[end].isWhitespace { end = line.index(after: end) }
+        guard end > index else { return nil }
+        let token = String(line[index..<end])
+        let key = token.lowercased()
+        if alwaysFlags.contains(key) { return (token, end) }
+        if key == "l", line[end...].contains(where: { !$0.isWhitespace }) {
+            return (token, end)
+        }
+        return nil
+    }
+
+    /// The unit printed after a value, skipping the reference interval if that is
+    /// what sits between the two.
+    ///
+    /// ⚠️ The interval is stepped **over**, not stopped at: `Bicarbonate 19 L
+    /// 20 - 32 mmol/L` prints its unit on the far side of its own interval, and
+    /// a scanner that stopped at the interval would call that line unitless.
+    static func unitToken(after start: String.Index, in line: String,
+                          excluding interval: Range<String.Index>?) -> String? {
+        guard start <= line.endIndex else { return nil }
+        let rest: String
+        if let interval, interval.lowerBound >= start {
+            rest = String(line[start..<interval.lowerBound]) + " "
+                + String(line[interval.upperBound...])
+        } else {
+            rest = String(line[start...])
+        }
+        return unitToken(in: rest)
+    }
+
+    static func unitToken(in text: String) -> String? {
+        let rest = text.trimmingCharacters(in: .whitespaces)
         guard !rest.isEmpty else { return nil }
 
         // A unit is the run of characters up to whitespace, but units contain
@@ -484,7 +909,6 @@ public enum LabReportParser {
                 guard next < rest.endIndex else { break }
                 let following = rest[next]
                 if following == "/" || following == "^" || following == "*" {
-                    unit.append(contentsOf: "")
                     index = next
                     continue
                 }
@@ -603,12 +1027,30 @@ public enum LabReportParser {
         let parsed: LabReferenceRange
     }
 
-    /// The reference interval a line printed, if any.
+    /// The reference interval a line printed, given what else is on the line.
     ///
-    /// Takes the **last** match on the line: reports print the result first and
-    /// the interval to its right, and a leading match is almost always a value
-    /// that happens to contain a hyphen.
-    static func printedRange(in line: String) -> RangeFind? {
+    /// ⚠️ **A one-sided interval and a censored result are the same characters**,
+    /// and only the rest of the line separates them. `HepB surface antibody <5
+    /// IU/L` has one `<5` on it and that `<5` is the *result*; `eGFR >90 >59` has
+    /// two, and the last is the interval. So a one-sided form is only believed to
+    /// be an interval when something else on the line is still available to be
+    /// the value. Get this backwards and a hepatitis B surface antibody arrives
+    /// with no value at all, or an eGFR of `>90` — an assay ceiling — is stored
+    /// as a measured 90 and walks into a renal trend.
+    static func printedRange(in line: String, cells: [ValueCell]) -> RangeFind? {
+        guard let find = printedRangeCandidate(in: line) else { return nil }
+        let isOneSided = find.parsed.low == nil || find.parsed.high == nil
+        guard isOneSided else { return find }
+        let outside = cells.filter { !$0.range.overlaps(find.range) }
+        return outside.isEmpty ? nil : find
+    }
+
+    /// The rightmost thing on the line shaped like an interval.
+    ///
+    /// Takes the **last** match: reports print the result first and the interval
+    /// to its right, and a leading match is almost always a value that happens to
+    /// contain a hyphen.
+    static func printedRangeCandidate(in line: String) -> RangeFind? {
         let patterns = [
             #"[0-9]+(?:[.,][0-9]+)?\s*(?:-|–|—|to)\s*[0-9]+(?:[.,][0-9]+)?"#,
             #"[<>≤≥]\s*[0-9]+(?:[.,][0-9]+)?"#
@@ -631,11 +1073,11 @@ public enum LabReportParser {
 
     static func parseRangeText(_ text: String) -> LabReferenceRange? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        if trimmed.hasPrefix("<") || trimmed.hasPrefix("≤") {
+        if trimmed.hasPrefix("<") || trimmed.hasPrefix("\u{2264}") {
             guard let value = numberTokens(in: trimmed).first?.value else { return nil }
             return LabReferenceRange(low: nil, high: value, printed: trimmed)
         }
-        if trimmed.hasPrefix(">") || trimmed.hasPrefix("≥") {
+        if trimmed.hasPrefix(">") || trimmed.hasPrefix("\u{2265}") {
             guard let value = numberTokens(in: trimmed).first?.value else { return nil }
             return LabReferenceRange(low: value, high: nil, printed: trimmed)
         }
@@ -647,53 +1089,285 @@ public enum LabReportParser {
         return LabReferenceRange(low: low, high: high, printed: trimmed)
     }
 
-    // MARK: - The collection date
+    // MARK: - The specimen
 
-    /// The date the sample was taken, as printed.
+    /// What the report says was tested.
     ///
-    /// ⚠️ **Collection, not report date, and the distinction is not pedantry.**
-    /// A report is often authorised days after the blood was drawn; filing the
-    /// value under the report date puts it in the wrong week against every
-    /// vital it might later be compared with. Where the document prints only a
-    /// report date this returns nil, and the caller falls back on the import
-    /// date with `collectedAtIsExact` false, so the imprecision is visible
-    /// rather than hidden behind a confident-looking date.
-    static func collectionDate(in text: String) -> Date? {
-        let markers = ["collected", "collection date", "specimen date",
-                       "sample taken", "date collected", "taken on",
-                       "specimen collected"]
-        let lower = text.lowercased()
-        for marker in markers {
-            guard let markerRange = lower.range(of: marker) else { continue }
-            let windowEnd = lower.index(markerRange.upperBound, offsetBy: 40,
-                                        limitedBy: lower.endIndex) ?? lower.endIndex
-            let window = String(text[markerRange.upperBound..<windowEnd])
-            if let date = firstDate(in: window) { return date }
+    /// Read off the whole document rather than a result line, because the
+    /// specimen is stated once at the top and applies to everything under it.
+    /// The marker must open its line — *"the specimen type was unsuitable for
+    /// analysis"* is a comment about a failure, not a declaration of a specimen.
+    static func specimen(in text: String) -> String? {
+        for rawLine in text.split(separator: "\n") {
+            let line = String(rawLine).trimmingCharacters(in: .whitespaces)
+            for word in ["specimen", "sample"] {
+                guard line.lowercased().hasPrefix(word) else { continue }
+                var rest = String(line.dropFirst(word.count))
+                    .trimmingCharacters(in: .whitespaces)
+                var sawType = false
+                if rest.lowercased().hasPrefix("type") {
+                    rest = String(rest.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                    sawType = true
+                }
+                var sawSeparator = false
+                while let first = rest.first, first == ":" || first == "-" || first == "|" {
+                    rest.removeFirst()
+                    rest = rest.trimmingCharacters(in: .whitespaces)
+                    sawSeparator = true
+                }
+                // ⚠️ Without one of these, "Specimen collected 09-Dec-25" would
+                // be read as a specimen called "collected 09-Dec-25".
+                guard sawType || sawSeparator else { continue }
+                guard rest.contains(where: \.isLetter) else { continue }
+                return rest
+            }
         }
         return nil
     }
 
-    static func firstDate(in s: String) -> Date? {
-        let patterns: [(String, String)] = [
-            (#"[0-9]{1,2}[/.-][0-9]{1,2}[/.-][0-9]{4}"#, "dd/MM/yyyy"),
-            (#"[0-9]{4}-[0-9]{2}-[0-9]{2}"#, "yyyy-MM-dd"),
-            (#"[0-9]{1,2}\s+[A-Za-z]{3,9}\s+[0-9]{4}"#, "d MMMM yyyy")
-        ]
-        for (pattern, format) in patterns {
-            guard let found = s.range(of: pattern, options: .regularExpression) else { continue }
-            let raw = String(s[found])
-                .replacingOccurrences(of: ".", with: "/")
-                .replacingOccurrences(of: "-", with: format == "yyyy-MM-dd" ? "-" : "/")
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_GB")
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            formatter.dateFormat = format
-            if let date = formatter.date(from: raw) { return date }
-            if format == "d MMMM yyyy" {
-                formatter.dateFormat = "d MMM yyyy"
-                if let date = formatter.date(from: raw) { return date }
+    // MARK: - The collection date
+
+    /// Markers that name the moment the sample was **taken**, best rank first.
+    ///
+    /// ⚠️ **Collection, not report date, and the distinction is not pedantry.**
+    /// A report is often authorised days after the blood was drawn; filing the
+    /// value under the report date puts it in the wrong week against every vital
+    /// it might later be compared with.
+    ///
+    /// ⚠️ **Rank 0 beats rank 1 even though both say "collected", and that is the
+    /// InstantScripts trap.** That portal prints a header `Collected:
+    /// 2024-12-12 13:15:00` above an embedded QML document whose own structured
+    /// field reads `204 Collection : 12/12/2024 11:50 am`. The header is later
+    /// than the document's own `Completed` line, so it cannot be a collection
+    /// time at all — it is the portal's timestamp wearing the laboratory's label.
+    /// The structured field wins, and rank is how that is said once rather than
+    /// per laboratory.
+    ///
+    /// Nothing else on the page is a marker, which is the other half of the fix:
+    /// Sullivan Nicolaides prints `Requested`, `Collected`, `Received`,
+    /// `Reported on` and `Document created`, and four of those five are dates the
+    /// reader's blood was nowhere near.
+    static let collectionMarkers: [(marker: String, rank: Int)] = [
+        ("collection date", 0), ("date collected", 0), ("date of collection", 0),
+        ("collection time", 0), ("specimen collected", 0), ("collection", 0),
+        ("collected on", 1), ("collected", 1), ("taken on", 1),
+        ("sample taken", 1), ("specimen date", 1)
+    ]
+
+    /// The date the sample was taken, as printed.
+    ///
+    /// Returns nil where the document prints only a report date, and the caller
+    /// falls back on the import date with `collectedAtIsExact` false, so the
+    /// imprecision is visible rather than hidden behind a confident-looking date.
+    static func collectionDate(in text: String) -> Date? {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        var best: (date: Date, rank: Int)?
+        for (number, line) in lines.enumerated() {
+            for (marker, rank) in collectionMarkers {
+                guard let found = line.range(of: marker, options: .caseInsensitive)
+                else { continue }
+                let column = line.distance(from: line.startIndex, to: found.lowerBound)
+                var date = dates(in: String(line[found.upperBound...])).first?.date
+                if date == nil, !line.contains(where: \.isNumber) {
+                    date = dateUnderHeading(at: column, below: number, in: lines)
+                }
+                // `collectionMarkers` is ordered best-rank-first, so the first
+                // marker that matches a line is the best that line offers.
+                guard let date else { break }
+                if best == nil || rank < best!.rank { best = (date, rank) }
+                break
             }
         }
-        return nil
+        return best?.date
+    }
+
+    /// The date under a column heading, on the row beneath it.
+    ///
+    /// My Health Record prints its embedded report inside a table whose heading
+    /// row reads `Collection Date | Observation Date | Test Result Name | …` and
+    /// whose dates are all on the next line.
+    ///
+    /// ⚠️ **Nearest column, not first date.** The observation date sits beside
+    /// the collection date and is a different day on any report authorised later
+    /// than it was drawn; taking the leftmost date only works until a laboratory
+    /// orders its columns differently, and this reader's corpus already contains
+    /// three column orders.
+    static func dateUnderHeading(at column: Int, below line: Int,
+                                 in lines: [String]) -> Date? {
+        var next = line + 1
+        while next < lines.count,
+              lines[next].trimmingCharacters(in: .whitespaces).isEmpty { next += 1 }
+        guard next < lines.count else { return nil }
+        let row = lines[next]
+        let candidates = dates(in: row).map { find in
+            (date: find.date,
+             column: row.distance(from: row.startIndex, to: find.range.lowerBound))
+        }
+        return candidates.min { abs($0.column - column) < abs($1.column - column) }?.date
+    }
+
+    // MARK: - Reading a printed date
+
+    /// The date shapes this corpus prints. Australian reports are **day-first**:
+    /// `20/04/2026` is only readable as the twentieth of April, and a month-first
+    /// reading of it produces a month of 20, which `calendarFields` refuses
+    /// rather than swapping — a swapped date is a silent lie about when blood was
+    /// taken, and refusing leaves `collectedAtIsExact` false where it belongs.
+    static let datePatterns = [
+        #"[0-9]{4}[-/][0-9]{1,2}[-/][0-9]{1,2}"#,
+        #"[0-9]{1,2}[/.-][0-9]{1,2}[/.-][0-9]{4}"#,
+        #"[0-9]{1,2}[- ][A-Za-z]{3,9}[- ][0-9]{2,4}"#
+    ]
+
+    /// Every date on a line, each one's range covering the time of day where the
+    /// report printed one directly after it.
+    ///
+    /// ⚠️ **The time is not decoration.** InstantScripts' header and the document
+    /// it wraps name the same *day* and differ only in the hour, so a parser that
+    /// read days alone could not tell which of the two contradicting fields it
+    /// had believed — and neither could its tests.
+    static func dates(in s: String) -> [(date: Date, range: Range<String.Index>)] {
+        var found: [(Date, Range<String.Index>)] = []
+        for pattern in datePatterns {
+            var searchStart = s.startIndex
+            while searchStart < s.endIndex,
+                  let match = s.range(of: pattern, options: .regularExpression,
+                                      range: searchStart..<s.endIndex) {
+                searchStart = match.upperBound
+                guard let fields = calendarFields(String(s[match])) else { continue }
+                let time = timeOfDay(after: match, in: s)
+                guard let date = utcDate(year: fields.year, month: fields.month,
+                                         day: fields.day,
+                                         hour: time?.hour ?? 0,
+                                         minute: time?.minute ?? 0) else { continue }
+                found.append((date, match.lowerBound..<(time?.end ?? match.upperBound)))
+            }
+        }
+        var kept: [(Date, Range<String.Index>)] = []
+        for candidate in found.sorted(by: { $0.1.lowerBound < $1.1.lowerBound }) {
+            if kept.contains(where: { $0.1.overlaps(candidate.1) }) { continue }
+            kept.append(candidate)
+        }
+        return kept.map { (date: $0.0, range: $0.1) }
+    }
+
+    static func firstDate(in s: String) -> Date? { dates(in: s).first?.date }
+
+    static let monthNames = ["january", "february", "march", "april", "may", "june",
+                             "july", "august", "september", "october", "november",
+                             "december"]
+
+    static func monthNumber(_ name: String) -> Int? {
+        let key = name.lowercased()
+        guard key.count >= 3 else { return nil }
+        return monthNames.firstIndex { $0.hasPrefix(key) || key.hasPrefix($0) }
+            .map { $0 + 1 }
+    }
+
+    /// The calendar fields a printed date names, or nil if it does not name one.
+    ///
+    /// ⚠️ **A two-digit year is this century.** `09-Dec-25` is 2025. Resolving it
+    /// against "now" would make the parser's answer depend on when it ran — which
+    /// a test cannot pin and a reader cannot predict — and a pathology report old
+    /// enough for 1925 to be the right reading is not one this app will be shown.
+    static func calendarFields(_ raw: String) -> (year: Int, month: Int, day: Int)? {
+        let parts = raw.split(whereSeparator: { $0 == "-" || $0 == "/" || $0 == "." || $0 == " " })
+        guard parts.count == 3 else { return nil }
+        let first = String(parts[0]), second = String(parts[1]), third = String(parts[2])
+
+        var year: Int
+        var month: Int
+        var day: Int
+        if first.count == 4, let isoYear = Int(first), let isoMonth = Int(second),
+           let isoDay = Int(third) {
+            year = isoYear; month = isoMonth; day = isoDay
+        } else {
+            guard let dayValue = Int(first) else { return nil }
+            if let numeric = Int(second) { month = numeric }
+            else if let named = monthNumber(second) { month = named }
+            else { return nil }
+            guard var yearValue = Int(third) else { return nil }
+            if third.count <= 2 { yearValue += 2000 }
+            year = yearValue; day = dayValue
+        }
+        // ⚠️ The year bound is what stops "Ferritin 30 August 400" — a plausible
+        // enough result line — parsing as the year 400 and having its numbers
+        // struck out of `valueCells` as part of a date.
+        guard (1900...2200).contains(year), (1...12).contains(month),
+              (1...31).contains(day) else { return nil }
+        return (year, month, day)
+    }
+
+    /// The time of day printed straight after a date — `11:38`, `13:15:00`,
+    /// `11:50 am` — and where it ends.
+    static func timeOfDay(after range: Range<String.Index>,
+                          in s: String) -> (hour: Int, minute: Int, end: String.Index)? {
+        var index = range.upperBound
+        while index < s.endIndex, s[index] == " " || s[index] == "\t" {
+            index = s.index(after: index)
+        }
+        var hourDigits = ""
+        while index < s.endIndex, s[index].isNumber, hourDigits.count < 2 {
+            hourDigits.append(s[index])
+            index = s.index(after: index)
+        }
+        guard !hourDigits.isEmpty, var hour = Int(hourDigits),
+              index < s.endIndex, s[index] == ":" else { return nil }
+        index = s.index(after: index)
+        var minuteDigits = ""
+        while index < s.endIndex, s[index].isNumber, minuteDigits.count < 2 {
+            minuteDigits.append(s[index])
+            index = s.index(after: index)
+        }
+        guard minuteDigits.count == 2, let minute = Int(minuteDigits) else { return nil }
+
+        // An optional seconds field, which InstantScripts prints and nothing
+        // reads — but which must be consumed so `valueCells` does not find a
+        // result of "00" sitting in a timestamp.
+        if index < s.endIndex, s[index] == ":" {
+            var cursor = s.index(after: index)
+            var digits = 0
+            while cursor < s.endIndex, s[cursor].isNumber, digits < 2 {
+                cursor = s.index(after: cursor)
+                digits += 1
+            }
+            if digits == 2 { index = cursor }
+        }
+
+        var end = index
+        var cursor = index
+        while cursor < s.endIndex, s[cursor] == " " { cursor = s.index(after: cursor) }
+        let meridiem = String(s[cursor...].prefix(2)).lowercased()
+        if meridiem == "am" {
+            if hour == 12 { hour = 0 }
+            end = s.index(cursor, offsetBy: 2, limitedBy: s.endIndex) ?? s.endIndex
+        } else if meridiem == "pm" {
+            if hour < 12 { hour += 12 }
+            end = s.index(cursor, offsetBy: 2, limitedBy: s.endIndex) ?? s.endIndex
+        }
+        guard (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+        return (hour, minute, end)
+    }
+
+    /// A `Date` from calendar fields, in UTC.
+    ///
+    /// ⚠️ **UTC, because the report prints no zone.** Every date in this file is
+    /// built the same way, so two results from one report are always comparable
+    /// with each other. What the parser must never do is invent a zone-dependent
+    /// instant that shifts with wherever the phone happens to be when the
+    /// document is imported.
+    static func utcDate(year: Int, month: Int, day: Int,
+                        hour: Int = 0, minute: Int = 0) -> Date? {
+        guard let utc = TimeZone(secondsFromGMT: 0) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utc
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return calendar.date(from: components)
     }
 }

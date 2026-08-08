@@ -232,6 +232,263 @@ final class LabReportScanTests: XCTestCase {
         XCTAssertFalse(s.results.first?.collectedAtIsExact ?? true)
     }
 
+    // MARK: - Words, not numbers (the Australian serology corpus)
+    //
+    // ⚠️ Every fixture below is structurally faithful to a real report and
+    // carries **substituted** values — `docs/privacy-and-ip.md`, "the shape of a
+    // finding, never the reading".
+
+    func testASerologyWordIsKeptExactlyAsTheLaboratoryPrintedIt() {
+        let text = """
+        HIV Ag/Ab  Negative
+        Syphilis (CMIA) Screen  Negative
+        Chlamydia trachomatis NAT  Negative
+        """
+        let s = scan(text)
+        XCTAssertEqual(result(s, "hiv_ag_ab")?.value,
+                       .qualitative(LabQualitativeResult(printed: "Negative")))
+        XCTAssertEqual(result(s, "syphilis_treponemal")?.value.formatted, "Negative")
+        XCTAssertEqual(result(s, "chlamydia_trachomatis_nat")?.analyte.panel, .infection)
+        // A word is corroborated by being recognised, not by falling in an
+        // interval — a report prints no reference range beside "Negative".
+        XCTAssertEqual(result(s, "hiv_ag_ab")?.confidence, .clear)
+    }
+
+    /// ⚠️ **The misread this ordering exists to stop.** `HSV 1 DNA (NAA)` carries
+    /// a `1` that is not inside a word, so the numeric path scored it as the
+    /// result and filed a herpes PCR as *HSV 1 = 1*.
+    func testANucleicAcidTestReadsNotDetectedRatherThanAResultOfOne() {
+        let s = scan("HSV 1 DNA (NAA)  Not Detected")
+        XCTAssertEqual(result(s, "hsv1_dna")?.value,
+                       .qualitative(LabQualitativeResult(printed: "Not Detected")))
+        XCTAssertNil(result(s, "hsv1_dna")?.value.measuredNumber)
+        XCTAssertTrue(s.results.allSatisfy { $0.value.measuredNumber == nil })
+    }
+
+    /// "Not detected" contains "detected". Taking the shorter match would file
+    /// every negative PCR in this reader's record as a positive one.
+    func testTheLongerNegativePhraseWinsOverTheShorterPositiveOneInsideIt() {
+        let s = scan("HSV 1 DNA (NAA)  Not Detected")
+        let printed = result(s, "hsv1_dna")?.evidence?.rawValueText
+        XCTAssertEqual(printed, "Not Detected")
+        XCTAssertTrue(result(s, "hsv1_dna")?.evidence?.checks
+            .contains(.qualitativeWordRecognised("Not Detected")) ?? false)
+    }
+
+    /// Shouted, and with no space before the method. Both are how this
+    /// laboratory prints a positive.
+    func testAShoutedDetectedIsKeptVerbatimAndPlacedAsPositive() {
+        let s = scan("Adenovirus DNA(NAA) DETECTED")
+        XCTAssertEqual(result(s, "adenovirus_dna")?.value.formatted, "DETECTED")
+        XCTAssertEqual(LabQualitativeResult(printed: "DETECTED").ordinal, .positive)
+    }
+
+    /// An analyte the catalogue has never met still gets its word read, under the
+    /// laboratory's own label — the qualitative half of `I6`.
+    func testAnUncataloguedSerologyLabelStillYieldsItsWord() {
+        let text = """
+        HIV 1 / 2 total antibody  Non reactive
+        Faecal H. pylori Ag (ChLIA)  Negative
+        """
+        let s = scan(text)
+        let antibody = s.results.first { $0.analyte.displayName.contains("total antibody") }
+        XCTAssertEqual(antibody?.value,
+                       .qualitative(LabQualitativeResult(printed: "Non reactive")))
+        XCTAssertEqual(antibody?.analyte.isKnown, false)
+        let pylori = s.results.first { $0.analyte.displayName.contains("pylori") }
+        XCTAssertEqual(pylori?.value.formatted, "Negative")
+    }
+
+    /// A word the app cannot place is stored and shown, never guessed at — the
+    /// qualitative twin of `unitUnrecognised`.
+    func testAWordTheOrdinalScaleCannotPlaceIsStoredAndFlagged() {
+        let s = scan("Urine microscopy   Trace")
+        let r = s.results.first
+        XCTAssertEqual(r?.value.formatted, "Trace")
+        XCTAssertTrue(r?.evidence?.checks
+            .contains(.qualitativeWordUnrecognised("Trace")) ?? false)
+        XCTAssertEqual(r?.confidence, .unverified)
+    }
+
+    /// ⚠️ A report's interpretive comments end in the same vocabulary its results
+    /// do. Without the last-thing-on-the-line rule and the prose-word guard, this
+    /// sentence becomes an analyte.
+    func testAnInterpretiveCommentEndingInAResultWordIsNotAnAnalyte() {
+        let line = "Note: A negative result does not exclude recent infection."
+        let s = scan(line)
+        XCTAssertTrue(s.results.isEmpty)
+        XCTAssertTrue(s.unpairedLines.contains(line))
+    }
+
+    /// ...and the counterpart: a measurement is not thrown away because a word
+    /// followed it. Reading this as "Normal" loses the glucose entirely.
+    func testAMeasurementIsNotOverriddenByATrailingWord() {
+        let s = scan("Glucose   5.4 mmol/L   3.0 - 5.5   Normal")
+        XCTAssertEqual(result(s, "glucose")?.value.measuredNumber, 5.4)
+        XCTAssertEqual(result(s, "glucose")?.unit, "mmol/L")
+    }
+
+    // MARK: - Bounds, not measurements
+
+    /// ⚠️ The failure `LabValue` exists to make unrepresentable. `<5` stored as 5
+    /// turns the assay's floor into a reading and nothing afterwards can tell.
+    func testACensoredBoundNeverBecomesAMeasurement() {
+        let s = scan("HepB surface antibody  <5  IU/L")
+        let r = s.results.first
+        XCTAssertEqual(r?.value, .censored(.lessThan, 5))
+        XCTAssertNil(r?.value.measuredNumber)
+        XCTAssertEqual(r?.value.magnitude, 5)
+        XCTAssertTrue(r?.evidence?.checks.contains(.censoredBound("<5")) ?? false)
+    }
+
+    /// Two bounds on one line: the last is the interval, the first is the result.
+    /// Getting this backwards stores an assay ceiling as a measured 90 and walks
+    /// it into a renal trend.
+    func testAnEgfrCeilingIsAnUpperBoundAndNotAMeasuredNinety() {
+        let s = scan("eGFR  >90  >59")
+        let r = result(s, "egfr")
+        XCTAssertEqual(r?.value, .censored(.greaterThan, 90))
+        XCTAssertNil(r?.value.measuredNumber)
+        XCTAssertEqual(r?.referenceRange?.printed, ">59")
+        XCTAssertNotEqual(r?.confidence, .doubtful)
+    }
+
+    /// ⚠️ A bound on an analyte the catalogue expects as a *word* is exempt from
+    /// the magnitude guard, because `measuredNumber` is already nil for it and
+    /// there is nothing left for the guard to protect. Without the exemption a
+    /// cleanly-read line comes back "check this one".
+    func testABoundOnAWordAnalyteIsNotFlaggedAsAnImpossibleMagnitude() {
+        let s = scan("Hepatitis B surface antibody  <5  IU/L")
+        let r = result(s, "hep_b_surface_antibody")
+        XCTAssertEqual(r?.value, .censored(.lessThan, 5))
+        XCTAssertNotEqual(r?.confidence, .doubtful)
+        XCTAssertTrue(r?.evidence?.checks.contains(.magnitudeUncheckable) ?? false)
+    }
+
+    /// A censored bound must never reach a risk model, whatever else is right
+    /// about the reading.
+    func testACensoredGroundingValueIsNeverExtracted() {
+        let extracted = LabReportParser.extract(from: "Total Cholesterol  <2.0 mmol/L  (0.0 - 5.0)")
+        XCTAssertTrue(extracted.isEmpty)
+    }
+
+    // MARK: - The laboratory produced no value
+
+    /// **Not the same as absent.** The reader was told a test failed, and that is
+    /// a fact about their record worth keeping — in the laboratory's own words.
+    func testAnUnsuitableSpecimenIsStoredAsNotMeasuredWithTheStatedReason() {
+        let text = """
+        Iron  N/A  SpecimenUnsuitable
+        Saturation  N/A  SpecimenUnsuitable
+        """
+        let s = scan(text)
+        XCTAssertEqual(s.results.count, 2)
+        XCTAssertEqual(s.results.first?.value,
+                       .notMeasured(.statedByLaboratory("SpecimenUnsuitable")))
+        XCTAssertNil(s.results.first?.value.measuredNumber)
+        XCTAssertEqual(s.results.first?.unit, "")
+        XCTAssertTrue(s.results.first?.evidence?.checks
+            .contains(.notMeasuredStated("SpecimenUnsuitable")) ?? false)
+    }
+
+    /// The platelet row is simply absent from the count and the reason is printed
+    /// underneath it as a sentence. Dropping the sentence loses the only thing
+    /// the reader needs to know about their platelets that day.
+    func testACommentThatACountCouldNotBeProvidedBecomesANotMeasuredResult() {
+        let comment = "An accurate platelet count could not be provided due to platelet clumping"
+        let text = """
+        Haemoglobin   145   130 - 175   g/L
+        \(comment)
+        """
+        let s = scan(text)
+        XCTAssertEqual(result(s, "platelets")?.value,
+                       .notMeasured(.statedByLaboratory(comment)))
+        XCTAssertEqual(result(s, "haemoglobin")?.value.measuredNumber, 145)
+    }
+
+    // MARK: - The laboratory's own abnormal flag
+
+    /// ⚠️ `L` between the value and the interval is the laboratory saying "low",
+    /// not litres. Reading it as a unit stamps the bicarbonate `unitUnrecognised`
+    /// and loses the mmol/L printed on the far side of its own interval.
+    func testAPrintedLowFlagIsRecordedAndIsNotReadAsLitres() {
+        let s = scan("Bicarbonate 19 L 20 - 32 mmol/L")
+        let r = result(s, "bicarbonate")
+        XCTAssertEqual(r?.value.measuredNumber, 19)
+        XCTAssertEqual(r?.unit, "mmol/L")
+        XCTAssertTrue(r?.evidence?.checks.contains(.printedAbnormalFlag("L")) ?? false)
+        // Recorded, never interpreted: the flag says nothing about the reading.
+        XCTAssertNotEqual(r?.confidence, .doubtful)
+    }
+
+    func testAPrintedHighFlagBeforeAOneSidedIntervalIsRecorded() {
+        let s = scan("Haemolysis Index 146 H <40")
+        let r = result(s, "haemolysis_index")
+        XCTAssertEqual(r?.value.measuredNumber, 146)
+        XCTAssertTrue(r?.evidence?.checks.contains(.printedAbnormalFlag("H")) ?? false)
+        XCTAssertEqual(r?.referenceRange?.printed, "<40")
+    }
+
+    /// ...and the other direction of the same ambiguity: a lone `L` with nothing
+    /// after it is the unit litres, because a flag never ends the line.
+    func testATrailingLitresIsAUnitAndNotAFlag() {
+        let s = scan("Urine volume  1.2 L")
+        let r = s.results.first
+        XCTAssertEqual(r?.unit, "L")
+        XCTAssertFalse(r?.evidence?.checks.contains(.printedAbnormalFlag("L")) ?? true)
+    }
+
+    // MARK: - The specimen
+
+    /// ⚠️ `isNoiseLine` throws this row away, rightly — but until it was read
+    /// first, that also threw away the only statement on the page of *what was
+    /// tested*. A potassium from serum and one from plasma are different numbers.
+    func testTheSpecimenTypeIsReadBeforeItsLineIsDiscarded() {
+        let text = """
+        Specimen Type: Serum
+        Sodium   139   135 - 145 mmol/L
+        """
+        let s = scan(text)
+        XCTAssertEqual(s.specimen, "Serum")
+        XCTAssertEqual(s.results.count, 1)
+        XCTAssertFalse(s.unpairedLines.contains { $0.lowercased().contains("specimen") })
+    }
+
+    func testNoSpecimenIsNeverGuessedAtAsBlood() {
+        XCTAssertNil(scan("Sodium   139   135 - 145 mmol/L").specimen)
+    }
+
+    // MARK: - Reference intervals, all four printed shapes
+
+    func testTheFourReferenceIntervalShapesAreAllRead() {
+        let text = """
+        Triglycerides   1.2 mmol/L   <5.6
+        TSH             2.4 mIU/L    >0.89
+        Calcium         2.35 mmol/L  2.10 - 2.60
+        Vitamin D       92 nmol/L    <64
+        Ferritin        120 ug/L     0 - 80
+        """
+        let s = scan(text)
+        XCTAssertEqual(result(s, "triglycerides")?.referenceRange?.printed, "<5.6")
+        XCTAssertEqual(result(s, "triglycerides")?.referenceRange?.low, nil)
+        XCTAssertEqual(result(s, "triglycerides")?.referenceRange?.high, 5.6)
+        XCTAssertEqual(result(s, "tsh")?.referenceRange?.printed, ">0.89")
+        XCTAssertEqual(result(s, "tsh")?.referenceRange?.low, 0.89)
+        XCTAssertEqual(result(s, "tsh")?.referenceRange?.high, nil)
+        // Calcium is not in the catalogue, so it arrives under the laboratory's
+        // own label — which is exactly where a two-sided interval most needs to
+        // survive: nothing else on an uncatalogued row can size the number.
+        let calcium = s.results.first { $0.analyte.displayName == "Calcium" }
+        XCTAssertEqual(calcium?.referenceRange?.printed, "2.10 - 2.60")
+        XCTAssertEqual(calcium?.referenceRange?.low, 2.10)
+        XCTAssertEqual(calcium?.referenceRange?.high, 2.60)
+        XCTAssertEqual(calcium?.value.measuredNumber, 2.35)
+        XCTAssertEqual(result(s, "vitamin_d")?.referenceRange?.printed, "<64")
+        XCTAssertEqual(result(s, "ferritin")?.referenceRange?.printed, "0 - 80")
+        XCTAssertEqual(result(s, "ferritin")?.referenceRange?.low, 0)
+        XCTAssertEqual(result(s, "ferritin")?.referenceRange?.high, 80)
+    }
+
     // MARK: - The grounding path
 
     func testGroundingExtractionStillReturnsLipidsOnly() {
