@@ -1151,13 +1151,20 @@ final class AppModel {
     /// gate is the point: a value the parser flagged goes into the reader's
     /// record where they can see it beside its warning, and does not go into a
     /// ten-year risk estimate that will never ask.
+    ///
+    /// ⚠️ **There are now two gates, not one.** Confidence says how well the app
+    /// read the paper; `measuredNumber` says whether what was on the paper is a
+    /// measurement at all. A cholesterol printed `<0.5`, or a result reading
+    /// "Specimen unsuitable", is read perfectly and is still not a number a risk
+    /// model may have — so both must pass. See `LabValue`.
     func saveLabResults(_ results: [LabResult]) {
         guard !results.isEmpty else { return }
         dataStore.saveLabResults(results)
         for result in results {
             guard let kind = result.analyte.groundingKind else { continue }
             guard result.confidence != .doubtful else { continue }
-            saveGrounding(kind: kind, value: result.value)
+            guard let measured = result.value.measuredNumber else { continue }
+            saveGrounding(kind: kind, value: measured)
         }
         labResults = dataStore.labResults()
         recompute()

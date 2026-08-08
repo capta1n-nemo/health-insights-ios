@@ -385,9 +385,26 @@ final class DataStore {
     /// exactly the misread class `LabReportParser` spends four hundred lines
     /// avoiding, and it would arrive with no evidence attached to give it away.
     func labResults() -> [LabResult] {
+        labResultsWithDrops().results
+    }
+
+    /// The same fetch, with the number of rows that would not decode.
+    ///
+    /// ⚠️ **Skipping a corrupt row is right; skipping it silently is not.** The
+    /// `compactMap` above defends well against one bad payload and defends
+    /// nothing against a codec mistake, which drops *every* row and is
+    /// indistinguishable from an empty database — the reader opens the Data tab
+    /// and their test results are simply gone, with nothing logged, thrown or
+    /// shown. Counting the drops is what makes those two cases tell apart, and
+    /// the Test-results page shows a notice when the count is non-zero.
+    ///
+    /// The known instance of this hazard is the schema-7 payload shape; see
+    /// `LabValue.init(from:)` and `LabValueCodecTests`.
+    func labResultsWithDrops() -> (results: [LabResult], undecodableRows: Int) {
         let records = (try? context.fetch(FetchDescriptor<LabResultRecord>(
             sortBy: [SortDescriptor(\.collectedAt, order: .reverse)]))) ?? []
-        return records.compactMap(\.result)
+        let results = records.compactMap(\.result)
+        return (results, records.count - results.count)
     }
 
     /// Save results, replacing any row with the same id.

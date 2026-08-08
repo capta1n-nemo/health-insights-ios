@@ -26,23 +26,23 @@ final class LabReportScanTests: XCTestCase {
         Triglycerides          1.6 mmol/L      (0.0 - 1.7)
         """
         let s = scan(text)
-        XCTAssertEqual(result(s, "total_cholesterol")?.value, 5.2)
-        XCTAssertEqual(result(s, "hdl_cholesterol")?.value, 1.4)
-        XCTAssertEqual(result(s, "ldl_cholesterol")?.value, 3.1)
-        XCTAssertEqual(result(s, "triglycerides")?.value, 1.6)
+        XCTAssertEqual(result(s, "total_cholesterol")?.value.measuredNumber, 5.2)
+        XCTAssertEqual(result(s, "hdl_cholesterol")?.value.measuredNumber, 1.4)
+        XCTAssertEqual(result(s, "ldl_cholesterol")?.value.measuredNumber, 3.1)
+        XCTAssertEqual(result(s, "triglycerides")?.value.measuredNumber, 1.6)
     }
 
     /// The single most damaging failure this parser can have: "HDL cholesterol"
     /// read as total cholesterol feeds the wrong number into SCORE2 and ASCVD.
     func testHDLIsNeverReadAsTotalCholesterol() {
         let s = scan("HDL Cholesterol  1.4 mmol/L  (1.0 - 2.5)")
-        XCTAssertEqual(result(s, "hdl_cholesterol")?.value, 1.4)
+        XCTAssertEqual(result(s, "hdl_cholesterol")?.value.measuredNumber, 1.4)
         XCTAssertNil(result(s, "total_cholesterol"))
     }
 
     func testReadsHbA1cInMmolPerMol() {
         let s = scan("HbA1c   38 mmol/mol   (20 - 41)")
-        XCTAssertEqual(result(s, "hba1c")?.value, 38)
+        XCTAssertEqual(result(s, "hba1c")?.value.measuredNumber, 38)
         XCTAssertEqual(result(s, "hba1c")?.unit, "mmol/mol")
     }
 
@@ -50,7 +50,7 @@ final class LabReportScanTests: XCTestCase {
     /// wrong at every value; 5.6% is 38 mmol/mol, not 5.6 x anything.
     func testHbA1cPercentConvertsAffinelyNotProportionally() {
         let s = scan("Haemoglobin A1c   5.6 %   (4.0 - 6.0)")
-        let value = try? XCTUnwrap(result(s, "hba1c")?.value)
+        let value = try? XCTUnwrap(result(s, "hba1c")?.value.measuredNumber)
         XCTAssertNotNil(value)
         XCTAssertEqual(value ?? 0, 37.7, accuracy: 0.2)
     }
@@ -59,7 +59,7 @@ final class LabReportScanTests: XCTestCase {
 
     func testConvertsCholesterolFromMgPerDl() {
         let s = scan("Total Cholesterol   201 mg/dL   (0 - 200)")
-        let value = try? XCTUnwrap(result(s, "total_cholesterol")?.value)
+        let value = try? XCTUnwrap(result(s, "total_cholesterol")?.value.measuredNumber)
         XCTAssertEqual(value ?? 0, 5.2, accuracy: 0.05)
         XCTAssertEqual(result(s, "total_cholesterol")?.unit, "mmol/L")
     }
@@ -69,7 +69,7 @@ final class LabReportScanTests: XCTestCase {
     /// plausible on screen.
     func testTriglyceridesUseTheirOwnConversionFactor() {
         let s = scan("Triglycerides   150 mg/dL   (0 - 150)")
-        let value = try? XCTUnwrap(result(s, "triglycerides")?.value)
+        let value = try? XCTUnwrap(result(s, "triglycerides")?.value.measuredNumber)
         XCTAssertEqual(value ?? 0, 1.69, accuracy: 0.02)
     }
 
@@ -79,7 +79,7 @@ final class LabReportScanTests: XCTestCase {
     func testAnUnrecognisedUnitIsStoredVerbatimAndFlagged() {
         let s = scan("Total Cholesterol   5.2 zonks   (0.0 - 5.0)")
         let r = result(s, "total_cholesterol")
-        XCTAssertEqual(r?.value, 5.2)
+        XCTAssertEqual(r?.value.measuredNumber, 5.2)
         XCTAssertEqual(r?.unit, "zonks")
         XCTAssertEqual(r?.confidence, .doubtful)
         XCTAssertTrue(r?.evidence?.checks.contains(.unitUnrecognised("zonks")) ?? false)
@@ -128,7 +128,7 @@ final class LabReportScanTests: XCTestCase {
         // print. Naively taking the first number gives 2 mmol/L.
         let s = scan("2   Total Cholesterol   5.2 mmol/L   (4.0 - 6.0)")
         let r = result(s, "total_cholesterol")
-        XCTAssertEqual(r?.value, 5.2)
+        XCTAssertEqual(r?.value.measuredNumber, 5.2)
         XCTAssertTrue(r?.evidence?.checks.contains {
             if case .selectedByPrintedRange(let chosen, _) = $0 { return chosen == 5.2 }
             return false
@@ -140,7 +140,7 @@ final class LabReportScanTests: XCTestCase {
     func testAMissingUnitIsInferredFromThePrintedRange() {
         let s = scan("Total Cholesterol   194   (0 - 200)")
         let r = result(s, "total_cholesterol")
-        let value = r?.value ?? 0
+        let value = r?.value.measuredNumber ?? 0
         XCTAssertEqual(value, 5.02, accuracy: 0.05)
         XCTAssertTrue(r?.evidence?.checks.contains {
             if case .unitInferredFromRange = $0 { return true }
@@ -165,7 +165,7 @@ final class LabReportScanTests: XCTestCase {
     func testAnAbnormalFlagBetweenValueAndUnitIsSkipped() {
         let s = scan("Total Cholesterol   6.4 H mmol/L   (0.0 - 5.0)")
         let r = result(s, "total_cholesterol")
-        XCTAssertEqual(r?.value, 6.4)
+        XCTAssertEqual(r?.value.measuredNumber, 6.4)
         XCTAssertEqual(r?.unit, "mmol/L")
     }
 
@@ -177,7 +177,7 @@ final class LabReportScanTests: XCTestCase {
         let s = scan("Anti-Mullerian Hormone   14.2 pmol/L   (10.0 - 30.0)")
         let r = s.results.first { !$0.analyte.isKnown }
         XCTAssertNotNil(r)
-        XCTAssertEqual(r?.value, 14.2)
+        XCTAssertEqual(r?.value.measuredNumber, 14.2)
         XCTAssertEqual(r?.unit, "pmol/L")
         XCTAssertEqual(r?.analyte.displayName, "Anti-Mullerian Hormone")
         XCTAssertEqual(r?.analyte.panel, .other)

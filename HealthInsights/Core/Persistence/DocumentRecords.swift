@@ -26,6 +26,13 @@ import InsightKit
 /// A payload that fails to decode yields `nil` rather than a default-constructed
 /// result. A lab value invented by a decoding fallback is exactly the misread
 /// class the parser spends four hundred lines avoiding.
+///
+/// ⚠️ **The payload is the authority and it outlives the schema.** Rows written
+/// before 2026-08-09 hold `"value": 5.2` — a bare number where `LabValue` now
+/// writes a keyed object — and `DataStore.labResults()` drops an undecodable row
+/// silently. `LabValue.init(from:)` therefore accepts the bare number
+/// permanently, and `LabValueCodecTests` pins it. Read that comment before
+/// touching either codec.
 @Model
 final class LabResultRecord {
     @Attribute(.unique) var id: UUID
@@ -34,7 +41,19 @@ final class LabResultRecord {
     /// Denormalised for the Data tab's search, which matches on what the reader
     /// would type rather than on a key.
     var analyteName: String
-    var value: Double
+    /// **The measured number, and nil for everything else** — a censored bound, a
+    /// word, a test that produced no result. Optional since 2026-08-09; it was a
+    /// non-optional `Double` when every result was assumed to be a number.
+    ///
+    /// Deliberately *not* the printed magnitude: a query filtering on this column
+    /// is asking for measurements, and a `>90` answering it would be the ceiling
+    /// masquerading as a reading. `magnitude` is the column for plotting.
+    var value: Double?
+    /// The number as printed, censored bounds included — what an axis needs.
+    var magnitude: Double?
+    /// `LabValueShape.rawValue`. Lets a chart select only the results that share
+    /// a shape without decoding every payload.
+    var shapeRaw: String
     var unit: String
     var collectedAt: Date
     var sourceRaw: String
@@ -48,7 +67,9 @@ final class LabResultRecord {
         self.id = result.id
         self.analyteKey = result.analyte.key
         self.analyteName = result.analyte.displayName
-        self.value = result.value
+        self.value = result.value.measuredNumber
+        self.magnitude = result.value.magnitude
+        self.shapeRaw = result.value.shape.rawValue
         self.unit = result.unit
         self.collectedAt = result.collectedAt
         self.sourceRaw = result.source.rawValue

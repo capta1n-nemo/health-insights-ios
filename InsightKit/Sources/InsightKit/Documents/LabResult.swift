@@ -16,9 +16,15 @@ public struct LabResult: Sendable, Equatable, Codable, Identifiable {
     public let analyte: LabAnalyte
     /// In `analyte.canonicalUnit` where the analyte is catalogued and the unit
     /// was recognised; otherwise exactly as printed, with `unit` saying so.
-    public let value: Double
+    ///
+    /// Was a `Double` until 2026-08-09. See `LabValue` for why two results in
+    /// five on a real pathology corpus are not numbers, and why nothing but
+    /// `LabValue.measuredNumber` may reach a card.
+    public let value: LabValue
     /// The unit `value` is expressed in. For an unknown analyte this is the
     /// report's own string, unconverted — see `LabAnalyte.canonicalUnit`.
+    /// Empty for a qualitative or not-measured result: a word has no unit, and
+    /// printing one would invent a measurement.
     public let unit: String
     /// The interval the **report itself printed** beside the value, in the same
     /// unit as `value`. Not the app's opinion of normal, and never used as one.
@@ -42,7 +48,7 @@ public struct LabResult: Sendable, Equatable, Codable, Identifiable {
     /// and a `false` here must be visible rather than assumed impossible.
     public let isConfirmedByReader: Bool
 
-    public init(id: UUID = UUID(), analyte: LabAnalyte, value: Double, unit: String,
+    public init(id: UUID = UUID(), analyte: LabAnalyte, value: LabValue, unit: String,
                 referenceRange: LabReferenceRange? = nil,
                 collectedAt: Date, collectedAtIsExact: Bool = false,
                 source: LabResultSource,
@@ -76,18 +82,35 @@ public struct LabResult: Sendable, Equatable, Codable, Identifiable {
     /// Precision follows the size of the number rather than the analyte, because
     /// an unknown analyte has no declared precision and inventing one would be
     /// dressing an arbitrary choice as knowledge.
-    public var formattedValue: String {
-        let magnitude = abs(value)
-        let places: Int
-        if magnitude >= 100 { places = 0 }
-        else if magnitude >= 10 { places = 1 }
-        else if magnitude >= 1 { places = 2 }
-        else { places = 3 }
-        return String(format: "%.\(places)f", value)
-    }
+    public var formattedValue: String { value.formatted }
 
+    /// ⚠️ **A unit is appended only where one belongs.** A qualitative result has
+    /// no unit and a not-measured one has no value; carrying `unit` onto either
+    /// would render "Negative mmol/L", which reads as a measurement that failed
+    /// to print rather than as a word.
     public var formattedWithUnit: String {
-        unit.isEmpty ? formattedValue : "\(formattedValue) \(unit)"
+        guard value.shape.isChartable, !unit.isEmpty else { return formattedValue }
+        return "\(formattedValue) \(unit)"
+    }
+}
+
+public extension LabResult {
+    /// A measured number, which is what most call sites still mean.
+    ///
+    /// Kept as a separate initialiser rather than a default so that constructing
+    /// a censored or qualitative result is always a deliberate act at the call
+    /// site, and so the parser cannot fall into `.quantitative` by omission.
+    init(id: UUID = UUID(), analyte: LabAnalyte, value: Double, unit: String,
+         referenceRange: LabReferenceRange? = nil,
+         collectedAt: Date, collectedAtIsExact: Bool = false,
+         source: LabResultSource,
+         evidence: LabExtractionEvidence? = nil,
+         isConfirmedByReader: Bool = false) {
+        self.init(id: id, analyte: analyte, value: .quantitative(value), unit: unit,
+                  referenceRange: referenceRange,
+                  collectedAt: collectedAt, collectedAtIsExact: collectedAtIsExact,
+                  source: source, evidence: evidence,
+                  isConfirmedByReader: isConfirmedByReader)
     }
 }
 
@@ -283,6 +306,22 @@ public enum LabValueCheck: Sendable, Equatable, Codable {
     /// recognised text. **The result is discarded, never stored** — this case
     /// exists so the discard can be counted and shown.
     case notFoundInSourceText
+    /// The result is a word, and the word is one the app places on the shared
+    /// negative/equivocal/positive scale.
+    case qualitativeWordRecognised(String)
+    /// The result is a word the app cannot place. Stored and shown verbatim,
+    /// never guessed at — the qualitative twin of `unitUnrecognised`.
+    case qualitativeWordUnrecognised(String)
+    /// The printed value carried a `<` or `>`, so it bounds the result rather
+    /// than measuring it.
+    case censoredBound(String)
+    /// The laboratory printed a reason instead of a value.
+    case notMeasuredStated(String)
+    /// The laboratory printed its own out-of-range marker — an `L` or an `H` —
+    /// beside the value. **Recorded, never interpreted**: it is the laboratory's
+    /// flag about the reader's result, not the app's check on its own reading,
+    /// and it is the one entry here that says nothing about the extraction.
+    case printedAbnormalFlag(String)
 
     /// Whether this check, on its own, makes the reading doubtful.
     public var isFailure: Bool {
@@ -295,18 +334,32 @@ public enum LabValueCheck: Sendable, Equatable, Codable {
         case .insidePrintedRange, .outsidePrintedRange, .noPrintedRange,
              .plausibleMagnitude, .magnitudeUncheckable, .unitRecognised,
              .unitInferredFromRange, .unitMissing, .selectedByPrintedRange,
-             .corroboratedInSourceText:
+             .corroboratedInSourceText, .qualitativeWordRecognised,
+             .qualitativeWordUnrecognised, .censoredBound, .notMeasuredStated,
+             .printedAbnormalFlag:
             return false
         }
     }
 
     /// Whether this check leaves the reading merely un-corroborated rather than
     /// wrong. Two of these and nothing corroborating means `.unverified`.
+    ///
+    /// ⚠️ **Exhaustive on purpose.** This carried a `default:` until 2026-08-09,
+    /// in a file whose entire premise is that a missed case is a misread nobody
+    /// notices — a new check would silently have counted as not-weak, which makes
+    /// a reading look better cross-checked than it is. That is the failure
+    /// direction this type exists to prevent, so the compiler holds it now.
     public var isWeak: Bool {
         switch self {
-        case .noPrintedRange, .magnitudeUncheckable, .unitMissing:
+        case .noPrintedRange, .magnitudeUncheckable, .unitMissing,
+             .qualitativeWordUnrecognised:
             return true
-        default:
+        case .insidePrintedRange, .outsidePrintedRange, .grosslyOutsidePrintedRange,
+             .plausibleMagnitude, .implausibleMagnitude, .unitRecognised,
+             .unitUnrecognised, .unitInferredFromRange, .selectedByPrintedRange,
+             .ocrConfidence, .ambiguousCharacters, .corroboratedInSourceText,
+             .notFoundInSourceText, .qualitativeWordRecognised, .censoredBound,
+             .notMeasuredStated, .printedAbnormalFlag:
             return false
         }
     }
@@ -348,6 +401,16 @@ public enum LabValueCheck: Sendable, Equatable, Codable {
             return "The on-device model named this analyte, and the number it gave appears verbatim in the scanned text."
         case .notFoundInSourceText:
             return "The on-device model gave a number that is not in the scanned text, so it was discarded."
+        case .qualitativeWordRecognised(let word):
+            return "Read as the word \"\(word)\"."
+        case .qualitativeWordUnrecognised(let word):
+            return "Read as the word \"\(word)\", which is not one the app knows, so it was stored exactly as printed."
+        case .censoredBound(let printed):
+            return "The report printed \"\(printed)\" — a limit of the test rather than a measured value, so it is kept as a limit."
+        case .notMeasuredStated(let reason):
+            return "No result was produced: \(reason)"
+        case .printedAbnormalFlag(let flag):
+            return "The laboratory marked this value \"\(flag)\" against its own reference range."
         }
     }
 }
@@ -386,18 +449,28 @@ public struct LabExtractionEvidence: Sendable, Equatable, Codable {
     /// trustworthy. Passing nothing but weak checks is `.unverified`: honest
     /// about having read a number with nothing to compare it to, which is a
     /// different thing from having read it well.
+    /// A word is corroborated by being recognised, not by falling in an interval:
+    /// a pathology report prints no reference range beside "Negative", so the
+    /// numeric checks all return their can't-check answers and a perfectly clear
+    /// serology result would otherwise land `.unverified` forever.
     public var confidence: LabConfidence {
         if checks.contains(where: \.isFailure) { return .doubtful }
         let corroborating = checks.contains {
             if case .insidePrintedRange = $0 { return true }
             if case .selectedByPrintedRange = $0 { return true }
+            if case .qualitativeWordRecognised = $0 { return true }
+            if case .notMeasuredStated = $0 { return true }
             return false
         }
         let plausible = checks.contains {
             if case .plausibleMagnitude = $0 { return true }
             return false
         }
-        if corroborating && plausible { return .clear }
+        // ⚠️ These were two branches — `corroborating && plausible` followed by
+        // `corroborating || plausible`, both returning `.clear`, so the first
+        // could never be reached on its own terms. Collapsed rather than given
+        // separate verdicts, because there is no third level between "read well"
+        // and "read with nothing to check it against" for this to express.
         if corroborating || plausible { return .clear }
         return .unverified
     }

@@ -124,7 +124,7 @@ final class LabModelVerifierTests: XCTestCase {
         let verdicts = LabModelVerifier.verify([proposal], against: scan(oddLabel), source: .pdf)
         let accepted = verdicts.first?.accepted
         XCTAssertEqual(accepted?.analyte.key, "alp")
-        XCTAssertEqual(accepted?.value, 88)
+        XCTAssertEqual(accepted?.value.measuredNumber, 88)
         XCTAssertEqual(accepted?.unit, "U/L")
         XCTAssertEqual(accepted?.evidence?.method, .onDeviceModel)
     }
@@ -164,7 +164,7 @@ final class LabModelVerifierTests: XCTestCase {
             valueText: "2.4", unitText: "mIU/L", sourceLine: nil)
         let verdicts = LabModelVerifier.verify([proposal], against: scan(page), source: .pdf)
         XCTAssertEqual(verdicts.first?.accepted?.analyte.key, "tsh")
-        XCTAssertEqual(verdicts.first?.accepted?.value, 2.4)
+        XCTAssertEqual(verdicts.first?.accepted?.value.measuredNumber, 2.4)
     }
 
     /// A model-named value is never marked as clearly read: the report printed

@@ -78,8 +78,14 @@ public enum LabReportParser {
         for result in scan.results {
             guard let kind = result.analyte.groundingKind else { continue }
             guard result.confidence != .doubtful else { continue }
+            // ⚠️ **A measured number, or nothing.** `measuredNumber` is nil for a
+            // censored bound, a word and a not-measured result. A `>90` eGFR
+            // entering a risk model as 90 would turn the assay's ceiling into a
+            // reading, and nothing downstream could tell afterwards — the failure
+            // `LabValue` was introduced to make unrepresentable.
+            guard let measured = result.value.measuredNumber else { continue }
             guard seen.insert(kind).inserted else { continue }
-            out.append(Extracted(kind: kind, value: result.value,
+            out.append(Extracted(kind: kind, value: measured,
                                  displayUnit: result.unit,
                                  matchedText: result.evidence?.rawLabel
                                     ?? result.analyte.displayName,

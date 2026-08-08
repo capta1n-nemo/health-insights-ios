@@ -62,13 +62,20 @@ the place to look.
 - `Documents/LabReportParser.swift`
   - `LabReportParser` :39
 - `Documents/LabResult.swift`
-  - `LabConfidence` :170
-  - `LabExtractionEvidence` :361
-  - `LabExtractionMethod` :416
-  - `LabReferenceRange` :134
+  - `LabConfidence` :193
+  - `LabExtractionEvidence` :424
+  - `LabExtractionMethod` :489
+  - `LabReferenceRange` :157
   - `LabResult` :14
-  - `LabResultSource` :95
-  - `LabValueCheck` :244
+  - `LabResultSource` :118
+  - `LabValueCheck` :267
+- `Documents/LabValue.swift`
+  - `LabCensorOperator` :102
+  - `LabNotMeasuredReason` :228
+  - `LabQualitativeOrdinal` :171
+  - `LabQualitativeResult` :136
+  - `LabValue` :20
+  - `LabValueShape` :245
 - `Documents/ScreenTimeChartGeometry.swift`
   - `BarChartMask` :15
   - `ScreenTimeChartGeometry` :59
@@ -795,8 +802,8 @@ the place to look.
 - `Core/Persistence/DataStore.swift`
   - `DataStore` :28
 - `Core/Persistence/DocumentRecords.swift`
-  - `ECGRecordEntry` :87
-  - `LabResultRecord` :30
+  - `ECGRecordEntry` :108
+  - `LabResultRecord` :37
 - `Core/Persistence/KeychainStore.swift`
   - `KeychainStore` :8
 - `Core/Persistence/PersistenceModels.swift`
