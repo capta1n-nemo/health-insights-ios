@@ -59,9 +59,15 @@ public struct ContributionSummary: Sendable, Equatable {
                 ? nil
                 : Swift.min(1, Double(status.recentReadings) / Double(status.required)),
             addLabel: "Add a reading",
+            // ⚠️ **Sittings, not readings.** `totalReadings` counts *sittings*
+            // since 2026-08-09 — four cuffs in one morning are one observation,
+            // and the name has not caught up yet. Saying "readings" here printed
+            // a sitting count under a reading's label, which is the one number
+            // on this row a reader could check against their own history and
+            // find wrong.
             detailLabel: status.totalReadings > 0
-                ? "All \(status.totalReadings) \(SectionCaveat.plural(status.totalReadings, "reading")) and calibration detail"
-                : "Readings and calibration detail")
+                ? "All \(status.totalReadings) \(SectionCaveat.plural(status.totalReadings, "sitting")) and calibration detail"
+                : "Sittings and calibration detail")
     }
 
     /// A log has no target, so "grounded" here means only that there is

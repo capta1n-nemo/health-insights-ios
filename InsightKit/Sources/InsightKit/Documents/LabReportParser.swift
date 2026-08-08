@@ -41,6 +41,10 @@ import Foundation
 /// 3. **`L` is both a unit and a flag.** See `abnormalFlag(after:in:)`.
 /// 4. **A number inside a date is not a result.** See `valueCells(in:)`.
 /// 5. **The specimen was being discarded as furniture.** See `specimen(in:)`.
+/// 6. **One analyte is printed both ways on the same report.** `HepB surface
+///    antibody` reads *Negative* on one line and `<5 IU/L` on another. See
+///    `LabReportedForm` and the `.either` arm of `qualitativeRow` — with two
+///    shapes to choose from, one of those two lines was always mishandled.
 ///
 /// ## The misread guard
 ///
@@ -177,7 +181,7 @@ public enum LabReportParser {
         let specimenType = specimen(in: text)
         var results: [LabResult] = []
         var unpaired: [String] = []
-        var seenKeys = Set<String>()
+        var indexByKey: [String: Int] = [:]
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine).trimmingCharacters(in: .whitespaces)
@@ -189,26 +193,55 @@ public enum LabReportParser {
                 continue
             }
 
+            let result = LabResult(analyte: row.analyte,
+                                   value: row.value,
+                                   unit: row.unit,
+                                   referenceRange: row.range,
+                                   collectedAt: collectedAt,
+                                   collectedAtIsExact: printedDate != nil,
+                                   source: source,
+                                   evidence: row.evidence,
+                                   isConfirmedByReader: false)
+
             // First occurrence per analyte wins, in page order. A report that
             // states a value twice states it identically — the summary line and
             // the table row — so this only ever decides which of two equal
             // numbers is kept, and page order is the one a reader can predict.
-            guard seenKeys.insert(row.analyte.key).inserted else { continue }
-
-            results.append(LabResult(analyte: row.analyte,
-                                     value: row.value,
-                                     unit: row.unit,
-                                     referenceRange: row.range,
-                                     collectedAt: collectedAt,
-                                     collectedAtIsExact: printedDate != nil,
-                                     source: source,
-                                     evidence: row.evidence,
-                                     isConfirmedByReader: false))
+            if let existing = indexByKey[row.analyte.key] {
+                if supersedes(stored: results[existing], row: row) {
+                    results[existing] = result
+                }
+                continue
+            }
+            indexByKey[row.analyte.key] = results.count
+            results.append(result)
         }
 
         return Scan(results: results, collectedAt: printedDate,
                     unpairedLines: unpaired, sourceText: text,
                     specimen: specimenType)
+    }
+
+    /// Whether a later line replaces one already stored for the same analyte.
+    ///
+    /// ⚠️ **The one exception to first-occurrence-wins, and the corpus forced
+    /// it.** That rule rests on a premise — a report states the same value twice
+    /// identically — which `LabReportedForm.either` broke: the reader's report
+    /// prints `HepB surface antibody Negative` and, further down,
+    /// `HepB surface antibody <5 IU/L`. Those two lines do not say the same
+    /// thing, and page order would keep the word and discard the titre — which is
+    /// the half that answers the question the test was ordered for.
+    ///
+    /// So a measurement replaces a word already stored for a dual-form analyte.
+    /// **Never the reverse, and never for anything else**: a word replacing a
+    /// number is the misread `qualitativeRow` refuses within a single line, and
+    /// this is that same ordering applied across two of them. For every analyte
+    /// that is not `.either`, the two shapes cannot both be right, and the first
+    /// occurrence still wins untouched.
+    static func supersedes(stored: LabResult, row: Row) -> Bool {
+        guard LabAnalyteCatalog.entry(forKey: row.analyte.key)?.form == .either,
+              stored.value.shape == .qualitative else { return false }
+        return row.value.shape == .quantitative || row.value.shape == .censored
     }
 
     // MARK: - One line
@@ -397,11 +430,29 @@ public enum LabReportParser {
 
         let entry = LabAnalyteCatalog.match(label: label)
         if let entry {
-            // ⚠️ A catalogued analyte the laboratory reports as a **number** does
-            // not get to be a word because a word appeared at the end of its
-            // line. `Glucose 5.4 mmol/L Normal` is a glucose of 5.4, and reading
-            // it as the word "Normal" would throw the measurement away.
-            guard entry.isQualitative else { return nil }
+            // ⚠️ **Switched rather than tested, so a fourth form cannot be
+            // forgotten here.** This is where a word either becomes the result or
+            // is refused, and the two failures it sits between are both live: a
+            // measurement thrown away because a word followed it, and a word
+            // thrown away because the catalogue insisted on a number.
+            switch entry.form {
+            case .measurement:
+                // A catalogued analyte the laboratory reports as a **number** does
+                // not get to be a word because a word appeared at the end of its
+                // line. `Glucose 5.4 mmol/L Normal` is a glucose of 5.4, and
+                // reading it as the word "Normal" would throw the measurement away.
+                return nil
+            case .word:
+                break
+            case .either:
+                // ⚠️ A dual-form analyte gets **the uncatalogued rule**, which is
+                // the honest one: the catalogue cannot say which shape this line
+                // is, so the line decides, and a number with a unit in front of
+                // the word outranks the word. `HepB surface antibody <5 IU/L` and
+                // `HepB surface antibody Negative` are both read correctly by
+                // that one test, and neither needs the other's line to exist.
+                if lineCarriesAMeasurement(line, before: wordRange) { return nil }
+            }
         } else if lineCarriesAMeasurement(line, before: wordRange) {
             // The same guard for an analyte the catalogue has never met: a number
             // with a unit beside it is a measurement whatever else the line says.
@@ -522,17 +573,21 @@ public enum LabReportParser {
 
         if let entry {
             analyte = entry.analyte
-            if entry.isQualitative, chosen.op != nil {
-                // ⚠️ **A bound on an analyte the catalogue expects as a word is
-                // exempt from the magnitude guard, and only a bound is.**
-                // `Entry.noMagnitude` exists to stop a signal-to-cutoff *index*
-                // being filed as the finding — but `LabValue.measuredNumber` is
-                // nil for a censored value, so a bound cannot be filed as one at
-                // all and there is nothing left for the guard to protect. Without
-                // this, a cleanly-read `HepB surface antibody <5 IU/L` — a line
-                // the reader can check against their own paperwork in one glance
-                // — comes back "check this one", which is the false alarm this
-                // file spends its length avoiding.
+            if entry.form == .word, chosen.op != nil {
+                // ⚠️ **A bound on an analyte the catalogue expects as a word and
+                // nothing else is exempt from the magnitude guard, and only a
+                // bound is.** `Entry.noMagnitude` exists to stop a
+                // signal-to-cutoff *index* being filed as the finding — but
+                // `LabValue.measuredNumber` is nil for a censored value, so a
+                // bound cannot be filed as one at all and there is nothing left
+                // for the guard to protect.
+                //
+                // ⚠️ Written `form == .word`, not `isQualitative`, and the two
+                // are the same test today only because they mean the same thing:
+                // a `.either` analyte has a real unit table and a real plausible
+                // range, so its `<5 IU/L` converts and is sized like any other
+                // measurement and must not be waved through here. That is a
+                // stronger reading than the exemption, not a weaker one.
                 unit = printedUnit ?? ""
                 checks.append(.magnitudeUncheckable)
             } else {

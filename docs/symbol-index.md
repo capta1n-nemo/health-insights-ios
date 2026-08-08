@@ -55,13 +55,14 @@ the place to look.
   - `ECGTranscriptionEvidence` :197
 - `Documents/LabAnalyte.swift`
   - `LabAnalyte` :31
-  - `LabAnalyteCatalog` :161
-  - `LabPanel` :866
-  - `LabSensitivity` :919
+  - `LabAnalyteCatalog` :211
+  - `LabPanel` :1081
+  - `LabReportedForm` :157
+  - `LabSensitivity` :1134
 - `Documents/LabModelVerifier.swift`
   - `LabModelVerifier` :39
 - `Documents/LabReportParser.swift`
-  - `LabReportParser` :59
+  - `LabReportParser` :63
 - `Documents/LabResult.swift`
   - `LabConfidence` :193
   - `LabExtractionEvidence` :424
@@ -154,7 +155,7 @@ the place to look.
   - `BiologicalAgeModel` :72
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :654
+  - `BloodPressureInsight` :766
 - `Insights/BloodPressureSitting.swift`
   - `BloodPressureSitting` :29
   - `BloodPressureSittings` :174
@@ -950,7 +951,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1593
+  - `OtherDataDetailView` :1612
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

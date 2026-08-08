@@ -41,6 +41,142 @@ list. Do not work from them.
 
 ## Shipped
 
+### Session 32 (2026-08-09) — the reader used the app, and it fell over in four directions
+
+Nine commits. **The reader spent the day on their own phone and found three of
+the four biggest things here**; agents found the other two by pointing the code
+at the reader's real documents and at its own arithmetic. That split is the
+entry's point, so it is stated per item below.
+
+- [x] **`LabValue` — two results in five are not numbers** (`b7c18b0`, `K13`).
+      A syphilis screen reads a word, a PCR reads a phrase, a hepatitis B surface
+      antibody reads a bound, an iron study reads "specimen unsuitable" with no
+      value at all. `LabResult.value` was a `Double`, so each of those was either
+      unstorable or storable **as a number meaning something else** — an eGFR
+      printed as a bound was entering a renal trend as a reading.
+      ⚠️ **The decoder accepts the legacy bare-`Double` payload permanently, not
+      as a migration**, because `DataStore.labResults()` drops undecodable rows
+      inside a `compactMap` with no error anywhere: a codec that could not read
+      the old shape would have **silently emptied the reader's whole test-result
+      history** rather than failing. *Found by: the reader's own corpus.*
+- [x] **`MomentConcept` — one vocabulary for "a thing that happens to a person"**
+      (`7e5e325`, `K14`). **Found by the reader, from the outside, which is the
+      only way it gets found:** *"a tag called 'Sex' came in from Oura, and while
+      I know we have 'sexual activity' as an option in flagged events, I couldn't
+      link it as sexual activity."* It failed **four independent ways** — the
+      classifier's output type could not hold the concept, no `TagApplicability`
+      case covered it, no stem matched it, and the on-device model had no legal
+      token to emit. Underneath all four, `EventCause` (15 cases) and
+      `TagApplicability` (11) described the same universe at different
+      granularities and **nothing converted between them**.
+      ⚠️ **`docs/tag-mapping-research-2026-08-07.md` §7 had already named the
+      fix** — *"one taxonomy with a stated mapping rather than two taxonomies
+      pretending to be one"* — **and the shipped code went the other way.** A
+      research finding that does not become a type or a lint is a finding the
+      next session ignores.
+- [x] **The consistency sweep** (`189a5e1`, `K15`). **The reader:** *"Do a sweep,
+      I want consistency all over the app, make it all make sense."* The storage
+      separations were right and were kept; the *surface* was wrong.
+      `DataDomainBand` groups the Data tab **without moving the enum cases**
+      (whose doc comments argue case-by-case for staying apart), `InputTopic`
+      clusters the `+` menu, and a badge counts **only genuinely unanswered**
+      items — a badge fed by "things you could edit" never reaches zero, and one
+      that never clears teaches a reader to stop reading badges.
+      ⚠️ **The side-effect picker hardcoded three names with no `SymptomType` and
+      no synonym**, so every time the reader picked one — daily, against a GLP-1
+      — the record went to `unmatchedNames`. **The app proposed a word and then
+      could not read it back.** Catalogue 33 → 65 analytes;
+      `BloodPressureSitting` arrived here too, with both duplicate-reading
+      defects fixed (a 2020 reading stored ten times; a cross-source mirror), so
+      **visible reading counts go down, 52 → 42, and that is the correction.**
+- [x] ⚠️ **A launch crash, shipped and fixed the same night** (`96b0367`,
+      `2c5f365`, `21dde0c`, `K16`). `LabResultRecord.shapeRaw` went in as a
+      non-optional `@Model` column with no default; this repo has no
+      `SchemaMigrationPlan`, so the store failed to migrate and `DataStore.init`
+      fatalError'd — **the app died on launch for every existing install.**
+      **Found by the reader, in minutes.**
+      **Three checks all said it was fine:** tests cannot reach CoreData's
+      migration validation, CI builds without running, and a fresh simulator
+      install has no store to migrate — **the broken build launched happily
+      there, which is how the schema was briefly dismissed as the cause.**
+      Loading the reader's export into the simulator did not reproduce it either
+      (the export populates a sample cache, not the store). The device
+      reproduced it on the first try.
+      **The rule: a new stored property on a shipped `@Model` is either optional
+      or defaulted.** Now `scripts/check-swiftdata-schema.sh` (**verified by
+      reintroducing the exact bug and watching it fire**) and
+      `scripts/device-smoke.sh`, because **"installed" is not "runs"**.
+- [x] **The hangs, measured honestly for the first time** (`dbbbd83`, `K17`).
+      **The reader, all day:** *"it hangs when I add data, opening cards hangs,
+      the load screen hangs."* **The detector was broken first, which is why the
+      2026-08-06 fix looked like it had worked**: it reported *detection latency*
+      rather than duration, so every hang logged 0.25–0.38 s whatever its size
+      and **the 1 s threshold had never once fired** — measured at the stall's
+      end, the same launch event logs 13.22 s. It also self-oscillated at 4 Hz
+      against an idle app, overwriting the reader's whole 1,000-entry diagnostics
+      export every four minutes.
+      With an honest detector, on the reader's own 379,693 samples: **launch
+      block 13.32 s → 5.25 s, main-actor hold per recompute 849 ms → 113 ms.**
+      ⚠️ **"Opening cards hangs" had a specific mechanism:**
+      `refreshMedicationLevelSamples()` reassigned all 379,693 samples on every
+      recompute — its guard asked "was a derivation present", always true for a
+      reader on a regimen — so `samples.didSet` wiped every breakdown, render
+      memo, score history and derived series. **The caches that make a card open
+      instantly were emptied by the tap before it.** Also: superseded work was
+      discarded but never *cancelled*, so rapid taps left several 18-model passes
+      starving the actor; and `AppModel.suggestions` ran the whole
+      SuggestionEngine **inside `DashboardView.body`**.
+- [x] **The sick day that stayed green** (`dbbbd83`, `K18`). **The reader:** *"I
+      add severe sickness and the day still shows green."* Three causes, one
+      symptom. The square coloured from `SymptomRadarModel.timeline`, whose only
+      input is `samples`, **so no sick day of any severity could reach it** — and
+      the proof it was a defect rather than restraint is that tapping the square
+      opens a page whose status *does* read `ReportedIllness`: **the square and
+      the page one tap behind it computed different answers to one question.**
+      `ReportedIllness.excess` anchored a stated illness exactly *on*
+      `someSignsExcess`, which scores exactly 85, and every gate reads `>= 85` as
+      quiet — **an edge is not inside the band it opens.** And
+      `SickDayLedger.detected` required an all-day or multi-day event, so
+      correcting a *timed* meeting to "Sick day, severe" produced no period at
+      all. *Found by: the reader for the symptom, agents for all three causes.*
+      ⚠️ The identical edge shape is still live one band up — `K2`.
+- [x] **`deploy.yml` was shipping Debug to the phone** (`3a56655`, `d46a81f`,
+      `K19`). **The reader's phone had been running unoptimised Swift**, about
+      **3.5× slower on this code** (849 ms vs 239 ms), throughout the day they
+      spent reporting hangs. Nothing depended on it — the hang diagnostics are
+      `#if DEBUG` and the reader asked for them **on the emulator**, where
+      `simulator.sh` still puts them. ⚠️ The switch then broke the deploy at
+      *install*: the build took a `-configuration` flag while the install step
+      had `Debug-iphoneos` written into the product path. The build had
+      succeeded; the pipeline was looking in the wrong folder, and the phone kept
+      the previous build throughout. **A configuration name written twice is a
+      configuration name that will disagree with itself.**
+- [x] **The parser met the reader's real Australian corpus** (`d46a81f`, `K20`)
+      and was wrong four ways a synthetic fixture cannot show you: a PCR reading
+      "Not Detected" filed as a numeric result of 1 (taken from the analyte's own
+      name); an assay ceiling stored as a measured value; a *date* line parsed
+      into an analyte called "Collected"; a My Health Record table row parsed
+      into one called "-Dec". Plus `L` read as litres when it was a lab-printed
+      flag, and the specimen line discarded as furniture.
+      ⚠️ **Five date sources on one page and only `Collected` is right** — and
+      **two of the three laboratories print a later, contradicting date above the
+      document that knows better.** A report carrying only a report date now
+      yields nil, because a guessed collection date enters a trend as though it
+      were measured. *Found by: an agent, pointed at the reader's documents.*
+- [x] **`D61` delivered — the fresh export.** `schemaVersion 7`, build
+      `0.1.0 (434) · ae10d84`, carrying every model-improvement key that was
+      missing from the 2026-08-07 file. The first thing measured from it settles
+      `P15` empirically: twenty `predictionOutcomes` rows show **systolic
+      predictions spanning 6 mmHg against actuals spanning 42, and diastolic
+      predictions spanning 1.4 mmHg** — the shipped BP estimator is very nearly a
+      constant, measured rather than argued.
+- [x] **Two approved designs carried into the repo**, because a plan outside the
+      repo does not survive a session: `docs/test-results-design-2026-08-09.md`
+      and `docs/bp-engine-design-2026-08-09.md`, sliced into `L1`–`L11`. ⚠️ The
+      BP engine's acceptance gate **fails on today's data by design**, so the
+      card prints no number: 20 sittings, 28% of the variance is the cuff, and
+      total headroom for every factor combined is about 2–5 mmHg.
+
 ### Session 31 (2026-08-08) — the last waves, and two lists that can no longer lie
 
 The continuation of session 30, after its first handover. Forty-six commits.

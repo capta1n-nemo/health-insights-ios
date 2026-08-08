@@ -135,18 +135,23 @@ final class ContributionSummaryTests: XCTestCase {
 
     /// The link's words carry the count, so it has to survive being singular
     /// and being absent.
+    ///
+    /// ⚠️ **Sittings, not readings.** `totalReadings` counts sittings since
+    /// 2026-08-09 — four cuffs in one morning are one observation — and this
+    /// string was the one place a reader could check the count against their
+    /// own history and find it disagreeing with its own label.
     func testTheBloodPressureLinkIsWordedForItsOwnCount() {
         let one = BloodPressureEstimator.CalibrationStatus(totalReadings: 1, recentReadings: 1)
         XCTAssertEqual(ContributionSummary.bloodPressure(one).detailLabel,
-                       "All 1 reading and calibration detail")
+                       "All 1 sitting and calibration detail")
 
         let many = BloodPressureEstimator.CalibrationStatus(totalReadings: 9, recentReadings: 2)
         XCTAssertEqual(ContributionSummary.bloodPressure(many).detailLabel,
-                       "All 9 readings and calibration detail")
+                       "All 9 sittings and calibration detail")
 
         let none = BloodPressureEstimator.CalibrationStatus(totalReadings: 0, recentReadings: 0)
         XCTAssertEqual(ContributionSummary.bloodPressure(none).detailLabel,
-                       "Readings and calibration detail")
+                       "Sittings and calibration detail")
     }
 
     // MARK: - Substances

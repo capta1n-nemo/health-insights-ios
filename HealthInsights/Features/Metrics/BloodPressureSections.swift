@@ -68,7 +68,12 @@ struct BloodPressureSections: View {
                     Label("Add a reading", systemImage: "plus.circle.fill")
                 }
                 CalibrationProgress(status: status)
-                Text("Grounding uses only readings from the last 30 days. Log \(BloodPressureEstimator.initialCalibrationReadings) within 30 days to ground the estimate, then \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month keeps it grounded. Readings already in Apple Health count automatically.")
+                // ⚠️ **Sittings.** These two constants count sittings since
+                // 2026-08-09, though their names still say readings. The last
+                // clause is the one that stops the copy reading as a nag: a
+                // reader who takes three cuffs every morning was previously
+                // told they had done three times the work they had.
+                Text("Grounding uses only the last 30 days. Log \(BloodPressureEstimator.initialCalibrationReadings) sittings within 30 days to ground the estimate, then \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month keeps it grounded. Readings taken back-to-back are one sitting. Readings already in Apple Health count automatically.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

@@ -285,18 +285,45 @@ final class LabReportScanTests: XCTestCase {
 
     /// An analyte the catalogue has never met still gets its word read, under the
     /// laboratory's own label — the qualitative half of `I6`.
+    ///
+    /// ⚠️ This used to be demonstrated with `HIV 1 / 2 total antibody` and
+    /// `Faecal H. pylori Ag (ChLIA)`, which was the wrong evidence for the right
+    /// rule: both **are** catalogued analytes that missed their entry by spelling,
+    /// and this test was quietly pinning that defect in place. They moved to
+    /// `testTheThreeCorpusLabelsNoLongerStartTheirOwnTrend`; the rule keeps a pair
+    /// the catalogue genuinely has never met.
     func testAnUncataloguedSerologyLabelStillYieldsItsWord() {
         let text = """
-        HIV 1 / 2 total antibody  Non reactive
-        Faecal H. pylori Ag (ChLIA)  Negative
+        Mycoplasma genitalium NAT  Not detected
+        Rubella IgG  Non reactive
         """
         let s = scan(text)
-        let antibody = s.results.first { $0.analyte.displayName.contains("total antibody") }
-        XCTAssertEqual(antibody?.value,
+        let rubella = s.results.first { $0.analyte.displayName.contains("Rubella") }
+        XCTAssertEqual(rubella?.value,
                        .qualitative(LabQualitativeResult(printed: "Non reactive")))
-        XCTAssertEqual(antibody?.analyte.isKnown, false)
-        let pylori = s.results.first { $0.analyte.displayName.contains("pylori") }
-        XCTAssertEqual(pylori?.value.formatted, "Negative")
+        XCTAssertEqual(rubella?.analyte.isKnown, false)
+        let myco = s.results.first { $0.analyte.displayName.contains("Mycoplasma") }
+        XCTAssertEqual(myco?.value.formatted, "Not detected")
+        XCTAssertEqual(myco?.analyte.isKnown, false)
+    }
+
+    /// ⚠️ **Three labels off the reader's own reports matched nothing**, so each
+    /// started a second trend beside the catalogued analyte it is. The catalogue
+    /// test pins the spellings; this pins what the parser does with them, which is
+    /// the thing that actually decides whether a value joins an existing trend.
+    func testTheThreeCorpusLabelsNoLongerStartTheirOwnTrend() {
+        let text = """
+        HepB surface antibody  Negative
+        Faecal H. pylori Ag (ChLIA)  Negative
+        HIV 1 / 2 total antibody  Non reactive
+        """
+        let s = scan(text)
+        XCTAssertEqual(result(s, "hep_b_surface_antibody")?.value.formatted, "Negative")
+        XCTAssertEqual(result(s, "h_pylori_faecal_antigen")?.value.formatted, "Negative")
+        XCTAssertEqual(result(s, "hiv_ag_ab")?.value.formatted, "Non reactive")
+        // All three catalogued, so none of them lands under "Not recognised".
+        XCTAssertTrue(s.unrecognisedResults.isEmpty)
+        for r in s.results { XCTAssertEqual(r.analyte.panel, .infection) }
     }
 
     /// A word the app cannot place is stored and shown, never guessed at — the
@@ -353,16 +380,116 @@ final class LabReportScanTests: XCTestCase {
         XCTAssertNotEqual(r?.confidence, .doubtful)
     }
 
-    /// ⚠️ A bound on an analyte the catalogue expects as a *word* is exempt from
-    /// the magnitude guard, because `measuredNumber` is already nil for it and
-    /// there is nothing left for the guard to protect. Without the exemption a
-    /// cleanly-read line comes back "check this one".
+    /// ⚠️ A bound on an analyte the catalogue expects as a *word and nothing
+    /// else* is exempt from the magnitude guard, because `measuredNumber` is
+    /// already nil for it and there is nothing left for the guard to protect.
+    /// Without the exemption a cleanly-read line comes back "check this one".
+    ///
+    /// ⚠️ The fixture used to be a hepatitis B surface antibody, which is now
+    /// `.either` and takes the ordinary measurement path — it converts and is
+    /// sized like anything else, which is a *stronger* reading than this exemption
+    /// and must not be confused with it. The rule needs a genuinely word-only
+    /// analyte to be about, so it gets one.
     func testABoundOnAWordAnalyteIsNotFlaggedAsAnImpossibleMagnitude() {
-        let s = scan("Hepatitis B surface antibody  <5  IU/L")
-        let r = result(s, "hep_b_surface_antibody")
-        XCTAssertEqual(r?.value, .censored(.lessThan, 5))
+        let s = scan("Hepatitis C antibody  <1.0")
+        let r = result(s, "hep_c_igg")
+        XCTAssertEqual(r?.value, .censored(.lessThan, 1.0))
+        XCTAssertNil(r?.value.measuredNumber)
         XCTAssertNotEqual(r?.confidence, .doubtful)
         XCTAssertTrue(r?.evidence?.checks.contains(.magnitudeUncheckable) ?? false)
+        XCTAssertFalse(r?.evidence?.checks.contains(.implausibleMagnitude) ?? true)
+    }
+
+    // MARK: - One analyte, printed both ways
+
+    /// ⚠️ **The defect the dual form exists to fix.** A hepatitis B surface
+    /// antibody is a protective titre, so an ordinary numeric anti-HBs is the
+    /// commonest thing this analyte prints — and as a word-only entry it came back
+    /// `.doubtful` on two counts at once: no unit table to recognise IU/L with,
+    /// and `noMagnitude` calling 142 impossible. Both are gone, and the value is
+    /// a measurement rather than a bound, so a card may use it.
+    func testANumericAntiHBsIsAMeasurementRatherThanADoubtfulWord() {
+        let s = scan("HepB surface antibody  142  IU/L")
+        let r = result(s, "hep_b_surface_antibody")
+        XCTAssertEqual(r?.value, .quantitative(142))
+        XCTAssertEqual(r?.value.measuredNumber, 142)
+        XCTAssertEqual(r?.unit, "IU/L")
+        XCTAssertNotEqual(r?.confidence, .doubtful)
+        XCTAssertTrue(r?.evidence?.checks.contains(.unitRecognised("IU/L")) ?? false)
+        XCTAssertTrue(r?.evidence?.checks.contains(.plausibleMagnitude) ?? false)
+        XCTAssertFalse(r?.evidence?.checks.contains(.magnitudeUncheckable) ?? true)
+    }
+
+    /// ...and the other direction of the same entry, which a measurement-only
+    /// entry would have thrown away: `qualitativeRow` refuses a word on any
+    /// catalogued analyte that takes numbers, so the line would have gone to
+    /// `unpairedLines` and the reader's serology would be missing a row.
+    func testTheWordFormOfADualFormAnalyteIsStillRead() {
+        let s = scan("HepB surface antibody  Negative")
+        let r = result(s, "hep_b_surface_antibody")
+        XCTAssertEqual(r?.value, .qualitative(LabQualitativeResult(printed: "Negative")))
+        XCTAssertEqual(r?.value.measuredNumber, nil)
+        XCTAssertEqual(r?.unit, "")
+        XCTAssertEqual(r?.confidence, .clear)
+        XCTAssertTrue(s.unpairedLines.isEmpty)
+    }
+
+    /// ⚠️ **A censored titre on a dual-form analyte is still not a measurement.**
+    /// `<5 IU/L` converts and is range-checked like any number — which is what
+    /// makes it `.clear` rather than "check this one" — and `measuredNumber` is
+    /// *still* nil, so nothing that consumes a measurement can take the assay's
+    /// floor for a reading. The two properties are independent and both are load
+    /// bearing.
+    func testACensoredTitreIsSizedButNeverHandedOverAsAMeasurement() {
+        let s = scan("HepB surface antibody  <5  IU/L")
+        let r = result(s, "hep_b_surface_antibody")
+        XCTAssertEqual(r?.value, .censored(.lessThan, 5))
+        XCTAssertNil(r?.value.measuredNumber)
+        XCTAssertEqual(r?.value.magnitude, 5)
+        XCTAssertEqual(r?.unit, "IU/L")
+        XCTAssertNotEqual(r?.confidence, .doubtful)
+        XCTAssertTrue(r?.evidence?.checks.contains(.censoredBound("<5")) ?? false)
+        XCTAssertTrue(r?.evidence?.checks.contains(.plausibleMagnitude) ?? false)
+    }
+
+    /// ⚠️ **The reader's report prints both lines**, and first-occurrence-wins
+    /// would have kept the word and discarded the titre — the half that carries a
+    /// magnitude and the half the report's own comment reasons about. A
+    /// measurement replaces a word for a dual-form analyte, and only in that
+    /// direction: the reverse is the misread `qualitativeRow` refuses inside a
+    /// single line.
+    func testAReportPrintingBothFormsKeepsTheTitreAndNotTheWord() {
+        let text = """
+        HepB surface antibody  Negative
+        HepB surface antibody  <5  IU/L
+        """
+        let s = scan(text)
+        XCTAssertEqual(s.results.count, 1)
+        XCTAssertEqual(result(s, "hep_b_surface_antibody")?.value, .censored(.lessThan, 5))
+
+        // The reverse order changes nothing: the word never displaces the titre.
+        let reversed = scan("""
+        HepB surface antibody  <5  IU/L
+        HepB surface antibody  Negative
+        """)
+        XCTAssertEqual(reversed.results.count, 1)
+        XCTAssertEqual(result(reversed, "hep_b_surface_antibody")?.value,
+                       .censored(.lessThan, 5))
+    }
+
+    /// ⚠️ And the rule stays off every analyte that is not dual-form: page order
+    /// still decides there, because two values for one of those analytes cannot
+    /// both be right and the first is the one a reader can predict. The word
+    /// direction is pinned by the reversed half of the test above — for an
+    /// ordinary analyte a word cannot even be produced, since `qualitativeRow`
+    /// refuses one on any catalogued analyte that takes numbers.
+    func testFirstOccurrenceStillWinsForAnAnalyteThatIsNotDualForm() {
+        let s = scan("""
+        Glucose  5.4 mmol/L  3.0 - 5.5
+        Glucose  5.9 mmol/L  3.0 - 5.5
+        """)
+        XCTAssertEqual(result(s, "glucose")?.value.measuredNumber, 5.4)
+        XCTAssertEqual(s.results.count, 1)
     }
 
     /// A censored bound must never reach a risk model, whatever else is right
@@ -475,10 +602,12 @@ final class LabReportScanTests: XCTestCase {
         XCTAssertEqual(result(s, "tsh")?.referenceRange?.printed, ">0.89")
         XCTAssertEqual(result(s, "tsh")?.referenceRange?.low, 0.89)
         XCTAssertEqual(result(s, "tsh")?.referenceRange?.high, nil)
-        // Calcium is not in the catalogue, so it arrives under the laboratory's
-        // own label — which is exactly where a two-sided interval most needs to
-        // survive: nothing else on an uncatalogued row can size the number.
-        let calcium = s.results.first { $0.analyte.displayName == "Calcium" }
+        // Calcium was uncatalogued when this test was written and is catalogued
+        // now; the two-sided interval has to survive the change, because a stored
+        // interval is expressed in the unit the value was stored in and a
+        // conversion is exactly where one goes missing.
+        let calcium = result(s, "calcium")
+        XCTAssertEqual(calcium?.analyte.displayName, "Calcium")
         XCTAssertEqual(calcium?.referenceRange?.printed, "2.10 - 2.60")
         XCTAssertEqual(calcium?.referenceRange?.low, 2.10)
         XCTAssertEqual(calcium?.referenceRange?.high, 2.60)
@@ -487,6 +616,38 @@ final class LabReportScanTests: XCTestCase {
         XCTAssertEqual(result(s, "ferritin")?.referenceRange?.printed, "0 - 80")
         XCTAssertEqual(result(s, "ferritin")?.referenceRange?.low, 0)
         XCTAssertEqual(result(s, "ferritin")?.referenceRange?.high, 80)
+    }
+
+    // MARK: - The three calciums
+
+    /// ⚠️ **An Australian CMP prints the measured total and the calculated
+    /// corrected value one under the other**, and until 2026-08-09 only the second
+    /// was catalogued — so the first started a separate trend under the
+    /// laboratory's own label. Both are read now, and the thing that must never
+    /// happen is either line reaching the other's key: on a low albumin they differ
+    /// by a tenth of a mmol/L and nothing afterwards could say which was stored.
+    func testABareCalciumAndACorrectedCalciumAreBothReadAndNeverSwapped() {
+        let text = """
+        Calcium             2.35 mmol/L   2.10 - 2.60
+        Calcium (Corrected) 2.41 mmol/L   2.10 - 2.60
+        """
+        let s = scan(text)
+        XCTAssertEqual(result(s, "calcium")?.value.measuredNumber, 2.35)
+        XCTAssertEqual(result(s, "corrected_calcium")?.value.measuredNumber, 2.41)
+        XCTAssertEqual(s.results.count, 2)
+        // Neither is filed under the laboratory's own label any more.
+        XCTAssertTrue(s.unrecognisedResults.isEmpty)
+    }
+
+    /// ⚠️ The ionised fraction is about half the total and shares the word with
+    /// it. Without its own entry the bare "calcium" synonym would file a blood-gas
+    /// ionised calcium on the total's trend — the silent version of the mistake
+    /// the corrected pair has been guarded against since the catalogue began.
+    func testAnIonisedCalciumIsNotFiledAsATotalCalcium() {
+        let s = scan("Calcium (ionised)   1.19 mmol/L   1.12 - 1.32")
+        XCTAssertEqual(result(s, "ionised_calcium")?.value.measuredNumber, 1.19)
+        XCTAssertNil(result(s, "calcium"))
+        XCTAssertNil(result(s, "corrected_calcium"))
     }
 
     // MARK: - The grounding path

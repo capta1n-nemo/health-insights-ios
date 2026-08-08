@@ -387,9 +387,13 @@ public enum BloodPressureSittings {
     /// 9.6 mmHg this reader's own sittings show, so a reader with fewer than
     /// three multi-reading sittings is not handed a *wider* error bar than the
     /// data would eventually justify — but it is well above the ISO 81060-2
-    /// validation limit of ±5 mmHg that `BloodPressureEstimator.Drift.uncertaintyFloor`
-    /// uses, because that limit describes a monitor against a reference in a
-    /// clinic, not the same person cuffing themselves twice on a sofa.
+    /// validation limit of ±5 mmHg (`BloodPressureEstimator.Drift.isoMeanErrorLimit`),
+    /// because that limit describes a monitor against a reference in a clinic,
+    /// not the same person cuffing themselves twice on a sofa.
+    ///
+    /// This is what `Drift.uncertaintyFloor(pooledWithinSD:readings:)` divides by
+    /// √n when the reader has not yet cuffed twice in a sitting often enough to
+    /// have taught the app their own figure.
     public static let fallbackWithinSD: Double = 8
 
     /// Multi-reading sittings needed before the reader's own figure is trusted.

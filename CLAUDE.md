@@ -131,6 +131,23 @@ symbol twice.
   also run the `xcodebuild` line above, which catches the SwiftUI errors a
   hosted session can only learn from CI. Load the `use-the-simulator` skill; it
   says what the simulator cannot answer, which is anything needing real data.
+- **After a deploy, ask the phone whether the build RUNS:
+  `./scripts/device-smoke.sh`.** `deploy-status.sh` saying *installed* is a
+  statement about signing and copying. On 2026-08-09 a build reported
+  `installed` and then **died on every launch for every existing install**, and
+  nothing in the pipeline noticed: tests cannot reach CoreData's migration
+  validation, CI builds without running, and **a fresh simulator install has no
+  store to migrate, so the broken build launches happily there** — it did, which
+  is how the schema was briefly dismissed as the cause. Only the device
+  reproduced it, on the first try. This launches the installed app with the
+  console attached and fails on a fatal error, a store failure or a crash.
+- ⚠️ **A new stored property on a shipped `@Model` is either optional or
+  defaulted. There is no third option while this repo has no
+  `SchemaMigrationPlan`** — implicit lightweight migration cannot invent a value
+  for a new mandatory column, and `DataStore.init` turns the failure into a
+  `fatalError`. `./scripts/check-swiftdata-schema.sh` enforces it and
+  `verify.sh` already runs it; it was verified by reintroducing the exact bug
+  and watching it fire. **No unit test and no simulator run can see this class.**
 
 ## Automation Rules
 - Fully manage all files, including Xcode project structures, Swift files, and configurations.

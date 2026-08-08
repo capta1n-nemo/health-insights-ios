@@ -3,7 +3,120 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
-## Current focus — sessions 30–31 (2026-08-07/08), 169 commits
+## Current focus — session 32 (2026-08-09), 9 commits
+
+⚠️ **Read these five first.**
+
+1. **What is on the phone: `d46a81f`, and it is the first Release build.**
+   `deploy.yml` had been shipping `-configuration Debug` — the reader's phone was
+   running unoptimised Swift, about **3.5× slower on this code** (849 ms vs
+   239 ms for the main-actor half of `recompute()` on their own 379,693 samples)
+   — while they spent a day reporting hangs. Verified **running**, not merely
+   installed, by `./scripts/device-smoke.sh`.
+2. ⚠️ **A build shipped that died on launch for every existing install, and
+   three separate checks said it was fine.** `LabResultRecord.shapeRaw` went in
+   as a non-optional `@Model` column with no default; this repo has no
+   `SchemaMigrationPlan`. **The rule it cost: a new stored property on a shipped
+   `@Model` is either optional or defaulted. There is no third option here.**
+   Now a lint (`scripts/check-swiftdata-schema.sh`, wired into `verify.sh`) plus
+   `scripts/device-smoke.sh`, because **"installed" is not "runs"** and
+   `deploy-status.sh` can only ever tell you the first.
+3. **`D61` is delivered.** The reader supplied a fresh export —
+   `schemaVersion 7`, build `0.1.0 (434) · ae10d84` — carrying every
+   model-improvement key that was missing. **This was the highest-value blocked
+   row on the list and it is now the input to `L6`–`L11`.**
+4. **The reader approved a large plan and none of it is built.** It is carried in
+   as `docs/test-results-design-2026-08-09.md` and
+   `docs/bp-engine-design-2026-08-09.md`, and sliced into rows `L1`–`L11`. ⚠️
+   The plan itself lived **outside the repo**; nothing outside the repo survives
+   a session.
+5. **The open count went 55 → 77 and that is the session working.** Twenty
+   findings became rows (`K1`–`K12`, `L1`–`L11`), eight shipped rows were added
+   for the record (`K13`–`K20`), and `D61` closed.
+
+```bash
+./scripts/backlog.sh --next    # the next batch, and the model it needs
+./scripts/backlog.sh --asks    # what the reader asked for and has NOT got
+./scripts/status.sh            # regenerate the reader-facing breakdown
+```
+
+### What shipped tonight, and what found it
+
+| | Found by |
+| --- | --- |
+| **`LabValue`** — a result is quantitative / censored / qualitative / not-measured; two results in five in the reader's corpus are not numbers (`K13`, `b7c18b0`) | The reader's own pathology PDFs |
+| **`MomentConcept`** — one vocabulary for "a thing that happens to a person"; the Oura tag "Sex" failed to link to "Sexual activity" **four independent ways** (`K14`, `7e5e325`) | **The reader**, from outside: *"I couldn't link it as sexual activity"* |
+| **The consistency sweep** — `DataDomainBand`, `InputTopic`, a badge counting only genuinely unanswered items, and a side-effect picker that **proposed three words the app could not read back** (`K15`, `189a5e1`) | **The reader**: *"Do a sweep, I want consistency all over the app"* |
+| **The launch crash**, plus a lint and a device smoke test (`K16`, `96b0367`/`2c5f365`/`21dde0c`) | **The reader**, in minutes, on their phone |
+| **The hangs** — launch block **13.32 s → 5.25 s**, main-actor hold **849 ms → 113 ms**; the detector itself had never once fired (`K17`, `dbbbd83`) | **The reader**: *"it hangs when I add data, opening cards hangs, the load screen hangs"* |
+| **The sick day that stayed green** — three causes, one symptom (`K18`, `dbbbd83`) | **The reader**, then agents on the arithmetic |
+| **Release to the phone**, and the install path that broke with it (`K19`, `3a56655`/`d46a81f`) | An agent, while measuring the hangs |
+| **The parser vs. a real Australian corpus** — four live misreads, five date sources on a page (`K20`, `d46a81f`) | An agent, pointed at the reader's documents |
+
+### ⚠️ The three lessons worth carrying, because each is a class
+
+- **An instrument that has never fired is not evidence of health.** The hang
+  detector reported *detection latency* rather than duration, so every hang
+  logged 0.25–0.38 s whatever its size and the 1 s threshold **had never once
+  fired** — which is why the 2026-08-06 fix looked like it had worked. Measured
+  at the stall's end, the same launch event logs 13.22 s. It also self-oscillated
+  at 4 Hz against an idle app, overwriting the reader's whole diagnostics export
+  every four minutes. `D69` proved the Thread Performance Checker fires on a
+  deliberate fault; nothing had done that for this.
+- **A cache emptied by the tap before the one you are timing.**
+  `refreshMedicationLevelSamples()` reassigned all 379,693 samples on every
+  recompute — its guard asked "was a derivation present", always true for a
+  reader on a regimen — so `samples.didSet` wiped every breakdown, render memo,
+  score history and derived series. **The caches that make a card open instantly
+  were destroyed by the previous interaction.** That is the whole "opening cards
+  hangs" mechanism.
+- **An edge is not inside the band it opens.** `ReportedIllness.excess` anchored
+  a stated illness exactly *on* `someSignsExcess`, which scores exactly 85, and
+  every gate reads `>= 85` as quiet — so an ungraded sick day was arithmetically
+  "nothing stirring" while the file's own table said "some signs". ⚠️ **The
+  identical shape is still live one band up** and is now `K2`: a stated *severe*
+  illness scores exactly 50, the `score >= 50` branch takes it first, and the
+  clause written to let a severe report reach `.strongSigns` on its own is
+  **dead code that its own comment argues for at length.**
+
+### Next session, in order
+
+**Do not work from a list here. Run `./scripts/backlog.sh --next`.**
+
+1. ⚠️ **`K2` needs the reader, and it is the first thing to ask.** A stated
+   severe illness can never reach the card's loudest state. `SickDayReportTests`
+   pins the current behaviour, so **it is a decision, not a fix** — and the two
+   ways out say different things to a person. Their own objection in `B11-7` is
+   about *not* over-trusting stated sick days, so do not guess which way they
+   want it.
+2. **`K1` — the sick-day correction loop's input half.** A correction to a
+   **past** day still cannot move the radar's headline or its hit rate:
+   `ReportedIllness.evaluate` reads `day: today` only and `SymptomRadarModel.ledger`
+   takes no sick days at all. `B11-8`'s real remainder, and `B11-3`/`B11-5` are
+   built on it.
+3. **The `w1` mechanical batch, all ungated** — `K4` (a `uniqueKeysWithValues`
+   that traps on duplicate judgement ids, in **three** files), `K9`
+   (`pairedReadings` gives the second of two simultaneous systolics the wrong
+   diastolic), then `K3`/`K5`/`K6`/`K11`/`K12` at `build`.
+4. **`L1`–`L5`, the test-results waves.** Land `K10`
+   (`NSFaceIDUsageDescription`, absent — the first `evaluatePolicy` call crashes
+   the app) and `K12` (re-import duplicates every value, 19× worse under batch)
+   **before** the features gated on them.
+5. **`L6`, and read the constraint before designing anything.** 20 sittings,
+   pooled within-sitting SD 9.6 mmHg, **28% of the variance is the cuff** — total
+   headroom for every factor combined is about **2–5 mmHg**, and the acceptance
+   gate **fails on today's data by design**, so the card prints no number. ⚠️
+   The largest accuracy win available is not in the modelling at all: three
+   readings per sitting moves irreducible error 7.7 → 4.4 mmHg, more than every
+   factor combined.
+6. **Still true from last session:** 16 rows are `gate:phone` and iPhone
+   Mirroring was declined on 2026-08-08; `J6`/`J8`/`B19` remain the most valuable
+   ungated calibration work, and `L11` is deliberately only the remainder after
+   them.
+
+---
+
+## Sessions 30–31 (2026-08-07/08), 169 commits
 
 ⚠️ **Read these five first.**
 
@@ -31,7 +144,9 @@ ever happened. Updated by `/handover` at the end of a session._
 ./scripts/status.sh            # regenerate the reader-facing breakdown
 ```
 
-**258 rows, 55 open** — **23 ungated**, and the other 32 wait on the phone (16),
+**258 rows, 55 open** _(a snapshot taken 2026-08-08 — 289/77 as of 2026-08-09;
+never quote a count from this file, run the script)_ — **23 ungated**, and the
+other 32 wait on the phone (16),
 a decision (7), another row (5) or something outside the repo (4). Ordered `w0`
 blockers → `w1` shipped-but-wrong → `w2` quick wins → `w3` builds → `w4` complex.
 Every row carries a **tier** naming the model it needs — `mech` (Opus 5 ·

@@ -123,6 +123,47 @@ public struct LabAnalyte: Sendable, Equatable, Hashable, Codable, Identifiable {
     }
 }
 
+/// **How a laboratory prints this analyte's result** — and the discovery, on
+/// 2026-08-09, that for some analytes the answer is *both*.
+///
+/// This file had two states and derived them from one field: an empty
+/// `canonicalUnit` meant "reported as a word", anything else meant "reported as a
+/// number". The reader's own report prints the same analyte both ways on the same
+/// page:
+///
+/// ```
+/// HepB surface antibody   Negative
+/// HepB surface antibody   <5  IU/L
+/// ```
+///
+/// Neither line is a layout quirk. A hepatitis B surface antibody is a
+/// **protective titre** — the report's own comment reads *not immune (HBsAb <10
+/// IU/L)*, which is a sentence about a number — and the word is what a different
+/// laboratory prints when it applies that same cutoff for you. With two states one
+/// of those two lines always had to be mishandled: as a word-only entry the titre
+/// came back `unitUnrecognised` plus `implausibleMagnitude` and was marked *check
+/// this one*, and as a measurement entry the word was refused outright by
+/// `LabReportParser.qualitativeRow` and the line was dropped on the floor.
+///
+/// ⚠️ **`.either` is a property of the assay, not of the app's confidence**, and
+/// it is declared per entry rather than inferred per line. Inferring it per line is
+/// precisely how `Glucose 5.4 mmol/L Normal` becomes the word "Normal" — the
+/// misread `qualitativeRow`'s catalogued-analyte guard exists to prevent.
+///
+/// ⚠️ **One analyte key can now hold both shapes over time.** A reader whose
+/// laboratory changes assay has words and numbers under one key, so anything
+/// plotting a series must filter on `LabValueShape.isChartable` rather than assume
+/// the analyte's form decides it.
+public enum LabReportedForm: String, Sendable, Equatable, Hashable, Codable, CaseIterable {
+    /// A number with a unit, always. Almost everything in the catalogue.
+    case measurement
+    /// A word, always — *Negative*, *Not detected*, *Reactive*. No unit, and no
+    /// number on the line is the finding.
+    case word
+    /// Either, depending on the laboratory and sometimes on the line.
+    case either
+}
+
 // MARK: - The catalogue
 
 /// **The analytes this app knows enough about to check.**
@@ -158,6 +199,15 @@ public struct LabAnalyte: Sendable, Equatable, Hashable, Codable, Identifiable {
 /// that *is* a number must never be given one. `haemolysis_index` is printed
 /// bare by the laboratory and still carries the pseudo-unit `index` for exactly
 /// this reason — the same trick `Cholesterol : HDL ratio` already uses.
+///
+/// ## And a fifth: one of those fourteen is printed **both** ways
+///
+/// The reader's own report prints `HepB surface antibody` as a word on one line
+/// and as `<5 IU/L` on another, and the titre is the half that answers the
+/// question the test was ordered for. `LabReportedForm` is the third state that
+/// buys, `Entry.form` derives it, and `hep_b_surface_antibody` is the one entry
+/// that carries it — see the ⚠️ block on that entry for why the other thirteen
+/// serology rows do **not**, which is a stronger claim than "nobody has checked".
 public enum LabAnalyteCatalog {
 
     /// One catalogued analyte and everything needed to read it off a report.
@@ -172,11 +222,13 @@ public enum LabAnalyteCatalog {
         /// Lower-cased labels, **longest first at match time**, so
         /// "HDL cholesterol" is never consumed by the bare "cholesterol".
         ///
-        /// ⚠️ Written as `match(label:)` normalises: punctuation other than
-        /// `/ : - + ( )` becomes a space and runs of space collapse. A synonym
-        /// carrying a full stop — "h. pylori" — can never match anything, and
+        /// ⚠️ Written as `normaliseLabel` leaves a label: punctuation other than
+        /// `/ : - + ( )` becomes a space, runs of space collapse, and a slash
+        /// closes up against its neighbours. So a synonym carrying a full stop —
+        /// "h. pylori" — or a spaced slash — "hiv 1 / 2" — can never match
+        /// anything at all, and
         /// `LabAnalyteCatalogTests.testEverySynonymMatchesItsOwnEntry` is what
-        /// catches it.
+        /// catches both.
         public let synonyms: [String]
         /// Units this analyte is reported in, mapped to a multiplier that
         /// converts into `canonicalUnit`. The canonical unit maps to 1. Empty
@@ -190,11 +242,21 @@ public enum LabAnalyteCatalog {
         /// Who else might read this off the screen. `.ordinary` unless stated,
         /// so every entry that predates the axis is unchanged by it.
         public let sensitivity: LabSensitivity
+        /// Whether a laboratory **also** prints this analyte as a word, on an
+        /// entry that otherwise carries a unit and a real magnitude.
+        ///
+        /// ⚠️ **Meaningless on an entry with no canonical unit**, which is
+        /// already `.word` whatever this says — nothing reads this property
+        /// directly except `form`, and
+        /// `LabAnalyteCatalogTests.testADualFormEntryDeclaresBothAUnitAndAWord`
+        /// is what stops the two being set into a contradiction.
+        public let alsoReportedAsWord: Bool
 
         public init(key: String, displayName: String, canonicalUnit: String,
                     groundingKind: GroundingKind? = nil, synonyms: [String],
                     unitFactors: [String: Double], plausible: ClosedRange<Double>,
-                    panel: LabPanel, sensitivity: LabSensitivity = .ordinary) {
+                    panel: LabPanel, sensitivity: LabSensitivity = .ordinary,
+                    alsoReportedAsWord: Bool = false) {
             self.key = key
             self.displayName = displayName
             self.canonicalUnit = canonicalUnit
@@ -204,12 +266,30 @@ public enum LabAnalyteCatalog {
             self.plausible = plausible
             self.panel = panel
             self.sensitivity = sensitivity
+            self.alsoReportedAsWord = alsoReportedAsWord
         }
 
-        /// Whether the laboratory reports this analyte as a word rather than a
-        /// number. Derived from the absent canonical unit rather than declared
+        /// Which of the three shapes a report may print for this analyte.
+        ///
+        /// **Derived, never declared twice.** The canonical unit already says
+        /// whether a number is possible and `alsoReportedAsWord` says whether a
+        /// word is; a third stored field repeating the answer is a field that can
+        /// disagree with the two it summarises.
+        public var form: LabReportedForm {
+            if canonicalUnit.isEmpty { return .word }
+            return alsoReportedAsWord ? .either : .measurement
+        }
+
+        /// Whether the laboratory reports this analyte as a word **and nothing
+        /// else**. Derived from the absent canonical unit rather than declared
         /// beside it, so the two cannot disagree.
-        public var isQualitative: Bool { canonicalUnit.isEmpty }
+        ///
+        /// ⚠️ **This is not "can this be a word".** A `.either` analyte answers
+        /// `false` here and still reads *Negative* off a real report. Ask `form`
+        /// when the question is what a line may say; ask this one only when the
+        /// question is whether a number means anything at all — conversion, and
+        /// the plausible range.
+        public var isQualitative: Bool { form == .word }
 
         /// The plausible range for an analyte that has no magnitude.
         ///
@@ -241,6 +321,29 @@ public enum LabAnalyteCatalog {
             Entry(key: key, displayName: displayName, canonicalUnit: "",
                   groundingKind: nil, synonyms: synonyms, unitFactors: [:],
                   plausible: noMagnitude, panel: panel, sensitivity: sensitivity)
+        }
+
+        /// A catalogued analyte a laboratory prints **either** way.
+        ///
+        /// Everything a measurement entry needs — a unit, a table to convert into
+        /// it, and a real plausible range — plus the flag, because a dual-form
+        /// entry that kept `noMagnitude` would mark every genuine titre
+        /// implausible, and one that kept an empty unit table would mark every
+        /// genuine unit unrecognised. The factory names the intent at the call
+        /// site; the combination it cannot express — the flag with no unit, which
+        /// `form` silently reads as `.word` — is held by a test, the same way
+        /// every other invariant in this catalogue is.
+        ///
+        /// `sensitivity` defaults to `.protected` for the reason the qualitative
+        /// factory does: what has been dual-form so far is serology.
+        static func dualForm(key: String, displayName: String, canonicalUnit: String,
+                             synonyms: [String], unitFactors: [String: Double],
+                             plausible: ClosedRange<Double>, panel: LabPanel,
+                             sensitivity: LabSensitivity = .protected) -> Entry {
+            Entry(key: key, displayName: displayName, canonicalUnit: canonicalUnit,
+                  groundingKind: nil, synonyms: synonyms, unitFactors: unitFactors,
+                  plausible: plausible, panel: panel, sensitivity: sensitivity,
+                  alsoReportedAsWord: true)
         }
 
         public var analyte: LabAnalyte {
@@ -387,19 +490,34 @@ public enum LabAnalyteCatalog {
               // Divalent: 1 mEq/L is half a mmol/L. 10 / 24.305 for mg/dL.
               unitFactors: ["mmol/l": 1, "meq/l": 0.5, "mg/dl": 0.4114],
               plausible: 0.05...10, panel: .renal),
-        // ⚠️ **No bare "calcium" synonym, deliberately** — the hazard this whole
-        // file is built around, one analyte further on. A corrected calcium is a
-        // *calculated* number (total calcium adjusted for albumin) and a renal
-        // panel prints both, one under the other; the bare word would file the
-        // measured total as the calculated one on every report in the corpus.
+        // ⚠️ **The three calciums, and the two ways they can eat each other.**
         //
-        // Total calcium is left uncatalogued rather than folded in here: an
-        // uncatalogued analyte is stored verbatim and says so, which is honest,
-        // while a wrong catalogue entry is invisible afterwards. The
-        // parenthesised and albumin-prefixed spellings are carried so that
-        // longest-first keeps this row even if a later session does catalogue
-        // the bare word — "albumin corrected calcium" must not become albumin
-        // either.
+        // A corrected calcium is a *calculated* number — total calcium adjusted
+        // for albumin — and an Australian CMP prints it directly under the
+        // measured total it was calculated from. On a low albumin the two differ
+        // by a tenth of a mmol/L, which is a difference nothing downstream could
+        // recover: a stored value cannot say which measurement it was.
+        //
+        // Until 2026-08-09 only the calculated one was catalogued and the bare
+        // word was deliberately absent, so the reader's measured total arrived
+        // under the laboratory's own label and started a second trend beside the
+        // corrected one. It is now its own entry, which is what the comment this
+        // replaces anticipated: the parenthesised and albumin-prefixed spellings
+        // below were already carried "so that longest-first keeps this row even
+        // if a later session does catalogue the bare word".
+        //
+        // ⚠️ **`calcium` as a synonym is what makes the third row necessary.**
+        // "Calcium (ionised)" contains "calcium", and ionised calcium is a
+        // different fraction at about half the number — only the longest-first
+        // sort keeps a blood-gas ionised calcium off the total's trend. Cataloguing
+        // it is the guard, not a separate ambition: without it the bare word is a
+        // silent wrong match rather than an honest uncatalogued one.
+        //
+        // ⚠️ A 24-hour **urine** calcium matches the total's row too, and is
+        // printed in mmol/day, which converts to nothing here — so it arrives
+        // `unitUnrecognised` and doubtful. That is a flagged wrong analyte rather
+        // than a silent one; `LabReportParser.Scan.specimen` is what a caller has
+        // to read to do better than flagging it.
         Entry(key: "corrected_calcium", displayName: "Calcium (corrected)",
               canonicalUnit: "mmol/L", groundingKind: nil,
               synonyms: ["albumin corrected calcium", "calcium (corrected)",
@@ -408,6 +526,23 @@ public enum LabAnalyteCatalog {
               // 10 / 40.08.
               unitFactors: ["mmol/l": 1, "mg/dl": 0.2495],
               plausible: 0.5...6, panel: .renal),
+        Entry(key: "calcium", displayName: "Calcium",
+              canonicalUnit: "mmol/L", groundingKind: nil,
+              synonyms: ["calcium (total)", "total calcium", "calcium total",
+                         "serum calcium", "calcium"],
+              // 10 / 40.08, and mEq/L is halved: calcium is divalent, the same
+              // trap magnesium carries two entries up.
+              unitFactors: ["mmol/l": 1, "mg/dl": 0.2495, "meq/l": 0.5],
+              plausible: 0.5...6, panel: .renal),
+        Entry(key: "ionised_calcium", displayName: "Calcium (ionised)",
+              canonicalUnit: "mmol/L", groundingKind: nil,
+              synonyms: ["calcium (ionised)", "calcium (ionized)",
+                         "ionised calcium", "ionized calcium",
+                         "calcium ionised", "calcium ionized", "free calcium"],
+              unitFactors: ["mmol/l": 1, "mg/dl": 0.2495, "meq/l": 0.5],
+              // Roughly half the total, and the range is wide for the usual
+              // reason: it catches a misplaced decimal point, not a finding.
+              plausible: 0.1...4, panel: .renal),
 
         // ---- Liver and pancreas.
         Entry(key: "alt", displayName: "ALT",
@@ -678,24 +813,67 @@ public enum LabAnalyteCatalog {
         .qualitative(key: "hiv_ag_ab", displayName: "HIV antigen/antibody",
                      // ⚠️ No bare "hiv": an HIV RNA viral load is a number in
                      // copies/mL and would file as this screen's word.
+                     //
+                     // "total antibody" is the same screen under the spelling one
+                     // of the reader's laboratories uses — `HIV 1 / 2 total
+                     // antibody`, which matched nothing here and started its own
+                     // trend beside this one. Both slash spellings collapse to
+                     // one synonym because `match(label:)` now closes the spaces
+                     // around a slash; see the ⚠️ on `normaliseLabel`.
                      synonyms: ["hiv 1/2 antigen/antibody", "hiv antibody/antigen",
-                                "hiv antigen/antibody", "hiv ag/ab", "hiv ag ab",
+                                "hiv antigen/antibody", "hiv 1/2 total antibody",
+                                "hiv total antibody", "hiv ag/ab", "hiv ag ab",
                                 "hiv screen", "hiv combo"],
                      panel: .infection),
+        // ⚠️ **"HepB" is one word on the reader's report**, and a synonym written
+        // "hep b" cannot match it: `match(label:)` collapses punctuation to
+        // spaces but never splits a word. All three hepatitis B rows carry the
+        // closed spelling for that reason — fixing only the antibody would leave
+        // its two neighbours, printed in the same style on the same page, filed
+        // as uncatalogued analytes beside a catalogued sibling.
         .qualitative(key: "hep_b_surface_antigen",
                      displayName: "Hepatitis B surface antigen",
                      synonyms: ["hepatitis b surface antigen", "hep b surface antigen",
-                                "hbs antigen", "hbsag"],
+                                "hepb surface antigen", "hbs antigen", "hbsag"],
                      panel: .infection),
-        .qualitative(key: "hep_b_surface_antibody",
-                     displayName: "Hepatitis B surface antibody",
-                     synonyms: ["hepatitis b surface antibody", "hep b surface antibody",
-                                "hbs antibody", "anti-hbs", "hbsab"],
-                     panel: .infection),
+        // ⚠️ **The one dual-form entry in this catalogue, and the reason
+        // `LabReportedForm` exists.** The reader's report prints this test as
+        // `Negative` on one line and `<5 IU/L` on another, and its own comment —
+        // *not immune (HBsAb <10 IU/L)* — is a sentence about the number. Held as
+        // a word it made every titre doubtful; held as a measurement it threw
+        // every word away.
+        //
+        // ⚠️ **mIU/mL and IU/L are the same quantity**, by arithmetic rather than
+        // by a measured factor: a milli-international-unit per millilitre is an
+        // international unit per litre. Both are carried, and so is the bare
+        // `U/L` some analysers print, because an unrecognised unit on a line the
+        // reader can check at a glance is the false alarm this file spends its
+        // length avoiding.
+        //
+        // ⚠️ **The other thirteen serology rows are deliberately not dual-form.**
+        // Every one of them prints a number that is *not* the finding — a
+        // signal-to-cutoff index beside a screen, a Ct value or a viral load
+        // beside a nucleic-acid test — and `Entry.noMagnitude` is what stops that
+        // number being stored as the result. Giving one of them a unit and a real
+        // range would retire that guard for the sake of a titre nothing has
+        // observed. The nearest miss is `hep_a_igg`, which some laboratories do
+        // report in mIU/mL; it stays word-only until a report in the corpus shows
+        // otherwise, on the same rule that keeps serum iron out of this file.
+        .dualForm(key: "hep_b_surface_antibody",
+                  displayName: "Hepatitis B surface antibody",
+                  canonicalUnit: "IU/L",
+                  synonyms: ["hepatitis b surface antibody", "hep b surface antibody",
+                             "hepb surface antibody", "hbs antibody", "anti-hbs",
+                             "hbsab"],
+                  unitFactors: ["iu/l": 1, "miu/ml": 1, "u/l": 1],
+                  // A titre after vaccination is reported on a dilution and runs
+                  // into the thousands; zero is printable and real.
+                  plausible: 0...100_000, panel: .infection),
         .qualitative(key: "hep_b_core_antibody",
                      displayName: "Hepatitis B core antibody",
                      synonyms: ["hepatitis b core antibody", "hep b core antibody",
-                                "hbc antibody", "anti-hbc", "hbcab"],
+                                "hepb core antibody", "hbc antibody", "anti-hbc",
+                                "hbcab"],
                      panel: .infection),
         .qualitative(key: "hep_a_igg", displayName: "Hepatitis A IgG",
                      // IgG in every spelling: hepatitis A IgM is acute infection,
@@ -760,13 +938,22 @@ public enum LabAnalyteCatalog {
         // turns "H. pylori" into "h pylori", so a synonym carrying the dot could
         // never match anything at all — and would fail silently, which is the
         // whole reason `testEverySynonymMatchesItsOwnEntry` exists.
+        //
+        // ⚠️ **"Ag" is the spelling the reader's report actually uses** — `Faecal
+        // H. pylori Ag (ChLIA)` — and every synonym here said "antigen", so the
+        // line landed uncatalogued. The abbreviation is only ever carried behind
+        // the organism's name: a bare "ag" synonym is what `anion_gap` two panels
+        // up refuses to have, because "HIV Ag Ab" without its slash normalises to
+        // a label containing " ag ".
         .qualitative(key: "h_pylori_faecal_antigen",
                      displayName: "H. pylori antigen (faecal)",
                      synonyms: ["helicobacter pylori faecal antigen",
                                 "faecal helicobacter pylori antigen",
                                 "helicobacter pylori antigen",
                                 "faecal h pylori antigen", "h pylori faecal antigen",
-                                "h pylori antigen"],
+                                "helicobacter pylori ag", "faecal h pylori ag",
+                                "h pylori faecal ag", "h pylori antigen",
+                                "h pylori ag"],
                      panel: .infection)
     ]
 
@@ -795,7 +982,33 @@ public enum LabAnalyteCatalog {
     /// the word "cholesterolaemia" should not. Word-boundary matching after
     /// punctuation is stripped gives both.
     public static func match(label: String) -> Entry? {
-        let normalised = " " + label.lowercased()
+        let normalised = " " + normaliseLabel(label) + " "
+        for (synonym, entry) in synonymIndex where normalised.contains(" \(synonym) ")
+            || normalised.contains(" \(synonym)(") {
+            return entry
+        }
+        return nil
+    }
+
+    /// A printed label reduced to the form synonyms are written in.
+    ///
+    /// Punctuation other than `/ : - + ( )` becomes a space and runs of space
+    /// collapse, so "Alk. Phos." and "alk phos" are the same label.
+    ///
+    /// ⚠️ **A slash closes up around itself**, and that is a fix rather than
+    /// tidiness: the reader's laboratory prints `HIV 1 / 2 total antibody` while
+    /// every synonym in this file writes `hiv 1/2 …`, so the spaced form matched
+    /// nothing and started its own trend. Doing it here rather than adding a
+    /// second spelling to each synonym fixes the whole class at once — and the
+    /// hazard it creates is the full stop's twin: **a synonym written with a
+    /// spaced slash can now never match anything**, which
+    /// `LabAnalyteCatalogTests.testEverySynonymMatchesItsOwnEntry` is what
+    /// catches.
+    ///
+    /// The sentinel spaces are added by the caller *after* this runs, so a label
+    /// ending in a slash cannot lose the boundary its match depends on.
+    static func normaliseLabel(_ label: String) -> String {
+        label.lowercased()
             .map { ch -> Character in
                 if ch.isLetter || ch.isNumber || ch == "/" || ch == ":" || ch == "-"
                     || ch == "+" || ch == "(" || ch == ")" { return ch }
@@ -804,13 +1017,10 @@ public enum LabAnalyteCatalog {
             .reduce(into: "") { acc, ch in
                 if ch == " " && acc.last == " " { return }
                 acc.append(ch)
-            } + " "
-
-        for (synonym, entry) in synonymIndex where normalised.contains(" \(synonym) ")
-            || normalised.contains(" \(synonym)(") {
-            return entry
-        }
-        return nil
+            }
+            .replacingOccurrences(of: " /", with: "/")
+            .replacingOccurrences(of: "/ ", with: "/")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     /// Convert a printed value into the entry's canonical unit.
@@ -825,11 +1035,16 @@ public enum LabAnalyteCatalog {
     /// `LabValueCheck.unitInference`.
     public static func convert(_ value: Double, from unit: String?,
                                for entry: Entry) -> Double? {
-        // A qualitative analyte is reported as a word, so **no unit is its
+        // A word-only analyte is reported as a word, so **no unit is its
         // canonical unit** — and there is nothing to convert into. An absent
         // unit passes the number through untouched; anything printed as a unit
         // beside a word is not recognised, which is what keeps a signal-to-cutoff
         // index from being stored as though it were the finding.
+        //
+        // ⚠️ **`.either` does not come through here**, and must not: when a
+        // dual-form analyte prints a number it prints a real titre in a real
+        // unit, so it converts exactly like any other measurement. `isQualitative`
+        // is `form == .word` for precisely this reason — see the ⚠️ on it.
         if entry.isQualitative {
             return (unit ?? "").isEmpty ? value : nil
         }

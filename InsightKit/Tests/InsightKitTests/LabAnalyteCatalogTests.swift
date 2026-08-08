@@ -89,19 +89,50 @@ final class LabAnalyteCatalogTests: XCTestCase {
 
     /// ⚠️ A corrected calcium is *calculated* from albumin; the total calcium it
     /// is calculated from is printed on the line above it and is a different
-    /// number. The catalogue carries no bare "calcium", so the measured total
-    /// stays uncatalogued — honest — rather than being filed as the calculated
-    /// one. "Albumin corrected calcium" must not fall to albumin either, which
-    /// is the longest-first sort doing its job.
+    /// number. Both are catalogued since 2026-08-09 — an Australian CMP prints
+    /// the pair, and until the bare word had an entry the measured total started
+    /// its own trend under the laboratory's label — so this now has to hold in
+    /// **both** directions: neither label may reach the other's key.
+    /// "Albumin corrected calcium" must not fall to albumin either, which is the
+    /// longest-first sort doing its job.
     func testACorrectedCalciumIsNeverABareCalcium() {
         XCTAssertEqual(LabAnalyteCatalog.match(label: "Corrected calcium")?.key,
                        "corrected_calcium")
         XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium (corrected)")?.key,
                        "corrected_calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium (Corrected)")?.key,
+                       "corrected_calcium")
         XCTAssertEqual(LabAnalyteCatalog.match(label: "Albumin corrected calcium")?.key,
                        "corrected_calcium")
-        XCTAssertNil(LabAnalyteCatalog.match(label: "Calcium"))
-        XCTAssertNil(LabAnalyteCatalog.match(label: "Serum calcium"))
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium corrected")?.key,
+                       "corrected_calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Adjusted calcium")?.key,
+                       "corrected_calcium")
+        // ...and the direction that only exists now the bare word is catalogued.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium")?.key, "calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Serum calcium")?.key, "calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Total calcium")?.key, "calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium (total)")?.key, "calcium")
+    }
+
+    /// ⚠️ **The row that makes the bare "calcium" synonym safe to have.** An
+    /// ionised calcium is a different fraction at about half the number, and
+    /// "Calcium (ionised)" contains "calcium" — so without an entry of its own a
+    /// blood-gas ionised calcium would be filed on the total's trend, which is
+    /// the silent version of the mistake the corrected pair is guarded against.
+    func testAnIonisedCalciumIsNeverATotalCalcium() {
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Ionised calcium")?.key,
+                       "ionised_calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium (ionised)")?.key,
+                       "ionised_calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium (ionized)")?.key,
+                       "ionised_calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Free calcium")?.key,
+                       "ionised_calcium")
+        // And it may not steal either of the other two.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Calcium")?.key, "calcium")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Corrected calcium")?.key,
+                       "corrected_calcium")
     }
 
     /// Every synonym must find its own entry back.
@@ -204,13 +235,16 @@ final class LabAnalyteCatalogTests: XCTestCase {
             XCTAssertTrue(entry.canonicalUnit.isEmpty, "\(entry.key)")
             XCTAssertTrue(entry.unitFactors.isEmpty, "\(entry.key)")
             XCTAssertNil(entry.analyte.canonicalUnit, "\(entry.key)")
+            XCTAssertEqual(entry.form, .word, "\(entry.key)")
             // Nothing a report can print is inside it, which is what marks a
             // stray serology index doubtful instead of storing it as a result.
             XCTAssertFalse(entry.plausible.contains(0), "\(entry.key)")
             XCTAssertFalse(entry.plausible.contains(1), "\(entry.key)")
             XCTAssertFalse(entry.plausible.contains(1000), "\(entry.key)")
         }
-        XCTAssertEqual(LabAnalyteCatalog.entries.filter(\.isQualitative).count, 14)
+        // Thirteen, not the fourteen this test pinned before 2026-08-09: the
+        // hepatitis B surface antibody left the word-only set for `.either`.
+        XCTAssertEqual(LabAnalyteCatalog.entries.filter(\.isQualitative).count, 13)
 
         let haemolysis = LabAnalyteCatalog.entry(forKey: "haemolysis_index")
         XCTAssertEqual(haemolysis?.isQualitative, false)
@@ -221,5 +255,110 @@ final class LabAnalyteCatalogTests: XCTestCase {
         // were.
         let hiv = LabAnalyteCatalog.entry(forKey: "hiv_ag_ab")!
         XCTAssertNil(LabAnalyteCatalog.convert(0.06, from: "S/CO", for: hiv))
+    }
+
+    // MARK: - The dual form
+
+    /// ⚠️ **The one combination `Entry.form` reads silently and wrongly**: the
+    /// word flag set on an entry with no canonical unit is `.word` whatever the
+    /// author meant, so its unit table and plausible range would never be
+    /// consulted again. Nothing in the type can stop that being written, which is
+    /// why it is pinned here — the same job `testEverySynonymMatchesItsOwnEntry`
+    /// does for a synonym nothing can match.
+    func testADualFormEntryDeclaresBothAUnitAndAWord() {
+        for entry in LabAnalyteCatalog.entries where entry.alsoReportedAsWord {
+            XCTAssertFalse(entry.canonicalUnit.isEmpty,
+                           "\(entry.key) claims a word form with no unit to be the other half of")
+            XCTAssertEqual(entry.form, .either, "\(entry.key)")
+            XCTAssertFalse(entry.unitFactors.isEmpty, "\(entry.key)")
+            // A real range, not the `noMagnitude` sentinel: a dual-form analyte's
+            // number is a measurement and has to be sizeable.
+            XCTAssertNotEqual(entry.plausible, LabAnalyteCatalog.Entry.noMagnitude,
+                              "\(entry.key)")
+            XCTAssertFalse(entry.isQualitative, "\(entry.key)")
+        }
+        // The three forms partition the catalogue: every entry is exactly one.
+        for entry in LabAnalyteCatalog.entries {
+            switch entry.form {
+            case .word: XCTAssertTrue(entry.canonicalUnit.isEmpty, "\(entry.key)")
+            case .measurement, .either: XCTAssertFalse(entry.canonicalUnit.isEmpty, "\(entry.key)")
+            }
+        }
+    }
+
+    /// ⚠️ **The reader's own report prints this test both ways.** `HepB surface
+    /// antibody Negative` is a word and `HepB surface antibody <5 IU/L` is a
+    /// censored titre, and the titre is what the report's own comment reasons
+    /// about — *not immune (HBsAb <10 IU/L)*. Held as word-only, the titre was
+    /// `unitUnrecognised` and doubtful; held as a measurement, the word was
+    /// dropped. mIU/mL and IU/L are the same quantity by arithmetic, and a report
+    /// printing the American spelling must not come back doubtful for it.
+    func testHepatitisBSurfaceAntibodyIsPrintedBothAsAWordAndAsATitre() {
+        let entry = LabAnalyteCatalog.entry(forKey: "hep_b_surface_antibody")!
+        XCTAssertEqual(entry.form, .either)
+        XCTAssertEqual(entry.analyte.canonicalUnit, "IU/L")
+        XCTAssertEqual(LabAnalyteCatalog.convert(142, from: "IU/L", for: entry), 142)
+        XCTAssertEqual(LabAnalyteCatalog.convert(142, from: "mIU/mL", for: entry), 142)
+        XCTAssertEqual(LabAnalyteCatalog.convert(142, from: "U/L", for: entry), 142)
+        // Still refused rather than guessed at, the same as any other entry.
+        XCTAssertNil(LabAnalyteCatalog.convert(142, from: "copies/mL", for: entry))
+        // ⚠️ It is the only one. Every other serology row prints a number that is
+        // *not* the finding — a signal-to-cutoff index, a Ct, a viral load — and
+        // `noMagnitude` is what keeps that number from being stored as a result.
+        XCTAssertEqual(LabAnalyteCatalog.entries.filter { $0.form == .either }.map(\.key),
+                       ["hep_b_surface_antibody"])
+        XCTAssertEqual(LabAnalyteCatalog.entry(forKey: "hep_a_igg")?.form, .word)
+        XCTAssertEqual(LabAnalyteCatalog.entry(forKey: "hep_b_surface_antigen")?.form, .word)
+    }
+
+    // MARK: - Labels that missed their entry by spelling
+
+    /// ⚠️ **Three labels off the reader's own reports matched nothing**, so each
+    /// started a second trend beside the catalogued analyte it *is*. None of the
+    /// three is an unusual name — they are the ordinary spellings of tests the
+    /// catalogue already had, and a synonym list is only as good as the shapes it
+    /// was written against.
+    func testTheThreeCorpusLabelsThatMissedTheirEntryBySpelling() {
+        // "HepB" is one word: a synonym written "hep b" cannot match it, because
+        // normalisation collapses punctuation to spaces and never splits a word.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "HepB surface antibody")?.key,
+                       "hep_b_surface_antibody")
+        // "Ag", not "antigen" — and only ever behind the organism's name.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Faecal H. pylori Ag (ChLIA)")?.key,
+                       "h_pylori_faecal_antigen")
+        // A spaced slash, which every synonym in the file writes closed up.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "HIV 1 / 2 total antibody")?.key,
+                       "hiv_ag_ab")
+
+        // ⚠️ None of the three may have bought its match by taking a label that
+        // belonged to something else. The hepatitis B pair is two letters apart
+        // and means opposite things; "ag" is two letters that also open an anion
+        // gap and an HIV screen.
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "HepB surface antigen")?.key,
+                       "hep_b_surface_antigen")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "HepB core antibody")?.key,
+                       "hep_b_core_antibody")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Anion gap")?.key, "anion_gap")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "HIV Ag/Ab")?.key, "hiv_ag_ab")
+        XCTAssertNil(LabAnalyteCatalog.match(label: "Faecal occult blood"))
+    }
+
+    /// ⚠️ The slash fix is in the normaliser rather than in each synonym, so it
+    /// has to leave every closed-up spelling exactly where it was — and it opens
+    /// the full stop's twin hazard: a synonym written with a spaced slash can
+    /// never match anything. `testEverySynonymMatchesItsOwnEntry` is what catches
+    /// that one; this is the half that pins the labels.
+    func testASpacedSlashInALabelFindsTheSameEntryAsAClosedOne() {
+        for label in ["HIV 1/2 total antibody", "HIV 1 / 2 total antibody",
+                      "HIV 1 /2 total antibody", "HIV 1/ 2 total antibody"] {
+            XCTAssertEqual(LabAnalyteCatalog.match(label: label)?.key, "hiv_ag_ab", label)
+        }
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Cholesterol / HDL ratio")?.key,
+                       "cholesterol_hdl_ratio")
+        XCTAssertEqual(LabAnalyteCatalog.match(label: "Cholesterol/HDL ratio")?.key,
+                       "cholesterol_hdl_ratio")
+        // A label that is only a slash away from a real analyte still matches
+        // nothing rather than the nearest thing.
+        XCTAssertNil(LabAnalyteCatalog.match(label: "HIV 1 / 2 RNA quantitative"))
     }
 }

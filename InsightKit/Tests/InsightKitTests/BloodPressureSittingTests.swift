@@ -94,6 +94,85 @@ final class BloodPressureSittingTests: XCTestCase {
         XCTAssertEqual(deduped.count, 2)
     }
 
+    // MARK: - Defect 3: one diastolic paired with every systolic in sight
+
+    /// **`pairedReadings` handed the same diastolic to more than one systolic.**
+    /// Each systolic took `diastolic.min(by:)` — the nearest — and nothing ever
+    /// marked that diastolic as spent, so N systolic samples could all pair to
+    /// one of them.
+    ///
+    /// The reader's real record contains the case: two genuinely different
+    /// readings sharing a timestamp to the second (the same tie
+    /// `Entry.ordinal` exists for). Both took whichever diastolic `min` happened
+    /// to return first, so the second reading's diastolic was simply the first
+    /// reading's number — and 84 against 76 is a whole ACC/AHA band, `stage1`
+    /// against `normal`.
+    ///
+    /// It was invisible three ways over: the fabricated pair still looks like a
+    /// plausible cuff reading, dedup cannot catch it because the two systolic
+    /// values genuinely differ, and nothing on screen shows a diastolic beside
+    /// the sample it was recorded with.
+    func testTwoReadingsAtOneTimestampDoNotBothTakeTheSameDiastolic() {
+        var all: [HealthMetricSample] = []
+        all += samples(128, 84, at: at(0), source: .withings)
+        all += samples(118, 76, at: at(0), source: .withings)
+
+        let readings = BloodPressureEstimator.pairedReadings(from: all)
+        XCTAssertEqual(readings.count, 2, "two systolic values are two readings")
+        // Each diastolic used once. ⚠️ *Which* belongs to which is not in the
+        // data and this asserts no opinion on it — that they are two is the
+        // recoverable fact, and it is the one the sitting's median and spread
+        // read. Before the fix this was [84, 84].
+        XCTAssertEqual(readings.map(\.diastolic).sorted(), [76, 84])
+
+        // And the sitting built on top of them is right either way round.
+        guard let sitting = BloodPressureSittings.sittings(from: all).first else {
+            return XCTFail("no sitting")
+        }
+        XCTAssertEqual(sitting.count, 2)
+        XCTAssertEqual(sitting.diastolic, 80, "the median of 76 and 84, not of 84 and 84")
+    }
+
+    /// ⚠️ A systolic with no diastolic left is **dropped**, not lent somebody
+    /// else's. Borrowing is precisely what the many-to-one pairing did, and a
+    /// half-reading completed from a neighbour is the same invented number with
+    /// a smaller blast radius.
+    func testASystolicWithNoDiastolicLeftIsDroppedRatherThanBorrowingOne() {
+        let all: [HealthMetricSample] = [
+            HealthMetricSample(type: .bloodPressureSystolic, value: 128,
+                               start: at(0), source: .withings),
+            HealthMetricSample(type: .bloodPressureSystolic, value: 142,
+                               start: at(60), source: .withings),
+            HealthMetricSample(type: .bloodPressureDiastolic, value: 84,
+                               start: at(0), source: .withings)
+        ]
+        let readings = BloodPressureEstimator.pairedReadings(from: all)
+        XCTAssertEqual(readings.count, 1, "one diastolic can complete one reading")
+        // Nearest-first: the diastolic goes to the systolic it was recorded
+        // with, not to whichever the loop reached first.
+        XCTAssertEqual(readings.first?.systolic, 128)
+        XCTAssertEqual(readings.first?.diastolic, 84)
+    }
+
+    /// The assignment sorts candidate pairings and walks a set of spent indices,
+    /// and neither `sort` nor `Set` is ordered by anything but what it is told.
+    /// A pairing that reshuffled between two calls over identical data would
+    /// move a reading's diastolic for no reason the reader could ever see.
+    func testPairingIsDeterministicAcrossRepeatedCalls() {
+        var all: [HealthMetricSample] = []
+        for index in 0..<6 {
+            all += samples(120 + Double(index), 78 + Double(index),
+                           at: at(Double(index) * 90), source: .withings)
+        }
+        let first = BloodPressureEstimator.pairedReadings(from: all)
+        XCTAssertEqual(first.count, 6)
+        for _ in 0..<20 {
+            let again = BloodPressureEstimator.pairedReadings(from: all)
+            XCTAssertEqual(again.map(\.systolic), first.map(\.systolic))
+            XCTAssertEqual(again.map(\.diastolic), first.map(\.diastolic))
+        }
+    }
+
     // MARK: - Clustering
 
     /// The threshold is measured, not picked: the reader's inter-reading gaps are

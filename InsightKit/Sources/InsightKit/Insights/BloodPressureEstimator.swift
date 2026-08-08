@@ -49,10 +49,34 @@ public enum BloodPressureEstimator {
         public var category: String { BloodPressureEstimator.category(systolic: systolic, diastolic: diastolic) }
     }
 
-    /// Pair every systolic sample with its nearest diastolic (within
-    /// `pairingWindow`) across **all** sources, newest first. Apple Health and
+    /// Pair every systolic sample with **a diastolic of its own** (within
+    /// `pairingWindow`) across all sources, newest first. Apple Health and
     /// Withings readings are included automatically, each keeping its own date
     /// and source label.
+    ///
+    /// ⚠️ **One-to-one since 2026-08-09; it was many-to-one before, and that was
+    /// a silent wrong number.** Each systolic took `diastolic.min(by:)` — the
+    /// nearest — and *nothing marked that diastolic as spent*, so N systolic
+    /// samples could all pair to the same one. It bites wherever two genuinely
+    /// different readings share a timestamp, which happens in the reader's real
+    /// record: both took whichever diastolic `min` happened to return first, so
+    /// the second reading's diastolic was simply another reading's number. It
+    /// never looked wrong — the pair is still a plausible cuff reading — and
+    /// dedup could not catch it, because the two systolic values genuinely
+    /// differ.
+    ///
+    /// The assignment is **greedy nearest-first**: every candidate pairing inside
+    /// the window, ordered by how far apart the two samples are, taken while both
+    /// halves are still free. ⚠️ A systolic left with no free diastolic is
+    /// **dropped**, not lent somebody else's — half a reading is not a reading,
+    /// and inventing the other half is the defect this replaces.
+    ///
+    /// ⚠️ When two readings share a timestamp to the second, *which* diastolic
+    /// belongs to which systolic is not in the data, and this makes no claim to
+    /// recover it. What it does guarantee is that they stay **two**, so the
+    /// sitting's median and spread — which read the whole multiset — are right
+    /// either way. Same reason `BloodPressureSitting.Entry.ordinal` goes `nil` on
+    /// a tie instead of guessing a direction.
     ///
     /// ⚠️ **Deduplicated since 2026-08-08 — it never was before, and two real
     /// defects were living in that.** One 2020 Withings reading appears ten times
@@ -66,22 +90,66 @@ public enum BloodPressureEstimator {
                                       pairingWindow: TimeInterval = 2 * 3600) -> [Reading] {
         let systolic = samples.samples(of: .bloodPressureSystolic)
         let diastolic = samples.samples(of: .bloodPressureDiastolic)
-        guard !systolic.isEmpty else { return [] }
+        guard !systolic.isEmpty, !diastolic.isEmpty else { return [] }
+
+        // `samples(of:)` returns ascending by date (`HealthMetricSample.swift:140`),
+        // so one forward pointer finds each systolic's window and the candidate
+        // list stays proportional to how densely the two series actually overlap
+        // rather than to n×m.
+        var candidates: [(gap: TimeInterval, systolic: Int, diastolic: Int)] = []
+        var lower = 0
+        for s in systolic.indices {
+            let at = systolic[s].start
+            while lower < diastolic.count,
+                  diastolic[lower].start < at.addingTimeInterval(-pairingWindow) { lower += 1 }
+            var d = lower
+            while d < diastolic.count,
+                  diastolic[d].start <= at.addingTimeInterval(pairingWindow) {
+                candidates.append((abs(diastolic[d].start.timeIntervalSince(at)), s, d))
+                d += 1
+            }
+        }
+        // Fully determined — nearest first, then in the order the samples
+        // arrived. `sort` is not stable, and a pairing that reshuffled between
+        // two calls would move a reading's diastolic for no reason the reader
+        // could see.
+        candidates.sort {
+            if $0.gap != $1.gap { return $0.gap < $1.gap }
+            if $0.systolic != $1.systolic { return $0.systolic < $1.systolic }
+            return $0.diastolic < $1.diastolic
+        }
+
+        var spentSystolic: Set<Int> = [], spentDiastolic: Set<Int> = []
         var out: [Reading] = []
-        for s in systolic {
-            guard let d = diastolic.min(by: {
-                abs($0.start.timeIntervalSince(s.start)) < abs($1.start.timeIntervalSince(s.start))
-            }), abs(d.start.timeIntervalSince(s.start)) <= pairingWindow else { continue }
-            out.append(Reading(date: s.start, systolic: s.value, diastolic: d.value,
+        for candidate in candidates
+        where !spentSystolic.contains(candidate.systolic)
+            && !spentDiastolic.contains(candidate.diastolic) {
+            spentSystolic.insert(candidate.systolic)
+            spentDiastolic.insert(candidate.diastolic)
+            let s = systolic[candidate.systolic]
+            out.append(Reading(date: s.start, systolic: s.value,
+                               diastolic: diastolic[candidate.diastolic].value,
                                source: s.source.displayName))
         }
         return BloodPressureSittings.deduplicate(out).sorted { $0.date > $1.date }
     }
 
-    /// Where the user is in grounding the estimate. Only readings **within the
-    /// last 30 days** count toward grounding — older readings drift and expire,
-    /// so the user must keep providing fresh ones. `totalReadings` is kept only
-    /// for display ("N in your history").
+    /// Where the user is in grounding the estimate. Only **sittings within the
+    /// last 30 days** count toward grounding — older ones drift and expire, so
+    /// the user must keep providing fresh ones. `totalReadings` is kept only for
+    /// display ("N in your history").
+    ///
+    /// ⚠️ **Every count on this type is a count of *sittings* since 2026-08-09,
+    /// and the three property names have not caught up.** They are public and
+    /// read by `ContributionSummary.bloodPressure(_:)` and two app-target views,
+    /// none of which this change owns; renaming them to `totalSittings` /
+    /// `recentSittings` / `fittableSittings` is a follow-up, not a decision left
+    /// open. What the names must not do meanwhile is fool a reader of this file:
+    /// four readings cuffed one after another on a Sunday morning are **one**
+    /// number here, because they are one observation of one person — see
+    /// `BloodPressureSitting`. The reader's own record goes 52 samples → 42
+    /// distinct readings → 20 sittings, so the figures on screen dropped when
+    /// this landed. That drop is the correction.
     public struct CalibrationStatus: Sendable, Equatable {
         /// Where the user is in the calibration lifecycle.
         public enum Phase: Sendable, Equatable {
@@ -95,11 +163,14 @@ public enum BloodPressureEstimator {
             case expired
         }
 
-        public let totalReadings: Int      // all history, for display
-        public let recentReadings: Int     // last 30 days — the grounding set
-        /// Readings inside `calibrationFitWindow` — what the regression can use.
+        public let totalReadings: Int      // sittings, all history, for display
+        public let recentReadings: Int     // sittings, last 30 days — the grounding set
+        /// Sittings inside `calibrationFitWindow` — what the regression can use.
         public let fittableReadings: Int
-        /// Whether the initial five ever landed inside one 30-day window.
+        /// Whether the initial five **sittings** ever landed inside one 30-day
+        /// window. Five separate sittings, not five readings: five cuffs in one
+        /// morning is one morning, and calibrating a person off one morning is
+        /// what the sitting unit exists to stop.
         public let hasCompletedInitial: Bool
 
         public init(totalReadings: Int, recentReadings: Int,
@@ -116,12 +187,16 @@ public enum BloodPressureEstimator {
                 ? .maintenance : .expired
         }
 
-        /// Readings required within the grounding window.
+        /// Sittings required within the grounding window.
         ///
         /// Five once, then two a month — which is what
         /// `maintenanceReadingsPerMonth` was declared for. It was never read,
         /// and this was hard-wired to `initialCalibrationReadings`, so the app
         /// demanded five readings every thirty days forever.
+        ///
+        /// ⚠️ Both constants now mean *sittings*, which is a genuinely stricter
+        /// ask than the one they used to make — and the honest one. Five readings
+        /// could all be one morning; five sittings are five occasions.
         public var required: Int {
             switch phase {
             case .initial, .expired: return BloodPressureEstimator.initialCalibrationReadings
@@ -134,50 +209,72 @@ public enum BloodPressureEstimator {
 
         /// One plain-language sentence describing what to do next — the same
         /// message the app shows in Vitals, Insights and Settings.
+        ///
+        /// ⚠️ **It says "sittings", and it says why in the same breath.** These
+        /// figures fell the day the unit changed, and a count that drops with no
+        /// explanation reads as lost data rather than as the correction it is.
+        /// The clause the reader needs is *"readings taken in one sitting count
+        /// once"* — it is the whole of the change, in the words they logged their
+        /// readings in.
         public var guidance: String {
             let n = neededForGrounding
+            let sittings = SectionCaveat.plural(recentReadings, "sitting")
+            let onceEach = "readings taken in one sitting count once"
             switch phase {
             case .initial:
                 if isGrounded {
-                    return "Grounded — \(recentReadings) cuff readings in the last 30 days. \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month from here keeps it grounded."
+                    return "Grounded — \(recentReadings) cuff \(sittings) in the last 30 days. \(BloodPressureEstimator.maintenanceReadingsPerMonth) a month from here keeps it grounded."
                 }
-                return "\(recentReadings) of \(required) cuff readings in the last 30 days. Log \(n) more from a cuff to ground the estimate — only readings from the last 30 days count (readings already in Apple Health count too)."
+                return "\(recentReadings) of \(required) cuff sittings in the last 30 days. Log \(n) more from a cuff to ground the estimate — \(onceEach), and only the last 30 days count (readings already in Apple Health count too)."
             case .maintenance:
                 if isGrounded {
-                    return "Grounded — \(recentReadings) cuff readings in the last 30 days. \(required) a month keeps it that way."
+                    return "Grounded — \(recentReadings) cuff \(sittings) in the last 30 days. \(required) a month keeps it that way."
                 }
-                return "\(recentReadings) of \(required) cuff readings this month. Log \(n) more to keep the estimate grounded — you've already done the one-off five."
+                return "\(recentReadings) of \(required) cuff sittings this month. Log \(n) more to keep the estimate grounded — \(onceEach), and you've already done the one-off five."
             case .expired:
-                return "It's been a while — \(recentReadings) of \(required) cuff readings in the last 30 days. Your earlier calibration is too old to fit against, so it needs the full five again."
+                return "It's been a while — \(recentReadings) of \(required) cuff sittings in the last 30 days. Your earlier calibration is too old to fit against, so it needs the full five again."
             }
         }
     }
 
-    /// Compute grounding status: readings within the last 30 days are the
+    /// Compute grounding status: **sittings** within the last 30 days are the
     /// grounding set; anything older is shown as history but doesn't count
     /// toward grounding — though it may still feed the fit.
+    ///
+    /// ⚠️ **Counts sittings, not readings, since 2026-08-09.** Cuffing four times
+    /// in one morning is one observation of this person, not four — see
+    /// `BloodPressureSitting`, which measures the argument on the reader's own
+    /// export. Counting readings made every figure derived from the count too
+    /// confident by roughly √n, and it made the grounding rule satisfiable by a
+    /// single busy morning.
     public static func calibrationStatus(from samples: [HealthMetricSample],
                                          now: Date = Date()) -> CalibrationStatus {
-        let pairs = pairedReadings(from: samples)
-        let recent = pairs.filter { now.timeIntervalSince($0.date) <= maintenanceWindow }.count
-        let fittable = pairs.filter { now.timeIntervalSince($0.date) <= calibrationFitWindow }.count
-        return CalibrationStatus(totalReadings: pairs.count, recentReadings: recent,
+        let sittings = BloodPressureSittings.sittings(from: samples)
+        let recent = sittings.filter { now.timeIntervalSince($0.start) <= maintenanceWindow }.count
+        let fittable = sittings.filter { now.timeIntervalSince($0.start) <= calibrationFitWindow }.count
+        return CalibrationStatus(totalReadings: sittings.count, recentReadings: recent,
                                  fittableReadings: fittable,
-                                 hasCompletedInitial: completedInitialCalibration(pairs))
+                                 hasCompletedInitial: completedInitialCalibration(sittings))
     }
 
-    /// Whether `initialCalibrationReadings` ever landed inside one 30-day window.
+    /// Whether `initialCalibrationReadings` **sittings** ever landed inside one
+    /// 30-day window.
     ///
-    /// Anchored on each reading and looking *back* thirty days: the user
+    /// Anchored on each sitting and looking *back* thirty days: the user
     /// completed the one-off calibration the moment such a window existed, and
     /// no later gap un-completes it. Whether the calibration has since gone
     /// stale is a separate question, answered by whether the fit window still
     /// holds enough points — see `CalibrationStatus.phase`.
-    static func completedInitialCalibration(_ readings: [Reading]) -> Bool {
-        guard readings.count >= initialCalibrationReadings else { return false }
-        // `pairedReadings` returns newest-first, so from each anchor the
-        // remainder of the array runs backwards in time.
-        let dates = readings.map(\.date)
+    ///
+    /// ⚠️ Sittings rather than readings is what stops five cuffs in one morning
+    /// completing a calibration. A regression through one morning has no spread
+    /// in the thing it is regressing against, and the estimate it produces would
+    /// be a statement about that morning wearing the label of a person.
+    static func completedInitialCalibration(_ sittings: [BloodPressureSitting]) -> Bool {
+        guard sittings.count >= initialCalibrationReadings else { return false }
+        // `BloodPressureSittings.sittings` returns newest-first, so from each
+        // anchor the remainder of the array runs backwards in time.
+        let dates = sittings.map(\.start)
         for (index, anchor) in dates.enumerated() {
             let window = dates[index...].prefix { anchor.timeIntervalSince($0) <= maintenanceWindow }
             if window.count >= initialCalibrationReadings { return true }
@@ -194,11 +291,16 @@ public enum BloodPressureEstimator {
     /// newest. It also means someone who cuffs weekly still sees a number, where
     /// before the dial was blank six days in seven.
     public struct Trend: Sendable, Equatable {
-        /// Mean systolic across the window — the level being scored.
+        /// Mean of the **sitting medians** across the window — the level being
+        /// scored. Median inside a sitting, mean across them: one bad cuff
+        /// placement cannot carry a morning, and no morning counts twice.
         public let systolic: Double
         public let diastolic: Double
+        /// ⚠️ **Sittings, not readings, since 2026-08-09** — the name is a public
+        /// one this change does not own the call sites of, and `sittingCount` is
+        /// the follow-up rename. A morning of four cuffs contributes 1 here.
         public let readingCount: Int
-        /// Oldest reading in the window, so the card can say what it covered.
+        /// Oldest sitting in the window, so the card can say what it covered.
         public let spanDays: Int
         /// Change in systolic per week across the window, when there is enough
         /// spread in time to fit one. Positive is rising.
@@ -209,26 +311,36 @@ public enum BloodPressureEstimator {
         }
     }
 
-    /// Days the readings must span before a per-week slope is offered at all.
+    /// Days the sittings must span before a per-week slope is offered at all.
     /// Two weeks is the smallest window in which "per week" describes the
     /// pattern rather than the gap between two mornings.
     public static let minimumTrendSpanDays = 14.0
 
-    /// The recent cuff pattern, or nil when there are too few readings to
+    /// The recent cuff pattern, or nil when there are too few **sittings** to
     /// describe one.
     ///
-    /// Two readings is the floor: one is a moment, not a pattern, and averaging
-    /// a single reading would just be the old behaviour wearing a new word.
+    /// Two sittings is the floor: one is a moment, not a pattern, and averaging
+    /// a single sitting would just be the old behaviour wearing a new word.
+    ///
+    /// ⚠️ **Over sitting medians since 2026-08-09, not over readings.** Cuffing
+    /// four times on a Sunday used to give that Sunday four times the weight of
+    /// a Tuesday it disagreed with — so the "recent average" was an average of
+    /// the reader's *cuffing habit* as much as of their blood pressure, and a
+    /// slope fitted through it inherited the same tilt. About 28% of the
+    /// sitting-to-sitting variance in this reader's record is the cuff rather
+    /// than the person (`BloodPressureSitting`), which is how much of that
+    /// weighting was noise.
     public static func recentTrend(from samples: [HealthMetricSample],
                                    now: Date = Date(),
                                    window: TimeInterval = maintenanceWindow,
-                                   minimumReadings: Int = 2) -> Trend? {
-        let readings = pairedReadings(from: samples)
-            .filter { now.timeIntervalSince($0.date) <= window && $0.date <= now }
-        guard readings.count >= minimumReadings,
-              let systolic = Baseline.mean(readings.map(\.systolic)),
-              let diastolic = Baseline.mean(readings.map(\.diastolic)),
-              let oldest = readings.map(\.date).min() else { return nil }
+                                   minimumSittings: Int = 2) -> Trend? {
+        let sittings = BloodPressureSittings.sittings(from: samples)
+            .filter { now.timeIntervalSince($0.start) <= window && $0.start <= now }
+        guard sittings.count >= minimumSittings,
+              // `BloodPressureSitting.systolic` is already the sitting's median.
+              let systolic = Baseline.mean(sittings.map(\.systolic)),
+              let diastolic = Baseline.mean(sittings.map(\.diastolic)),
+              let oldest = sittings.map(\.start).min() else { return nil }
 
         // Drift in mmHg per week, fitted against real elapsed time rather than
         // sample index — cuff readings are irregular, so an index regression
@@ -241,14 +353,14 @@ public enum BloodPressureEstimator {
         // one, a slope no living person's blood pressure sustains. Same
         // lesson as the drift counter's ±5 floor: a relative measure needs an
         // absolute companion, here a floor on the baseline it is measured over.
-        let days = readings.map { $0.date.timeIntervalSince(oldest) / 86_400 }
+        let days = sittings.map { $0.start.timeIntervalSince(oldest) / 86_400 }
         let spreadDays = (days.max() ?? 0) - (days.min() ?? 0)
         let perWeek = spreadDays >= Self.minimumTrendSpanDays
-            ? Baseline.linearRegression(x: days, y: readings.map(\.systolic)).map { $0.slope * 7 }
+            ? Baseline.linearRegression(x: days, y: sittings.map(\.systolic)).map { $0.slope * 7 }
             : nil
 
         return Trend(systolic: systolic, diastolic: diastolic,
-                     readingCount: readings.count,
+                     readingCount: sittings.count,
                      spanDays: Swift.max(1, Int((now.timeIntervalSince(oldest) / 86_400).rounded())),
                      systolicPerWeek: perWeek)
     }
@@ -695,6 +807,21 @@ public struct BloodPressureInsight: InsightModel {
         // reading" requirement — the user shouldn't be asked to re-enter what
         // the phone already has.
         let status = BloodPressureEstimator.calibrationStatus(from: samples, now: now)
+
+        // **What this reader's own cuff does when it repeats itself**, and the
+        // floor that follows from it. Computed once here and handed to both the
+        // drift comparison and the ± the card prints, so the card cannot state
+        // one error bar while judging drift against another — backlog Q2's
+        // lesson, re-applied to the term that changed.
+        //
+        // The latest sitting's size is the `n`: it is the sitting the estimate
+        // was last checked against, and in this reader's record it is usually 1,
+        // which is exactly the case the bare ISO ±5 flattered by about 2x.
+        let sittings = BloodPressureSittings.sittings(from: samples)
+        let pooledWithinSD = BloodPressureSittings.pooledWithinSD(sittings).sd
+        let uncertaintyFloor = BloodPressureEstimator.Drift.uncertaintyFloor(
+            pooledWithinSD: pooledWithinSD, readings: sittings.first?.count ?? 1)
+
         var unmet = unmetRequirements(profile: profile, now: now)
         if status.totalReadings > 0 || (sys != nil && dia != nil) {
             unmet.removeAll { $0.kind == .cuffSystolic || $0.kind == .cuffDiastolic }
@@ -766,7 +893,7 @@ public struct BloodPressureInsight: InsightModel {
         if let trend {
             if !hasFreshReading {
                 drivers.append(InsightDriver(
-                    text: String(format: "Recent average: %.0f/%.0f mmHg across %d readings in %d days (%@)",
+                    text: String(format: "Recent average: %.0f/%.0f mmHg across %d sittings in %d days (%@)",
                                  trend.systolic, trend.diastolic, trend.readingCount,
                                  trend.spanDays, trend.category),
                     isNotable: trend.category != "Normal"))
@@ -860,16 +987,18 @@ public struct BloodPressureInsight: InsightModel {
             // more information, not less, and the widening comes from the
             // record rather than from a decay constant somebody chose.
             if let est = BloodPressureEstimator.estimate(currentRestingHR: restHR, currentHRV: currentHRV, calibration: calibration) {
-                let drift = BloodPressureEstimator.drift(calibration: calibration, now: now)
+                let drift = BloodPressureEstimator.drift(calibration: calibration, now: now,
+                                                         uncertaintyFloor: uncertaintyFloor)
                 // **One ±, used by every line on this card.** See
                 // `BloodPressureEstimator.statedUncertainty`.
-                let plusMinus = BloodPressureEstimator.statedUncertainty(fit: est, drift: drift)
+                let plusMinus = BloodPressureEstimator.statedUncertainty(
+                    fit: est, drift: drift, uncertaintyFloor: uncertaintyFloor)
                 drivers.append(.routine(String(format: "Experimental estimate now: %.0f/%.0f mmHg (±%.0f), from %d calibration readings",
                                                est.systolic, est.diastolic,
                                                plusMinus, est.calibrationCount)))
                 if !status.isGrounded {
                     drivers.append(InsightDriver(
-                        text: "This estimate is running on an older calibration — \(status.recentReadings) cuff readings in the last 30 days, against the \(status.required) that keep it current. It is still shown, with the error bar widened to what it has actually been out by. A fresh cuff reading narrows it.",
+                        text: "This estimate is running on an older calibration — \(status.recentReadings) cuff sittings in the last 30 days, against the \(status.required) that keep it current. It is still shown, with the error bar widened to what it has actually been out by. A fresh cuff reading narrows it.",
                         isNotable: true))
                 }
                 // The drift counter. The cadence rule ("two a month") shipped
@@ -975,15 +1104,17 @@ public struct BloodPressureInsight: InsightModel {
             score = BloodPressureEstimator.score(systolic: trend.systolic,
                                                  diastolic: trend.diastolic)
             confidence = .moderate
-            explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) readings over the last \(trend.spanDays) days — rather than any single measurement."
+            explanation += " Your dial reads your recent pattern — an average of \(trend.readingCount) cuff \(SectionCaveat.plural(trend.readingCount, "sitting")) over the last \(trend.spanDays) days — rather than any single measurement. Readings taken one after another count as one sitting, so a morning of repeat cuffs doesn't outvote the rest of the month."
             let shares = BloodPressureEstimator.readingShares(systolic: trend.systolic,
                                                               diastolic: trend.diastolic)
             contributorWeights[.bloodPressureSystolic] = shares.systolic
             contributorWeights[.bloodPressureDiastolic] = shares.diastolic
             scoreAxes(systolic: trend.systolic, diastolic: trend.diastolic)
             weighting = .singleMeasure("the published ACC/AHA blood-pressure bands, over an "
-                                       + "average of \(trend.readingCount) cuff readings across "
-                                       + "\(trend.spanDays) days")
+                                       + "average of \(trend.readingCount) cuff "
+                                       + "\(SectionCaveat.plural(trend.readingCount, "sitting")) across "
+                                       + "\(trend.spanDays) days — each sitting counted once, "
+                                       + "at its own median")
         }
 
         // **The number the dial is not showing, with its date.**
@@ -1181,23 +1312,71 @@ public extension BloodPressureEstimator {
         /// nobody can calibrate their reaction to.
         public let systolicUncertainty: Double
 
-        /// The narrowest uncertainty this comparison will credit, in mmHg.
+        /// The narrowest uncertainty this comparison will credit, in mmHg —
+        /// see `uncertaintyFloor(pooledWithinSD:readings:)`, which is where it
+        /// comes from. Defaults to the ISO limit alone for a caller with no
+        /// sittings to hand.
+        public let uncertaintyFloor: Double
+
+        /// ⚠️ The floor is **last and defaulted** so that a caller who has not
+        /// yet been given the reader's sittings still compiles — and gets the
+        /// old, narrower ISO-only behaviour rather than a wrong learned figure.
+        /// The card passes it; see `BloodPressureInsight.evaluate`.
+        public init(latestSystolicError: Double, latestDiastolicError: Double,
+                    meanAbsoluteSystolicError: Double, checkedReadings: Int,
+                    daysSinceLastReading: Int, systolicUncertainty: Double,
+                    uncertaintyFloor: Double = Drift.isoMeanErrorLimit) {
+            self.latestSystolicError = latestSystolicError
+            self.latestDiastolicError = latestDiastolicError
+            self.meanAbsoluteSystolicError = meanAbsoluteSystolicError
+            self.checkedReadings = checkedReadings
+            self.daysSinceLastReading = daysSinceLastReading
+            self.systolicUncertainty = systolicUncertainty
+            self.uncertaintyFloor = uncertaintyFloor
+        }
+
+        /// ISO 81060-2's validation limit, in mmHg.
+        ///
+        /// A monitor passes validation at a **mean error** within ±5, so nothing
+        /// modelled from a cuff's output can honestly claim to be tighter than
+        /// the cuff. This was the whole floor until 2026-08-09, and as a whole
+        /// floor it was optimistic — see below.
+        public static let isoMeanErrorLimit: Double = 5
+
+        /// The narrowest ± that is honest for a sitting of `readings` readings.
         ///
         /// A least-squares fit through a handful of points can return a residual
         /// SD of nearly zero — and exactly zero for a person whose readings
         /// happen to sit on a line — at which point every subsequent millimetre
         /// reads as catastrophic drift, or the ratio divides by zero outright.
+        /// So there is a floor, and it has **two** grounds, not one:
         ///
-        /// Five, because that is the accuracy the *cuff* is held to: ISO 81060-2
-        /// validates a monitor at a mean error within ±5 mmHg. A model claiming
-        /// to predict blood pressure more precisely than the instrument that
-        /// measured it is claiming something no amount of fitting can support,
-        /// so the comparison declines to believe it.
-        public static let uncertaintyFloor: Double = 5
+        /// - **The instrument.** Nothing here can be more precise than the cuff
+        ///   that produced the training data: ISO 81060-2's ±5 mmHg.
+        /// - **⚠️ The instrument *in this reader's hands*, which is the wider
+        ///   of the two.** ISO bounds a monitor's mean error against a clinical
+        ///   reference; it says nothing about the same person cuffing themselves
+        ///   twice on a sofa. Measured on the reader's own export (2026-08-08),
+        ///   the pooled within-sitting SD is **9.6 mmHg**, with within-sitting
+        ///   spreads of 21–30 mmHg occurring — so for a one-reading sitting the
+        ///   ISO floor is optimistic by very nearly **2x**, and the card was
+        ///   promising a precision the reader's own cuff has never once
+        ///   delivered.
+        ///
+        /// `pooledWithinSD / √readings` is `BloodPressureSitting.standardError`:
+        /// how well a sitting of that many readings pins the person. Cuffing four
+        /// times in a morning halves it and the ISO limit then binds again, which
+        /// is the correct shape — repeat readings really do narrow the answer,
+        /// just not below the instrument.
+        public static func uncertaintyFloor(pooledWithinSD: Double,
+                                            readings: Int) -> Double {
+            Swift.max(isoMeanErrorLimit,
+                      pooledWithinSD / Double(Swift.max(1, readings)).squareRoot())
+        }
 
         /// What the error is actually judged against.
         public var effectiveUncertainty: Double {
-            Swift.max(systolicUncertainty, Self.uncertaintyFloor)
+            Swift.max(systolicUncertainty, uncertaintyFloor)
         }
 
         /// True when the latest error is inside what the fit claims. The
@@ -1259,18 +1438,27 @@ public extension BloodPressureEstimator {
     /// is a promise and the honest promise is the weakest one that is still true:
     ///
     /// - the fit's own residual spread;
+    /// - **the floor** — nothing here can be more precise than the cuff that
+    ///   produced the training data, *as that cuff behaves in this reader's
+    ///   hands*. Since 2026-08-09 that is `Drift.uncertaintyFloor(pooledWithinSD:
+    ///   readings:)` rather than the bare ISO ±5, and for a one-reading sitting
+    ///   it is close to twice as wide;
     /// - **what the model has actually been out by**, measured by holding each
     ///   reading out and predicting it from the ones before — a claim of ±5 from
-    ///   a model that misses by 9 is not an error bar, it is a wish;
-    /// - the ISO 81060-2 floor of ±5, because nothing here can be more precise
-    ///   than the cuff that produced the training data.
+    ///   a model that misses by 9 is not an error bar, it is a wish.
     ///
     /// The measured term is what makes ungating safe (see the card): an estimate
     /// whose calibration has gone stale does not vanish, it widens — and it
     /// widens by an amount taken from this reader's own record rather than from
     /// a decay constant somebody chose.
-    public static func statedUncertainty(fit: Estimate, drift: Drift?) -> Double {
-        Swift.max(Swift.max(fit.systolicUncertainty, Drift.uncertaintyFloor),
+    ///
+    /// ⚠️ `uncertaintyFloor` defaults to the ISO limit so an un-updated caller
+    /// keeps the old behaviour instead of silently inventing a learned figure.
+    /// The card passes the learned one.
+    static func statedUncertainty(fit: Estimate, drift: Drift?,
+                                  uncertaintyFloor: Double = Drift.isoMeanErrorLimit)
+        -> Double {
+        Swift.max(Swift.max(fit.systolicUncertainty, uncertaintyFloor),
                   drift?.meanAbsoluteSystolicError ?? 0)
     }
 
@@ -1279,7 +1467,12 @@ public extension BloodPressureEstimator {
     ///
     /// Needs one more reading than the fit itself does: the last one is the one
     /// being predicted, so it cannot also be in the training set.
-    static func drift(calibration: [CalibrationPoint], now: Date = Date()) -> Drift? {
+    ///
+    /// `uncertaintyFloor` is carried through rather than re-derived, so `band`
+    /// and `isWithinStatedUncertainty` judge the error against the same floor the
+    /// card prints — the two-± defect this whole area was rebuilt to close.
+    static func drift(calibration: [CalibrationPoint], now: Date = Date(),
+                      uncertaintyFloor: Double = Drift.isoMeanErrorLimit) -> Drift? {
         let ordered = calibration.sorted { $0.date < $1.date }
         guard ordered.count > minimumCalibrationPoints,
               let last = ordered.last else { return nil }
@@ -1311,6 +1504,7 @@ public extension BloodPressureEstimator {
             checkedReadings: systolicErrors.count,
             daysSinceLastReading: Swift.max(0, Int(
                 (now.timeIntervalSince(last.date) / 86_400).rounded(.down))),
-            systolicUncertainty: latest.uncertainty)
+            systolicUncertainty: latest.uncertainty,
+            uncertaintyFloor: uncertaintyFloor)
     }
 }
