@@ -25,6 +25,17 @@ import ARKit
 /// a LiDAR sensor and a person standing two metres in front of it. See
 /// `ARBodyScanCaptureDriver` for the three things only the device can falsify.
 ///
+/// **Walked on the simulator 2026-08-08** with `ScriptedBodyScanCaptureDriver`
+/// (screenshots in `build/simulator-shots/wf_3f11b9f1-d1f-7-d3f8f5f-*.png`):
+/// consent brief → setup form (clothing picker, placement, accuracy caveat) →
+/// live capture (station header, hold countdown) → all four stations →
+/// processing → the `.measurementFailed` ending, with no retry offered, which
+/// is `CaptureFailure.isRetryable` rendering correctly. Not yet seen on a
+/// screen: the pose-problem instruction card, an `OutcomeView` *with* a
+/// Try-again button, the `blocked` variants, the two-station camera path and
+/// the 90-second station timeout — their copy is pinned by the InsightKit
+/// tests, but their rendering has only been reasoned about, not looked at.
+///
 /// It is reachable from the tape sheet rather than being its own `InputKind`,
 /// and that is `InputKind.bodyMeasurements`' own reasoning: a tape and a scan
 /// produce the same thing and answer the same question, so the choice between
@@ -49,7 +60,13 @@ struct BodyScanCaptureView: View {
             if capture == nil {
                 capture = BodyScanCaptureModel(
                     policy: model.bodyScanPolicy,
-                    previousScans: model.bodyScans)
+                    previousScans: model.bodyScans,
+                    // Nil on every normal launch. A DEBUG build launched with
+                    // `-BodyScanScriptedCapture` gets the scripted sensor, so a
+                    // simulator session can walk the states past the honest
+                    // `.blocked(.simulator)` refusal — see
+                    // `ScriptedBodyScanCaptureDriver`.
+                    driver: ScriptedBodyScanCapture.driverIfRequested())
             }
         }
         .onDisappear { capture?.tearDown() }

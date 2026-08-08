@@ -701,6 +701,9 @@ the place to look.
   - `BodyScanMeasuring` :86
   - `CameraPermission` :92
   - `UnavailableBodyScanCaptureDriver` :376
+- `Core/Capture/ScriptedBodyScanCaptureDriver.swift`
+  - `ScriptedBodyScanCapture` :53
+  - `ScriptedBodyScanCaptureDriver` :74
 - `Core/Diagnostics/BuildInfo.swift`
   - `BuildInfo` :9
 - `Core/Diagnostics/ConnectorFaultInjection.swift`
@@ -1016,15 +1019,15 @@ the place to look.
   - `BodyMeasurementsSheet` :27
   - `BodyScanParserVersion` :272
 - `Features/Inputs/BodyScanCaptureView.swift`
-  - `ARSessionPreview` :470
-  - `BodyScanCaptureModel` :107
-  - `BodyScanCaptureView` :33
-  - `CameraPreview` :453
-  - `ConsentBriefView` :287
-  - `FinishedView` :489
-  - `LiveCaptureView` :384
-  - `OutcomeView` :523
-  - `SetUpView` :328
+  - `ARSessionPreview` :487
+  - `BodyScanCaptureModel` :124
+  - `BodyScanCaptureView` :44
+  - `CameraPreview` :470
+  - `ConsentBriefView` :304
+  - `FinishedView` :506
+  - `LiveCaptureView` :401
+  - `OutcomeView` :540
+  - `SetUpView` :345
 - `Features/Inputs/IllnessCorrectionSheet.swift`
   - `IllnessCorrectionSheet` :37
 - `Features/Inputs/MeasurementSystemControl.swift`
