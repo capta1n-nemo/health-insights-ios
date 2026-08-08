@@ -77,7 +77,9 @@ if ! output=$(./scripts/verify.sh --tests 2>&1); then
     # this is here to fix. Caught by canary, 2026-08-06. `Another build
     # holds` is a contract between the two scripts; the raw phrase is kept as
     # a second alternative in case a future verify.sh passes the log through.
-    if printf '%s' "$output" | grep -qE 'Another build holds|database is locked'; then
+    # Herestring, not printf|grep -q — under pipefail that pipeline fails on an
+    # EARLY match (grep exits, printf takes SIGPIPE). Cost a red CI on a3d70d6.
+    if grep -qE 'Another build holds|database is locked' <<<"$output"; then
         deny "$(printf '%s' "$output" | grep -A3 -E 'Another build holds|database is locked' | head -8)
 
 The gate did not fail — it could not run. Another build holds the same
@@ -103,7 +105,7 @@ skipping the gate: it has verified nothing, so a push now is unverified."
     # Matches `verify.sh`/`app-test-report.sh`'s own words, for the reason the
     # branch above records: the raw xcodebuild phrasing never reaches here.
     # `verify.sh` has already retried once before printing either of these.
-    if printf '%s' "$output" | grep -qE 'This is the MACHINE, not your diff|Zero tests executed'; then
+    if grep -qE 'This is the MACHINE, not your diff|Zero tests executed' <<<"$output"; then
         deny "$(printf '%s' "$output" | grep -B2 -A6 -E 'This is the MACHINE, not your diff|Zero tests executed' | head -24)
 
 The app-target tests did not report on your diff — and verify.sh already
