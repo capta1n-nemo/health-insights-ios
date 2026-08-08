@@ -351,12 +351,12 @@ the place to look.
   - `HealthMetricSample` :106
   - `MetricSource` :5
 - `Models/HealthTag.swift`
-  - `HealthTag` :199
+  - `HealthTag` :222
   - `TagApplicability` :22
   - `TagApplicabilityMapping` :156
   - `TagMappingMethod` :123
-  - `TagMappingRank` :302
-  - `TagSummary` :238
+  - `TagMappingRank` :325
+  - `TagSummary` :261
 - `Models/HolidayLedger.swift`
   - `HolidayLedger` :39
 - `Models/IllnessJudgement.swift`
@@ -379,6 +379,8 @@ the place to look.
   - `MetricType` :9
 - `Models/MetricValueFormatter.swift`
   - `MetricValueFormatter` :10
+- `Models/MomentConcept.swift`
+  - `MomentConcept` :38
 - `Models/MultiSource.swift`
   - `EvaluationMemo` :220
   - `MultiSource` :314

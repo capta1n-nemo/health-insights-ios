@@ -155,6 +155,16 @@ public enum TagMappingMethod: String, Codable, Sendable, Hashable, CaseIterable 
 /// produced it, a 0–1 confidence and the evidence in words.
 public struct TagApplicabilityMapping: Codable, Sendable, Hashable {
     public let applicability: TagApplicability
+    /// **The fine concept, where one was reached** — the shared vocabulary a
+    /// flagged event, a symptom and a tag all speak. `nil` means the tag was
+    /// placed at the grouping level only, or not placed at all.
+    ///
+    /// Added 2026-08-09 because the coarse grouping was the *only* vocabulary,
+    /// so an Oura tag reading "Sex" could not be linked to the "Sexual activity"
+    /// the app already offers on a flagged event. `applicability` stays the
+    /// heading the Tags page groups by; this is what the tag actually is.
+    /// See `MomentConcept`.
+    public let concept: MomentConcept?
     public let method: TagMappingMethod
     /// 0–1. **Never 1 except for `.reader`**: the reader saying what their own
     /// word meant is the only certainty available here.
@@ -164,17 +174,30 @@ public struct TagApplicabilityMapping: Codable, Sendable, Hashable {
     /// the reasoning rather than only with the answer.
     public let rationale: String
 
-    public init(applicability: TagApplicability, method: TagMappingMethod,
+    public init(applicability: TagApplicability, concept: MomentConcept? = nil,
+                method: TagMappingMethod,
                 confidence: Double, rationale: String) {
         self.applicability = applicability
+        self.concept = concept
         self.method = method
         self.confidence = min(max(confidence, 0), 1)
         self.rationale = rationale
     }
 
+    /// Place a tag at the fine concept, letting the grouping follow.
+    ///
+    /// The preferred initialiser: `MomentConcept.applicability` is total, so a
+    /// mapping built this way cannot carry a concept and a grouping that
+    /// disagree — which is the failure mode of storing both.
+    public init(concept: MomentConcept, method: TagMappingMethod,
+                confidence: Double, rationale: String) {
+        self.init(applicability: concept.applicability, concept: concept,
+                  method: method, confidence: confidence, rationale: rationale)
+    }
+
     /// The honest answer when nothing placed a tag.
     public static let unresolved = TagApplicabilityMapping(
-        applicability: .unclassified, method: .unresolved, confidence: 0,
+        applicability: .unclassified, concept: nil, method: .unresolved, confidence: 0,
         rationale: "No word in this tag matched anything the app knows, and the on-device model was not able to place it.")
 
     /// Whether this is worth asking the on-device model about.

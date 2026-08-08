@@ -46,8 +46,14 @@ public enum TagLexicon {
     /// are not — "shot" (a drink or a photograph), "bath", "session", "game",
     /// "weight" (lifted, or measured) — are deliberately absent: an ambiguous
     /// stem does not add coverage, it adds confident mistakes.
-    static let stems: [TagApplicability: [String]] = [
-        .activity: [
+    /// ⚠️ **Keyed by `MomentConcept`, and the coarse `TagApplicability` is
+    /// derived from the winner** — never written down twice. This table used to
+    /// be keyed by the coarse grouping, which is how a tag reading "Wine" could
+    /// only ever resolve to "Substances" and a tag reading "Sex" could not
+    /// resolve at all: the categories were the only vocabulary, so anything
+    /// finer than a category was unsayable. See `MomentConcept`.
+    static let stems: [MomentConcept: [String]] = [
+        .exercise: [
             "run", "jog", "walk", "hike", "hiking", "cycl", "bike", "biking", "ride",
             "swim", "kayak", "canoe", "paddl", "row", "ski", "snowboard", "skat",
             "surf", "climb", "bould", "gym", "workout", "training", "train session",
@@ -58,31 +64,47 @@ public enum TagLexicon {
             "marathon", "triathlon", "sprint", "steps", "stairs", "deadlift",
             "squat", "bench press", "lifting", "calisthen", "rowing", "erg",
         ],
-        .sleepRecovery: [
-            "sleep", "slept", "nap", "bedtime", "early night", "late night",
-            "lie in", "rest day", "recover", "sauna", "cold plunge", "ice bath",
-            "massage", "physio", "insomnia", "snor", "restless", "woke", "wake",
+        .poorSleep: [
+            "sleep", "slept", "bedtime", "early night", "late night",
+            "lie in", "insomnia", "snor", "restless", "woke", "wake",
             "earplug", "eye mask", "blackout", "disturbed",
         ],
-        .mentalHealth: [
-            "stress", "anxi", "anxious", "panic", "mood", "sad", "depress",
-            "calm", "relax", "medit", "mindful", "breathwork", "therap",
-            "counsell", "overwhelm", "burnout", "lonely", "angry", "irritab",
-            "grief", "journal", "gratitude", "worried", "tense", "low mood",
-            "mental health", "cry",
+        .rest: [
+            "nap", "rest day", "recover", "sauna", "cold plunge", "ice bath",
+            "massage", "physio",
         ],
-        .illness: [
+        .stress: [
+            "stress", "anxi", "anxious", "panic", "overwhelm", "burnout",
+            "worried", "tense",
+        ],
+        .mood: [
+            "mood", "sad", "depress", "calm", "relax", "medit", "mindful",
+            "breathwork", "therap", "counsell", "lonely", "angry", "irritab",
+            "grief", "journal", "gratitude", "low mood", "mental health", "cry",
+        ],
+        .feelingUnwell: [
             "sick", "ill", "unwell", "cold symptoms", "flu", "fever", "cough",
             "sneez", "headache", "migraine", "nausea", "vomit", "diarrh",
             "sore throat", "sore", "infect", "covid", "virus", "allerg",
             "hayfever", "hay fever", "pain", "ache", "cramp", "injur", "sprain",
             "symptom", "congest", "sinus", "rash", "dizzy", "bloat",
         ],
-        .substances: [
+        // The substance stems split four ways, which the coarse table could not
+        // express. A tag reading "Wine" now resolves to alcohol rather than to
+        // the genus, which is what `SubstanceClass` already needs to hear.
+        .alcohol: [
             "alcohol", "drink", "drank", "beer", "wine", "prosecco", "champagne",
             "whisk", "vodka", "gin", "rum", "tequila", "cocktail", "pint",
-            "hangover", "caffein", "coffee", "espresso", "latte", "energy drink",
-            "nicotine", "smok", "vape", "cigar", "cannabis", "weed", "nightcap",
+            "hangover", "nightcap",
+        ],
+        .caffeine: [
+            "caffein", "coffee", "espresso", "latte", "energy drink",
+        ],
+        .nicotine: [
+            "nicotine", "smok", "vape", "cigar",
+        ],
+        .otherSubstance: [
+            "cannabis", "weed",
         ],
         .nutrition: [
             "meal", "ate", "eating", "food", "breakfast", "lunch", "dinner",
@@ -98,11 +120,24 @@ public enum TagLexicon {
             "creatine", "melatonin", "injection", "jab", "vaccin", "inhaler",
             "prescription",
         ],
-        .social: [
+        .socialising: [
             "friend", "family", "party", "social", "date night", "birthday",
             "wedding", "funeral", "visit", "guest", "kids", "children",
             "argument", "celebrat", "concert", "gig", "night out", "pub",
             "reunion", "anniversary",
+        ],
+        // The reader's own example. Oura ships a `tag_generic_sex` code and the
+        // app had no word for it at any tier — see `MomentConcept`'s header.
+        //
+        // ⚠️ `=sex` is a **whole-word** stem. Written as a prefix stem it claims
+        // "sexism", "sextet" and "sexagenarian" — a test caught it doing exactly
+        // that, which is the `"shot"`/`"bath"` hazard the header warns about
+        // arriving through a stem that looked safe.
+        .intimacy: [
+            "=sex", "intima", "making love", "foreplay", "orgasm", "masturbat",
+        ],
+        .excitement: [
+            "excit", "thrill", "adrenalin", "hyped", "buzzing", "nervous energy",
         ],
         .travel: [
             "travel", "flight", "flying", "flew", "plane", "airport", "jetlag",
@@ -141,7 +176,7 @@ public enum TagLexicon {
         if let code, let bare = meaningfulCode(code) {
             if let hit = bestMatch(in: tokens(from: bare)) {
                 return TagApplicabilityMapping(
-                    applicability: hit.applicability, method: .providerCode,
+                    concept: hit.concept, method: .providerCode,
                     confidence: 0.85,
                     rationale: "Your device files this under its own type “\(code)”, and “\(hit.stem)” is a \(hit.applicability.rawValue.lowercased()) word.")
             }
@@ -151,7 +186,7 @@ public enum TagLexicon {
             return .unresolved
         }
         return TagApplicabilityMapping(
-            applicability: hit.applicability, method: .lexicon,
+            concept: hit.concept, method: .lexicon,
             confidence: hit.confidence,
             rationale: "Matched “\(hit.stem)” in “\(name)”.")
     }
@@ -171,9 +206,12 @@ public enum TagLexicon {
     static let decisiveMargin = 0.15
 
     struct Hit {
-        let applicability: TagApplicability
+        let concept: MomentConcept
         let stem: String
         let confidence: Double
+        /// Derived, never chosen. `MomentConcept.applicability` is total, so a
+        /// hit always has a coarse home and the two can never disagree.
+        var applicability: TagApplicability { concept.applicability }
     }
 
     /// The words of a tag, plus the whole phrase, lowercased.
@@ -206,21 +244,44 @@ public enum TagLexicon {
     /// over their own word.
     static func bestMatch(in tokens: [String]) -> Hit? {
         guard !tokens.isEmpty else { return nil }
-        var scores: [TagApplicability: (score: Double, stem: String)] = [:]
-        for (applicability, stems) in stems {
+        var scores: [MomentConcept: (score: Double, stem: String)] = [:]
+        for (concept, stems) in stems {
             for stem in stems where matches(stem, in: tokens) {
                 // A longer stem is more specific evidence than a short one:
                 // "marathon" says more than "run".
                 let weight = 1 + Double(stem.count) / 100
-                let current = scores[applicability]
+                let current = scores[concept]
                 if current == nil || weight > current!.score {
-                    scores[applicability] = (weight, stem)
+                    scores[concept] = (weight, stem)
                 } else {
-                    scores[applicability] = (current!.score + weight / 2, current!.stem)
+                    scores[concept] = (current!.score + weight / 2, current!.stem)
                 }
             }
         }
-        let ranked = scores.sorted { $0.value.score > $1.value.score }
+        // ⚠️ **The tie is judged on the coarse grouping, and scoring happens on
+        // the fine one.** Splitting `substances` into four concepts created a
+        // tie that did not exist before: "wine and a coffee" scores alcohol and
+        // caffeine equally, and judging that at concept level would refuse a tag
+        // the old coarse table placed confidently under Substances. Two concepts
+        // sharing an applicability are not an ambiguity about *what the tag is
+        // about* — they are two facets of one answer.
+        var byApplicability: [TagApplicability: (score: Double, concept: MomentConcept, stem: String)] = [:]
+        for (concept, entry) in scores {
+            let key = concept.applicability
+            if let current = byApplicability[key] {
+                // Same grouping: the evidence adds up rather than competing, and
+                // the higher-scoring concept names it.
+                let winner = entry.score > current.score
+                byApplicability[key] = (current.score + entry.score / 2,
+                                        winner ? concept : current.concept,
+                                        winner ? entry.stem : current.stem)
+            } else {
+                byApplicability[key] = (entry.score, concept, entry.stem)
+            }
+        }
+        let ranked = byApplicability
+            .map { (key: $0.key, value: (score: $0.value.score, stem: $0.value.stem, concept: $0.value.concept)) }
+            .sorted { $0.value.score > $1.value.score }
         guard let top = ranked.first else { return nil }
         let runnerUp = ranked.count > 1 ? ranked[1].value.score : 0
         let margin = min((top.value.score - runnerUp) / max(top.value.score, 0.0001), 1)
@@ -237,13 +298,24 @@ public enum TagLexicon {
         // Confidence rises with the margin over the runner-up, and is capped
         // below the provider-code tier: this is a word match, not a statement
         // by the vendor.
-        return Hit(applicability: top.key, stem: top.value.stem,
+        return Hit(concept: top.value.concept, stem: top.value.stem,
                    confidence: min(0.4 + 0.35 * margin, 0.75))
     }
 
-    /// Whether a stem is present. Prefix matching on a word, or substring
-    /// matching on the whole phrase for the multi-word stems.
+    /// Whether a stem is present. Three forms, and the first exists because a
+    /// short stem can be safe as a word and dangerous as a prefix:
+    ///
+    /// - `=word` — **whole word only.** For stems that are common prefixes of
+    ///   unrelated words. `"=sex"` places "Sex" and "sex after gym" and refuses
+    ///   "sexism seminar".
+    /// - `two words` — substring match against the whole phrase, since a token
+    ///   stream cannot see across a space.
+    /// - anything else — prefix match, so `"cycl"` covers cycling and cyclist.
     static func matches(_ stem: String, in tokens: [String]) -> Bool {
+        if stem.hasPrefix("=") {
+            let word = String(stem.dropFirst())
+            return tokens.contains { $0 == word }
+        }
         if stem.contains(" ") {
             return tokens.contains { $0.contains(stem) }
         }

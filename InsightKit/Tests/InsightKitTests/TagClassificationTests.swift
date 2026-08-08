@@ -135,9 +135,75 @@ final class TagClassificationTests: XCTestCase {
     /// which reads to a reader as the app having categories it made up.
     func testEveryClassifiableCategoryHasStems() {
         for applicability in TagApplicability.classifiable {
-            let stems = TagLexicon.stems[applicability] ?? []
+            let stems = MomentConcept.concepts(in: applicability)
+                .flatMap { TagLexicon.stems[$0] ?? [] }
             XCTAssertFalse(stems.isEmpty,
                            "\(applicability.rawValue) has no stems, so nothing can ever land in it")
+        }
+    }
+
+    /// The same rule one level down, and the level the reader actually noticed.
+    /// A concept with no stems is an option the picker offers and the classifier
+    /// can never reach on its own — which is exactly the state `.intimacy` was
+    /// in when an Oura tag reading "Sex" arrived and could not be placed.
+    func testEveryConceptHasStems() {
+        for concept in MomentConcept.allCases {
+            let stems = TagLexicon.stems[concept] ?? []
+            XCTAssertFalse(stems.isEmpty,
+                           "\(concept.rawValue) has no stems, so the classifier can never reach it")
+        }
+    }
+
+    /// The reader's own example, 2026-08-09.
+    func testTheReadersSexTagResolvesToSexualActivity() {
+        for name in ["Sex", "sex", "Sex ", "Intimacy"] {
+            let mapping = TagLexicon.classify(name: name)
+            XCTAssertEqual(mapping.concept, .intimacy, "“\(name)” did not resolve")
+            XCTAssertEqual(mapping.applicability, .social)
+        }
+        // Oura ships a machine code for it, which is the stronger tier.
+        let coded = TagLexicon.classify(name: "Sex", code: "tag_generic_sex")
+        XCTAssertEqual(coded.concept, .intimacy)
+        XCTAssertEqual(coded.method, .providerCode)
+    }
+
+    /// ⚠️ A bare stem, not a prefix: "sexism" and "sextet" are not intimacy.
+    func testSexDoesNotClaimUnrelatedWords() {
+        XCTAssertNotEqual(TagLexicon.classify(name: "Sexism seminar").concept, .intimacy)
+    }
+
+    /// Splitting Substances into four concepts must not make a tag that names
+    /// two of them newly unplaceable — the coarse answer is still unambiguous.
+    func testTwoSubstancesInOneTagStillResolveToSubstances() {
+        let mapping = TagLexicon.classify(name: "wine and a coffee")
+        XCTAssertEqual(mapping.applicability, .substances)
+        XCTAssertNotNil(mapping.concept)
+    }
+
+    /// The finer vocabulary is the point: a tag naming a drink should say so,
+    /// not merely say "Substances".
+    func testASingleSubstanceResolvesToItsOwnConcept() {
+        XCTAssertEqual(TagLexicon.classify(name: "Wine").concept, .alcohol)
+        XCTAssertEqual(TagLexicon.classify(name: "Espresso").concept, .caffeine)
+        XCTAssertEqual(TagLexicon.classify(name: "Vape").concept, .nicotine)
+    }
+
+    /// The mapping is total, so a concept can never be unfileable, and the two
+    /// vocabularies can never disagree about where something belongs.
+    func testEveryConceptMapsToAClassifiableGrouping() {
+        for concept in MomentConcept.allCases {
+            XCTAssertNotEqual(concept.applicability, .unclassified,
+                              "\(concept.rawValue) maps to the not-placed grouping")
+        }
+    }
+
+    /// Where a concept is also a flagged-event answer, the two must read
+    /// identically — one thing, one word.
+    func testConceptAndEventCauseAgreeOnWording() {
+        for concept in MomentConcept.allCases {
+            guard let cause = concept.eventCause else { continue }
+            XCTAssertEqual(concept.displayName, cause.displayName)
+            XCTAssertEqual(cause.concept, concept, "the mapping is not reversible")
         }
     }
 
