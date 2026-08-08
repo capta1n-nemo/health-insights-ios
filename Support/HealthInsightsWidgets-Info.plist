@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- A physical file rather than INFOPLIST_KEY_* build settings, because the
+         `NSExtension` dictionary has no INFOPLIST_KEY_ spelling — Xcode's own
+         widget-extension template ships a plist for exactly this key. The
+         target builds with GENERATE_INFOPLIST_FILE = YES, so everything
+         ordinary (bundle id, versions, executable) is generated and merged
+         with the two keys below; this file stays this small on purpose.
+
+         ⚠️ Unlike Support/Info.plist, this file is NOT overwritten by
+         `xcodegen generate` (which must not be run anyway — see project.yml's
+         header): the widget target's spec names it via INFOPLIST_FILE, not
+         `info: path:`. -->
+    <key>CFBundleDisplayName</key>
+    <string>Health Insights</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.widgetkit-extension</string>
+    </dict>
+</dict>
+</plist>
