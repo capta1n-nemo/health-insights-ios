@@ -1,5 +1,7 @@
 # UI/UX research — 2026-08-06 (stored for later, and PARTIAL)
 
+<!-- status: partial — stopped mid-run; superseded in substance by the 2026-08-08 run, kept for the parts that run did not revisit -->
+
 **Research, not committed work.** Nothing here has been built, scheduled or
 promised. It does not appear in `docs/progress.md` or `docs/backlog.md` as an
 open item unless a future session deliberately promotes it.

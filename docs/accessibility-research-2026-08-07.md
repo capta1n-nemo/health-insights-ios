@@ -1,5 +1,7 @@
 # Accessibility for charts, custom visualisations and dense cards (D6)
 
+<!-- status: complete — 52 accessibility call sites measured; the radar can take the real VoiceOver chart rotor, BodyMeshView is a hard null, and the app has zero Dynamic Type armour -->
+
 **Status:** research only — no code written, no shared file edited. Every measurement below was taken from this working copy on 2026-08-07 or derived by running code against the installed iOS SDK; every citation carries author, venue, n and effect size, and the places where no evidence exists are marked as such.
 
 ---

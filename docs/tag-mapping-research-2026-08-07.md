@@ -1,5 +1,7 @@
 # Mapping arbitrary user-created tags to categories, on-device
 
+<!-- status: complete — buildable with NLEmbedding rather than Apple Intelligence — but measured at n=0 today, because OuraProvider never requests the tag scope -->
+
 **Backlog §B12-2 · research, 2026-08-07 · no code written**
 
 ---

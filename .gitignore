@@ -22,3 +22,15 @@ node_modules/
 # submodule pointers in a public repo that would break any fresh clone, and
 # `git add -A` is what picked them up. Ignored so it cannot happen again.
 .claude/worktrees/
+
+# Session transcripts and health exports, whatever they are called. On
+# 2026-08-08 `last_session.md`/`.rtf` (357 KB each, RTF, a full transcript) sat
+# here untracked and UNIGNORED while the session ran `git add -A` three times.
+# This repo is public and holds one person's health data. `verify.sh` also fails
+# on a *tracked* file whose CONTENT looks like a transcript or an export, because
+# ignoring a filename retires the instance and a content check retires the class.
+last_session.*
+*transcript*.md
+*transcript*.rtf
+*-export*.json
+health-insights-export*.json

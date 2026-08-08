@@ -1,5 +1,7 @@
 # Write-back to Apple Health — scope of record (backlog Q12)
 
+<!-- status: scoped — Q12 ready-to-build: the writable set is reader-entered values only, a modelled figure is never written back as measured. Unstarted **by the reader's own ruling** -->
+
 **Status: scoped, not built. The reader ruled "Wanted, but not yet. Roadmap"
 (2026-08-07).** This document exists so that when it is scheduled it is a
 build, not a research project. Nothing here is an open question owed to the

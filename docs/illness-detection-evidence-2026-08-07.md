@@ -1,5 +1,7 @@
 # Wearable illness detection — what the evidence actually supports
 
+<!-- status: complete — 28 studies — more critical than the press coverage and, in two places, than this app's own design; constrains the symptom radar and §B11 -->
+
 _28 studies, 2020–2025, surveyed 2026-08-07. **Read this before touching the
 symptom radar or building the sick-days feature (§B11).** It is more critical
 than the press coverage and, in two places, than this app's own current design._

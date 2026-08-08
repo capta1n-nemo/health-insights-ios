@@ -3,39 +3,68 @@
 _A snapshot, not a history — where things stand right now, not everything that
 ever happened. Updated by `/handover` at the end of a session._
 
-## Current focus — session 30 (2026-08-07/08), 123 commits
+## Current focus — sessions 30–31 (2026-08-07/08), 169 commits
 
-⚠️ **Read these four first.**
+⚠️ **Read these five first.**
 
 1. **There is ONE open-item list: `docs/backlog.md`, read by
    `./scripts/backlog.sh`.** `progress.md` keeps the shipped history; this file
    keeps the current state. Neither records open work. If you find yourself
    starting a second list, that is the mistake this session existed to stop.
-2. **`R60` is the unblocker.** Five research briefs the reader commissioned were
-   stopped partway. `B19` (Energy) and `N1` (Stress) are waiting on them, and
-   both of their existing designs were **refuted**.
-3. **`D63` — the Mac gate is flaky under concurrent agent load**, and it made me
+2. **`docs/status.md` answers "where do we stand" and is GENERATED.** Run
+   `./scripts/status.sh`; never edit the file. It is the reader-facing view of the
+   same rows plus a research table each document populates itself.
+3. **`R60` is the unblocker, and it is now mostly delivered.** Seven briefs; the
+   two `w4` designs (`B19` Energy, `N1` Stress) both have **v2 documents that fix
+   every fatal finding of their refuted v1s** and are waiting only on the
+   reader's decisions. ⚠️ **Do not read the v1 designs** — `energy-design-2026-08-07`
+   and both `stress-design-2026-08-0{6,7}` are marked `superseded` and were
+   returned `needs-rework`.
+4. **`D63` — the Mac gate is flaky under concurrent agent load**, and it made me
    diagnose an outage wrong twice. Read that row before trusting a red gate.
-4. ⚠️ **A merge reverted a shipped outage fix and only a lint caught it.** See
+5. ⚠️ **A merge reverted a shipped outage fix and only a lint caught it.** See
    below; it is the most transferable thing here.
 
 ```bash
 ./scripts/backlog.sh --asks    # what the reader asked for and has NOT got
 ./scripts/backlog.sh --next    # the next batch, and the model it needs
+./scripts/status.sh            # regenerate the reader-facing breakdown
 ```
 
-**236 rows, 56 open.** Ordered `w0` blockers → `w1` shipped-but-wrong → `w2`
-quick wins → `w3` builds → `w4` complex. Every row carries a **tier** naming the
-model it needs — `mech` (Opus 5 · medium), `build` (high), `hard` (xhigh/max),
-`ultra` (+ ultracode), `design` (Fable 5). **Say the model out loud when the
-tier changes.**
+**258 rows, 55 open** — **23 ungated**, and the other 32 wait on the phone (16),
+a decision (7), another row (5) or something outside the repo (4). Ordered `w0`
+blockers → `w1` shipped-but-wrong → `w2` quick wins → `w3` builds → `w4` complex.
+Every row carries a **tier** naming the model it needs — `mech` (Opus 5 ·
+medium), `build` (high), `hard` (xhigh/max), `ultra` (+ ultracode), `design`
+(Fable 5). **Say the model out loud when the tier changes.**
 
 ### What this session was
 
-The list was consolidated from three to one, and then **~90 rows were closed**
-by five waves of worktree agents (12, 14, 12, 11, plus research). The reader
-reported five live defects from their own phone while it ran, and all five are
-fixed and installed.
+The list was consolidated from three to one, and then **~120 rows were closed**
+by eight waves of worktree agents. The reader reported five live defects from
+their own phone while it ran, and all five are fixed and installed.
+
+⚠️ **The open count went UP at the end (40 → 55) and that is the session working,
+not failing.** Fifteen rows were *added* in the final handover from things the
+agents found while doing something else — the four `D7-*` localisation
+remainders, `J1`–`J11`. A wave that closes rows and reports no new ones has
+either done nothing interesting or lost what it learnt.
+
+### The two structural things added at the end
+
+- **`docs/status.md` is generated** (`scripts/status.sh`). The reader asked for a
+  status breakdown; the first answer was hand-written, 534 lines, stale within a
+  day, and a **fourth list**. Now the feature half derives from `backlog.md` and
+  the research half from each document's own `<!-- status: … -->` line, so a
+  research report cannot sit on disk without a verdict — 15 of 19 did, which made
+  "researched" and "concluded" indistinguishable, with two *refuted* designs among
+  them.
+- **A tracked transcript or export now fails the gate.** `last_session.md`/`.rtf`
+  — 357 KB of RTF session transcript — sat at the repo root untracked and
+  **unignored** while this session ran `git add -A` three times. This repo is
+  public and holds one person's health data. `.gitignore` covers the shape;
+  `verify.sh` content-sniffs the *index*, because a filename is a guess about what
+  is inside a file.
 
 ### ⚠️ The four defects worth carrying, because each is a class
 
@@ -78,19 +107,40 @@ did and it missed four files. And where a merged array carries a rule
 
 ### Next session, in order
 
-**Do not work from a list here. Run `./scripts/backlog.sh --next`.**
+**Do not work from a list here. Run `./scripts/backlog.sh --next` and read
+`docs/status.md`.**
 
-1. **`R60`** — re-run the five stopped briefs. ⚠️ A stopped agent leaves its
-   topic **uncovered**, not mostly done; several reported progress when killed.
-   The mental-health brief carries a safety-critical interaction.
-2. **`D63`** — make the flaky gate say it is a resource problem. Until it does,
+⚠️ **32 of the 55 open rows are gated on something a session cannot supply.**
+Twenty-three are ungated, and most of those are the `J*` findings written at the
+very end — real work, none of it reader-blocked. But the *highest-value* items
+are all waiting on the reader, so:
+
+1. **Ask for four things in the first message, before writing any code.** Each
+   unblocks more than it costs, and each has been waiting a full session:
+   - **A fresh export** (`D61`). Theirs is `schemaVersion 4`; every
+     model-improvement key landed at 5 and 6 the same day, so the correction and
+     grounding data they explicitly asked to learn from **is in no file yet**. This
+     is the single highest-value unlock on the list.
+   - **The `N1` Stress rulings, V1–V5** (`docs/stress-design-v2-2026-08-08.md`
+     §12) — chiefly the central verdict that the daytime half ships as a
+     *rendering* with no daily figure. `B2-18` is chained behind it.
+   - **The `B19` Energy design** — v2 is build-ready except §3.2, which needs
+     Ingre 2014 transcribed before any code (v1 fabricated that constant).
+   - **`B16-3`** (an AI card description) and **`B11-7`** (the fake-sick-day
+     inversion) — both `gate:decision`, both blocking chains.
+2. **The 16 `gate:phone` rows.** ⚠️ **iPhone Mirroring access was requested on
+   2026-08-08 and the reader declined it**, so these did not move. Either ask again
+   at the start or plan the session without them — do not attempt them silently.
+3. **`J3`, `J6`, `J8` — the weight problem, which is now three rows.**
+   `signal-audit` found the most-looked-at numbers are the least-justified;
+   Readiness has six weights with no source (`J6`), seven surfaces spend the same
+   nightly triad uncounted (`J8`), and three of them want one `AlertnessModel`
+   that nobody owns (`J3`). This is the most valuable ungated work left.
+4. **`D63`** — make the flaky gate say it is a resource problem. Until it does,
    a red gate trains a session to push through a real one.
-3. **The four `◐` rows** — `Q15`/`R16`, `D7`, `D8`, `D56` each carry the agent's
-   own account of what is left.
-4. **`D61`** — ask the reader for a fresh export. Theirs is schemaVersion 4;
-   every model-improvement key landed at 5 and 6 the same day, so the correction
-   data they asked me to learn from **is not in any file yet**.
-5. **The phone rows** — 15 can only close on their device.
+5. **The `◐` rows** — `D7` (localisation: extraction done, translation not
+   started, remainder counted in `D7-a`…`D7-d`), `D8` (widget target compiles;
+   blocked on a paid Apple team that can sign App Groups), `I9`/`Q15` residue.
 
 ---
 

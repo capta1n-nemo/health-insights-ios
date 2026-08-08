@@ -1,5 +1,7 @@
 # InsightKit test-suite audit — 2026-08-06
 
+<!-- status: complete — all 139 InsightKit test files on seven axes — outdated pins, weak assertions, tautologies, timezone safety, flakiness, coverage holes, structure -->
+
 **Scope.** All 139 files under `InsightKit/Tests/InsightKitTests/` (27,863 lines,
 1,767 `func test`s at the audited commit), audited on seven axes: outdated
 pins, weak assertions, tautologies, timezone safety, flakiness risk, coverage

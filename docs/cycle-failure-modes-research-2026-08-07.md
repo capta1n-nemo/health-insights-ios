@@ -1,5 +1,7 @@
 # Who wearable cycle inference fails for — the failure modes
 
+<!-- status: complete — who wearable cycle inference fails for — pregnancy produces the same luteal shift, sustained, which is the finding that constrains the whole feature -->
+
 _Researched 2026-08-07 for `B2-17` / `R60`. Companion to
 `docs/cycle-algorithms-research-2026-08-07.md`._
 

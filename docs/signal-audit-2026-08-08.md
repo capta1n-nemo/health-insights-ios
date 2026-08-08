@@ -1,5 +1,7 @@
 # The signal audit — every card against every signal
 
+<!-- status: complete — every card against every signal — the app's most-looked-at number is its least-justified; produces no visible change, which is the point -->
+
 **Backlog `P23`, the reader's own ask.** Written 2026-08-08 against the export
 generated **2026-08-07T07:09:11Z** (build `0.1.0 (398) · 25a276b`,
 `schemaVersion 4`).

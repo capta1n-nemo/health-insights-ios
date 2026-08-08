@@ -1,5 +1,7 @@
 # Mental health, psychiatric medication and drug interactions — the evidence
 
+<!-- status: complete — sources, derivable data points and the psychiatric-medication ask, against a topic no prior run had covered -->
+
 _Research for backlog `R60`, brief commissioned 2026-08-07, written 2026-08-08.
 **The topic was uncovered**: the agent originally commissioned for it returned
 nothing, so nothing here builds on prior work in this repo besides

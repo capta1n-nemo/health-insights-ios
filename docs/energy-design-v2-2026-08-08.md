@@ -1,5 +1,7 @@
 # Energy, rebuilt — the design, v2 (backlog B19)
 
+<!-- status: complete — design of record for B19 — all eleven fatal v1 findings fixed and every carried-over number recomputed. Designed, NOT built; §3.2 blocks code until Ingre 2014 is transcribed -->
+
 _Written 2026-08-08. **Designed, not built.** Supersedes
 `docs/energy-design-2026-08-07.md` (v1), which three hostile reviewers returned
 `needs-rework` with a combined list of fatal findings. **Every fatal finding is

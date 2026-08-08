@@ -1,5 +1,7 @@
 # The creative gap hunt — what is missing that no row covers
 
+<!-- status: complete — twelve ranked findings no backlog row covered, each with measured counts and an honest feasibility -->
+
 _R60, 2026-08-08. Brief: **"use creative licence to research anything else we
 are missing in the app."** Written against `docs/backlog.md` at 236 rows / 56
 open, so that nothing here re-proposes something already listed. Sibling briefs

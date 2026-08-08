@@ -202,6 +202,19 @@ if [ -x scripts/backlog.sh ]; then
     fi
 fi
 
+# `docs/status.md` is generated from the same rows plus each research document's
+# own status line. It is checked here because the reader reads THAT file, and a
+# hand-maintained status document is how this repo grew a fourth list once
+# already (`docs/status-2026-08-07.md`, correct for one morning).
+if [ -x scripts/status.sh ]; then
+    if status_out=$(scripts/status.sh --check 2>&1); then
+        ok "docs/status.md is current"
+    else
+        bad "docs/status.md is stale, or a research doc has no status line."
+        printf '%s\n' "$status_out" | sed 's/^/    /'
+    fi
+fi
+
 # --- 8. Open items are still countable, per tier ---------------------------
 # Not a pass/fail — numbers to read back to the user, so "nothing is missed" is
 # a count they can check rather than a claim they have to take on trust. Broken

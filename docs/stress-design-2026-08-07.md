@@ -1,4 +1,6 @@
 > # ⚠️ NOT BUILD-READY — three hostile reviewers returned `needs-rework`
+
+<!-- status: superseded — v1 — returned `needs-rework` by all three reviewers (pseudo-replication disproved by its own text). **Do not build from this.** Replaced by stress-design-v2-2026-08-08 -->
 >
 > **Do not implement as written.** The adversarial pass found: §4.3's weeks-level
 > Oura comparison is **pseudo-replication**, disproved by the document's own text two

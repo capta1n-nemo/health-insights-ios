@@ -1,5 +1,7 @@
 # UI/UX this app should adopt — 2026-08-08 (R60)
 
+<!-- status: complete — UI/UX patterns this app should adopt, every count read out of the worktree -->
+
 **Research only.** No code was written and no shared file was edited. Nothing here
 is scheduled or promised; a future session must deliberately promote anything it
 wants to build into `docs/backlog.md`.

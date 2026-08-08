@@ -1,5 +1,7 @@
 # Cycle phase and ovulation from longitudinal temperature — the published evidence
 
+<!-- status: partial — one of four commissioned streams — algorithms and classic methods covered; device accuracy, competitor claims and the minimum-input question were never run -->
+
 _Researched 2026-08-07 for backlog `B2-17` / `R60`, answering the reader's ask:
 **"make our Cycle feature world class… use ALL of the data… even recommend days
 we think are ovulation… basically use data to reduce any or all input."**_

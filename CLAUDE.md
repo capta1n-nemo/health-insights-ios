@@ -238,6 +238,29 @@ So:
   parse, and on a section carrying table rows but no backlog rows. If you find
   yourself starting a second list, that is the mistake this paragraph exists to
   stop.
+- `docs/status.md` -> **"Where do we stand" — the reader's own question, answered
+  in one file. GENERATED; never edit it.** Delivered / partly delivered / not
+  started / will-not-be-built, what they asked for and have not got, what is
+  blocked and by *what* (their phone · their decision · another row · outside the
+  repo), the ready work batched by the model tier it needs, and a research table
+  where every document declares its own state.
+
+  ```bash
+  ./scripts/status.sh            # rewrite it
+  ./scripts/status.sh --check    # what handover-check.sh runs
+  ```
+
+  ⚠️ **It is a script because the hand-written version was a fourth list.** The
+  reader asked for this breakdown on 2026-08-07 and it was written by hand as
+  `docs/status-2026-08-07.md` — 534 lines, correct that morning, stale by the
+  evening, now in `docs/archive/`. The feature half is derived from
+  `docs/backlog.md` and the research half from each research document's own
+  `<!-- status: … -->` line, so neither is written down twice and neither can
+  drift. **A research or design document with no status line is a hard error**,
+  for the same reason an unparseable backlog row is: 15 of 19 had no
+  machine-readable verdict, so "we researched that" and "that research reached a
+  conclusion" were indistinguishable — and two of them were *refuted* designs a
+  later session could have built from.
 - `docs/architecture.md` -> Core data pipeline, BYO-Key API client, and Swift patterns.
 - `docs/deployment.md` -> Wi-Fi deployment & CI rules.
 - `docs/activeContext.md` -> Current task focus and immediate next steps.

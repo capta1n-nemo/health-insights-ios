@@ -1,5 +1,7 @@
 # Cuffless blood pressure, and a better Blood Pressure card — R60
 
+<!-- status: complete — predictive cuffless BP is a **no** on published evidence and on the reader's own cuff readings; the card-experience half carries buildable recommendations -->
+
 **Written 2026-08-08.** Commissioned as backlog `R60`, from the reader's words:
 *"Research how we can do better experience for Blood Pressure card, and how we
 can do predictive cuff less blood pressure."* The first attempt at this brief was

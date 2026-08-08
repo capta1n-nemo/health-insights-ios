@@ -1,4 +1,6 @@
 > # ⚠️ NOT BUILD-READY — three hostile reviewers returned `needs-rework`
+
+<!-- status: superseded — v1 — three hostile reviewers returned `needs-rework` (including a fabricated statistic). **Do not build from this.** Replaced by energy-design-v2-2026-08-08 -->
 >
 > **Do not implement §1–§5 as written.** The adversarial pass found, among others:
 > a **fabricated statistic** in §0/§4.1 (the SD and variance labels are swapped, so

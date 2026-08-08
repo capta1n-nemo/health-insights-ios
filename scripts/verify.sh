@@ -1155,6 +1155,50 @@ if [ -n "$pii_hits" ]; then
     fail=1
 fi
 
+# --- A ✅ row whose prose still says the work is unbuilt --------------------
+# See scripts/lint-stale-rows.py for why this is a separate file (backticks in a
+# regex inside `$( )` break bash's paren matching) and what it caught.
+if [ -f scripts/lint-stale-rows.py ]; then
+    python3 scripts/lint-stale-rows.py || fail=1
+fi
+
+# --- A session transcript or a health export must never be tracked ---------
+# The other half of the privacy rule above, and the half that nearly fired.
+#
+# On 2026-08-08 `last_session.md` and `last_session.rtf` — 357 KB each, a full
+# session transcript saved as RTF — sat at the repo root, untracked and **not
+# matched by `.gitignore`**. That session ran `git add -A` three times. In a
+# public repo holding one person's health data, the only thing between a
+# transcript full of real readings and a pushed commit was that nothing had
+# staged it yet.
+#
+# `.gitignore` now covers the shape, which retires the instance. This retires the
+# category: a transcript or export that reaches the *index* under any name fails
+# the gate, whether by `git add -A`, by `git add -f`, or by a name nobody thought
+# to ignore. Content-sniffed, because the leak is what is inside the file and a
+# filename is a guess about that.
+#
+# ⚠️ Deliberately checks the index, not the worktree — same reason as the PII
+# lint above. A file git does not track cannot leak.
+dump_hits=""
+for f in $(git ls-files -- '*.md' '*.rtf' '*.txt' '*.json' '*.jsonl' 2>/dev/null); do
+    case "$f" in
+        docs/archive/*|*/Fixtures/*|*/fixtures/*|InsightKit/Tests/*) continue ;;
+    esac
+    head -c 2000 "$f" 2>/dev/null | grep -qaE \
+        '^\{\\rtf|"role"[[:space:]]*:[[:space:]]*"(user|assistant)"|<invoke|"schemaVersion"[[:space:]]*:|"heartRateVariability"|"restingHeartRate"' \
+        && dump_hits="$dump_hits$f
+"
+done
+if [ -n "$dump_hits" ]; then
+    printf '\033[31m✗\033[0m %s\n' 'A session transcript or a health export looks TRACKED:'
+    printf '    %s\n' $dump_hits
+    note 'This repo is public and holds one person'"'"'s health data. Untrack it
+  (git rm --cached <file>), add its shape to .gitignore, and read
+  docs/privacy-and-ip.md — a lint cannot unpublish a pushed commit.'
+    fail=1
+fi
+
 # --- The symbol index must not rot -----------------------------------------
 # A stale index is worse than no index, because it gets trusted.
 

@@ -1,5 +1,7 @@
 # Sleep debt: definitions, baselines and what is actually defensible
 
+<!-- status: complete — there is no defensible individual sleep-need estimator from free-living wearable data — an open problem, not a search gap; the honest section is deviation-from-your-own-typical -->
+
 *Research document for `B18-7` (a sleep debt section). Written 2026-08-07. No app code was changed.*
 
 ---

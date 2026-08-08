@@ -1,5 +1,7 @@
 # Bootstrapping Nutrition and Metabolism from what we already hold
 
+<!-- status: complete — what Nutrition and Metabolism can honestly show from data already held, inside §B5 #32's standing refusal -->
+
 **R60 · commissioned 2026-08-07, written 2026-08-08.** Research document — nothing
 here is built.
 

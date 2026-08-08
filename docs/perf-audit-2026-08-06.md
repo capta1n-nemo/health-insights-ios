@@ -1,5 +1,7 @@
 # Performance audit — 2026-08-06
 
+<!-- status: stopped — the agent was killed mid-run and left `PLACEHOLDER-NUMBERS` behind — rescued, incomplete, and **no number in it should be trusted without re-measuring** -->
+
 > ⚠️ **RESCUED AND INCOMPLETE. Read this box before trusting a number.**
 >
 > The agent writing this was killed mid-run when the session ended, so the

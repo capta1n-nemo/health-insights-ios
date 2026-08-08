@@ -47,6 +47,12 @@ has now happened four times in this repo's history.
      a gate. *A finding without a row is a finding lost* — that is what the
      three-list era did to six symptom-radar rows and to thirty of the reader's
      own asks.
+   - **Run `./scripts/backlog.sh`, then `./scripts/status.sh`** — the second
+     regenerates `docs/status.md`, the file the reader actually reads. It is
+     derived from the backlog and from each research document's own
+     `<!-- status: … -->` line, and it **hard-errors on a research or design doc
+     that has no such line**. Add the line when you write the doc; a research
+     report with no verdict cannot be told apart from an abandoned one.
    - **Run `./scripts/backlog.sh`** to regenerate the index. `handover-check.sh`
      runs `--check` and a session cannot close while the index and the rows
      disagree — and `backlog.sh` **hard-errors** on a row it cannot parse, or on

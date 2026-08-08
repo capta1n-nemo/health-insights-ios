@@ -1,5 +1,7 @@
 # Stress, done properly — the design (backlog N1)
 
+<!-- status: superseded — the original N1 design, superseded twice — by the 2026-08-07 revision and then by v2. **Do not build from this.** -->
+
 _Written 2026-08-06. **Designed, not built.** This is the architecture of record
 for the reader's instruction:_
 

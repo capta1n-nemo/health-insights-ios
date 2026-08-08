@@ -30,11 +30,12 @@
 #   ./scripts/backlog.sh --stream chrome
 #   ./scripts/backlog.sh --gate phone
 #   ./scripts/backlog.sh --id B14       # one row and its prose
+#   ./scripts/backlog.sh --json         # every row, for other scripts
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 python3 - "$@" <<'PY'
-import re, sys, pathlib, collections
+import re, sys, json, pathlib, collections
 
 ARGS = sys.argv[1:]
 DOC = pathlib.Path("docs/backlog.md")
@@ -181,6 +182,11 @@ def arg_after(flag):
 
 if "--open" in ARGS:
     show(open_rows, "Open"); sys.exit(0)
+
+if "--json" in ARGS:
+    # For other scripts, so nothing has to re-implement ROW. `status.sh` reads
+    # this: two copies of the row regex is how the three-list era started.
+    print(json.dumps(rows)); sys.exit(0)
 
 if "--asks" in ARGS:
     asks = [r for r in open_rows if r["ask"]]

@@ -41,6 +41,72 @@ list. Do not work from them.
 
 ## Shipped
 
+### Session 31 (2026-08-08) — the last waves, and two lists that can no longer lie
+
+The continuation of session 30, after its first handover. Forty-six commits.
+
+- [x] **The `keep-building` wave — 8 agents, 12 rows** (`a3d70d6`). `D64`–`D66`,
+      `D68`, `D69`, `D54`, `Q15`, `R16`. Two findings the rows did not name:
+      `D68`'s time-zone observer had to clear **four** caches, not two, because
+      `vitalsSummaryCache` and `renderMemo` also hold zone-rendered output; and the
+      body-scan wiring the agent was sent to build **already existed and was
+      honest**, so it was verified by reading rather than rebuilt.
+- [x] **The hang-detection trio is now evidenced, one leg at a time** (`D54`,
+      `D69`). `simulator.sh` injects Xcode's Thread Performance Checker via
+      `SIMCTL_CHILD_DYLD_INSERT_LIBRARIES`, rot-proof by construction — the dylib
+      ships *inside* the simulator runtime and resolves against `DYLD_ROOT_PATH`,
+      so it survives an Xcode update. `tpc-check` proves engagement from dyld's own
+      load listing rather than from the flag being set. Watchdog: **observed
+      firing**. TPC: **observed firing** on a deliberate priority inversion.
+      MetricKit: **unobservable from any Mac** — device-only, ~24 h cadence — so it
+      became row `J2` instead of an assumption.
+- [x] **Both refuted designs have build-ready v2s** (`B19`, `N1`). Energy v2 fixes
+      eleven fatal findings, including recomputing v1's substance thresholds, which
+      were **~2.6× understated**. Stress v2 reaches the verdict v1 was refuted for
+      avoiding: the daytime signal *cannot* justify itself as a figure — it is
+      `exertionHours` re-parameterised — so it ships as a **rendering** with no
+      number, and the card's value is Oura beside (never blended) plus attribution.
+      Both remain open on the reader's decisions.
+- [x] **`D8` taken to the limit the repo can grant itself.** The
+      `HealthInsightsWidgets` extension target exists and compiles, and is
+      **outside the deploy's build graph by construction** — no dependency, no
+      embed phase, in no scheme CI or `deploy.yml` builds — proven by building the
+      app scheme and finding the widget absent from it. Blocked from here on a paid
+      Apple team, which a free personal team cannot substitute for App Groups.
+- [x] **`D7`'s copy half: the catalog went 0 → 1,122 keys.** The load-bearing
+      finding is that the catalog shipped the day before was **waiting for an Xcode
+      IDE build that never happens in this CLI-driven repo**;
+      `scripts/l10n-extract.sh` now runs the compiler's own
+      `-exportLocalizations`. Remainder counted per file rather than estimated, and
+      it became four rows.
+- [x] **`docs/status.md` is generated** (`scripts/status.sh`). The reader asked
+      "where do we stand"; the first answer was 534 hand-written lines that were
+      stale within a day and constituted a **fourth list**. The feature half now
+      derives from `backlog.md`; the research half from each document's own
+      `<!-- status: … -->` line, and **a research doc without one is a hard
+      error** — 15 of 19 had no verdict, so an abandoned run and a concluded one
+      read identically, with two *refuted* designs in the set.
+- [x] **A tracked session transcript or health export now fails the gate.**
+      `last_session.md`/`.rtf`, 357 KB of RTF transcript, sat at the repo root
+      untracked and **unignored** while this session ran `git add -A` three times,
+      in a public repo holding one person's health data. `.gitignore` retires the
+      instance; `verify.sh` content-sniffs the *index* to retire the class, because
+      a filename is only a guess about what is inside a file.
+- [x] **`grep -q` under `pipefail` reported a present case as missing — on Linux
+      only** (`f59e17f`, `6b1e7d4`). Red CI on `a3d70d6` with the identical tree
+      green locally. `grep -q` exits at its first match and closes the pipe;
+      `printf` takes SIGPIPE, and `pipefail` fails the pipeline **because the match
+      succeeded early**. macOS delivers the body in one write and never trips it.
+      Converted to herestrings in `verify.sh` and, before it could fire, in
+      `pre-push-gate.sh`. The tell was one line in the CI log: *"printf: write
+      error: Broken pipe"*.
+
+⚠️ **`I9` was wrong for a week and the sweep is why it is not still wrong.** Its
+row read *"Mesh renders; no capture exists"* long after the guided capture shipped
+in `1dc9789`. A session planning from that row would have rebuilt a shipped
+feature — which is the exact failure the consolidation was for, surviving inside
+the consolidated list.
+
 ### Session 28 (2026-08-06) — the reader's answers, and three reversed refusals built
 
 **`docs/backlog.md` is the authority for what is open.** §A is 24 decisions now

@@ -1,5 +1,7 @@
 # Stress — the design, v2 (backlog N1)
 
+<!-- status: complete — design of record for N1 — accepts the reviews and rules the daytime half ships as a rendering with no daily figure. Designed, NOT built; five reader decisions (V1–V5) open -->
+
 _Written 2026-08-08. **Designed, not built.** Supersedes
 `docs/stress-design-2026-08-07.md` (v1), which was returned `needs-rework` by
 all three of its adversarial reviewers. This document does not repair v1 — it
