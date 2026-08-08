@@ -1,0 +1,2 @@
+--- install ---
+find: build/Build/Products/Debug-iphoneos: No such file or directory
