@@ -92,6 +92,29 @@ final class AppModel {
         sleepOnsetHereCache = nil
         scoreChangeCache = nil
     }
+
+    /// The zone-sensitive subset of `invalidateDerivedCaches()` (backlog D68).
+    ///
+    /// `.sleepOnset` is the one metric rendered *in the reader's current zone*
+    /// (`D56`, see `sleepOnsetsHere`), so its derivations are the one set of
+    /// caches that can go stale without `samples` changing: fly Manila → Sydney
+    /// with the app foregrounded and the cached rendering stays Manila's until
+    /// the next sync. Called from the `NSSystemTimeZoneDidChange` observer
+    /// registered in `init`.
+    ///
+    /// Four caches, not two: the backlog row named `sleepOnsetHereCache` and
+    /// `breakdownCache`, but `vitalsSummaries` swaps the re-rendered onset in
+    /// at build time and `renderMemo` holds section output computed from the
+    /// same buffer, so clearing only two would leave the Vitals row and the
+    /// sleep sections disagreeing with the chart. Everything heavier — score
+    /// histories, derived series, overlays — describes zone-independent
+    /// quantities and survives the flight untouched.
+    private func systemTimeZoneDidChange() {
+        sleepOnsetHereCache = nil
+        breakdownCache.removeAll(keepingCapacity: true)
+        vitalsSummaryCache = nil
+        renderMemo.removeAll(keepingCapacity: true)
+    }
     /// Imported data we don't yet model as canonical metrics (new HealthKit types,
     /// extra provider fields). Surfaced in Vitals ▸ "Other data" for review.
     private(set) var otherSamples: [RawMetricSample] = [] {
@@ -2040,6 +2063,18 @@ final class AppModel {
         // the answer is still unknown — a `@State` default cannot read the
         // environment, and one blank frame is the thing being fixed.
         isLaunching = hasCompletedOnboarding
+        // A time-zone change invalidates the sleep render caches (backlog
+        // D68) — the only derivations of `samples` whose meaning moves with
+        // the reader. Never removed: the model lives as long as the app, and
+        // `self` is weak. See `systemTimeZoneDidChange()` for what is cleared
+        // and why.
+        NotificationCenter.default.addObserver(forName: .NSSystemTimeZoneDidChange,
+                                               object: nil,
+                                               queue: .main) { [weak self] _ in
+            // Delivered on the main queue, so this *is* the main actor — the
+            // hop is by construction, not by assumption.
+            MainActor.assumeIsolated { self?.systemTimeZoneDidChange() }
+        }
     }
 
     /// Populate state from persisted data — manual readings plus the last-synced

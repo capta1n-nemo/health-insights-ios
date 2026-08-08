@@ -703,6 +703,50 @@ if [ -f HealthInsights/Core/State/AppModel.swift ]; then
     fi
 fi
 
+# --- ...and that enrichment pass runs from exactly ONE call site (D66) ------
+#
+# The check above proves the call is detached; it says nothing about how many
+# there are. The 2026-08-08 merge briefly left `refreshTagApplicability()`
+# called from two places, and two concurrent detached passes race on
+# `tagMappings` — both read the map, both write it back, last writer wins and
+# one pass's classifications are silently dropped. Nothing crashes and nothing
+# reports it; the reader's tags just quietly lose answers. (Suggested by the
+# B12 agent, whose store the race would corrupt.)
+#
+# Exactly one call site is the invariant, so it is counted rather than
+# remembered — and zero is as red as two, because zero means the tag pass
+# never runs at all. Parallel agents have collided on this file before: if you
+# are adding a feature that needs the pass re-run, route it through the
+# existing call site rather than adding a second.
+if [ -f HealthInsights/Core/State/AppModel.swift ]; then
+    tagcalls=$(grep -nE 'refreshTagApplicability\(\)' \
+        HealthInsights/Core/State/AppModel.swift \
+        | grep -vE '^[0-9]+:[[:space:]]*(//|\*)' \
+        | grep -vE 'func refreshTagApplicability' || true)
+    tagcallcount=$(printf '%s\n' "$tagcalls" | grep -c . || true)
+    if [ "$tagcallcount" -ne 1 ]; then
+        note "refreshTagApplicability() must have exactly ONE call site in AppModel and has $tagcallcount — two concurrent detached passes race on tagMappings and the last writer silently drops the other's classifications (backlog D66):"
+        printf '%s\n' "${tagcalls:-(no call site at all — the tag pass never runs)}"
+        fail=1
+    fi
+fi
+
+# --- BSD pgrep has no count flag — a script asking for one reads 0 (D65) ----
+#
+# `$(pgrep -cf foo)` on macOS prints usage to stderr, exits 2, and expands to
+# the empty string — and a `${var:=0}` default then reports a confident **0**.
+# It had the D63 load reporter printing "0 xcodebuild" while an xcodebuild was
+# holding the build database against it: evidence for the wrong conclusion,
+# which is worse than no evidence. Correct form: `pgrep -f foo | wc -l`.
+# The 2026-08-08 sweep found no live instance left; this keeps it that way.
+pgrepcount=$(grep -rnE 'pgrep +-[A-Za-z]*c' scripts/ 2>/dev/null \
+    | grep -vE ':[[:space:]]*#' || true)
+if [ -n "$pgrepcount" ]; then
+    note "BSD pgrep has no count flag, so this counts as 0 on macOS. Use 'pgrep -f ... | wc -l' instead (backlog D65):"
+    printf '%s\n' "$pgrepcount"
+    fail=1
+fi
+
 # --- The export never reads a lazy view cache ------------------------------
 #
 # Found 2026-08-07 in the reader's own export: all 18 cards carried
