@@ -409,12 +409,14 @@ struct Card<Content: View>: View {
 struct ConfidenceBadge: View {
     let confidence: InsightConfidence
     var body: some View {
+        // `String(localized:)` because a switch's returns infer plain `String`
+        // and would render verbatim — this pill is on every card (D7).
         let label: String = {
             switch confidence {
-            case .high: return "Validated"
-            case .moderate: return "Estimate"
-            case .low: return "Needs data"
-            case .experimental: return "Experimental"
+            case .high: return String(localized: "Validated")
+            case .moderate: return String(localized: "Estimate")
+            case .low: return String(localized: "Needs data")
+            case .experimental: return String(localized: "Experimental")
             }
         }()
         Text(label)

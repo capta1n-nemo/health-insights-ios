@@ -54,18 +54,49 @@ interpolated=$(count "$localisable\\(\"[^\"]*\\\\\\(" "$app")
 # counting those would inflate the figure into meaninglessness.
 kit_prose=$(grep -rhoE '"[^"]{20,}"' --include='*.swift' "$kit" 2>/dev/null | grep -c ' ' || true)
 
+# Population 4 (added 2026-08-08, with the catalog): app-target prose the
+# catalog CANNOT see. A literal reaches the catalog only through a
+# `LocalizedStringKey`/`LocalizedStringResource` position or `String(localized:)`;
+# a ternary inside `Text(...)`, a `switch` that returns copy, or a plain-String
+# parameter renders verbatim forever. Same 20-chars-with-a-space methodology as
+# the InsightKit count, minus lines the extractor or `String(localized:)`
+# already covers — an estimate for sizing the sweep, not a lint.
+# Comment lines are dropped first: this repo's house style quotes prose in
+# doc comments constantly, and counting those as UI copy would roughly double
+# the figure. (The InsightKit count above keeps its original methodology so
+# its history stays comparable.)
+app_dark=$(grep -rhE '"[^"]{20,}"' --include='*.swift' "$app" 2>/dev/null \
+    | grep -vE '^[[:space:]]*//' \
+    | grep -vE "$localisable\\(\"" \
+    | grep -vE 'String\(localized:' \
+    | grep -oE '"[^"]{20,}"' | grep -c ' ' || true)
+
 printf '%s\n' "Localisation audit — $(date +%Y-%m-%d)"
 printf '%s\n' "------------------------------------------------------------"
 printf '  %-52s %6s\n' "App-target literals Xcode can extract for free" "$auto"
 printf '  %-52s %6s\n' "  …of which interpolate, so freeze word order" "$interpolated"
+printf '  %-52s %6s\n' "App-target prose the catalog can't see (plain String)" "$app_dark"
 printf '  %-52s %6s\n' "InsightKit prose strings (no bundle, no catalog)" "$kit_prose"
-printf '  %-52s %6s\n' "TOTAL" "$((auto + kit_prose))"
+printf '  %-52s %6s\n' "TOTAL" "$((auto + app_dark + kit_prose))"
 printf '%s\n' "------------------------------------------------------------"
 
 if [ -f "$app/Resources/Localizable.xcstrings" ]; then
-    langs=$(grep -oE '"[a-z]{2}(-[A-Za-z]+)?" *: *\{' "$app/Resources/Localizable.xcstrings" \
-            | sort -u | wc -l | tr -d ' ')
-    printf '%s\n' "String Catalog: present. Languages beyond source: $langs"
+    # Read as JSON, not grepped: a grep for language codes counted the *source*
+    # language's own entries as "languages beyond source" the first time the
+    # catalog was populated (2026-08-08), and an earlier grep exited 1 on the
+    # empty catalog and killed the whole report under `set -o pipefail`. An
+    # audit that lies about — or dies on — the state it exists to report is the
+    # worst kind of gate.
+    python3 - "$app/Resources/Localizable.xcstrings" <<'PY'
+import json, sys
+c = json.load(open(sys.argv[1]))
+src = c.get('sourceLanguage')
+strings = c.get('strings', {})
+langs = {l for e in strings.values() for l in e.get('localizations', {}) if l != src}
+print(f"String Catalog: present, holding {len(strings)} keys "
+      f"(./scripts/l10n-extract.sh refreshes it). "
+      f"Languages beyond source: {len(langs)}")
+PY
 else
     printf '%s\n' "String Catalog: ABSENT — population 1 is not being extracted."
 fi

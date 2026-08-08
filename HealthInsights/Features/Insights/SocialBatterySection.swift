@@ -63,7 +63,7 @@ struct SocialBatterySection: View {
         }
     }
 
-    private func placeholder(title: String, message: String) -> some View {
+    private func placeholder(title: LocalizedStringResource, message: String) -> some View {
         InsightSection(title: title, trailing: nil, caveat: .none,
                        expansion: .collapsed(preview: String(message.prefix(90)))) {
             Text(message)

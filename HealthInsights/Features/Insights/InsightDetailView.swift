@@ -312,7 +312,7 @@ struct InsightDetailView: View {
     /// and can state how often it was right — which is the figure at the top of
     /// this section and the one the whole loop exists to move.
     @ViewBuilder private func calendarReviewSection(buckets: Set<CalendarEventBucket>,
-                                                    title: String) -> some View {
+                                                    title: LocalizedStringResource) -> some View {
         let rows = model.calendarReview.filter {
             buckets.contains(CalendarEventBucket($0.judgement.effective))
         }
@@ -931,7 +931,7 @@ struct InsightDetailView: View {
 
     /// Named for what the card actually draws, so the heading cannot promise a
     /// series the chart does not carry.
-    static func ageHistoryTitle(_ id: InsightID) -> String {
+    static func ageHistoryTitle(_ id: InsightID) -> LocalizedStringResource {
         switch id {
         case .fitness: return "Fitness age over time"
         case .biologicalAge: return "Your ages over time"
