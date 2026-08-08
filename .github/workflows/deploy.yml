@@ -154,10 +154,21 @@ jobs:
         run: |
           set -o pipefail
           STATUS=0
+          # ⚠️ **Release, not Debug — this is the reader's phone, not a test rig.**
+          # Switched 2026-08-09. Unoptimised Swift ran this code about 3.5x
+          # slower on their own data: the main-actor half of `recompute()`
+          # measured 849 ms in Debug against 239 ms in Release over 379,693
+          # samples, and they were reporting hangs on every card open, every
+          # manual entry and at launch.
+          #
+          # Nothing was lost by the switch. `MainThreadWatchdog` and the rest of
+          # the hang diagnostics are `#if DEBUG`, and the reader asked for hang
+          # detection **on the emulator** (`D54`) — `simulator.sh` still builds
+          # Debug, so the instrument stays exactly where it was asked for.
           xcodebuild \
             -project HealthInsights.xcodeproj \
             -scheme HealthInsights \
-            -configuration Debug \
+            -configuration Release \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             -allowProvisioningUpdates \
