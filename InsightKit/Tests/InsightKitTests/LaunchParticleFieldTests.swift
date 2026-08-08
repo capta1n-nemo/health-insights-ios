@@ -1,5 +1,10 @@
 import XCTest
 @testable import InsightKit
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 /// The launch heart is drawn by Metal, and no test here can see a pixel of it.
 /// What these pin is everything *upstream* of the draw call: that the buffer
@@ -178,7 +183,43 @@ final class LaunchParticleFieldTests: XCTestCase {
     /// (This sentence claimed "6× for a 4× size increase" after the assertion
     /// had been rewritten twice past it. A comment describing behaviour is not
     /// evidence of it, which is the rule this drift was found by.)
-    func testCloudGenerationStaysLinearInTheParticleCount() {
+    func testCloudGenerationStaysLinearInTheParticleCount() throws {
+        // ⚠️ **Fourth fix (backlog D64): the timing half only runs on a quiet
+        // machine, and says so when it doesn't.** Equal work on both sides
+        // cancels *steady* load, and on 2026-08-08 the ratio still hit 2.29×
+        // during a gate run with ten sibling worktrees compiling — then passed
+        // in isolation on the same commit two minutes later. Under real
+        // oversubscription the scheduler does not treat one long run and four
+        // short ones symmetrically enough for a 2.0 ceiling, so a wall clock
+        // there measures the siblings, not the cloud.
+        //
+        // The limit is deliberately NOT widened — 2.0 is what catches a
+        // rejection loop regaining a factor, and widening it to survive load
+        // would stop it catching anything. Instead the assertion is skipped,
+        // out loud and with the load in the reason, when the machine is
+        // demonstrably not quiet. The invariant does not go unguarded while
+        // skipped: `testHeartAndRingPointsDrawAFixedNumberOfRandomValues`
+        // below pins the rejection-sampler half deterministically, whatever
+        // the machine is doing.
+        //
+        // Threshold 1.5× saturation: a parallel build that has just finished
+        // leaves the one-minute average near 1.0×, while the recorded
+        // failures came from sibling storms at 2× and above. (`getloadavg`
+        // rather than shelling out to `app-test-report.sh load` because this
+        // suite also runs under bare `swift test` on Linux CI, where the
+        // script's location cannot be assumed from the test bundle.)
+        var load = [0.0]
+        let cores = Swift.max(ProcessInfo.processInfo.activeProcessorCount, 1)
+        if getloadavg(&load, 1) == 1 {
+            let perCore = load[0] / Double(cores)
+            if perCore >= 1.5 {
+                throw XCTSkip("machine is not quiet — load \(load[0]) across "
+                              + "\(cores) cores is \(perCore)× saturation, and a "
+                              + "wall-clock ratio here would measure the sibling "
+                              + "load, not the cloud (backlog D64). The draw-count "
+                              + "test still guards the rejection-sampler half.")
+            }
+        }
         /// **Best of several, not a single reading.** The first version of this
         /// timed one small run against one large one, and still flaked: at a few
         /// milliseconds a single scheduling hiccup is larger than the signal.
@@ -235,6 +276,42 @@ final class LaunchParticleFieldTests: XCTestCase {
                           "generation is scaling worse than linearly in the particle count "
                           + "(80,000 points in one build cost \(ratio)× the same 80,000 points "
                           + "in four) — a bisection or rejection loop has probably regained a factor")
+    }
+
+    /// The load-independent half of the linearity invariant (backlog D64):
+    /// **generation never rejects a sample**, counted rather than timed.
+    ///
+    /// The regression the timing test exists for is a rejection sampler
+    /// creeping back in — and a rejection sampler cannot hide from arithmetic,
+    /// because every candidate it discards consumes random draws. SplitMix64's
+    /// state advances by exactly one fixed stride per `next()`, so the number
+    /// of draws a point cost is readable from the generator's state, exactly,
+    /// on any machine under any load. A heart point is 4 gaussians (direction
+    /// ×3 + radial scatter ×1) at 2 draws each; a ring point is 1 uniform + 2
+    /// gaussians. If either ever varies, or grows, something is looping.
+    ///
+    /// What this cannot see — and why the timing test above still exists — is
+    /// the bisection loop gaining a zero: iteration count 32 → 320 draws
+    /// nothing extra and converges to the same point. Only the clock catches
+    /// that, which is why the clock is gated on quiet rather than deleted.
+    func testHeartAndRingPointsDrawAFixedNumberOfRandomValues() {
+        // SplitMix64's per-`next()` state increment, from the algorithm.
+        let stride: UInt64 = 0x9E37_79B9_7F4A_7C15
+        var rng = SplitMix64(state: 0x5EED_1EAF)
+        for i in 0..<2_000 {
+            let before = rng.state
+            _ = LaunchParticleField.heartPoint(&rng)
+            XCTAssertEqual(rng.state, before &+ (8 &* stride),
+                           "heart point \(i) did not cost exactly 8 random draws — "
+                           + "a rejection or retry loop has crept into heartPoint")
+        }
+        for i in 0..<2_000 {
+            let before = rng.state
+            _ = LaunchParticleField.ringPoint(&rng)
+            XCTAssertEqual(rng.state, before &+ (5 &* stride),
+                           "ring point \(i) did not cost exactly 5 random draws — "
+                           + "a rejection or retry loop has crept into ringPoint")
+        }
     }
 
     /// The cloud is the size it says it is. Kept separate from the timing above
