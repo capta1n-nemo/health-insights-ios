@@ -182,9 +182,17 @@ check_switch_covers() {
     body=$(awk "/(var|func) $symbol/,/^    }\$/" "$file" 2>/dev/null)
     [ -z "$body" ] && return
     # A `default:` arm makes the switch non-exhaustive by design — skip it.
-    printf '%s' "$body" | grep -qE '^\s+default:' && return
+    #
+    # ⚠️ Herestrings, NOT `printf | grep -q` — that shape failed on CI and only
+    # on CI (red on a3d70d6, green locally, same tree). `grep -q` exits at its
+    # first match and closes the pipe; `printf` takes SIGPIPE (exit 141), and
+    # under `pipefail` **the pipeline fails even though grep matched** — so a
+    # case that IS present got reported missing. macOS delivers the body in one
+    # write and never hits it; Linux chunks it. The "printf: write error:
+    # Broken pipe" line in the CI log was the tell.
+    grep -qE '^\s+default:' <<<"$body" && return
     for name in $metric_names; do
-        printf '%s' "$body" | grep -qE "[.]$name\b" || missing="$missing $name"
+        grep -qE "[.]$name\b" <<<"$body" || missing="$missing $name"
     done
     if [ -n "$missing" ]; then
         note "$symbol ($file) does not mention:$missing"
