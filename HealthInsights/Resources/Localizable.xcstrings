@@ -1,7 +1,1767 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-
+  "sourceLanguage": "en",
+  "strings": {
+    "": {},
+    " ": {},
+    " — you agreed": {},
+    " — you corrected this": {},
+    "%@": {},
+    "%@ %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$@"
+          }
+        }
+      }
+    },
+    "%@ %@ not drawn — each is missing a score in at least one %@, and a shape can only be read against the shape beside it if every card on it has a real value. A coarser step usually brings them back.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$@ not drawn — each is missing a score in at least one %3$@, and a shape can only be read against the shape beside it if every card on it has a real value. A coarser step usually brings them back."
+          }
+        }
+      }
+    },
+    "%@ %@ on each of %lld %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$@ on each of %3$lld %4$@"
+          }
+        }
+      }
+    },
+    "%@ %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ %2$lld"
+          }
+        }
+      }
+    },
+    "%@ each miss at least one %@ of your history. A coarser step is the fix — try %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ each miss at least one %2$@ of your history. A coarser step is the fix — try %3$@."
+          }
+        }
+      }
+    },
+    "%@ mg": {},
+    "%@ score %lld out of 100": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ score %2$lld out of 100"
+          }
+        }
+      }
+    },
+    "%@ shows its secret only once and doesn't need it here — it signs in securely with just the Client ID. Paste the secret only if you still have it.": {},
+    "%@ since it started, low point %lld on %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ since it started, low point %2$lld on %3$@"
+          }
+        }
+      }
+    },
+    "%@ to %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ to %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@ · %@ · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ · %2$@ · %3$@ · %4$@"
+          }
+        }
+      }
+    },
+    "%@ — %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ — %2$@"
+          }
+        }
+      }
+    },
+    "%@ — an example": {},
+    "%@ → %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@%2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, charted but not scored": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$@, charted but not scored"
+          }
+        }
+      }
+    },
+    "%@, %lld doses logged.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@, %2$lld doses logged."
+          }
+        }
+      }
+    },
+    "%@: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%@: %@. %@%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$@. %3$@%4$@"
+          }
+        }
+      }
+    },
+    "%@: %lld %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@: %2$lld %3$@"
+          }
+        }
+      }
+    },
+    "%lld": {},
+    "%lld %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld %2$@"
+          }
+        }
+      }
+    },
+    "%lld %@ had more than %lld days with no score inside them, so %@ shown but left out of the figure above — counting days nobody watched would be inventing a recovery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld %2$@ had more than %3$lld days with no score inside them, so %4$@ shown but left out of the figure above — counting days nobody watched would be inventing a recovery."
+          }
+        }
+      }
+    },
+    "%lld accurate · %lld not": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld accurate · %2$lld not"
+          }
+        }
+      }
+    },
+    "%lld bpm": {},
+    "%lld cards need a score in every %@ before their balance can be enclosed. Fewer than that draws a line rather than a shape, which reads as a fault.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld cards need a score in every %2$@ before their balance can be enclosed. Fewer than that draws a line rather than a shape, which reads as a fault."
+          }
+        }
+      }
+    },
+    "%lld day period": {},
+    "%lld day%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld day%2$@"
+          }
+        }
+      }
+    },
+    "%lld day%@ logged": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld day%2$@ logged"
+          }
+        }
+      }
+    },
+    "%lld days": {},
+    "%lld days logged · cycles %lld–%lld days": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld days logged · cycles %2$lld–%3$lld days"
+          }
+        }
+      }
+    },
+    "%lld days scored, none checked": {},
+    "%lld days — left out entirely, too few or too alike to split. Folding them into the other block would put the confound back.": {},
+    "%lld days, split at their own median": {},
+    "%lld doses · last %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld doses · last %2$@"
+          }
+        }
+      }
+    },
+    "%lld earlier %@ worked out, not logged": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld earlier %2$@ worked out, not logged"
+          }
+        }
+      }
+    },
+    "%lld email%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld email%2$@"
+          }
+        }
+      }
+    },
+    "%lld evenings of screen time with a night beside each — enough to hold your heavier evenings against your lighter ones.": {},
+    "%lld event%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld event%2$@"
+          }
+        }
+      }
+    },
+    "%lld failure%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld failure%2$@"
+          }
+        }
+      }
+    },
+    "%lld field%@ about you: %lld in your words, %lld measured": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld field%2$@ about you: %3$lld in your words, %4$lld measured"
+          }
+        }
+      }
+    },
+    "%lld h": {},
+    "%lld in the last year": {},
+    "%lld m": {},
+    "%lld measurement sessions": {},
+    "%lld min": {},
+    "%lld more you answered where the app had nothing to offer. Those are not counted either way.": {},
+    "%lld of %lld days measured": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of %2$lld days measured"
+          }
+        }
+      }
+    },
+    "%lld of %lld details set": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of %2$lld details set"
+          }
+        }
+      }
+    },
+    "%lld of %lld set": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of %2$lld set"
+          }
+        }
+      }
+    },
+    "%lld of the %lld behaviours this watches had too few days in the last fortnight to compare, so they are not here at all.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of the %2$lld behaviours this watches had too few days in the last fortnight to compare, so they are not here at all."
+          }
+        }
+      }
+    },
+    "%lld of the last %lld recorded nights fell short.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld of the last %2$lld recorded nights fell short."
+          }
+        }
+      }
+    },
+    "%lld of these could not be checked out. Compare them against your report before you keep them — the lipids among them will not be used for your heart-risk estimate.": {},
+    "%lld readings": {},
+    "%lld recorded": {},
+    "%lld recorded pair%@ being held back for that reason, and %@ not counted in anything above.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld recorded pair%2$@ being held back for that reason, and %3$@ not counted in anything above."
+          }
+        }
+      }
+    },
+    "%lld scored %@ across %lld cards": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld scored %2$@ across %3$lld cards"
+          }
+        }
+      }
+    },
+    "%lld side %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld side %2$@"
+          }
+        }
+      }
+    },
+    "%lld signals selected. Past %lld the colours repeat.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld signals selected. Past %2$lld the colours repeat."
+          }
+        }
+      }
+    },
+    "%lld sites": {},
+    "%lld sources you connected aren't reporting": {},
+    "%lld tag%@ · %lld not yet grouped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld tag%2$@ · %3$lld not yet grouped"
+          }
+        }
+      }
+    },
+    "%lld tag%@, all grouped": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld tag%2$@, all grouped"
+          }
+        }
+      }
+    },
+    "%lld then": {},
+    "%lld then · %lld now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld then · %2$lld now"
+          }
+        }
+      }
+    },
+    "%lld time-zone changes found in your record.": {},
+    "%lld value%@ worth checking against your report": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld value%2$@ worth checking against your report"
+          }
+        }
+      }
+    },
+    "%lld · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld · %2$@"
+          }
+        }
+      }
+    },
+    "%lld%%": {},
+    "%lld. %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld. %2$@"
+          }
+        }
+      }
+    },
+    "%lld/%lld days": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld/%2$lld days"
+          }
+        }
+      }
+    },
+    "%lld/%lld mmHg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$lld/%2$lld mmHg"
+          }
+        }
+      }
+    },
+    "%lld/10": {},
+    "%lldd": {},
+    "%lldm": {},
+    "%lld×": {},
+    "- - typical day": {},
+    "1 measurement session": {},
+    "1 recorded": {},
+    "100%": {},
+    "120": {},
+    "80": {},
+    "A bar near the middle means that behaviour is sitting where it usually sits. It does not mean anything about how the fortnight felt.": {},
+    "A ceiling for the worst day rather than a target. The same finding is never sent twice, so reaching this means that many genuinely different things happened — and when it bites, what gets through is whatever is most about your body rather than whatever happened to be found first. Set it to none to stop everything without unticking each row.": {},
+    "A dashed stretch joins two readings across a gap — nothing was measured along it.": {},
+    "A day you mark here joins your sick-day record, and this card reads it: what you say about a day counts for more than what your overnight readings did.": {},
+    "A departure at or under the allowance never accumulates at all, however long it lasts. That is deliberate: a detector that eventually flags everything has stopped saying anything.": {},
+    "A flag means a number moved with nothing moving to explain it. Only your answer says what was actually happening — nothing here is the app having detected an activity.": {},
+    "A made-up card with twelve checks behind it — small errors, an obvious lean, and barely better than assuming nothing changed. Not your data.": {},
+    "A made-up meeting and a made-up reading, not yours. Under Full, the event's own words and the value you measured go with the correction — that is what makes it possible to work out *why* the app got it wrong.": {},
+    "A running record of syncs, API calls and imported data. Tap any line with a “Details” arrow to see the exact request, the provider's own error message, and what to do about it. Nothing here leaves your phone unless you copy it — the log is not part of what Data & model improvement can share.": {},
+    "A scan is quicker and a tape is more accurate — the app ranks a tape above both scan modes and never lets a scan overwrite one. Nothing is uploaded either way.": {},
+    "A separate, much narrower stream: a broad group and how far off the model was, with no values and no words in it at all. **Off by default**, and unchanged by the switches above — it answers whether the model is improving, which is a different question from why it was wrong.": {},
+    "A single occasion, several entries close together and a longer stretch are different questions, and they are labelled rather than averaged — a mean recovery time across four occasions of three different shapes would describe none of them.": {},
+    "A source you connected isn't reporting": {},
+    "A tag is a word you typed. Nothing measured it and nothing has checked it against anything, so letting one move a score is a decision about your own data rather than a setting — which is why you are being asked instead of told. Your answer here is kept and read at the next review.": {},
+    "A typical night": {},
+    "About": {},
+    "About & medical disclaimer": {},
+    "Accuracy preview: %lld item%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Accuracy preview: %1$lld item%2$@"
+          }
+        }
+      }
+    },
+    "Accuracy telemetry": {},
+    "Accurate": {},
+    "Across the cycle": {},
+    "Add": {},
+    "Add a reading": {},
+    "Add a supplement": {},
+    "Add an address": {},
+    "Add an ingredient": {},
+    "Add another analyte": {},
+    "Add data": {},
+    "Add it in Apple Health, or in Settings under your details.": {},
+    "Add or update data": {},
+    "Add or view your data": {},
+    "Add reading": {},
+    "Add your height and a recent weight and your body will be drawn here. Measuring your waist makes it yours rather than a build estimated from the two.": {},
+    "Against your usual": {},
+    "Age": {},
+    "All": {},
+    "All %@ data": {},
+    "All of your scores share the same 0–100 scale, so they can be read directly against each other.": {},
+    "All optional. Anything you leave blank is simply not recorded — it isn't stored as zero, and a later measurement fills it in.": {},
+    "Allow location": {},
+    "Allow notifications": {},
+    "Allowed": {},
+    "Also feeding this — not a measured series": {},
+    "Also record places while the app is closed": {},
+    "Amount": {},
+    "An inventory of every signal in your Data tab — including the imported fields no card reads yet — small enough to send in a message. Stays on this phone until you share it, and never includes account details.": {},
+    "An ordinary day": {},
+    "Analyte, as your report names it": {},
+    "Analytes": {},
+    "Answer these": {},
+    "Answered": {},
+    "Answered moments": {},
+    "Anything else": {},
+    "Anything else on your report": {},
+    "App guessed: %@": {},
+    "Apple Health works on-device. Tap Oura or Withings for a step-by-step guide. Shotsy has no API — you send it a file from Shotsy’s own share sheet, and tapping it explains how.": {},
+    "Apple Intelligence": {},
+    "Apple doesn't let apps read Screen Time, so this is the way in. A Shortcuts automation can fill it each morning if you'd rather not type it.": {},
+    "As it appears in your calendar — so \"%@ on holiday – OOO\" reads as yours, and anyone else's block never counts as your meeting.": {},
+    "As printed on the document": {},
+    "As the label writes it": {},
+    "Asleep": {},
+    "At your loudest day's level the NIOSH occupational limit allows %@ — a different budget from the weekly one above, for an eight-hour working day, shown because it is the one that turns a percentage into a length of time.": {},
+    "Average": {},
+    "Average heart rate": {},
+    "Balance of your scores": {},
+    "Band": {},
+    "Bedtime": {},
+    "Better or worse than usual": {},
+    "Biological sex": {},
+    "Black / African American": {},
+    "Blend name, as the label writes it": {},
+    "Blend total (optional)": {},
+    "Blood Pressure": {},
+    "Blood pressure": {},
+    "Blood pressure is read against the ACC/AHA stages — normal, elevated, stage 1, stage 2 — rather than ranked against a population. The category is a stronger statement than a percentile, and drawing both would be two answers to one question. Your reading and its stage are on the Blood Pressure card.": {},
+    "Blood taken": {},
+    "Blood test results": {},
+    "Body measurements": {},
+    "Body scan": {},
+    "Body scans": {},
+    "Body type": {},
+    "Both are off, so no correction of yours would be shared at all — not even its shape.": {},
+    "Both are outside this app — nothing here is half-built waiting on the other half. Everything the widget needs from the app is already working, which is what the panel above is showing you.": {},
+    "Both days count — one day off is the same date twice. Future leave is welcome: booked time off is part of the record.": {},
+    "Both start on. Turn either off and it stays off. **Full** includes **Metadata only**, so with both on, a correction would go out in full.": {},
+    "Both tiers are off, so nothing of yours is queued.": {},
+    "Brand": {},
+    "Brand (optional)": {},
+    "Breathing during sleep": {},
+    "Bring data in": {},
+    "Bring in an ECG from your watch, your GP or a hospital. The date and any details printed on it are read on this device.": {},
+    "Bringing in your injections and measurements, then re-scoring your cards.": {},
+    "Browse what isn't modelled yet": {},
+    "Build": {},
+    "Building it — every reading, so this takes a moment…": {},
+    "Built": {},
+    "By dose": {},
+    "By injection site": {},
+    "Calibration": {},
+    "Camera and LiDAR capture is not built yet — these choices apply to the first scan you take. Measurements you type in yourself are unaffected: a tape measure collects none of this.": {},
+    "Can't see: %@. These matter for a lot of people and aren't on your phone, so they're not in the picture above — worth keeping in mind before blaming what is.": {},
+    "Cancel": {},
+    "Card": {},
+    "Card candidates": {},
+    "Card scores & estimates": {},
+    "Cardiovascular load": {},
+    "Carried": {},
+    "Carried run": {},
+    "Category: %@": {},
+    "Category: %@. Use a real upper-arm cuff, seated and rested.": {},
+    "Change": {},
+    "Change your answer": {},
+    "Charted, and carrying none of the number:": {},
+    "Charted, not scored": {},
+    "Checks for you": {},
+    "Choose a PDF": {},
+    "Choose a file instead": {},
+    "Choose a photo": {},
+    "Choose the document": {},
+    "Chosen": {},
+    "Clear": {},
+    "Clear my answer": {},
+    "Clear seeded data": {},
+    "Client ID": {},
+    "Client Secret": {},
+    "Client Secret (optional)": {},
+    "Close": {},
+    "Clothing is the single biggest reason two scans disagree. Whatever you pick, the app will aim you at the same choice next time.": {},
+    "Completed cycles": {},
+    "Compound": {},
+    "Computed by this app from your data — not a measurement. Rebuilt with today's model, so a model improvement rewrites this history.": {},
+    "Computed by this app, never measured": {},
+    "Confirm or correct a few and this will start telling you how often it gets them right. It needs %lld before that figure means anything.": {},
+    "Confirming or correcting one of these happens on the Work impact and Travel drain cards, where the whole review list lives. Nothing on this page changes what is stored.": {},
+    "Connect": {},
+    "Connect %@": {},
+    "Connect Apple Health": {},
+    "Connect Apple Health or a device in Settings, then pull to refresh.": {},
+    "Connect a device or Apple Health, then pull to refresh.": {},
+    "Connected": {},
+    "Connecting…": {},
+    "Continue": {},
+    "Copied": {},
+    "Copy log": {},
+    "Copy the address": {},
+    "Could be either side": {},
+    "Couldn't find any values across those %lld pages. Blood-test reports vary.": {},
+    "Couldn't find any values in that document. Try a sharper, straight-on photo.": {},
+    "Counted from your most complete source, so a phone in your pocket and a watch on your wrist aren't added together.": {},
+    "Coverage that high means a quiet card is genuinely quiet rather than absent.": {},
+    "Current dose": {},
+    "Cycle": {},
+    "Dashed where the line rests on doses the app worked out from your current dose rather than ones you logged — confirm or correct them below. Milligram-equivalent from %@'s published half-life of %lld days; a model, not a measurement of your blood.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Dashed where the line rests on doses the app worked out from your current dose rather than ones you logged — confirm or correct them below. Milligram-equivalent from %1$@'s published half-life of %2$lld days; a model, not a measurement of your blood."
+          }
+        }
+      }
+    },
+    "Data": {},
+    "Data & model improvement": {},
+    "Data types this app had never received before — a new connector, a new device, or one that only just started sending them. Tap one to jump to where it lives below. This is when the app first *saw* each one, not when the readings were taken, so a connector backfilling two years of history doesn't fill this list.": {},
+    "Date": {},
+    "Date of birth": {},
+    "Day": {},
+    "Day %lld": {},
+    "Day %lld of the cycle in progress, which has no length yet.": {},
+    "Day by day": {},
+    "Days": {},
+    "Days ill in the last year": {},
+    "Days recorded": {},
+    "Days since dose": {},
+    "Days synced from Health appear here too. Tapping a day changes what is stored, so this stays your record rather than the app's guess at one.": {},
+    "Days you answered about": {},
+    "Days you recorded being ill": {},
+    "Deep dive": {},
+    "Deeper analysis of your trends over time.": {},
+    "Delete": {},
+    "Delete everything": {},
+    "Delete everything here": {},
+    "Delete everything here?": {},
+    "Delete everything on this phone?": {},
+    "Derived figures, day by day": {},
+    "Details": {},
+    "Details you've given": {},
+    "Developer (debug builds only)": {},
+    "Device": {},
+    "Diastolic": {},
+    "Diastolic threshold": {},
+    "Diastolic: %lld mmHg": {},
+    "Did not delete": {},
+    "Discard": {},
+    "Disconnect": {},
+    "Discovered · nothing stored": {},
+    "Dismiss": {},
+    "Dismiss this suggestion": {},
+    "Does company restore you or drain you?": {},
+    "Done": {},
+    "Dose": {},
+    "Doses": {},
+    "Double tap to add to the chart": {},
+    "Double tap to collapse": {},
+    "Double tap to collapse this section": {},
+    "Double tap to expand": {},
+    "Double tap to expand this section": {},
+    "Double tap to remove from the chart": {},
+    "Down %lld points %@. ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Down %1$lld points %2$@. "
+          }
+        }
+      }
+    },
+    "Drag across the chart to read individual points; swipe it sideways to move back through your history.": {},
+    "Drawn from the same file a widget on your home screen would read — not rebuilt for this screen. If it looks right here, it would look right there.": {},
+    "Drawn from your full recorded history: %@ to %@ — %lld %@, %lld %@. It grows as the app records more.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Drawn from your full recorded history: %1$@ to %2$@ — %3$lld %4$@, %5$lld %6$@. It grows as the app records more."
+          }
+        }
+      }
+    },
+    "Duration": {},
+    "Each bar is one source's typical night over the timeframe below — the mean of the nights that source actually recorded, not of every night in the window, so a wearable you wore nine nights isn't drawn as nine thin ones. Sources are never averaged together: where two disagree, both bars are drawn and the difference is the finding.": {},
+    "Each device is a separate colour, so you can spot where they disagree.": {},
+    "Each line is measured against its own usual range over this window, so they can share an axis — milligrams, kilograms and percent have no common scale, and giving each its own axis is how any two lines can be made to look like they agree. Scrub for the real numbers.": {},
+    "Each point is one evening's screen time and the night that followed it. Nothing is fitted through them yet — that waits until there are enough.": {},
+    "Each point is one evening's screen time and the night that followed it. The dashed line is your own middle; everything right of it is your heavier half.": {},
+    "Each point is one night. The band is the middle half of every night you have recorded, and the dashed line is the fit through all of them — the same line the sentence above quotes, so it does not change as you scroll. It is dashed because a fitted value is not a night you had.": {},
+    "Each point is one night. The band is the middle half of every night you have recorded. No line is drawn: the slope through these nights is smaller than how much they differ from each other, so there is no direction here worth naming.": {},
+    "Each point is one night. The dashed line is your usual level and the band is how far either side of it you typically land — both re-fit to whatever window you scroll to, so they describe the stretch you are looking at rather than this month.": {},
+    "Each point is one night. The dashed line is your usual time to fall asleep and the band is how far either side of it you typically land — the narrower the band, the more consistent. Both re-fit to whatever window you scroll to.": {},
+    "Each row is one source's own account of the night, gaps included — a blank stretch means that source recorded nothing there. A grey block is a source that reports only when it thinks you slept, drawn from its onset and total without stage detail.": {},
+    "Each row is one thing that happened: what the app said, what was then measured, and the difference. Every figure on this screen is computed from these and nothing else.": {},
+    "Each signal against its own normal for this period, so they can be read against each other. The dashed line is your average. The list below is ordered by how far each signal has moved — tap any of them to add or remove it.": {},
+    "Each substance, good and bad": {},
+    "Earlier entries": {},
+    "Earlier · %lld": {},
+    "Earliest": {},
+    "Edit": {},
+    "Empty": {},
+    "Enter the two numbers your cuff shows (the higher one is systolic). Use a real upper-arm cuff, seated and rested.": {},
+    "Estimate": {},
+    "Estimated build": {},
+    "Estimated — not yet confirmed": {},
+    "Ethnicity": {},
+    "Every bar is on the same scale: how far the channel moved in its own night-to-night spreads, out to three either side. The pale block in the middle is one spread either way — the range about two thirds of your nights land in. That is what makes a millisecond comparable with a breath. Amber means the move was in the direction illness pushes that signal; grey means it moved the other way, or that nothing published says which way is worse.": {},
+    "Every card has something checking it. That is not a state this app expects to reach.": {},
+    "Every check, newest first": {},
+    "Every figure here was computed by this app, not measured by a device. History is rebuilt by replaying today's models over your data, so improving a model rewrites its own past.": {},
+    "Every imported field is already a first-class metric.": {},
+    "Every ingredient, summed": {},
+    "Every number on this screen is invented. It is not your data and never will be — it is here so you can see what this looks like once there is something to show.": {},
+    "Every reading synced from Apple Health, Oura, Withings and any other connected provider is discarded and fetched again. This takes as long as a normal sync.\n\nAnything you entered yourself is kept. A provider that can't be reached right now will have no data until it syncs successfully, so it's worth checking you're online first.": {},
+    "Every way to give the app something: your details, cuff readings, substances, medication and doses, side effects, a photographed blood test, and files shared from other apps.": {},
+    "Everything below is on top of that. Turning a kind off here stops it being sent without touching the permission.": {},
+    "Everything the Data tab shows, including the imported fields under \"Other data\" that no card reads yet. It also records which sources are connected and when each last synced, the suggestions you've waved away, your accuracy ratings, the troubleshooting log, and your corrections — never your passwords, sign-in tokens or account details, which cannot go in this file at all. Your own health data: nothing here goes anywhere until you share it yourself. Your corrections are included at whichever level you set in Settings ▸ Data & model improvement, which is also where anything shared automatically would be listed.": {},
+    "Excluded from the average — these haven't reported recently.": {},
+    "Experimental": {},
+    "Export everything": {},
+    "Export my data": {},
+    "Failed": {},
+    "Far outside the rest of this series": {},
+    "Female": {},
+    "Ferritin, TSH, vitamin D — whatever your report prints. If the app recognises the name it will convert the unit and keep the trend together; if it does not, it stores exactly what you type and says so. Nothing here is scored or interpreted.": {},
+    "Fertile window": {},
+    "Filed under %@ by your source.": {},
+    "Files removed": {},
+    "First day": {},
+    "First measured": {},
+    "Fitness age over time": {},
+    "Fitted": {},
+    "Flagged moments": {},
+    "For a backup you've already saved to Files. Sharing the same export twice is safe — nothing is imported twice.": {},
+    "Forget my places": {},
+    "Form": {},
+    "Found %lld value%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Found %1$lld value%2$@"
+          }
+        }
+      }
+    },
+    "From": {},
+    "From Settings ▸ Screen Time — the daily total. Re-entering a day replaces it, so fixing a typo is just entering it again.": {},
+    "From another app": {},
+    "From your log, not measured — how much cardiovascular load your logged use is still carrying, decaying with a %lld-day half-life.": {},
+    "Full history": {},
+    "Generated series, not measurements — for checking that charts, bands and shading draw correctly on a simulator, where Apple Health does not exist. Never read anything about yourself from it.": {},
+    "Get started": {},
+    "Getting into position": {},
+    "Good afternoon": {},
+    "Good evening": {},
+    "Good morning": {},
+    "Grant read access so we can use your heart rate, HRV, cardio fitness and more. Your readings are stored on this phone and are never uploaded. What can be shared to improve the models is listed in Settings ▸ Data & model improvement, and nothing is sent in this build.": {},
+    "Grounding uses only readings from the last 30 days. Log %lld within 30 days to ground the estimate, then %lld a month keeps it grounded. Readings already in Apple Health count automatically.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Grounding uses only readings from the last 30 days. Log %1$lld within 30 days to ground the estimate, then %2$lld a month keeps it grounded. Readings already in Apple Health count automatically."
+          }
+        }
+      }
+    },
+    "Guessed by this app, answered by you": {},
+    "HRV": {},
+    "Hasn't run yet. Once your shortcut calls the address below, this will show when it last did and what it carried.": {},
+    "Have the real number? Enter it →": {},
+    "Health metric": {},
+    "Heart age over time": {},
+    "Heart rate recovery": {},
+    "Heart-attack and stroke risk is computed with published, peer-reviewed clinical equations (SCORE2 and the ASCVD Pooled Cohort Equations). Heart-health scores come from your measured fitness signals compared with age-adjusted norms and your own baseline. Blood pressure is grounded in the readings you log from a real cuff; any on-device estimate is clearly marked as experimental.": {},
+    "Heavier days against lighter ones": {},
+    "Hide details": {},
+    "Hide instruments": {},
+    "Hide the rest": {},
+    "High": {},
+    "Hold it": {},
+    "Holiday or leave": {},
+    "Holidays & leave": {},
+    "Home screen widget": {},
+    "Hours": {},
+    "Hours after you fell asleep": {},
+    "Hours of sleep per typical swing": {},
+    "Hours slept": {},
+    "Hours slept each night, and the gap to your own need.": {},
+    "Hours slept that night": {},
+    "How bad?": {},
+    "How far each signal moved between your busier days for company and your quieter ones, in standard deviations of your own spread. Right of the line is the unwelcome direction.": {},
+    "How far each watched signal leaned on this day": {},
+    "How far from your normal": {},
+    "How far out, which way, and does it beat doing nothing": {},
+    "How fast you fall asleep": {},
+    "How hard you worked": {},
+    "How long before it notices": {},
+    "How long it took to settle": {},
+    "How long you take to come back": {},
+    "How long you take to recover": {},
+    "How much to believe it": {},
+    "How much you moved": {},
+    "How often it is right": {},
+    "How often it's right": {},
+    "How old does each thing think you are": {},
+    "How quickly this card notices something is a different question from how often what it notices is an illness — and the published evidence on the second is not encouraging. In studies that ran detectors like this one forward in real time against a real test, between 4 and 12 in every 100 alerts were confirmed infections.": {},
+    "How right has it been?": {},
+    "How that has changed": {},
+    "How the comparison was blocked": {},
+    "How they were sorted": {},
+    "How this app works": {},
+    "How this is weighted": {},
+    "How this was worked out": {},
+    "How this works": {},
+    "How to read these numbers": {},
+    "How to send your data": {},
+    "How you compare": {},
+    "How you felt, what you were told": {},
+    "How your balance has moved": {},
+    "How your heart responds": {},
+    "How your scores compare": {},
+    "I have stopped taking this": {},
+    "If \"Open Shotsy\" does nothing, the app doesn't publish a link scheme — open it from your home screen instead. Nothing else changes.": {},
+    "If it stayed there every night": {},
+    "If today's numbers hold": {},
+    "If you're taking a GLP-1 medication, logging it lets the app draw how much is still in your system between doses and read your weight trend against it.": {},
+    "Import": {},
+    "Import a Shotsy backup": {},
+    "Import a blood test": {},
+    "Import an ECG": {},
+    "Import records from export": {},
+    "Import score history from export": {},
+    "Imported %@": {},
+    "Imported %lld score rows": {},
+    "Imported but not yet turned into insights — new HealthKit types and extra Oura/Withings fields. Tap any to review; tell me which to build into the app.": {},
+    "Imports": {},
+    "Improve your health": {},
+    "In %lld weeks": {},
+    "In Shotsy, use its export and share the file to Health Insights — your injections, weight and body-composition history come across. You can also pick a file you've already saved. Sharing the same backup twice is safe: nothing is imported twice.": {},
+    "In the background": {},
+    "In use now": {},
+    "In your %@ phase": {},
+    "In your system": {},
+    "Inactive · historical": {},
+    "Index": {},
+    "Inside your own day-to-day spread before you started, so this section will not call it a change.": {},
+    "Insight": {},
+    "Insights": {},
+    "Integrations": {},
+    "Is it working": {},
+    "Is this right about you?": {},
+    "It also cuts the other way: about two-thirds of genuine infections never produce a clear change in these signals at all. A quiet card is not an all-clear, and a fast one is not a diagnosis.": {},
+    "It had guessed": {},
+    "It needs %lld answers before that figure means anything, so it stays quiet until then rather than showing you a number built from three.": {},
+    "It was blind for %lld of those days — nothing worn, or nothing synced. A quiet card over patchy coverage is not the same as a quiet card over a full one, and this is the number that tells them apart.": {},
+    "It'll tell you when you're in the right place — one thing at a time — then count down while you hold each position. %@": {},
+    "Jabs": {},
+    "Jetlag": {},
+    "Jump to the nearest earlier readings": {},
+    "Jump to the nearest later readings": {},
+    "Keep the numbers only": {},
+    "Keep these values": {},
+    "Keeping the raw data is what lets a later, better version of this app re-measure your old scans instead of asking you to take them again. Measurements themselves are always kept — this is only about the raw capture behind them.": {},
+    "Kept rather than resolved silently: past a certain gap one of the two is wrong and the app cannot tell which.": {},
+    "Kinds of record cleared": {},
+    "Lab range %@": {},
+    "Label (optional) — e.g. Coast trip": {},
+    "Last 30 days · %lld": {},
+    "Last day": {},
+    "Last file received": {},
+    "Last logged: %@, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Last logged: %1$@, %2$@"
+          }
+        }
+      }
+    },
+    "Last night": {},
+    "Last night hasn't synced yet — pull to refresh once your wearable has caught up.": {},
+    "Last night in stages": {},
+    "Last recorded night": {},
+    "Last run": {},
+    "Last updated %@ · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Last updated %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Latest reading is %@.": {},
+    "Leads": {},
+    "Lean": {},
+    "Leave": {},
+    "Leave anything blank that your report does not print. Cholesterol and HDL also update your profile, which is what the heart-risk estimates read.": {},
+    "Left": {},
+    "Linear": {},
+    "Listed for reference — these no longer count towards grounding.": {},
+    "Listed with no amount. Counted as unknown, never as nought.": {},
+    "Load": {},
+    "Loading your health data": {},
+    "Location": {},
+    "Log": {},
+    "Log ${value} as ${metric} on ${date}": {},
+    "Log a dose": {},
+    "Log a substance": {},
+    "Log health data": {},
+    "Log something and this shows each occasion on its own — what your readings did around it, what else could explain that, and how long anything took to look ordinary again.": {},
+    "Log this day": {},
+    "Logarithmic axis": {},
+    "Logarithmic scale — useful when your sources differ by a wide margin.": {},
+    "Looking good — starting": {},
+    "Low": {},
+    "Low point %lld": {},
+    "Lower quartile": {},
+    "MAP %lld": {},
+    "Male": {},
+    "Marked %@ is not something you can change — it is the risk that comes with your age and sex, and it is here so the rest can be read against it.": {},
+    "Marked days are ones you logged something. The before/after comparison reads the %lld hours following each entry, which is why the time on an entry matters more than the day.": {},
+    "Mass": {},
+    "Measure both sides": {},
+    "Measured": {},
+    "Measured (%@)": {},
+    "Measured values, in their own units. Signals with very different ranges will look flat next to each other — that's what the compare view is for.": {},
+    "Medication": {},
+    "Medication in your system": {},
+    "Merged with any leave found in your calendar into one record, on the Data tab under Holidays — the same week never counts twice.": {},
+    "Metric": {},
+    "Milligram-equivalent still active, from your logged doses and %@'s published half-life of %lld days. A model of the drug's decay, not a measurement of your blood.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Milligram-equivalent still active, from your logged doses and %1$@'s published half-life of %2$lld days. A model of the drug's decay, not a measurement of your blood."
+          }
+        }
+      }
+    },
+    "Minutes": {},
+    "Moderate": {},
+    "Months": {},
+    "Morning charge": {},
+    "Most health apps tell you what they think and never tell you how often they were right. This one checks itself — against measurements it did not produce — and says **not enough yet** wherever that is the true answer.": {},
+    "Most in one day": {},
+    "Most of these happen while the app is closed, so most of them will have no place at all. iOS can pass on arrivals in the background if you let it — same coarse data, same rules, just delivered when it happens.": {},
+    "Most readings fall between %@ and %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Most readings fall between %1$@ and %2$@."
+          }
+        }
+      }
+    },
+    "Most recent: %@": {},
+    "Name": {},
+    "Name & emails": {},
+    "Name it": {},
+    "Need": {},
+    "Needs data": {},
+    "Needs your weight recorded across at least a couple of days in this window to draw against the dose.": {},
+    "Never a location history. At most %lld rough places, each one a circle a few hundred metres across with a count beside it — enough to tell somewhere you always are from somewhere you don't go, and not enough to say where you were on any given day. A flagged moment keeps a rough position only until you answer it, and no longer than %lld days either way. Nothing here is ever uploaded, and the export carries the numbers and your answers without the place or your notes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Never a location history. At most %1$lld rough places, each one a circle a few hundred metres across with a count beside it — enough to tell somewhere you always are from somewhere you don't go, and not enough to say where you were on any given day. A flagged moment keeps a rough position only until you answer it, and no longer than %2$lld days either way. Nothing here is ever uploaded, and the export carries the numbers and your answers without the place or your notes."
+          }
+        }
+      }
+    },
+    "New since you last looked": {},
+    "Next month": {},
+    "Night": {},
+    "Night of %@": {},
+    "Nights to flag": {},
+    "Ninety days are being re-scored from your raw samples. This runs once.": {},
+    "No": {},
+    "No %@ in the window shown. Swipe the chart sideways, tap the arrows on its edges to jump to your nearest readings, or pick a longer timeframe.": {},
+    "No %@ recorded": {},
+    "No %@ yet": {},
+    "No activity yet. Pull to refresh on the Today tab, or connect a device, then come back.": {},
+    "No bedtime stands out": {},
+    "No card covers every %@ yet": {},
+    "No data": {},
+    "No data yet": {},
+    "No effect": {},
+    "No file received yet.": {},
+    "No further detail is attached.": {},
+    "No longer arriving": {},
+    "No published norms for these yet": {},
+    "No readings yet. Add one from a cuff, or log some in Apple Health — they'll show here automatically with their dates.": {},
+    "No scan can be taken with these settings. The silhouette is what every measurement is a width of.": {},
+    "No scored history yet": {},
+    "No signal could be judged on this day. The radar needs at least two channels with three weeks behind them.": {},
+    "No signal had readings both inside and outside this occasion's window, so there is nothing to compare.": {},
+    "No single accuracy percentage appears anywhere here. A model can be precise and useless, or confident and wrong, and one number cannot tell those apart. Every figure below carries the number of checks it rests on.": {},
+    "No source reported in this window.": {},
+    "No stage detail": {},
+    "None of this card's signals has a published norm yet": {},
+    "Not a chart line, but part of the picture. A lab value, a goal you set, or a figure the app works out for itself — listed here so nothing behind the number is left off this section. Where a row shows a percentage it carries that share; where it doesn't, the row says why. Tap anything the app worked out to see its own history.": {},
+    "Not a medical device": {},
+    "Not accurate": {},
+    "Not an analyte the app knows — stored exactly as printed": {},
+    "Not answered yet": {},
+    "Not available": {},
+    "Not available yet — see why": {},
+    "Not enough cards to draw a shape": {},
+    "Not enough history to compare yet": {},
+    "Not enough nights yet": {},
+    "Not enough of the day yet": {},
+    "Not enough scored history yet": {},
+    "Not enough scores to compare yet": {},
+    "Not one the app can weigh": {},
+    "Not recorded": {},
+    "Not saved yet": {},
+    "Not stated on the label": {},
+    "Not weighed — no upper intake level is published for it": {},
+    "Not yet": {},
+    "Not yet modelled": {},
+    "Nothing checked yet.": {},
+    "Nothing flagged in the last six months.": {},
+    "Nothing has been asked for yet. The list below is everything this app would ever send — read it first, then decide.": {},
+    "Nothing has been scored often enough to walk backwards through. Cards start recording a score the day they can produce one.": {},
+    "Nothing has moved more than one of your own baseline spreads around a logged occasion, so there is no departure to time a return from. That is a real answer, not a missing one — a recovery time measured off a smaller wobble would be timing noise.": {},
+    "Nothing has reported these at all": {},
+    "Nothing here is about you — only about the model": {},
+    "Nothing is away from your usual pattern.": {},
+    "Nothing is scored off this — it changes how the app describes you, not what it measures. Set it if you disagree with the estimate.": {},
+    "Nothing is sent anywhere in this build — there is no server to send it to. These switches decide the **shape** of what would be shared once there is one, and everything below is the real thing, built by the same code that would build the payload.": {},
+    "Nothing is sent between these hours — but nothing is thrown away either. A finding made at three in the morning is held and delivered when quiet hours end. Set both to the same hour for no quiet hours at all.": {},
+    "Nothing judged that day": {},
+    "Nothing judged yet.": {},
+    "Nothing new for two months, while the same source kept sending everything else — so this is the field going quiet rather than the device being off. Your data is untouched; it just isn't being added to.": {},
+    "Nothing newer than %lld days ago has synced.": {},
+    "Nothing on record shows a time-zone change.": {},
+    "Nothing played through your headphones in the last %lld days. Your iPhone has %lld days of headphone audio on record, so this is a quiet week rather than a gap in the data.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Nothing played through your headphones in the last %1$lld days. Your iPhone has %2$lld days of headphone audio on record, so this is a quiet week rather than a gap in the data."
+          }
+        }
+      }
+    },
+    "Nothing raw is being kept, so a future version cannot re-measure these scans — it would need you to take them again.": {},
+    "Nothing the app can see stood out as moving it over this stretch — not your substances, medication, temperature or how active the day was. That is the usual answer, and a reassuring one.": {},
+    "Nothing to compare these against": {},
+    "Nothing unmodelled": {},
+    "Nothing written yet. This fills in after the app next works out your %@ score.": {},
+    "Nothing yet has readings landing on more than one day of your dose cycle, so there is no within-cycle shape to draw.": {},
+    "Nothing yet. As you log real readings (e.g. a cuff blood pressure after an estimate) and rate insights, anonymised error metrics will collect here.": {},
+    "Nothing yet. Corrections collect here as you confirm or correct what the app worked out about a calendar event, and as you log a real reading after the app estimated one.": {},
+    "Notifications": {},
+    "Now": {},
+    "Numbers only": {},
+    "Nutrient": {},
+    "OK": {},
+    "Observations from your own history, not medical advice. Talk to a clinician about anything that concerns you.": {},
+    "Occasions": {},
+    "On your home screen": {},
+    "On-device summaries": {},
+    "Once there are weigh-ins either side of a dose, this will show what changed and how fast.": {},
+    "One card here can be checked today: the blood-pressure estimate. Log a cuff reading after the app has estimated one and the pair is recorded automatically — the app's guess, your measurement, and the date. Five pairs and this can say how far out it typically is.": {},
+    "One file, as JSON, containing all of it: every individual reading; the signal inventory (how many readings each signal has, over what dates, from which device); every card as it reads right now, with its drivers and weighted shares; what the cards judge against — your personal baselines and comparison pools; the troubleshooting log; and your corrections, with what the app guessed and what you said. It runs to tens of megabytes on a long history, so it's a file to share rather than something to paste.": {},
+    "One instrument each, so nothing to choose between": {},
+    "One serving": {},
+    "One serving is (optional)": {},
+    "Only %lld of the last 7 days recorded any effort, so there is no weekly figure — a total built from one worn day reads as a quiet week when what happened is that the watch was off.": {},
+    "Only needed if you'd rather use “Open URLs” than the app's own action — an old shortcut, or something that can only produce a web address. Add `&stepCount=1234` and so on, one per reading. Send the same day twice and the second replaces the first, so re-running to fix a number is safe. **Anything the app learns to track later works through either route without you changing anything.**": {},
+    "Only one %@ so far": {},
+    "Only the numbers are kept — you chose that in Settings ▸ Body scans. This scan can never be re-measured.": {},
+    "Open Shotsy": {},
+    "Open day": {},
+    "Open iOS Settings": {},
+    "Open the %@ developer site": {},
+    "Opens this day in full": {},
+    "Optional": {},
+    "Optional — you can do this now or any time in Settings. Tap a device for a simple, step-by-step guide.": {},
+    "Or read it off a screenshot": {},
+    "Overnight HRV": {},
+    "Ovulation is worked out backwards from your next expected period, not forwards from your last one — the second half of a cycle is the steady one at about %lld days, and the first half is where cycles differ. That is why the ± here comes from how much *your* cycles vary rather than from a textbook.": {},
+    "Owed": {},
+    "Part": {},
+    "Passed": {},
+    "Paste this exactly into the provider's “Redirect URI” field.": {},
+    "Patterns worth a look": {},
+    "Per week": {},
+    "Per-source averages": {},
+    "Placed by clinical category, not a centile": {},
+    "Placing a reading against a population needs somebody to have published one, by age and sex. Nobody has for these — they are mostly signals only wearables measure, and the research hasn't caught up. Comparing them against other people using this app is on the roadmap; nothing here is sent anywhere today.": {},
+    "Pre-set to what you wore last time. Clothing is the single biggest reason two scans disagree, so change it only if you really are dressed differently — recording the difference is better than hiding it.": {},
+    "Predicted": {},
+    "Prefer to skip? Just tap Continue — it can be turned on later from the flagged-moments list, and the app will offer once.": {},
+    "Prefer to skip? Just tap Continue.": {},
+    "Prepare export": {},
+    "Previous month": {},
+    "Printed classification": {},
+    "Pull to refresh *merges* new readings into what's already stored, and a provider that fails to respond keeps its last-known copy — which is what you want when a device is simply offline, and not what you want when the app's reading of that data has changed. Rebuilding throws the stored copy away and re-reads every connected provider from scratch. Manual entries, grounding answers, substance logs and feedback are kept.": {},
+    "Pull to refresh to generate today's summary.": {},
+    "Puts it back in the queue. The rough place will not come back — it was deleted when you answered, and the app kept no second copy.": {},
+    "Quiet hours": {},
+    "Radar of your watched signals": {},
+    "Raw data kept": {},
+    "Read from the PDF's own text rather than from a picture of it, so these are the characters your laboratory wrote.": {},
+    "Read from: %@": {},
+    "Readiness · %@": {},
+    "Reading": {},
+    "Reading the document…": {},
+    "Reading the screenshot…": {},
+    "Reading your file…": {},
+    "Reading your report…": {},
+    "Readings": {},
+    "Readings · %lld": {},
+    "Ready to add": {},
+    "Ready to add from your home screen": {},
+    "Real nights vary, so treat these as the middle of a spread rather than a countdown. A simulation of the same arithmetic with ordinary night-to-night noise lands within a night of each figure.": {},
+    "Rebuild": {},
+    "Rebuild data from providers": {},
+    "Rebuild data from providers?": {},
+    "Recent": {},
+    "Recommended collects everything and keeps everything except the photographs. Numbers only takes the same scan and keeps none of the raw data behind it.": {},
+    "Record a side effect": {},
+    "Recorded": {},
+    "Recorded against your dose history, so a pattern after a dose increase is visible rather than remembered.": {},
+    "Recordings": {},
+    "Records deleted": {},
+    "Redirect / Callback URL": {},
+    "Remove": {},
+    "Remove %@": {},
+    "Remove keys & disconnect": {},
+    "Remove them": {},
+    "Remove this supplement": {},
+    "Replaying your score history…": {},
+    "Reported as two numbers on purpose. One figure combining them — a ratio, a net — would be a claim about your metabolism, and neither of these measures one.": {},
+    "Reported rather than swallowed. These records are still on the phone.": {},
+    "Research": {},
+    "Reset": {},
+    "Resting rate and variability, read off the same beat-to-beat signal.": {},
+    "Resting, before you move (%@)": {},
+    "Review": {},
+    "Review your answers": {},
+    "Risk region": {},
+    "Run": {},
+    "Save": {},
+    "Save & Connect": {},
+    "Save my answer": {},
+    "Save reading": {},
+    "Save this scan": {},
+    "Saved %lld value%@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Saved %1$lld value%2$@."
+          }
+        }
+      }
+    },
+    "Saying you were not ill answers the app's guess. It does not remove a day your calendar recorded as illness — change that where it was entered.": {},
+    "Scale": {},
+    "Scan a Screen Time screenshot": {},
+    "Scan it": {},
+    "Scan the report": {},
+    "Scan with the camera": {},
+    "Scan your pathology report, pick a photo, or choose a PDF. Every value on it is read on your device — nothing is uploaded — and you confirm each one before it is kept.": {},
+    "Scans can be taken, and a future version can re-measure them from what is kept.": {},
+    "Score": {},
+    "Score over time": {},
+    "Screen Time can't be read by any app — Apple sandboxes it deliberately — so a shortcut is the only way it can reach a health app at all. Calendar load is the other one worth collecting: how many hours of meetings a day is a stress signal nothing else here can see.": {},
+    "Screen time": {},
+    "Screen time and your sleep": {},
+    "Screen time that day (min)": {},
+    "Screenshot Settings ▸ Screen Time and pick it here — the Week view works too. The text is read on your device, nothing is uploaded, and everything lands for you to check before saving. A daily *average* is never taken as a day's total.": {},
+    "Search your data": {},
+    "See exactly what would ever leave your phone to make the models better — including your corrections, which are shared in two tiers, both on by default and each switchable off. Nothing is sent in this build. Body scans covers what a scan collects and, separately, what it keeps. Delete everything removes every record on this phone and says plainly what it cannot reach.": {},
+    "See the card": {},
+    "See your leave record": {},
+    "See your symptom history": {},
+    "Seed 120 days of synthetic data": {},
+    "Segment": {},
+    "Selected": {},
+    "Send a reading to Health Insights — screen time, a weight, anything the app tracks.": {},
+    "Series": {},
+    "Servings a day": {},
+    "Set": {},
+    "Set it up": {},
+    "Set it yourself": {},
+    "Set up medication": {},
+    "Settings": {},
+    "Settled": {},
+    "Settled means the first point at or below a tenth of the way back up from the night's floor to where it started. A night that never came down has no settling point, and this says so rather than calling it instant.": {},
+    "Severity": {},
+    "Sex": {},
+    "Shaded bands are the systolic categories. The two numbers don't share thresholds — 85 is stage 1 diastolic but normal systolic — so the diastolic limits (80, 90, 120) are the thin dashed lines.": {},
+    "Share anonymous accuracy data": {},
+    "Share export": {},
+    "Share log": {},
+    "Sharing your corrections": {},
+    "Shortcuts": {},
+    "Shotsy": {},
+    "Shotsy has no API, so nothing updates on its own — your Shotsy data here is as of the file above. Share a fresh export whenever you want it caught up.": {},
+    "Shotsy has no API, so this app can't fetch from it. Data arrives only when you export and share a file.": {},
+    "Should this count?": {},
+    "Show": {},
+    "Show %lld more in your normal range": {},
+    "Show all %lld": {},
+    "Show all %lld failures": {},
+    "Show each instrument": {},
+    "Show on Today again": {},
+    "Showing the 40 most recent of %lld.": {},
+    "Showing your choice. The estimate above is still drawn from your measurements — where the two disagree, that difference is worth knowing.": {},
+    "Shown in %@": {},
+    "Side effect": {},
+    "Side effects": {},
+    "Side effects, by day of the cycle": {},
+    "Signal": {},
+    "Signals": {},
+    "Signals this card reads": {},
+    "Since you started": {},
+    "Site": {},
+    "Sites are recorded, not compared: rotating them is about the skin, and any difference here is far more likely to be which weeks you happened to inject where.": {},
+    "Sleep": {},
+    "Sleep and travel": {},
+    "Sleep apnoea indicator": {},
+    "Sleep debt": {},
+    "Slept": {},
+    "So a check only counts when the truth came from an instrument this app does not own — a blood-pressure cuff, a scale, a tape measure. Another company's estimate does not count either: comparing this model against their model is a comparison, not a measurement.": {},
+    "So what?": {},
+    "Some names were worked out by the on-device model. Every number was still taken from the document itself and checked against it.": {},
+    "Some of these the card reads and doesn't score; some it works out from the rows above. Neither divides the number, and each row says why.": {},
+    "Source": {},
+    "Sources are summarised in this project's illness-detection evidence note.": {},
+    "Sources that disagree": {},
+    "Span": {},
+    "Stable %@. ": {},
+    "Start the scan": {},
+    "Started": {},
+    "States": {},
+    "Status": {},
+    "Stays on this phone. It is read by the calendar classifier and by nothing else — it is never exported, never shared to improve the models, and never leaves the device.": {},
+    "Stays on this phone. Unlike the numbers, your own words about a flagged half-hour usually describe other people too, so they are left out of the export entirely.": {},
+    "Step": {},
+    "Step by step": {},
+    "Step through your history": {},
+    "Still below your typical day": {},
+    "Still learning your usual": {},
+    "Stop": {},
+    "Stopped": {},
+    "Substances": {},
+    "Summed across your stack": {},
+    "Supplement Facts": {},
+    "Supplements": {},
+    "Symptoms": {},
+    "Systolic": {},
+    "Systolic: %lld mmHg": {},
+    "Tagged": {},
+    "Taken": {},
+    "Tap a day": {},
+    "Tap a point to read it against today.": {},
+    "Tap a signal to put it on the chart or take it off.": {},
+    "Tap any of these to change your mind. The rough place is gone — it is deleted the moment you answer — so these show the time and the numbers only.": {},
+    "Tap any row to set or change it. These stay on your phone. If you have Data & model improvement on, how far an estimate ran from a reading you logged can be shared — the difference, never the reading — and nothing is sent in this build.": {},
+    "Tap one and confirm the time — it starts at now, so logging something you had this morning is the same two taps.": {},
+    "Tap to add the details needed": {},
+    "Tap to log it now. This is private, on-device, and just so the app can show how your body responds — no judgement.": {},
+    "Tell it what this day was": {},
+    "Template mode": {},
+    "Thanks — this helps improve the model over time.": {},
+    "That much is measured. What it *was* is not — nothing in a heart-rate trace says whether you were nervous, excited or coming down with something, so the app is asking rather than telling.": {},
+    "That value could not be recorded.": {},
+    "That's right": {},
+    "That's right — leave it as it is": {},
+    "The address": {},
+    "The app asks iOS to wake it about this often so a change can be found while you are not looking. iOS decides the actual moment, weighing battery and how often you open the app, and it may be much longer. If Background App Refresh is off for Health Insights in iOS Settings, nothing is found until you next open it.": {},
+    "The app can't ask your shortcut for anything — it runs on your schedule and hands data over. So the honest thing to show is when it last did.": {},
+    "The app guessed": {},
+    "The app has a guess and it is often wrong. Your answer is kept separately from its guess, which is the only way it can honestly show you how often it gets these right.": {},
+    "The app stepped your dose back through the standard schedule to fill in the months before you started logging. These are an estimate — the dashed part of the line above — until you say they're right.": {},
+    "The app will suggest the doses you were probably on before today, stepping back through the standard schedule. You'll be asked to confirm or remove them — nothing is assumed. This is a record of what you tell it, not medical advice, and it will never suggest changing your dose.": {},
+    "The app's guess": {},
+    "The bands were set to a stated false-alarm budget of about two mornings a year, under the assumption that the signals are only partly correlated. That is a design figure from a simulation, not a measurement of you — the line above is the measurement.": {},
+    "The before/after comparison lines this up against the hours that followed, so the time matters more than the day.": {},
+    "The blue stripes are water, laid over the tissue holding it rather than given a block of its own — it's already counted there, and showing it twice would make you heavier than you are. Striped rather than shaded so the muscle red stays visible between them; the plain red beyond the stripes is the muscle that isn't water.": {},
+    "The bottle": {},
+    "The card keeps a running total of how far past ordinary each night sits, minus an allowance of %@ so ordinary nights pull it back down. It becomes a finding at %@. That is all these numbers are — the arithmetic, not a promise about your body.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "The card keeps a running total of how far past ordinary each night sits, minus an allowance of %1$@ so ordinary nights pull it back down. It becomes a finding at %2$@. That is all these numbers are — the arithmetic, not a promise about your body."
+          }
+        }
+      }
+    },
+    "The card was still speaking": {},
+    "The dashed line is what the app said; the solid line is what was measured. The grey rule between them is the miss. There is no trend line: \"is it getting better?\" cannot be answered honestly from this many checks, so nothing here implies an answer.": {},
+    "The dashed line is where the day started. Everything below it has been spent — on work done, and on time with your heart rate above resting. A model of a reservoir, not a measurement of one.": {},
+    "The date the blood was taken, not the date on the report. Everything is compared against the vitals around it.": {},
+    "The days you have entered": {},
+    "The document did not print a date — this is when you imported it.": {},
+    "The document itself is no longer on this phone.": {},
+    "The events behind this": {},
+    "The example is drawn by the same code that draws the real thing, so what this screen promises cannot drift from what it would actually print.": {},
+    "The fields a provider sends that no insight reads. This is the list worth mining for new cards.": {},
+    "The first few are the app's own shortlist, and it says underneath each one what put it there. Everything else the app knows how to record is below them — pick whichever is true, not whichever is nearest.": {},
+    "The four cards with the most recorded history are drawn, so the chart stays readable. Each card's own screen carries its full score history.": {},
+    "The measurements that feed this card's score. Tap any to see every source and its history.": {},
+    "The one that counts. Measured at your natural waist — the narrowest part, usually just above the navel. It's what lets this card judge where your weight sits instead of guessing from BMI.": {},
+    "The radar": {},
+    "The radar that day": {},
+    "The raw capture is kept, so a later version of the app can re-measure this scan instead of asking you to take it again.": {},
+    "The rest, if you have them": {},
+    "The same nights, split a different way. If company drains you, both bars sit right of the line; if it restores you, they sit left. A bar that crosses the line is the honest answer that nothing can be said yet.": {},
+    "The same two corrections with every word and every reading removed. What is left is the shape: how long, how many, which way the guess was wrong, and by how much. **A difference, never a value** — nobody holding this could work out what your blood pressure was.": {},
+    "The section above is what each of *your measurements* says. This is what each *product* says — this app's two other age models, and every device that publishes one.": {},
+    "The sites offered are the ones already in your record, so a dose you log here groups with the ones imported from Shotsy rather than starting a second name for the same place.": {},
+    "The trend across your nights": {},
+    "The usual ones": {},
+    "There is no first dose to divide on yet.": {},
+    "There is nothing to morph between until your history covers two. A finer step would split what you already have — try %@.": {},
+    "These are days you or your calendar said you were ill. Nothing here was worked out from your vitals, and nothing here says whether you were — a quiet symptom radar is not evidence you were well, and a loud one is not evidence you were ill.": {},
+    "These are figures this app worked out from your own data — there is no published distribution of them for anyone, so there is no centile to place you in and none is invented here. They are charted against your own history instead, under Data ▸ Generated insights.": {},
+    "These are outputs, not readings. Each is computed from the measurements and details in the sections above — change those and these move.": {},
+    "These are the same signals Readiness and the symptom radar read. The difference is the window: this one asks whether a drift has *lasted*, which neither of the others can see.": {},
+    "These are three different questions and one percentage cannot answer them. A model can be out by very little on a quantity that barely moves — precise, and no better than assuming you are the same as last time. A model that misses in the same direction every time is not noisy, it is off by a fixed amount, and that is something somebody can go and fix.": {},
+    "These insights are for information only and are not a medical diagnosis or advice. Talk to a clinician about any health decisions.": {},
+    "These moved after you answered — the stretch turned out to be longer or shorter than it looked at the time. Your answer is still there; it is just about a slightly different window now.": {},
+    "These readings don't quite add up to your weight — they come from separate estimates the scale makes independently.": {},
+    "These tags are about something a card already measures. **None of them is being used**, and none will start being used because of anything on this page.": {},
+    "This %@": {},
+    "This app does not read or interpret an ECG. It keeps yours with the rest of your data and shows you what the device or your clinician already printed on it.": {},
+    "This app is for information and self-tracking only. It does not diagnose, treat, or prevent any disease, and it is not a substitute for professional medical advice. Always consult a qualified clinician about your health, and seek emergency care for any acute symptoms.": {},
+    "This app stores a score for each card every day, so it would be easy to \"grade\" Monday's prediction against Thursday's score and print a confident figure. It would mean nothing: the model would be marking its own homework.": {},
+    "This event changed after you reviewed it — check the labels still fit.": {},
+    "This needs about %lld days with a readiness score before your typical day and your own spread mean anything — and it is those two, rather than a fixed number, that decide what counts as a dip for you.": {},
+    "This one started %@, and ran %lld day%@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "This one started %1$@, and ran %2$lld day%3$@."
+          }
+        }
+      }
+    },
+    "This really does delete your answers as well as the places — including the corrections the app learns from. It cannot get them back.": {},
+    "Three cards need to be scoring before their balance can be drawn. Connect a source or add the details a card is asking for, and it will appear here.": {},
+    "Three drinks in one evening is **one** occasion. A fortnight later is another. Substances never merge — a stimulant night and an alcohol night are two exposures of two different things, and pooling them would credit one with the other's response.": {},
+    "Time": {},
+    "Time since your last leave": {},
+    "Timeframe": {},
+    "To": {},
+    "Today": {},
+    "Transmission is disabled — nothing on this screen has left your phone.": {},
+    "Troubleshooting": {},
+    "Troubleshooting shows a live log of every sync, connection and imported value — handy if a device won't connect or a stat is missing. Research is the published work behind what the cards will and won't claim; How right has it been? is the app checking its own predictions against measurements it did not produce, including where the honest answer is \"not enough yet\". Version and build time tell you which deploy is on the phone.": {},
+    "Try again": {},
+    "Turn your Apple Health, Oura and Withings data into clear heart-health insights — powered by validated clinical models, all of which run on your phone.": {},
+    "Turned off in iOS Settings": {},
+    "Turned off, it is never collected in the first place — not collected and then discarded. Switching one off can only make a scan less accurate, never less private, because nothing here is written to disk unless you also keep it below.": {},
+    "Two cards need at least eight scored days each before their lines can be read against one another.": {},
+    "Two of these are close enough that naming one would be overstating it — most people are mixtures, and yours is a genuine blend.": {},
+    "Type the numbers in instead": {},
+    "Type them in instead": {},
+    "Typical day": {},
+    "Unavailable": {},
+    "Unit": {},
+    "Units": {},
+    "Until": {},
+    "Until then the estimate above is the textbook's, and it says so.": {},
+    "Up %lld points %@. ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Up %1$lld points %2$@. "
+          }
+        }
+      }
+    },
+    "Updated %@": {},
+    "Upper quartile": {},
+    "Use a tape measure instead": {},
+    "Use the app's own answer instead": {},
+    "Use the estimate": {},
+    "Use the recommended settings": {},
+    "Usual": {},
+    "Usual, where measured": {},
+    "VO₂max": {},
+    "Validated": {},
+    "Value": {},
+    "Version": {},
+    "Very high": {},
+    "View": {},
+    "View & add": {},
+    "View all this card's data": {},
+    "View the trace": {},
+    "Vitamins and minerals": {},
+    "Waist": {},
+    "Waiting for an answer": {},
+    "Waiting for you": {},
+    "Walk the web back through your own history. Each step is a real %@ of scored days — nothing is drawn between two of them.": {},
+    "Want a map on these?": {},
+    "Was this accurate?": {},
+    "We'll only ever ask for the real readings the models genuinely need.": {},
+    "Wearing": {},
+    "Week of %@": {},
+    "Week total": {},
+    "Weight management": {},
+    "Were you ill?": {},
+    "What": {},
+    "What %@ is": {},
+    "What I could see last night": {},
+    "What a scan uses": {},
+    "What a widget is allowed to show": {},
+    "What changed": {},
+    "What changed while you slept": {},
+    "What comes across": {},
+    "What comes first": {},
+    "What company does to you": {},
+    "What each marker says": {},
+    "What fed it": {},
+    "What goes": {},
+    "What goes into this": {},
+    "What had something in it": {},
+    "What is kept afterwards": {},
+    "What it adds up to": {},
+    "What it came from": {},
+    "What it never shares": {},
+    "What it was designed to do": {},
+    "What it would share": {},
+    "What it would show": {},
+    "What looks like it's moving it": {},
+    "What moved, and which way": {},
+    "What stays, and why": {},
+    "What the app may interrupt you for, and when it may not. Nothing is sent until you allow it there.": {},
+    "What the app predicted": {},
+    "What the document says": {},
+    "What the drug is doing": {},
+    "What the rest of the app worked out": {},
+    "What these numbers are not": {},
+    "What this card has done on your record": {},
+    "What this day looked like": {},
+    "What this holds": {},
+    "What this is": {},
+    "What this tag is about": {},
+    "What to draw": {},
+    "What to send": {},
+    "What was around you": {},
+    "What was going on?": {},
+    "What was it?": {},
+    "What was this?": {},
+    "What you burn against what you should": {},
+    "What you eat, and what you burn": {},
+    "What you recorded": {},
+    "What you took on": {},
+    "What you're made of": {},
+    "What you're wearing": {},
+    "What you're wearing changes the numbers more than anything else does. Recording it is what lets the app tell a real change from a different pair of trousers.": {},
+    "What your body did afterwards": {},
+    "What your own data points at, strongest evidence first.": {},
+    "What your stack adds up to": {},
+    "What's driving this": {},
+    "What's impacting your sleep": {},
+    "What's in here": {},
+    "What's worth collecting": {},
+    "When": {},
+    "When Apple Intelligence is available, your daily summary is written by the on-device foundation model. Writing it sends nothing anywhere. What may ever be shared is listed under Data & model improvement.": {},
+    "When it has spoken": {},
+    "When you settled": {},
+    "Where more than one source measured the same place, the more precise method is used — a tape beats a scan, and a scan beats an unlabelled figure from Apple Health.": {},
+    "Where the load is sitting": {},
+    "Where this came from": {},
+    "Where this is heading": {},
+    "Where to put the phone": {},
+    "Where you are now": {},
+    "Where you were": {},
+    "Where your VO₂max is heading": {},
+    "Where your time with people went": {},
+    "Which half moved": {},
+    "Which instrument to believe": {},
+    "Which overnight signal to draw": {},
+    "Which reading is this?": {},
+    "Whichever side of the tape you're reading. Everything below is entered — and converted — in this unit; the app stores centimetres either way, so switching later never changes a measurement you already saved.": {},
+    "White / Other": {},
+    "Who said it": {},
+    "Why is this score what it is": {},
+    "Why it isn't there yet": {},
+    "Why it was flagged": {},
+    "Why most of this list says \"nothing to check it against\"": {},
+    "With %lld days the Sleep card can contrast your heavier screen days against the lighter ones — an association, never a cause.": {},
+    "Worked out by this app, not measured": {},
+    "Working out how your scores compare": {},
+    "Worst average first, not most frequent — three bad days matter more than eleven mild ones, and a list ordered by count buries the row worth reading.": {},
+    "Worth a look": {},
+    "Worth another look": {},
+    "Yes": {},
+    "Yesterday's night": {},
+    "You confirmed this": {},
+    "You corrected this": {},
+    "You have not rated any card yet. The thumbs on a card's detail screen collect here — that is your verdict on it, which is a different thing from its accuracy and is labelled as such.": {},
+    "You logged this. %@": {},
+    "You said": {},
+    "You said: %@": {},
+    "Your ages over time": {},
+    "Your answer is stored beside the app's guess, never over it. That is what lets it show you how often it was right — and it is the only way it can learn anything from this.": {},
+    "Your best bedtime": {},
+    "Your body over time": {},
+    "Your build": {},
+    "Your corrections: %lld item%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Your corrections: %1$lld item%2$@"
+          }
+        }
+      }
+    },
+    "Your cycles": {},
+    "Your data": {},
+    "Your details": {},
+    "Your fortnight": {},
+    "Your heavier half against your lighter half": {},
+    "Your injections replace any doses this app had estimated — a real record beats a guess. Calories and macros are in the file but aren't imported yet; the app has nowhere to put them.": {},
+    "Your keys": {},
+    "Your keys are stored securely in the iPhone Keychain and never leave your device. Signing in opens %@'s own website.": {},
+    "Your last four weeks against the four before them.": {},
+    "Your middle": {},
+    "Your name": {},
+    "Your need": {},
+    "Your need here is %@.": {},
+    "Your normal": {},
+    "Your note": {},
+    "Your own corrections, shaped by the tier above. **None of this is transmitted** — the network step does not exist.": {},
+    "Your own numbers, split by phase — which is why they are worth having. A normal luteal phase raises heart rate and lowers HRV in everybody, and knowing your own size for it is the difference between a pattern and a symptom.": {},
+    "Your readiness score at a glance, without opening the app. Shows what the widget would say, and what it's allowed to say — a number never appears there without the words that qualify it.": {},
+    "Your readings": {},
+    "Your scores are being rebuilt from your raw samples. This runs once.": {},
+    "Your snapshot": {},
+    "Your sources differ by %@.": {},
+    "Your stack": {},
+    "Your tape": {},
+    "Your total body water is larger than the muscle it's drawn inside — ordinary, since blood and organs hold water too, but it means the shaded part is capped rather than exact.": {},
+    "Your travel events": {},
+    "Your two symptom records": {},
+    "Your usual": {},
+    "Your walking speed is within half a percent of your previous year. That is too small a difference to divide into step length and rhythm — splitting a rounding error into halves produces two confident-looking numbers about nothing.": {},
+    "Your watch measured this while you moved. It is not, and does not stand in for, everything your body spends in a day.": {},
+    "Your work events": {},
+    "about %lld night%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "about %1$lld night%2$@"
+          }
+        }
+      }
+    },
+    "above baseline": {},
+    "all agree": {},
+    "all set": {},
+    "around average": {},
+    "at %@": {},
+    "below baseline": {},
+    "bottom 25%": {},
+    "bpm": {},
+    "carried": {},
+    "chart: %@": {},
+    "could also be %@": {},
+    "detected": {},
+    "down %lld points, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "down %1$lld points, %2$@"
+          }
+        }
+      }
+    },
+    "entered": {},
+    "gap": {},
+    "health-insights-export.json": {},
+    "hours per night": {},
+    "how it was recorded": {},
+    "iOS can save these to your iCloud Keychain and offer to fill them next time.": {},
+    "iOS does not let any app read your Screen Time, so this only ever knows the days you hand it. \"View & add\" near the bottom of this card takes a day's total, and the Shortcuts automation under Settings can send it without you typing anything.": {},
+    "iOS will not let the app ask again. The switches below still work and are remembered, but nothing can be delivered until notifications are turned back on for Health Insights in iOS Settings.": {},
+    "it guessed %@": {},
+    "mmHg": {},
+    "n = %lld": {},
+    "never": {},
+    "no emails": {},
+    "none in the last year": {},
+    "none taken": {},
+    "not enough days yet": {},
+    "not scored yet": {},
+    "nothing in this period": {},
+    "now": {},
+    "of which water": {},
+    "on leave": {},
+    "or tap a label to change it": {},
+    "sec": {},
+    "stable, %@": {},
+    "steady": {},
+    "they differ by %@": {},
+    "top 10%": {},
+    "up %lld points, %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "up %1$lld points, %2$@"
+          }
+        }
+      }
+    },
+    "used: %@": {},
+    "vs": {},
+    "water": {},
+    "worse →": {},
+    "years": {},
+    "you confirmed its guess": {},
+    "your normal": {},
+    "· %@": {},
+    "· %@ where you were": {},
+    "· %lld %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "· %1$lld %2$@"
+          }
+        }
+      }
+    },
+    "· %lld logged": {},
+    "· %lld readings": {},
+    "· %lld signal%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "· %1$lld signal%2$@"
+          }
+        }
+      }
+    },
+    "· %lld sources": {},
+    "· %lld vs %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "· %1$lld vs %2$lld"
+          }
+        }
+      }
+    },
+    "· %lld+ people": {},
+    "· %lld×": {},
+    "· carried": {},
+    "· carried %lld": {},
+    "· estimated": {},
+    "· last seen %@": {},
+    "· latest %@": {},
+    "—": {},
+    "“%@”": {},
+    "← better": {},
+    "⚠️ It cannot tell you how often it is right. The best published validation of this approach catches under half of what it looks for, so a quiet radar is not reassurance — and grading it against your own symptom tags needs far more of them than exist here.": {}
   },
-  "version" : "1.0"
+  "version": "1.0"
 }

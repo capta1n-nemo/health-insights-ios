@@ -79,9 +79,9 @@ struct ScoreChangeChip: View {
     /// or what it is seven above.
     private var accessibilityLabel: String {
         switch change.direction {
-        case .up: return "up \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
-        case .down: return "down \(Int(abs(change.delta).rounded())) points, \(change.comparison)"
-        case .steady: return "stable, \(change.comparison)"
+        case .up: return String(localized: "up \(Int(abs(change.delta).rounded())) points, \(change.comparison)")
+        case .down: return String(localized: "down \(Int(abs(change.delta).rounded())) points, \(change.comparison)")
+        case .steady: return String(localized: "stable, \(change.comparison)")
         }
     }
 }

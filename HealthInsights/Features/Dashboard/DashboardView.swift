@@ -121,8 +121,12 @@ struct TodayView: View {
                     Spacer()
                     if model.isSyncing { ProgressView() }
                 }
+                // `String(localized:)` on every branch a ternary hands to
+                // `Text`: a ternary's literals infer `String`, not
+                // `LocalizedStringKey`, so they render verbatim and never reach
+                // the String Catalog. Same rule at every site below (D7).
                 Text(model.todaySummary.isEmpty
-                     ? "Pull to refresh to generate today's summary."
+                     ? String(localized: "Pull to refresh to generate today's summary.")
                      : model.todaySummary)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -142,10 +146,10 @@ struct TodayView: View {
 
     private var greeting: String {
         switch Calendar.current.component(.hour, from: Date()) {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        case 17..<22: return "Good evening"
-        default: return "Your snapshot"
+        case 5..<12: return String(localized: "Good morning")
+        case 12..<17: return String(localized: "Good afternoon")
+        case 17..<22: return String(localized: "Good evening")
+        default: return String(localized: "Your snapshot")
         }
     }
 }
@@ -183,28 +187,32 @@ struct LastNightCard: View {
                     // the wearable hadn't synced, this tile said "Last night
                     // 7.3 h" while Readiness and Energy called the same night
                     // too old to score — three stories about one gap.
-                    Label(nightAgeDays <= 0 ? "Last night"
-                          : nightAgeDays == 1 ? "Yesterday's night"
-                          : "Last recorded night",
+                    Label(nightAgeDays <= 0 ? String(localized: "Last night")
+                          : nightAgeDays == 1 ? String(localized: "Yesterday's night")
+                          : String(localized: "Last recorded night"),
                           systemImage: "moon.stars.fill")
                         .font(.headline)
                     HStack(alignment: .top, spacing: 12) {
                         if let s = sleepHours {
-                            stat(value: String(format: "%.1f h", s), label: "Sleep",
+                            stat(value: String(format: "%.1f h", s),
+                                 label: String(localized: "Sleep"),
                                  icon: "bed.double.fill")
                         }
                         if let r = readiness, let score = r.score {
-                            stat(value: "\(Int(score.rounded()))", label: "Readiness · \(r.headline)",
+                            stat(value: "\(Int(score.rounded()))",
+                                 label: String(localized: "Readiness · \(r.headline)"),
                                  icon: "bolt.heart.fill")
                         }
                         if let hrv = model.latest(.heartRateVariabilityRMSSD) ?? model.latest(.heartRateVariabilitySDNN) {
-                            stat(value: "\(Int(hrv.rounded())) ms", label: "HRV", icon: "waveform.path.ecg")
+                            stat(value: "\(Int(hrv.rounded())) ms",
+                                 label: String(localized: "HRV"),
+                                 icon: "waveform.path.ecg")
                         }
                     }
                     if nightAgeDays >= 1 {
                         Text(nightAgeDays == 1
-                             ? "Last night hasn't synced yet — pull to refresh once your wearable has caught up."
-                             : "Nothing newer than \(nightAgeDays) days ago has synced.")
+                             ? String(localized: "Last night hasn't synced yet — pull to refresh once your wearable has caught up.")
+                             : String(localized: "Nothing newer than \(nightAgeDays) days ago has synced."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -405,9 +413,9 @@ struct InsightCard: View {
             return changeState.flatMap(\.explanation).map { "\($0) " } ?? ""
         }
         switch change.direction {
-        case .up: return "Up \(Int(abs(change.delta).rounded())) points \(change.comparison). "
-        case .down: return "Down \(Int(abs(change.delta).rounded())) points \(change.comparison). "
-        case .steady: return "Stable \(change.comparison). "
+        case .up: return String(localized: "Up \(Int(abs(change.delta).rounded())) points \(change.comparison). ")
+        case .down: return String(localized: "Down \(Int(abs(change.delta).rounded())) points \(change.comparison). ")
+        case .steady: return String(localized: "Stable \(change.comparison). ")
         }
     }
 

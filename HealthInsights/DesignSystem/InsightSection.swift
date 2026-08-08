@@ -75,7 +75,12 @@ struct SectionExpansion {
 /// The caveat's words live in `SectionCaveat`, in InsightKit, because the app
 /// target has no test target and the wording is the honesty claim.
 struct InsightSection<Content: View>: View {
-    let title: String
+    /// `LocalizedStringResource`, not `String` (D7): a literal at any of the
+    /// dozens of call sites is then a localisation key the compiler extracts
+    /// into the String Catalog, with no edit at the site. A caller whose title
+    /// is genuinely computed at runtime must build the resource itself — which
+    /// is the point: dynamic display copy is a decision, not a default.
+    let title: LocalizedStringResource
     /// An SF Symbol beside the title. Two sections had one and ten did not;
     /// keeping it optional rather than removing it preserves the distinction
     /// those two were drawing (a finding, rather than a record).
@@ -143,14 +148,17 @@ struct InsightSection<Content: View>: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint(isExpanded ? "Double tap to collapse this section"
-                                      : "Double tap to expand this section")
+        // `Text` per branch rather than a bare ternary: two string literals
+        // in a ternary infer `String` and take the verbatim overload, so the
+        // hint never reached the String Catalog (D7).
+        .accessibilityHint(isExpanded ? Text("Double tap to collapse this section")
+                                      : Text("Double tap to expand this section"))
     }
 
     private var headerRow: some View {
         HStack(alignment: .firstTextBaseline) {
             if let icon {
-                Label(title, systemImage: icon).font(.headline)
+                Label(String(localized: title), systemImage: icon).font(.headline)
             } else {
                 Text(title).font(.headline)
             }
@@ -199,7 +207,8 @@ struct InsightSection<Content: View>: View {
 /// type rather than a `showsCard` flag, because a flag on a container is the
 /// shape that ends up with two call sites passing it for two different reasons.
 struct NestedInsightSection<Content: View>: View {
-    let title: String
+    /// Same reasoning as `InsightSection.title` — see the note there (D7).
+    let title: LocalizedStringResource
     var trailing: String?
     let caveat: SectionCaveat
     @ViewBuilder var content: Content

@@ -845,7 +845,7 @@ the place to look.
   - `ImportProgressOverlay` :9
 - `DesignSystem/InsightSection.swift`
   - `InsightSection` :77
-  - `NestedInsightSection` :201
+  - `NestedInsightSection` :209
   - `SectionExpansion` :26
 - `DesignSystem/MedicationCurveChart.swift`
   - `MedicationCurveChart` :22
@@ -914,10 +914,10 @@ the place to look.
 - `Features/Dashboard/ConnectorTroubleSection.swift`
   - `ConnectorTroubleSection` :53
 - `Features/Dashboard/DashboardView.swift`
-  - `InsightCard` :320
-  - `LastNightCard` :155
+  - `InsightCard` :328
+  - `LastNightCard` :159
   - `TodayView` :8
-  - `VitalsGlance` :230
+  - `VitalsGlance` :238
 - `Features/Dashboard/InstrumentCoverageSection.swift`
   - `InstrumentCoverageSection` :45
 - `Features/Data/ArrivalRowLabel.swift`
