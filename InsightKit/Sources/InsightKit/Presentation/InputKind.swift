@@ -509,9 +509,21 @@ public enum InputGroup: String, Sendable, CaseIterable, Identifiable {
         }
     }
 
-    /// The kinds under this heading, in `InputKind`'s own case order.
+    /// The kinds under this heading, clustered by `InputTopic` and, within a
+    /// cluster, in `InputKind`'s own case order.
+    ///
+    /// Was plain declaration order until 2026-08-09, which scattered the three
+    /// inputs about how the reader is across positions 4, 8 and 9 of nine.
     public var kinds: [InputKind] {
-        InputKind.allCases.filter { $0.group == self }
+        InputKind.allCases
+            .filter { $0.group == self }
+            .enumerated()
+            .sorted {
+                $0.element.topic == $1.element.topic
+                    ? $0.offset < $1.offset
+                    : $0.element.topic < $1.element.topic
+            }
+            .map(\.element)
     }
 }
 
@@ -539,5 +551,64 @@ public extension GroundingKind {
     /// Every fact that earns a row, in declaration order.
     static var directlyEntered: [GroundingKind] {
         allCases.filter(\.isEnteredDirectly)
+    }
+}
+
+/// **How the `+` menu clusters within a heading.**
+///
+/// The reader, 2026-08-09: *"in the '+' section cluster them closer, and reduce
+/// overlap where possible.. like adding a side effect vs symptom vs illness?
+/// They are all very similar."*
+///
+/// They were describing a real scatter. `InputGroup.kinds` orders by `InputKind`
+/// declaration order, so under "Log as it happens" the three inputs about *how
+/// the reader is* sat at positions 4, 8 and 9 of nine, split by a cuff reading,
+/// a lab result, a screen-time import and a holiday.
+///
+/// ⚠️ **A sub-ordering, not a re-ordering of the enum.** Same reason as
+/// `DataDomainBand`: each `InputKind` case carries the argument for where it
+/// belongs, and shuffling the cases would scramble those comments while changing
+/// nothing else. Exhaustive, so a new input has to say which cluster it joins.
+public enum InputTopic: Int, Sendable, CaseIterable, Comparable {
+    /// **How the reader is** — symptoms, side effects, illness, and answering the
+    /// app's questions about a flagged moment. The cluster the reader named.
+    case howYouAre = 0
+    /// Numbers they took or a report gave them.
+    case readings = 1
+    /// What went in — substances, doses, supplements, food.
+    case intake = 2
+    /// Where they were and what they were doing.
+    case context = 3
+    /// Standing facts about the person.
+    case aboutThem = 4
+    /// Documents from elsewhere.
+    case documents = 5
+
+    public static func < (lhs: InputTopic, rhs: InputTopic) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+public extension InputKind {
+    /// Which cluster this input joins inside its heading.
+    var topic: InputTopic {
+        switch self {
+        // ⚠️ The reader's point: these are three doors onto one question. They
+        // stay three inputs because a side effect is attributed to a medication
+        // and a symptom is not — but they now sit together, which is where a
+        // reader looking for any of them will look for all of them.
+        case .sideEffect, .illnessCorrection, .eventConfirmation:
+            return .howYouAre
+        case .cuffBloodPressure, .labResultManual, .screenTime, .bodyMeasurements:
+            return .readings
+        case .substanceEvent, .medicationDose, .medicationRegimen, .supplement:
+            return .intake
+        case .holiday:
+            return .context
+        case .profileFacts, .bodyType, .readerIdentity:
+            return .aboutThem
+        case .bloodTestPhoto, .ecgImport, .fileImport:
+            return .documents
+        }
     }
 }

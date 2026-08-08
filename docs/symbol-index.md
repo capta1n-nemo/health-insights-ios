@@ -55,8 +55,9 @@ the place to look.
   - `ECGTranscriptionEvidence` :197
 - `Documents/LabAnalyte.swift`
   - `LabAnalyte` :31
-  - `LabAnalyteCatalog` :149
-  - `LabPanel` :469
+  - `LabAnalyteCatalog` :161
+  - `LabPanel` :866
+  - `LabSensitivity` :919
 - `Documents/LabModelVerifier.swift`
   - `LabModelVerifier` :39
 - `Documents/LabReportParser.swift`
@@ -153,7 +154,10 @@ the place to look.
   - `BiologicalAgeModel` :72
 - `Insights/BloodPressureEstimator.swift`
   - `BloodPressureEstimator` :12
-  - `BloodPressureInsight` :645
+  - `BloodPressureInsight` :654
+- `Insights/BloodPressureSitting.swift`
+  - `BloodPressureSitting` :29
+  - `BloodPressureSittings` :174
 - `Insights/BodyCompositionInsight.swift`
   - `BodyCompositionInsight` :4
 - `Insights/CalendarInsights.swift`
@@ -360,11 +364,11 @@ the place to look.
 - `Models/HolidayLedger.swift`
   - `HolidayLedger` :39
 - `Models/IllnessJudgement.swift`
-  - `IllnessAccuracy` :270
-  - `IllnessArtifact` :162
-  - `IllnessAssessment` :126
-  - `IllnessEstimate` :188
-  - `IllnessJudgement` :217
+  - `IllnessAccuracy` :283
+  - `IllnessArtifact` :175
+  - `IllnessAssessment` :139
+  - `IllnessEstimate` :201
+  - `IllnessJudgement` :230
   - `IllnessKind` :54
 - `Models/LeaveRecency.swift`
   - `LeaveBlend` :261
@@ -405,9 +409,9 @@ the place to look.
 - `Models/SourceOrigin.swift`
   - `SourceOrigin` :11
 - `Models/Symptom.swift`
-  - `SymptomEvent` :272
-  - `SymptomPromotion` :289
-  - `SymptomSeverity` :239
+  - `SymptomEvent` :393
+  - `SymptomPromotion` :410
+  - `SymptomSeverity` :360
   - `SymptomType` :27
 - `Models/TagCardCandidate.swift`
   - `TagCandidateDecisionStore` :135
@@ -455,12 +459,14 @@ the place to look.
   - `ScoreBand` :9
 - `Presentation/DataDomain.swift`
   - `DataDomain` :28
+  - `DataDomainBand` :322
 - `Presentation/EnergyCurveExplainer.swift`
   - `EnergyCurveExplainer` :22
 - `Presentation/InputKind.swift`
   - `CardRequirement` :472
   - `InputGroup` :483
   - `InputKind` :27
+  - `InputTopic` :572
 - `Presentation/InsightPalette.swift`
   - `InsightPalette` :67
 - `Presentation/InstrumentCoverage.swift`
@@ -699,7 +705,7 @@ the place to look.
   - `HealthInsightsApp` :5
 - `App/RootView.swift`
   - `RootView` :5
-  - `SyncActivityPill` :83
+  - `SyncActivityPill` :91
 - `Core/Background/BackgroundRefresh.swift`
   - `BackgroundRefresh` :47
 - `Core/Capture/BodyScanCaptureDriver.swift`
@@ -944,7 +950,7 @@ the place to look.
   - `CycleDataView` :44
 - `Features/Data/DataTabView.swift`
   - `DataTabView` :16
-  - `OtherDataDetailView` :1535
+  - `OtherDataDetailView` :1593
 - `Features/Data/DomainDataScaffold.swift`
   - `DomainDataScaffold` :46
 - `Features/Data/DomainDataViews.swift`

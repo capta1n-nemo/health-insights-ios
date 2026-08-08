@@ -240,7 +240,13 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .sickDays: return "Sick days"
         case .tags: return "Tags"
         case .flaggedEvents: return "Flagged events"
-        case .labResults: return "Blood tests"
+        // ⚠️ **The case is still `labResults` and the export key is still
+        // "labResults".** Only the reader-facing title changed, 2026-08-09: a
+        // urine NAT, an eye swab and a faecal antigen are not blood tests, and
+        // roughly two results in five on a real corpus are not even numbers.
+        // Renaming the case would invite somebody to align the export key with
+        // it and silently change the shape of every file ever exported.
+        case .labResults: return "Test results"
         case .ecgRecords: return "ECGs"
         case .supplements: return "Supplements"
         case .unmodelled: return "Other data"
@@ -290,5 +296,113 @@ public enum DataDomain: String, Sendable, CaseIterable, Identifiable {
         case .generatedInsights:
             return "Every figure the app has worked out, kept day by day — the ages, the doses, and each signal's own score and departure behind every card. Computed, never measured."
         }
+    }
+}
+
+/// **The bands the Data tab lays its domains out in.**
+///
+/// The reader, 2026-08-09: *"I want all of these that may require input or
+/// approval to be clustered near each other in data… even the calendar and
+/// sickness related ones where I can go and reclassify or log sickness
+/// retrospectively."*
+///
+/// They were describing a real dispersal. `DataDomain`'s declaration order is
+/// the screen order, and the seven domains that ask the reader for something sat
+/// at positions 5, 6, 9, 10, 12, 13 and 14 — with `bodyScans` and `derivedScores`
+/// wedged through the middle and `holidays`, which asks nothing, embedded inside
+/// the run.
+///
+/// ⚠️ **This is a grouping, not a re-ordering of the enum.** Each `DataDomain`
+/// case carries a long doc comment arguing why it is *not* folded into its
+/// neighbour — a tag is not a symptom, a week of flu is not leave — and moving
+/// the cases around would put those arguments out of order with the code they
+/// describe while changing nothing the reader sees. The band is a separate
+/// statement about layout, exhaustively switched so a new domain cannot be added
+/// without deciding where it belongs.
+public enum DataDomainBand: Int, Sendable, CaseIterable, Comparable, Identifiable {
+    /// What the app measured or the reader recorded as fact.
+    case measurements = 0
+    /// **What is waiting on the reader** — anything they can log, confirm,
+    /// reclassify or correct. The band this type was created for.
+    case needsYou = 1
+    /// Documents and records brought in from elsewhere.
+    case records = 2
+    /// Everything else, including what the app worked out for itself.
+    case derived = 3
+
+    public var id: Int { rawValue }
+
+    public var title: String {
+        switch self {
+        case .measurements: return "Measured"
+        case .needsYou: return "You can add or correct these"
+        case .records: return "Records you brought in"
+        case .derived: return "Worked out by the app"
+        }
+    }
+
+    public static func < (lhs: DataDomainBand, rhs: DataDomainBand) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+public extension DataDomain {
+    /// Which band this domain lays out in.
+    ///
+    /// ⚠️ Exhaustive, and it must stay that way. A domain that fell through to a
+    /// default would land in whichever band the default named, silently, which is
+    /// the class of failure `DataTabView.isVisible(_:)` already refuses for
+    /// search: *"'it doesn't' is a decision somebody makes rather than a row that
+    /// quietly never appears."*
+    var band: DataDomainBand {
+        switch self {
+        case .metrics, .bloodPressure, .substances, .medication, .bodyScans:
+            return .measurements
+
+        // The seven the reader named. Each of these either asks a question the
+        // reader can answer, or holds something they can log after the fact.
+        case .symptoms, .sideEffects, .flaggedEvents, .tags,
+             .sickDays, .calendarEvents, .cycles:
+            return .needsYou
+
+        // `holidays` sat inside the run above and does not belong there: leave is
+        // recorded, not adjudicated, and nothing about it is waiting on an answer.
+        case .labResults, .ecgRecords, .supplements, .holidays:
+            return .records
+
+        case .derivedScores, .unmodelled, .generatedInsights:
+            return .derived
+        }
+    }
+
+    /// Whether this domain can have something *outstanding* — an unanswered
+    /// question rather than merely an editable row.
+    ///
+    /// Narrower than `band == .needsYou` on purpose: a side effect the reader
+    /// logged is complete, whereas an unreviewed tag, an unanswered flag and an
+    /// unclassified calendar day are all questions the app asked and nobody has
+    /// answered. Only these can raise a count.
+    var canHaveOutstandingItems: Bool {
+        switch self {
+        case .tags, .flaggedEvents, .calendarEvents, .sickDays: return true
+        case .metrics, .bloodPressure, .substances, .medication, .sideEffects,
+             .symptoms, .bodyScans, .derivedScores, .cycles, .holidays,
+             .labResults, .ecgRecords, .supplements, .unmodelled,
+             .generatedInsights:
+            return false
+        }
+    }
+
+    /// Every domain, in the order the Data tab shows them: by band, and within a
+    /// band by declaration order, which each case's own doc comment already
+    /// argues for.
+    static var inDisplayOrder: [DataDomain] {
+        allCases.enumerated()
+            .sorted {
+                $0.element.band == $1.element.band
+                    ? $0.offset < $1.offset
+                    : $0.element.band < $1.element.band
+            }
+            .map(\.element)
     }
 }

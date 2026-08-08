@@ -341,7 +341,12 @@ struct DataTabView: View {
             // no reason to know the app files it under Blood tests.
             guard !model.labResults.isEmpty else { return false }
             return matches(domain.title, "blood", "lab", "pathology", "test",
-                           "cholesterol", "hba1c", "result")
+                           "cholesterol", "hba1c", "result",
+                           // Not every test is a blood test, and the words a
+                           // reader types are the ones their own report used.
+                           "urine", "swab", "stool", "faecal", "fecal",
+                           "screen", "serology", "culture", "sti", "std",
+                           "infection", "thyroid", "iron", "liver", "kidney")
                 || model.labResults.contains { matches($0.analyte.displayName) }
         case .ecgRecords:
             guard !model.ecgRecords.isEmpty else { return false }
@@ -362,8 +367,60 @@ struct DataTabView: View {
         }
     }
 
+    /// ⚠️ **`inDisplayOrder`, not `allCases`.** Declaration order was the screen
+    /// order until 2026-08-09, which scattered the seven domains that ask the
+    /// reader for something across positions 5 to 14 with two unrelated domains
+    /// wedged through the middle. `DataDomainBand` groups them without moving the
+    /// enum cases, whose doc comments argue case-by-case for staying apart.
+    /// Search still narrows and never reorders.
     private var visibleDomains: [DataDomain] {
-        DataDomain.allCases.filter { isVisible($0) }
+        DataDomain.inDisplayOrder.filter { isVisible($0) }
+    }
+
+    /// How many answers the app is waiting on, per domain that can be waiting on
+    /// one. Drives the summary row and the tab badge.
+    ///
+    /// ⚠️ **Only genuinely outstanding items count.** A side effect the reader
+    /// logged is finished; an unreviewed tag, an unanswered flag and an
+    /// unclassified calendar day are questions nobody has answered. Counting the
+    /// former would make the badge permanent, and a badge that never clears is
+    /// one a reader learns to ignore.
+    var outstandingCounts: [AppModel.Outstanding] { model.outstandingDataItems }
+
+    /// **What is waiting on you**, above everything else.
+    ///
+    /// The reader, 2026-08-09: *"I want all of these that may require input or
+    /// approval to be clustered near each other."* Clustering them in the list
+    /// was half the answer; the other half is that a question buried eight
+    /// sections down is a question nobody answers. Each row jumps to its own
+    /// section rather than opening a parallel screen — there is one place each
+    /// kind of data lives, and this is a route to it, not a copy of it.
+    @ViewBuilder private func needsYouSection(_ proxy: ScrollViewProxy) -> some View {
+        let outstanding = outstandingCounts
+        if !outstanding.isEmpty, trimmed.isEmpty {
+            Section {
+                ForEach(outstanding) { entry in
+                    Button {
+                        jump(to: entry.domain.rawValue, proxy: proxy)
+                    } label: {
+                        HStack {
+                            Text(entry.domain.title)
+                            Spacer()
+                            Text("\(entry.count)")
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text(DataDomainBand.needsYou.title)
+            } footer: {
+                Text("Answers the app is waiting on. Nothing here is a finding — each one is a question it asked and could not settle on its own.")
+            }
+        }
     }
 
     /// Blood tests — backlog Q7. One row into `LabResultsDataView`.
@@ -474,6 +531,7 @@ struct DataTabView: View {
                             // and giving it a case would put it in the search
                             // vocabulary, where it makes no sense.
                             whatChangedSection(proxy)
+                            needsYouSection(proxy)
                             // **Exhaustive over `DataDomain`, and that is the
                             // point.** This screen is the app's answer to "what do
                             // you know about me", and it kept quietly failing to be
@@ -1765,5 +1823,72 @@ struct OtherDataDetailView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - What the app is waiting on
+
+extension AppModel {
+    /// One domain with unanswered questions in it, and how many.
+    struct Outstanding: Identifiable {
+        let domain: DataDomain
+        let count: Int
+        var id: DataDomain { domain }
+    }
+
+    /// **Every answer the app is waiting on**, in Data-tab order.
+    ///
+    /// On `AppModel` rather than on `DataTabView` because two surfaces need the
+    /// same number and a second copy would drift: the Data tab's own summary
+    /// section, and the badge on the tab itself. One definition, two readers.
+    ///
+    /// ⚠️ **Only genuinely outstanding items count** — see
+    /// `DataDomain.canHaveOutstandingItems`. A side effect the reader logged is
+    /// finished; an unreviewed tag, an unanswered flag, an unconfirmed calendar
+    /// day and a sick spell the app detected rather than the reader entering are
+    /// all questions nobody has answered. Counting the former would make the
+    /// badge permanent, and a badge that never clears is one a reader learns to
+    /// ignore — which is worse than no badge, because it also hides the ones
+    /// that matter.
+    var outstandingDataItems: [Outstanding] {
+        DataDomain.inDisplayOrder
+            .filter(\.canHaveOutstandingItems)
+            .map { Outstanding(domain: $0, count: outstandingCount(for: $0)) }
+            .filter { $0.count > 0 }
+    }
+
+    var outstandingDataTotal: Int {
+        outstandingDataItems.reduce(0) { $0 + $1.count }
+    }
+
+    private func outstandingCount(for domain: DataDomain) -> Int {
+        switch domain {
+        case .tags:
+            // Unplaced, or placed weakly enough that the app itself wants a
+            // second opinion — the same test `TagApplicabilityMapping` already
+            // uses to decide whether to ask the on-device model, so the badge
+            // and the classifier cannot disagree about what "unsettled" means.
+            return tags.filter {
+                $0.mapping.applicability == .unclassified || $0.mapping.wantsModelReview
+            }.count
+        case .flaggedEvents:
+            return EventFeedModel.shared.feed.pending.count
+        case .calendarEvents:
+            // Classified by the app and not confirmed by the reader. An event
+            // with no judgement at all and one with an unconfirmed judgement are
+            // both outstanding — and reclassifying these is exactly what the
+            // reader asked to be able to reach.
+            let confirmed = Set(calendarJudgements.filter(\.isConfirmed).map(\.eventID))
+            return calendarEvents.filter { !confirmed.contains($0.id) }.count
+        case .sickDays:
+            // Detected from the calendar and never confirmed. An entered spell is
+            // already the reader's own statement and asks nothing.
+            return sickDayLedger.periods.filter { $0.source == .detected }.count
+        case .metrics, .bloodPressure, .substances, .medication, .sideEffects,
+             .symptoms, .bodyScans, .derivedScores, .cycles, .holidays,
+             .labResults, .ecgRecords, .supplements, .unmodelled,
+             .generatedInsights:
+            return 0
+        }
     }
 }

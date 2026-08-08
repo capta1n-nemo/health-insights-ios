@@ -45,6 +45,31 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     // got the full illness lead instead of the neutral one naming the dose.
     case vomiting
     case diarrhea
+    // Added 2026-08-08: **the app's own picker was manufacturing names it could
+    // not read.** `SideEffectEntrySheet` offered "Constipation",
+    // "Injection-site pain" and "Loss of appetite"; none had a case here and
+    // none had a synonym, so every time the reader chose one — daily, against a
+    // GLP-1 — the record went straight into
+    // `SymptomReconciliation.unmatchedNames`. Not a vocabulary gap between two
+    // products: the app proposed the word and then could not read it back.
+    // `commonlyLogged` exists so that cannot recur.
+    case constipation
+    /// Apple's category is **bidirectional** — an appetite *change*, either way
+    /// — and this is that category, not a narrower "loss of appetite". The
+    /// picker's old wording still resolves through `synonyms`; only
+    /// decrease-direction words are listed there, because that is the only
+    /// direction a reader on a GLP-1 logs and an increase mapping into the same
+    /// case would let the reconciliation call two opposite records agreement.
+    case appetiteChanges
+    /// **The one symptom here Apple has no category for.** It can only ever
+    /// arrive by hand, so the string `healthKitIdentifier` derives for it simply
+    /// never matches an incoming sample — the harmless half of that derivation,
+    /// and the identifier stays unique so promotion is unaffected.
+    ///
+    /// It earns a case anyway rather than staying free text: it is one of the
+    /// things a reader on an injectable logs most, and free text cannot
+    /// reconcile, cannot cluster, and cannot be counted.
+    case injectionSitePain
 
     public var id: String { rawValue }
 
@@ -58,6 +83,34 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     /// has to keep in step.
     public static let byHealthKitIdentifier: [String: SymptomType] = Dictionary(
         uniqueKeysWithValues: allCases.map { ($0.healthKitIdentifier, $0) })
+
+    /// **The side effects the reader is offered by name**, in the order the
+    /// picker has always shown them.
+    ///
+    /// ⚠️ **This is public because a hardcoded UI list is how three
+    /// unreconcilable names got shipped.** `SideEffectEntrySheet` held its
+    /// choices as a `[String]`, and three of them had no case in this enum and
+    /// no entry in `synonyms` — so the app offered the reader a word, wrote it
+    /// down when they picked it, and then reported it back through
+    /// `SymptomReconciliation.unmatchedNames` as a vocabulary it could not
+    /// read. A UI list of a domain enum's members is not a shortcut; it is a
+    /// second vocabulary, and the second one drifts silently because nothing
+    /// compiles against it.
+    ///
+    /// Generated from here, the drift is a compile error instead: a new picker
+    /// entry is a new case, and a new case does not build until `title`, both
+    /// clusters, `gradesTheRadar` and `IllnessKind.kind(for:)` have all answered
+    /// for it. The strings come from `title`, so there is one spelling.
+    ///
+    /// **The free-text escape is deliberately not in this list and must stay in
+    /// the UI.** "Something else" is a sentinel, not a symptom, and
+    /// `matching(name:)` returns nil for it on purpose. A fixed list of symptoms
+    /// is a list of the ones somebody else thought of — the reconciliation is
+    /// built to *report* the words it cannot read rather than prevent them.
+    public static let commonlyLogged: [SymptomType] = [
+        .nausea, .fatigue, .constipation, .diarrhea, .heartburn,
+        .headache, .injectionSitePain, .appetiteChanges, .vomiting,
+    ]
 
     /// **The words a hand-typed side effect arrives under**, mapped to the
     /// canonical symptom — backlog `R28`.
@@ -104,6 +157,24 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
         // invented. It stays unmatched and visible.
         "vomiting": .vomiting, "throwing up": .vomiting,
         "diarrhea": .diarrhea, "diarrhoea": .diarrhea, "loose stools": .diarrhea,
+        "constipation": .constipation, "constipated": .constipation,
+        // Keys are looked up after `matching(name:)` lowercases and turns "-"
+        // into " ", so "injection site pain" is what the picker's
+        // "Injection-site pain" actually arrives as. A key spelled with the
+        // hyphen would be unreachable — dead weight that reads as coverage.
+        //
+        // "Injection site reaction" is deliberately absent. A reaction is
+        // redness or itching as readily as pain, and it is a guess at another
+        // product's wording rather than a word this app has seen. It stays
+        // unmatched and visible, which is how the next session learns it is
+        // real — that feedback loop is the whole design of `unmatchedNames`.
+        "injection site pain": .injectionSitePain,
+        "injection site soreness": .injectionSitePain,
+        "sore injection site": .injectionSitePain,
+        // Decrease-direction only, on purpose — see the case's own note.
+        "appetite changes": .appetiteChanges, "loss of appetite": .appetiteChanges,
+        "appetite loss": .appetiteChanges, "reduced appetite": .appetiteChanges,
+        "no appetite": .appetiteChanges,
     ]
 
     /// The canonical symptom a free-text name refers to, or nil where the app
@@ -140,6 +211,13 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
         // identifier — while the title follows this app's British copy, the
         // same split `hotFlashes` / "Hot flushes" already makes.
         case .diarrhea: return "Diarrhoea"
+        case .constipation: return "Constipation"
+        case .injectionSitePain: return "Injection-site pain"
+        // Not "Loss of appetite", which is what the picker used to say. This is
+        // Apple's bidirectional category and naming a direction the record does
+        // not carry would put a claim in the reader's mouth; the old wording
+        // still resolves through `synonyms`, so nothing they logged is lost.
+        case .appetiteChanges: return "Appetite changes"
         }
     }
 
@@ -165,7 +243,19 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     public var isCommonGLP1Effect: Bool {
         switch self {
         case .nausea, .abdominalCramps, .bloating, .heartburn, .fatigue,
-             .vomiting, .diarrhea: return true
+             .vomiting, .diarrhea,
+             // Constipation is the slowed-gastric-emptying half of the same
+             // mechanism as the diarrhoea already here; appetite suppression is
+             // the drug *working*, which this property is worded for — it flags
+             // a symptom as explicable by medication, never as an adverse
+             // event. Injection-site pain is the strongest member of the set:
+             // it is explained by the injection by definition.
+             //
+             // Load-bearing beyond the copy. `HealthWatch`'s `isDoseExplained`
+             // only discounts a day when *every* tag on it is one of these, so
+             // a day carrying just these three inside a dose window can no
+             // longer confirm an illness episode.
+             .constipation, .appetiteChanges, .injectionSitePain: return true
         case .headache, .dizziness, .fever, .coughing, .shortnessOfBreath,
              .chestTightnessOrPain, .sleepChanges, .moodChanges, .hotFlashes: return false
         }
@@ -181,7 +271,16 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
         case .fever, .coughing, .shortnessOfBreath: return true
         case .nausea, .headache, .fatigue, .dizziness, .chestTightnessOrPain,
              .abdominalCramps, .bloating, .heartburn, .sleepChanges,
-             .moodChanges, .hotFlashes, .vomiting, .diarrhea: return false
+             .moodChanges, .hotFlashes, .vomiting, .diarrhea,
+             // Losing your appetite is a real illness symptom and is still
+             // false here, for the reason fatigue is: on a reader whose
+             // prescription suppresses appetite it would fire most weeks, and
+             // this drives the radar's *miss* clustering — a signal that fires
+             // on every ordinary week would make a miss of every ordinary week.
+             // (The disjointness rule forces it anyway.) Injection-site pain is
+             // local to a needle, never systemic; it would make a miss of every
+             // dose.
+             .constipation, .appetiteChanges, .injectionSitePain: return false
         }
     }
 
@@ -221,9 +320,31 @@ public enum SymptomType: String, Sendable, CaseIterable, Codable, Identifiable {
     public var gradesTheRadar: Bool {
         switch self {
         case .moodChanges: return false
+        // ⚠️ **Settled 2026-08-09, against the rule this switch's own test
+        // states**: *a detector may only be graded by evidence that could have
+        // gone either way.* Injection-site pain cannot. It is
+        // `isCommonGLP1Effect`, so `isDoseExplained` discounts it whenever a
+        // dose covers the day — but where a dose record is *missing* (an
+        // imported side-effect log with no matching dose) it confirms an
+        // episode, while on the miss side it contributes nothing at all, being
+        // `isInfectionLike == false`. One-directional: it can raise the radar's
+        // hit rate and can never raise its miss rate.
+        //
+        // That is the same shape `moodChanges` is excluded for, on a stronger
+        // argument than mood's — pain where a needle went is evidence about the
+        // needle, not about the body being ill. Settled now rather than left
+        // flagged because nothing has ever logged it: the case was added the
+        // same day, so the ledger has no history to reinterpret. That is
+        // exactly the "cheap now, expensive later" argument the mood exclusion
+        // was made on, and waiting would have inverted it.
+        case .injectionSitePain: return false
         case .fever, .coughing, .shortnessOfBreath, .nausea, .headache, .fatigue,
              .dizziness, .chestTightnessOrPain, .abdominalCramps, .bloating,
-             .heartburn, .sleepChanges, .hotFlashes, .vomiting, .diarrhea:
+             .heartburn, .sleepChanges, .hotFlashes, .vomiting, .diarrhea,
+             // Constipation and appetite changes stay `true`: both are ordinary
+             // illness symptoms as well as dose reactions, so both are evidence
+             // that could genuinely have gone either way.
+             .constipation, .appetiteChanges:
             return true
         }
     }

@@ -53,6 +53,15 @@ public enum BloodPressureEstimator {
     /// `pairingWindow`) across **all** sources, newest first. Apple Health and
     /// Withings readings are included automatically, each keeping its own date
     /// and source label.
+    ///
+    /// ⚠️ **Deduplicated since 2026-08-08 — it never was before, and two real
+    /// defects were living in that.** One 2020 Withings reading appears ten times
+    /// at an identical timestamp, and every Withings reading appears twice
+    /// whenever the direct integration and Apple Health sync are both on (once as
+    /// `withings`, once as `apple_health/withings`). Both inflated
+    /// `CalibrationStatus.totalReadings`, both fed the regression the same moment
+    /// repeatedly, and neither showed up as a wrong-looking number anywhere.
+    /// `BloodPressureSittings.deduplicate` documents the two rules.
     public static func pairedReadings(from samples: [HealthMetricSample],
                                       pairingWindow: TimeInterval = 2 * 3600) -> [Reading] {
         let systolic = samples.samples(of: .bloodPressureSystolic)
@@ -66,7 +75,7 @@ public enum BloodPressureEstimator {
             out.append(Reading(date: s.start, systolic: s.value, diastolic: d.value,
                                source: s.source.displayName))
         }
-        return out.sorted { $0.date > $1.date }
+        return BloodPressureSittings.deduplicate(out).sorted { $0.date > $1.date }
     }
 
     /// Where the user is in grounding the estimate. Only readings **within the

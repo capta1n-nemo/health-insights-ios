@@ -118,17 +118,27 @@ final class SymptomTests: XCTestCase {
     ///
     /// The general rule: **a detector may only be graded by evidence that could
     /// have gone either way.**
-    func testOnlyMoodIsBarredFromGradingTheRadar() {
+    func testOnlyOneDirectionalEvidenceIsBarredFromGradingTheRadar() {
         // ⚠️ Not symmetry with `isInfectionLike` — a first version asserted that
         // and two shipped tests refuted it in one run: nausea and hot flushes
         // legitimately confirm while being deliberately kept out of the miss
-        // clustering. The exclusion is mood specifically, and the reason is that
-        // a mood is not evidence of a bodily illness.
-        for type in SymptomType.allCases where type != .moodChanges {
+        // clustering.
+        //
+        // The exclusions are named individually rather than derived, because
+        // each rests on its own argument: a mood is not evidence of a bodily
+        // illness, and pain where a needle went is evidence about the needle.
+        // A derived rule would be a fourth classification of the same symptoms
+        // and would go stale against the reasoning it replaced.
+        let barred: Set<SymptomType> = [.moodChanges, .injectionSitePain]
+        for type in SymptomType.allCases where !barred.contains(type) {
             XCTAssertTrue(type.gradesTheRadar, "\(type) stopped grading the radar")
         }
-        XCTAssertTrue(SymptomType.allCases.contains(.moodChanges),
-                      "the one exclusion this rule exists for has been removed")
+        for type in barred {
+            XCTAssertFalse(type.gradesTheRadar,
+                           "\(type) can only ever confirm, so it would inflate the hit rate")
+            XCTAssertTrue(SymptomType.allCases.contains(type),
+                          "an exclusion this rule exists for has been removed")
+        }
     }
 
     /// Named explicitly, because this is the case that was live and the reason
@@ -142,5 +152,137 @@ final class SymptomTests: XCTestCase {
         // And the ones that genuinely are illness evidence still are.
         XCTAssertTrue(SymptomType.fever.gradesTheRadar)
         XCTAssertTrue(SymptomType.coughing.gradesTheRadar)
+    }
+
+    // MARK: - The picker must not offer a word the app cannot read
+
+    /// **The ten strings `SideEffectEntrySheet` shipped hardcoded**, copied here
+    /// verbatim as the historical record.
+    ///
+    /// Three of them — "Constipation", "Injection-site pain", "Loss of
+    /// appetite" — had no `SymptomType` and no synonym, so the app proposed a
+    /// word, wrote it down when the reader picked it, and could then only report
+    /// it back through `SymptomReconciliation.unmatchedNames`. Against a daily
+    /// GLP-1 log that is the app disagreeing with itself, every day.
+    private static let shippedPickerStrings = [
+        "Nausea", "Fatigue", "Constipation", "Diarrhoea", "Heartburn",
+        "Headache", "Injection-site pain", "Loss of appetite", "Vomiting",
+        "Something else"
+    ]
+
+    func testEveryNameThePickerOfferedResolvesToACanonicalSymptom() {
+        for name in Self.shippedPickerStrings where name != "Something else" {
+            XCTAssertNotNil(SymptomType.matching(name: name),
+                            "the picker offers \"\(name)\" and nothing can reconcile it")
+        }
+    }
+
+    /// The one exception, and it is not an oversight: "Something else" is the
+    /// free-text sentinel. It must stay unresolvable, or a reader picking it
+    /// would have their custom word filed under a symptom named after the
+    /// button.
+    func testTheFreeTextSentinelStaysUnresolvableAndOutOfTheCanonicalList() {
+        XCTAssertNil(SymptomType.matching(name: "Something else"))
+        XCTAssertFalse(SymptomType.commonlyLogged.contains { $0.title == "Something else" })
+    }
+
+    /// The generated picker must offer the same nine symptoms the hardcoded one
+    /// did — this is the check that the list moved rather than changed.
+    func testCommonlyLoggedCoversExactlyTheNamesThePickerOffered() {
+        let expected = Self.shippedPickerStrings
+            .filter { $0 != "Something else" }
+            .compactMap { SymptomType.matching(name: $0) }
+        XCTAssertEqual(SymptomType.commonlyLogged, expected)
+    }
+
+    /// A generated picker writes `title` and reads it back through
+    /// `matching(name:)`, so anything that cannot round-trip becomes an
+    /// unreconcilable record the moment it is chosen.
+    ///
+    /// ⚠️ `injectionSitePain` is the first title in this enum containing a
+    /// hyphen, and the round-trip does **not** survive on the title fallback
+    /// alone: `matching` turns "-" into " " before comparing, so
+    /// "Injection-site pain" never equals its own title. It resolves only
+    /// because `synonyms` carries the normalised key. Delete that key and this
+    /// test is the thing that notices.
+    func testEveryCommonlyLoggedSymptomRoundTripsThroughItsOwnTitle() {
+        for type in SymptomType.commonlyLogged {
+            XCTAssertEqual(SymptomType.matching(name: type.title), type,
+                           "\(type.rawValue) does not survive being written to the log and read back")
+        }
+        XCTAssertEqual(SymptomType.matching(name: "Injection-site pain"), .injectionSitePain)
+        XCTAssertEqual(SymptomType.matching(name: "injection site pain"), .injectionSitePain)
+    }
+
+    /// The picker's old wording still resolves, because the reader has months of
+    /// entries carrying it. Renaming the display title may not orphan them.
+    func testThePickersOldWordingStillResolves() {
+        XCTAssertEqual(SymptomType.matching(name: "Loss of appetite"), .appetiteChanges)
+        XCTAssertEqual(SymptomType.matching(name: "Constipation"), .constipation)
+    }
+
+    /// ⚠️ **An increase is deliberately absent.** Apple's category is
+    /// bidirectional, so a hand entry meaning "I ate more" mapped into the same
+    /// case would let the reconciliation call it agreement with a Health tag
+    /// meaning the opposite — manufacturing agreement between two records that
+    /// never agreed, which is the one thing the synonym table forbids.
+    func testAnIncreasedAppetiteIsNotFiledAsTheDecreaseTheReaderLogs() {
+        XCTAssertNil(SymptomType.matching(name: "Increased appetite"))
+    }
+
+    // MARK: - Names
+
+    func testEverySymptomHasADistinctDisplayName() {
+        for type in SymptomType.allCases {
+            XCTAssertFalse(type.title.trimmingCharacters(in: .whitespaces).isEmpty,
+                           "\(type.rawValue) has no display name")
+        }
+        let titles = SymptomType.allCases.map(\.title)
+        XCTAssertEqual(Set(titles).count, titles.count,
+                       "two symptoms share a display name, so a reconciled row cannot say which it is")
+    }
+
+    /// **A synonym key that the normalisation can never produce is dead weight
+    /// that reads as coverage.** `matching(name:)` lowercases, turns "-" into
+    /// " " and trims before the lookup, so a key carrying a capital or a hyphen
+    /// is unreachable — and unreachable is indistinguishable from absent right
+    /// up until somebody trusts the table.
+    func testEverySynonymKeyIsReachableThroughTheNormalisation() {
+        for (key, expected) in SymptomType.synonyms {
+            let normalised = key.lowercased()
+                .replacingOccurrences(of: "-", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(key, normalised,
+                           "\"\(key)\" can never be looked up — matching(name:) would search for \"\(normalised)\"")
+            XCTAssertEqual(SymptomType.matching(name: key), expected)
+        }
+    }
+
+    /// No two symptoms may claim one word. A duplicate key in the literal traps
+    /// at initialisation, so what is checkable here is the subtler collision:
+    /// a symptom whose *title* is another symptom's synonym, which would make
+    /// the app unable to read back a name it wrote.
+    func testNoSymptomsTitleIsClaimedByADifferentSymptom() {
+        for type in SymptomType.allCases {
+            let key = type.title.lowercased()
+                .replacingOccurrences(of: "-", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let claimed = SymptomType.synonyms[key] {
+                XCTAssertEqual(claimed, type,
+                               "\"\(type.title)\" is \(type.rawValue)'s own name but resolves to \(claimed.rawValue)")
+            }
+        }
+    }
+
+    /// The new cases must not have quietly undone the two rules the radar rests
+    /// on. (`testTheTwoClustersDoNotOverlap` covers disjointness for all cases;
+    /// these name the intent for the three added on 2026-08-08.)
+    func testTheThreeNewSymptomsAreDoseExplicableAndNotInfectionLike() {
+        for type in [SymptomType.constipation, .appetiteChanges, .injectionSitePain] {
+            XCTAssertTrue(type.isCommonGLP1Effect,
+                          "\(type.rawValue) must be discountable by a dose, or a dose reaction reads as an illness")
+            XCTAssertFalse(type.isInfectionLike,
+                           "\(type.rawValue) would make a miss out of an ordinary dose week")
+        }
     }
 }

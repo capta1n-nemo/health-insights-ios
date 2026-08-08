@@ -143,6 +143,69 @@ final class SymptomReconciliationTests: XCTestCase {
         XCTAssertEqual(some.alsoInHealth, 0.5)
     }
 
+    // MARK: - The app's own picker was the source of the unmatched names
+
+    /// ⚠️ **The defect this batch closed.** Three of the ten strings
+    /// `SideEffectEntrySheet` offered had no `SymptomType` and no synonym, so
+    /// every one the reader picked arrived here — in a list whose whole purpose
+    /// is to report *the reader's* vocabulary back to them. They were the app's
+    /// own words. On a daily GLP-1 log that is three unreconcilable rows a day,
+    /// and the reconciliation's headline share was being computed against them.
+    func testThePickersOwnNamesNoLongerArriveAsUnreadableVocabulary() {
+        let effects = ["Constipation", "Injection-site pain", "Loss of appetite"]
+            .enumerated().map { hand($0.element, 4, daysAgo: $0.offset) }
+        XCTAssertEqual(SymptomReconciliation.unmatchedNames(in: effects).map(\.name), [],
+                       "the app is still offering names it cannot read back")
+    }
+
+    /// And the safety valve still works — closing the picker's gap must not have
+    /// been done by making the matcher generous. A word the app genuinely does
+    /// not know still comes back rather than being filed under a near miss.
+    func testAGenuinelyUnknownWordIsStillSurfacedRatherThanGuessedAt() {
+        let unmatched = SymptomReconciliation.unmatchedNames(
+            in: [hand("Brain fog", 4, daysAgo: 1), hand("Constipation", 4, daysAgo: 1)])
+        XCTAssertEqual(unmatched.map(\.name), ["Brain fog"])
+        // "Sick" is the standing example and stays unmatched — see
+        // `testSickIsDeliberatelyNotASynonym`. Three new cases did not change it.
+        XCTAssertNil(SymptomType.matching(name: "Sick"))
+    }
+
+    /// The point of the whole exercise: a hand entry and a Health tag for the
+    /// same thing on the same day now reconcile, where before the hand entry was
+    /// invisible and the Health tag looked like a `healthOnly` row nobody had
+    /// logged.
+    func testAConstipationEntryNowJoinsTheHealthTagForTheSameDay() throws {
+        let outcome = try XCTUnwrap(SymptomReconciliation.reconcile(
+            symptoms: [tag(.constipation, .moderate, daysAgo: 1)],
+            sideEffects: [hand("Constipation", 5, daysAgo: 1)],
+            calendar: calendar).first)
+        XCTAssertEqual(outcome.symptom, .constipation)
+        XCTAssertEqual(outcome.agreement, .both)
+    }
+
+    /// The picker's old wording and the app's new display title are the same
+    /// symptom, so months of "Loss of appetite" entries reconcile against a
+    /// Health appetite tag rather than sitting in a second bucket.
+    func testTheOldAndNewWordingForAppetiteReconcileAsOneSymptom() throws {
+        let outcomes = SymptomReconciliation.reconcile(
+            symptoms: [tag(.appetiteChanges, .mild, daysAgo: 1)],
+            sideEffects: [hand("Loss of appetite", 3, daysAgo: 1),
+                          hand("Appetite changes", 3, daysAgo: 1)],
+            calendar: calendar)
+        XCTAssertEqual(outcomes.count, 1, "one symptom, one day, one row")
+        XCTAssertEqual(try XCTUnwrap(outcomes.first).agreement, .both)
+    }
+
+    /// Injection-site pain can only ever arrive by hand — Apple has no category
+    /// for it — so it must reconcile as a `handOnly` row rather than vanishing.
+    func testInjectionSitePainIsReadableEvenThoughHealthCanNeverKnowIt() throws {
+        let outcome = try XCTUnwrap(SymptomReconciliation.reconcile(
+            symptoms: [], sideEffects: [hand("Injection-site pain", 6, daysAgo: 1)],
+            calendar: calendar).first)
+        XCTAssertEqual(outcome.symptom, .injectionSitePain)
+        XCTAssertEqual(outcome.agreement, .handOnly)
+    }
+
     /// The join is on the calendar day, not the instant: a tracker entry is
     /// typed whenever the reader remembers and a Health tag is stamped when they
     /// opened the app, so the times are not comparable.

@@ -22,6 +22,14 @@ struct RootView: View {
                 // imported catalogue, none of which is a vital sign.
                 DataTabView()
                     .tabItem { Label("Data", systemImage: "waveform.path.ecg") }
+                    // **The count of answers the app is waiting on**, so the
+                    // reader knows without opening the tab — their own ask,
+                    // 2026-08-09. Deliberately only the *unanswered*: see
+                    // `AppModel.outstandingDataItems`, where the narrowness is
+                    // the whole design. A badge fed by "things you could edit"
+                    // would never reach zero, and a badge that never clears
+                    // teaches a reader to stop looking at badges.
+                    .badge(model.outstandingDataTotal)
 
                 // **The fifth tab** (backlog #31, 2026-08-06). Fourth rather
                 // than last, because it is a *log* — it belongs beside Data in

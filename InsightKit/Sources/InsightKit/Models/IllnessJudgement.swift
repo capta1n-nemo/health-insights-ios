@@ -107,7 +107,20 @@ public enum IllnessKind: String, Sendable, Equatable, Codable, CaseIterable, Ide
         case .coughing, .shortnessOfBreath: return .respiratory
         case .vomiting, .diarrhea, .nausea, .abdominalCramps: return .gastrointestinal
         case .headache, .fatigue, .dizziness, .chestTightnessOrPain, .bloating,
-             .heartburn, .sleepChanges, .moodChanges, .hotFlashes:
+             .heartburn, .sleepChanges, .moodChanges, .hotFlashes,
+             // Added 2026-08-09 with the three cases the app's own side-effect
+             // picker was manufacturing and could not read back. ⚠️ **None of
+             // them joins `.gastrointestinal`, and constipation is the one to
+             // think about**: it is a GI symptom and it is not an infection
+             // sign. On an injectable it is a dose reaction almost every time,
+             // and filing it with vomiting and diarrhoea would let the radar
+             // read a step-up as a stomach bug — the exact inversion
+             // `SymptomType`'s two disjoint clusters exist to prevent.
+             //
+             // Injection-site pain cannot be an illness at all. It still
+             // answers `.unknown` rather than `.notIll`, because `.notIll` is a
+             // claim *about the reader* and one symptom is not evidence for it.
+             .constipation, .appetiteChanges, .injectionSitePain:
             // Every one of these follows a late night, a hard session or a dose
             // as readily as an illness. Naming a kind from one of them alone
             // would be the specificity the evidence says nobody has.

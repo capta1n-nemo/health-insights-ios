@@ -295,7 +295,14 @@ final class HealthKitService {
         "HKCategoryTypeIdentifierAbdominalCramps", "HKCategoryTypeIdentifierBloating",
         "HKCategoryTypeIdentifierHeartburn", "HKCategoryTypeIdentifierSleepChanges",
         "HKCategoryTypeIdentifierMoodChanges", "HKCategoryTypeIdentifierHotFlashes",
-        "HKCategoryTypeIdentifierVomiting", "HKCategoryTypeIdentifierDiarrhea"
+        "HKCategoryTypeIdentifierVomiting", "HKCategoryTypeIdentifierDiarrhea",
+        // Added 2026-08-09 with the `SymptomType` cases behind them. Without
+        // these two the app can hold a constipation or an appetite change only
+        // when the reader types it here, so every Health-side tag for either
+        // would arrive at nothing and every reconciliation row would read
+        // "logged by hand" — the "arriving for months, read by nothing" shape
+        // this list exists to close.
+        "HKCategoryTypeIdentifierConstipation", "HKCategoryTypeIdentifierAppetiteChanges"
     ]
 
     private var otherQuantityTypes: [HKQuantityType] {

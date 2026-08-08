@@ -870,9 +870,15 @@ struct SideEffectEntrySheet: View {
     @State private var severity = 3.0
     @State private var date = Date()
 
-    private static let common = ["Nausea", "Fatigue", "Constipation", "Diarrhoea",
-                                 "Heartburn", "Headache", "Injection-site pain",
-                                 "Loss of appetite", "Vomiting", "Something else"]
+    /// ⚠️ **Generated, not typed.** This was a hardcoded array, and three of its
+    /// entries — "Constipation", "Injection-site pain", "Loss of appetite" — had
+    /// no `SymptomType` and no synonym, so every time the reader picked one
+    /// (daily, against a GLP-1) the record went straight into
+    /// `SymptomReconciliation.unmatchedNames`. **The app proposed a word and
+    /// then could not read it back.** Deriving the list from the vocabulary that
+    /// has to read it is what stops that recurring.
+    private static let common: [String] =
+        SymptomType.commonlyLogged.map(\.title) + ["Something else"]
 
     private var resolvedName: String {
         name == "Something else"
