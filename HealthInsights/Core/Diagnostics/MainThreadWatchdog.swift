@@ -56,6 +56,11 @@ import Darwin
 ///   still reads as one to the reader; `RefreshPhaseTimer` is the instrument
 ///   for that);
 /// - a hang during launch before `start()` is called;
+/// - work done *inside* a `beforeWaiting` observer registered after this one,
+///   which runs while the runloop is already marked parked. That is the price
+///   of not reporting every idle moment as a stall (see `Tick`), and it is the
+///   right side of the trade: a missed report costs one instrument, a false
+///   report every 250 ms costs the whole log;
 /// - a spin inside a single long CPU-bound call that *is* on the main thread —
 ///   it will see it, but the captured stack is a sample, so a deep SwiftUI
 ///   frame may be all it names.
@@ -78,10 +83,40 @@ enum MainThreadWatchdog {
     private static let pollInterval: TimeInterval = 0.125
 
     #if DEBUG
-    /// Nanoseconds since boot, stamped by the main thread on every runloop turn.
+    /// What the main runloop last did, and when.
+    ///
+    /// ⚠️ **`parked` is the whole difference between a detector and a noise
+    /// generator, and it was learnt the expensive way.** The first version
+    /// stored the timestamp alone and reported whenever it went stale. But an
+    /// *idle* app does not turn its runloop: it fires `beforeWaiting` once and
+    /// then blocks in `mach_msg` until something happens. So an app sitting
+    /// still on the Today tab — the cheapest state it has — looked exactly like
+    /// an app wedged in a three-second computation.
+    ///
+    /// Worse, the report **woke the runloop it was reporting on**: the hop to
+    /// the main actor is itself an event, so it produced a fresh stamp, which
+    /// went stale 250 ms later, which produced another report. Measured on the
+    /// simulator with the reader's export loaded: **a "Main thread stalled for
+    /// 0.26s" line every 0.26 s, forever, with the main thread 99.9% idle in
+    /// `mach_msg2_trap`** (`sample(1)`, 2,388 of 2,391 samples). At four lines
+    /// a second the 1,000-entry `DiagnosticsLog` — the reader's whole
+    /// troubleshooting export — is overwritten with watchdog noise every four
+    /// minutes, so the one instrument that could have named a real hang was
+    /// also erasing the evidence around it.
+    ///
+    /// `parked` says the runloop went to sleep on purpose. A stamp that is
+    /// stale *while parked* is an idle app and is never reported; a stamp that
+    /// is stale while awake is the main thread failing to come back, which is
+    /// the thing being measured.
+    private struct Tick {
+        var stamp: UInt64
+        /// True between `beforeWaiting` and the `afterWaiting` that ends it.
+        var parked: Bool
+    }
     /// `OSAllocatedUnfairLock` rather than an actor: the writer is the main
     /// thread on its hot path and must never await.
-    private static let lastTick = OSAllocatedUnfairLock(initialState: DispatchTime.now().uptimeNanoseconds)
+    private static let lastTick = OSAllocatedUnfairLock(
+        initialState: Tick(stamp: DispatchTime.now().uptimeNanoseconds, parked: false))
     private static let started = OSAllocatedUnfairLock(initialState: false)
     #endif
 
@@ -106,14 +141,16 @@ enum MainThreadWatchdog {
 
         // The stamp. A runloop observer fires on every turn of the main
         // runloop, including the turns that draw a frame, so a stale stamp
-        // means the runloop itself has not come back round.
+        // means the runloop itself has not come back round — *unless* it went
+        // to sleep on purpose, which is what `parked` records. See `Tick`.
         let observer = CFRunLoopObserverCreateWithHandler(
             kCFAllocatorDefault,
             CFRunLoopActivity.beforeWaiting.rawValue | CFRunLoopActivity.afterWaiting.rawValue,
             true, 0
-        ) { _, _ in
+        ) { _, activity in
             let now = DispatchTime.now().uptimeNanoseconds
-            lastTick.withLock { $0 = now }
+            let parked = activity.contains(.beforeWaiting)
+            lastTick.withLock { $0 = Tick(stamp: now, parked: parked) }
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
 
@@ -127,12 +164,16 @@ enum MainThreadWatchdog {
             while true {
                 Thread.sleep(forTimeInterval: pollInterval)
                 let tick = lastTick.withLock { $0 }
-                let stalledFor = Double(DispatchTime.now().uptimeNanoseconds &- tick) / 1_000_000_000
-                guard stalledFor >= noticeThreshold, tick != lastReportedTick else { continue }
+                // Parked is idle, and idle is not a stall — see `Tick`. This
+                // guard is what stopped the detector reporting four hangs a
+                // second at an app that was doing nothing at all.
+                guard !tick.parked else { continue }
+                let stalledFor = Double(DispatchTime.now().uptimeNanoseconds &- tick.stamp) / 1_000_000_000
+                guard stalledFor >= noticeThreshold, tick.stamp != lastReportedTick else { continue }
                 // One report per stall, not one per poll: a four-second hang
                 // would otherwise fill the log with thirty-two lines about
                 // itself and push out what caused it.
-                lastReportedTick = tick
+                lastReportedTick = tick.stamp
                 let seconds = String(format: "%.2f", stalledFor)
                 let isHang = stalledFor >= hangThreshold
                 Task { @MainActor in
