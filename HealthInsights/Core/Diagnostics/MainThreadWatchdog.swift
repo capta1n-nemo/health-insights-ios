@@ -160,39 +160,47 @@ enum MainThreadWatchdog {
         // nothing. `.userInitiated` so it is not the first thing descheduled
         // under load.
         let watcher = Thread {
-            var lastReportedTick: UInt64 = 0
+            // The stamp of a turn that has gone stale past the threshold and
+            // whose stall has not finished yet. `nil` when nothing is wrong.
+            //
+            // ⚠️ **The duration is measured when the stall *ends*, and until
+            // 2026-08-09 it was measured when the stall was first noticed.**
+            // The old loop reported `now - tick` at the first poll that crossed
+            // 250 ms and then suppressed every later poll of the same tick, so
+            // the number it printed was always the *detection latency* —
+            // between 0.25 s and 0.375 s — and never the length of the stall. A
+            // 900 ms freeze and a 4 s freeze both logged "0.38s".
+            //
+            // Two things followed, and both mattered. The figures in the log
+            // were not measurements of anything, so an A/B of a performance fix
+            // read as no change. And `hangThreshold` — Apple's own 1 s
+            // definition, the whole reason `fail` exists here — could not be
+            // reached: the first crossing at 0.25 s always won and silenced the
+            // polls that would have seen a second. The severe half of this
+            // detector had never once fired.
+            //
+            // The runloop's next turn stamps the moment the main thread came
+            // back, so `newStamp - staleStamp` is the stall, exactly, with no
+            // polling error in it at all.
+            var stallBegan: UInt64?
             while true {
                 Thread.sleep(forTimeInterval: pollInterval)
                 let tick = lastTick.withLock { $0 }
+
+                // The main thread came back: close the stall and report what it
+                // actually cost.
+                if let began = stallBegan, tick.stamp != began {
+                    stallBegan = nil
+                    report(Double(tick.stamp &- began) / 1_000_000_000)
+                }
+
                 // Parked is idle, and idle is not a stall — see `Tick`. This
                 // guard is what stopped the detector reporting four hangs a
                 // second at an app that was doing nothing at all.
-                guard !tick.parked else { continue }
+                guard !tick.parked, stallBegan == nil else { continue }
                 let stalledFor = Double(DispatchTime.now().uptimeNanoseconds &- tick.stamp) / 1_000_000_000
-                guard stalledFor >= noticeThreshold, tick.stamp != lastReportedTick else { continue }
-                // One report per stall, not one per poll: a four-second hang
-                // would otherwise fill the log with thirty-two lines about
-                // itself and push out what caused it.
-                lastReportedTick = tick.stamp
-                let seconds = String(format: "%.2f", stalledFor)
-                let isHang = stalledFor >= hangThreshold
-                Task { @MainActor in
-                    let stack = Self.stallContext()
-                    // ⚠️ Deliberately logged *after* the stall ends — this hop
-                    // is queued on the very actor that is blocked, so the entry
-                    // appears when the main thread comes back. That is a
-                    // feature: a log line written from the watcher thread could
-                    // interleave a `DiagnosticsLog` mutation with a main-thread
-                    // one, and `DiagnosticsLog` is `@MainActor` precisely so it
-                    // needs no lock.
-                    if isHang {
-                        DiagnosticsLog.shared.fail(
-                            "Hang", "Main thread blocked for \(seconds)s", detail: stack)
-                    } else {
-                        DiagnosticsLog.shared.info(
-                            "Hang", "Main thread stalled for \(seconds)s", detail: stack)
-                    }
-                }
+                guard stalledFor >= noticeThreshold else { continue }
+                stallBegan = tick.stamp
             }
         }
         watcher.name = "MainThreadWatchdog"
@@ -206,6 +214,34 @@ enum MainThreadWatchdog {
     }
 
     #if DEBUG
+    /// Write one finished stall to the log.
+    ///
+    /// ⚠️ **A stall that never ends is never reported**, and that is the cost of
+    /// measuring the duration rather than guessing it. A true deadlock is
+    /// visible through the other two instruments `D54` names — iOS's own
+    /// watchdog termination, and `MXHangDiagnostic` — both of which capture the
+    /// blocked frames this cannot.
+    private static func report(_ seconds: Double) {
+        let text = String(format: "%.2f", seconds)
+        let isHang = seconds >= hangThreshold
+        Task { @MainActor in
+            let stack = Self.stallContext()
+            // ⚠️ Written from the main actor, never from the watcher thread: a
+            // log line written off-actor could interleave a `DiagnosticsLog`
+            // mutation with a main-thread one, and `DiagnosticsLog` is
+            // `@MainActor` precisely so it needs no lock. By construction this
+            // runs after the stall has ended, because the stall was the main
+            // actor being unavailable.
+            if isHang {
+                DiagnosticsLog.shared.fail(
+                    "Hang", "Main thread blocked for \(text)s", detail: stack)
+            } else {
+                DiagnosticsLog.shared.info(
+                    "Hang", "Main thread stalled for \(text)s", detail: stack)
+            }
+        }
+    }
+
     /// A symbolicated backtrace of the *watcher's* view of the process.
     ///
     /// ⚠️ **Honest about what it is.** There is no supported API for capturing

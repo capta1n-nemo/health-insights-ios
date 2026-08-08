@@ -47,9 +47,43 @@ import InsightKit
 /// ⚠️ **A coloured square is not a diagnosis, and a month of them is not a
 /// medical history.** The caption says so and it is not optional: prospective
 /// positive predictive value for this class of detector is 4–12%
-/// (`docs/illness-detection-evidence-2026-08-07.md`). This section deliberately
-/// does not draw the reader's recorded sick days over the top — same restraint,
-/// same reason, as `SickDaysSection`.
+/// (`docs/illness-detection-evidence-2026-08-07.md`).
+///
+/// ## What the reader said is on here too, and used not to be (2026-08-09)
+///
+/// From their own phone: *"when I correct a day to include illness on the
+/// calendar… like I add severe sickness, the days still shows green on the
+/// calendar and the AI doesn't seem to learn from it."* They were right, and the
+/// defect was one line: `fill(for:)` read `DayHistory.output.status`, which
+/// comes from `SymptomRadarModel.timeline(samples:days:endingAt:calendar:)` —
+/// **a function whose only input is `samples`.** No sick day, of any severity,
+/// from either source, could reach it. Green is what a quiet overnight reading
+/// paints, and a quiet overnight reading is exactly what most real illness
+/// produces.
+///
+/// The proof it was a defect and not the restraint above: tapping the square
+/// opens `SickDayDetailView`, whose `SickDayReport.status` **does** fold in
+/// `ReportedIllness`. The square and the page one tap behind it were computing
+/// two different answers to one question, and the reader was looking at the one
+/// that had never been told.
+///
+/// ⚠️ **This is not the rejected `verdict()` option in the table above.** That
+/// one was rejected for smearing *Tuesday's accumulation* across a recovering
+/// Friday, and the ruling it produced — "colour each day by its own statistic" —
+/// is kept exactly: the accumulation is still the band and never the fill.
+/// `ReportedIllness.evaluate` is same-day only by construction and says so at
+/// length (*"'I was ill on Tuesday' is about Tuesday"*), so what the reader said
+/// about a day **is** that day's own statistic. The fill is now
+/// `verdict(today:accumulation: .none, reported:)` — the day alone, both of the
+/// things known about it, and no memory.
+///
+/// ⚠️ **And the two are never blended into one meaning.** `add-chart`'s
+/// hatch-never-blend rule: a stated illness and a measured departure are
+/// different kinds of claim, so a day the reader spoke about carries its own
+/// mark and its own legend row. A red square with the mark says *you told me*; a
+/// red square without it says *your overnight numbers moved*. The section's own
+/// thesis — both facts are true and neither may hide the other — is what that
+/// mark is for.
 struct SickDaysCalendarSection: View {
     @Environment(AppModel.self) private var model
     @State private var mode: Mode = .calendar
@@ -83,6 +117,42 @@ struct SickDaysCalendarSection: View {
         }
     }
 
+    /// **Every day the reader said something about, and what they said.**
+    ///
+    /// The same three records `SickDayReport.build` hands the day page — the
+    /// merged `SickDayLedger`, the Health symptom tags and the medication
+    /// tracker's own side-effect log — so a square and the page behind it cannot
+    /// give different answers again.
+    ///
+    /// ⚠️ **Deliberately not `model.memoized`.** That cache is cleared by
+    /// `invalidateDerivedCaches()`, which fires when `samples` change — and a
+    /// correction changes no sample. Memoising here would leave the calendar
+    /// showing the answer the reader had just disagreed with, which is a
+    /// slower-burning version of the bug this whole plumbing exists to fix.
+    ///
+    /// Cheap without it: the day set is one pass over three short lists, and
+    /// `ReportedIllness.evaluate` runs only for days actually in it — on a
+    /// typical month, none.
+    private var spokenDays: [Date: ReportedIllness.Output] {
+        var days = model.sickDayLedger.sickDays(calendar: calendar)
+        for event in model.symptoms where event.severity.isPresent {
+            days.insert(calendar.startOfDay(for: event.date))
+        }
+        let effects = model.reportedSideEffects
+        for effect in effects {
+            days.insert(calendar.startOfDay(for: effect.date))
+        }
+        var out: [Date: ReportedIllness.Output] = [:]
+        for day in days {
+            let said = ReportedIllness.evaluate(day: day, symptoms: model.symptoms,
+                                                sickDays: model.sickDayLedger,
+                                                sideEffects: effects,
+                                                calendar: calendar)
+            if said.isSpeaking { out[day] = said }
+        }
+        return out
+    }
+
     var body: some View {
         InsightSection(
             title: "Day by day",
@@ -92,9 +162,12 @@ struct SickDaysCalendarSection: View {
                               "Each day is judged the way this morning was — against "
                               + "the three weeks before it, ending four days before "
                               + "the window it judges. A square's colour is that day "
-                              + "on its own; the bar under a run of days is the "
-                              + "accumulation, which is what the card was actually "
-                              + "saying. Days nothing was worn are blank, not green."),
+                              + "on its own — your overnight numbers and anything you "
+                              + "recorded about that day, whichever says more; the bar "
+                              + "under a run of days is the accumulation, which is what "
+                              + "the card was actually saying. A dot marks a day you "
+                              + "told the app something. Days nothing was worn are "
+                              + "blank, not green."),
             // Closed on arrival. Six months of squares is a thing you go
             // looking for, and the preview says what is behind the door.
             expansion: .collapsed(preview: previewLine)
@@ -135,6 +208,10 @@ struct SickDaysCalendarSection: View {
     // MARK: - Calendar
 
     @ViewBuilder private var calendarView: some View {
+        // Computed once per pass and handed down, never per cell: `evaluate`
+        // filters the whole tag list, and forty-two of those a render is the
+        // shape of cost this file's own doc comment forbids elsewhere.
+        let spoken = spokenDays
         VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
             MonthStepper(month: $month, calendar: calendar,
                          canGoBack: canStep(-1), canGoForward: canStep(1))
@@ -142,9 +219,9 @@ struct SickDaysCalendarSection: View {
             // leading slot that disagreed with a real cell by a point would
             // make the first week of a month a different height from the rest.
             MonthGrid(month: month, calendar: calendar, rowHeight: 33) { day in
-                dayCell(day)
+                dayCell(day, said: spoken[calendar.startOfDay(for: day)] ?? .silent)
             }
-            readout
+            readout(spoken)
             calendarLegend
         }
     }
@@ -169,7 +246,8 @@ struct SickDaysCalendarSection: View {
         history.first { calendar.isDate($0.day, inSameDayAs: day) }
     }
 
-    @ViewBuilder private func dayCell(_ day: Date) -> some View {
+    @ViewBuilder private func dayCell(_ day: Date,
+                                      said: ReportedIllness.Output) -> some View {
         let entry = row(for: day)
         let span = SymptomRadarModel.span(covering: day, in: spans, calendar: calendar)
         let isFuture = day > calendar.startOfDay(for: Date())
@@ -182,13 +260,13 @@ struct SickDaysCalendarSection: View {
             VStack(spacing: 2) {
                 Text("\(calendar.component(.day, from: day))")
                     .font(.caption).monospacedDigit()
-                    .foregroundStyle(entry?.output == nil
+                    .foregroundStyle(entry?.output == nil && !said.isSpeaking
                                      ? Color.secondary.opacity(isFuture ? 0.35 : 0.7)
                                      : .primary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 28)
                     .background {
-                        if let fill = fill(for: entry) {
+                        if let fill = fill(for: entry, said: said) {
                             RoundedRectangle(cornerRadius: 8).fill(fill)
                         }
                     }
@@ -202,12 +280,37 @@ struct SickDaysCalendarSection: View {
                                 .strokeBorder(Theme.accent, lineWidth: 1.5)
                         }
                     }
+                    .overlay(alignment: .topTrailing) { spokenMark(said) }
                 bandBar(span, day: day)
             }
         }
         .buttonStyle(.plain)
-        .disabled(entry?.output == nil)
-        .accessibilityLabel(accessibilityLabel(day: day, entry: entry, span: span))
+        // ⚠️ **A day the reader spoke about is always tappable**, even where the
+        // watch judged nothing. The old gate was `entry?.output == nil` alone,
+        // so marking an unworn night as a sick day produced a blank square that
+        // would not open — the reader's own record, stored, rendered nowhere and
+        // unreachable.
+        .disabled(entry?.output == nil && !said.isSpeaking)
+        .accessibilityLabel(accessibilityLabel(day: day, entry: entry,
+                                               span: span, said: said))
+    }
+
+    /// **The mark that says a human being said this, rather than a sensor.**
+    ///
+    /// Deliberately not a colour and not a fifth fill: `add-chart`'s
+    /// hatch-never-blend rule is about exactly this case — one quantity drawn
+    /// over another must stay separable, and a stated illness is a different
+    /// kind of claim from a measured departure. So the grade goes into the fill
+    /// (that is the scale `ReportedIllness.excess(for:)` is anchored to) and the
+    /// *provenance* goes here, in the app's foreground colour, which reads
+    /// against all four fills and against no fill at all.
+    @ViewBuilder private func spokenMark(_ said: ReportedIllness.Output) -> some View {
+        if said.isSpeaking {
+            Circle()
+                .fill(Color.primary)
+                .frame(width: 6, height: 6)
+                .padding(3)
+        }
     }
 
     /// The accumulated episode, drawn under the days it spanned.
@@ -231,14 +334,33 @@ struct SickDaysCalendarSection: View {
         }
     }
 
-    /// **The day's own statistic, and only ever the day's own.**
+    /// **The day's own statistic, and only ever the day's own — both halves of
+    /// it.**
     ///
-    /// Nil where the watch could not judge the day — an unworn night is missing
-    /// evidence, and painting it green would be the app answering a question
-    /// nobody measured.
-    private func fill(for entry: SymptomRadarModel.DayHistory?) -> Color? {
+    /// `accumulation: .none` is the whole of the reader's §B11-1 ruling: memory
+    /// is the band and never the fill, so a recovering Friday is not painted by
+    /// Tuesday. `reported:` is the half that was missing until 2026-08-09, and
+    /// it obeys the same rule for free — `ReportedIllness.evaluate` is same-day
+    /// only by construction, so nothing here can smear a statement across a week
+    /// either.
+    ///
+    /// Going through `SymptomRadarModel.verdict` rather than re-deriving is what
+    /// keeps this square and the page it opens on one answer. With nothing
+    /// reported it returns exactly what `Output.status` used to return — pinned
+    /// by `SickDayCalendarColourTests.testAQuietDayIsUnchangedWhenNothingWasSaid`
+    /// so a future edit to either set of gates cannot silently repaint six
+    /// months of squares.
+    ///
+    /// Nil where the watch could not judge the day and the reader said nothing —
+    /// an unworn night is missing evidence, and painting it green would be the
+    /// app answering a question nobody measured. A day the reader *did* speak
+    /// about still carries `spokenMark`, so their record is never invisible.
+    private func fill(for entry: SymptomRadarModel.DayHistory?,
+                      said: ReportedIllness.Output) -> Color? {
         guard let output = entry?.output else { return nil }
-        switch output.status {
+        let verdict = SymptomRadarModel.verdict(today: output, accumulation: .none,
+                                                reported: said)
+        switch verdict.status {
         case .quiet:
             // The fourth colour, and the only cut not already on the card: a
             // quiet morning with a channel leaning is drawn paler than a quiet
@@ -255,43 +377,75 @@ struct SickDaysCalendarSection: View {
     /// The tapped day, spelled out. **Fixed height in both states**, so
     /// selecting a day cannot shuffle the calendar under the finger that
     /// selected it — the same rule the charts follow (`add-chart` §9b).
-    @ViewBuilder private var readout: some View {
-        if let selected, let entry = row(for: selected), let output = entry.output {
-            let span = SymptomRadarModel.span(covering: selected, in: spans,
-                                              calendar: calendar)
-            HStack(spacing: 6) {
-                Circle().fill(fill(for: entry) ?? .clear).frame(width: 8, height: 8)
-                Text(selected.formatted(date: .abbreviated, time: .omitted))
-                    .foregroundStyle(.secondary)
-                Text("\(Int(output.score.rounded()))")
-                    .font(.caption.weight(.semibold)).monospacedDigit()
-                Text(phrase(for: output.status))
-                    .foregroundStyle(.secondary)
-                if span != nil, output.status == .quiet {
-                    Text("· carried")
+    @ViewBuilder private func readout(_ spoken: [Date: ReportedIllness.Output]) -> some View {
+        let said = selected.flatMap { spoken[calendar.startOfDay(for: $0)] } ?? .silent
+        VStack(alignment: .leading, spacing: 3) {
+            if let selected, let entry = row(for: selected), let output = entry.output {
+                let span = SymptomRadarModel.span(covering: selected, in: spans,
+                                                  calendar: calendar)
+                let verdict = SymptomRadarModel.verdict(today: output,
+                                                        accumulation: .none, reported: said)
+                HStack(spacing: 6) {
+                    Circle().fill(fill(for: entry, said: said) ?? .clear)
+                        .frame(width: 8, height: 8)
+                    Text(selected.formatted(date: .abbreviated, time: .omitted))
+                        .foregroundStyle(.secondary)
+                    Text("\(Int(verdict.score.rounded()))")
+                        .font(.caption.weight(.semibold)).monospacedDigit()
+                    Text(phrase(for: verdict.status))
+                        .foregroundStyle(.secondary)
+                    if span != nil, output.status == .quiet {
+                        Text("· carried")
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    openDayLink(selected)
+                }
+                .font(.caption2)
+            } else if let selected, said.isSpeaking {
+                // A day nothing was worn and the reader spoke about. Not
+                // "nothing judged that day" — that sentence, on a day they had
+                // just marked as severe illness, is the app telling them their
+                // own record does not exist.
+                HStack(spacing: 6) {
+                    Circle().fill(Color.primary).frame(width: 6, height: 6)
+                    Text(selected.formatted(date: .abbreviated, time: .omitted))
+                        .foregroundStyle(.secondary)
+                    Text("nothing measured")
                         .foregroundStyle(.tertiary)
+                    Spacer()
+                    openDayLink(selected)
                 }
-                Spacer()
-                // **B11-2's way in from the calendar.** A `NavigationLink` on
-                // the readout rather than on the square itself: the square's tap
-                // already means "select this day", and making it navigate as
-                // well would take the reader off the month every time they
-                // browsed it.
-                NavigationLink {
-                    SickDayDetailView(day: selected, history: history)
-                } label: {
-                    Text("Open day")
-                        .font(.caption2.weight(.medium))
+                .font(.caption2)
+            } else {
+                HStack {
+                    Text(selected == nil ? "Tap a day" : "Nothing judged that day")
+                        .foregroundStyle(.tertiary)
+                    Spacer()
                 }
+                .font(.caption2)
             }
-            .font(.caption2)
-        } else {
-            HStack {
-                Text(selected == nil ? "Tap a day" : "Nothing judged that day")
-                    .foregroundStyle(.tertiary)
-                Spacer()
+            // What the reader themselves said about the day, in their own
+            // records' words — `ReportedIllness` writes these phrases and every
+            // one of them reports what was recorded, never what it means.
+            ForEach(said.components) { component in
+                Text(component.detail)
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.caption2)
+        }
+    }
+
+    /// **B11-2's way in from the calendar.** A `NavigationLink` on the readout
+    /// rather than on the square itself: the square's tap already means "select
+    /// this day", and making it navigate as well would take the reader off the
+    /// month every time they browsed it.
+    private func openDayLink(_ day: Date) -> some View {
+        NavigationLink {
+            SickDayDetailView(day: day, history: history)
+        } label: {
+            Text("Open day")
+                .font(.caption2.weight(.medium))
         }
     }
 
@@ -315,6 +469,14 @@ struct SickDaysCalendarSection: View {
                         .frame(width: 14, height: 3)
                     Text("The card was still speaking")
                 }
+                Spacer()
+            }
+            HStack(spacing: 4) {
+                Circle().fill(Color.primary).frame(width: 6, height: 6)
+                    .frame(width: 11, height: 11)
+                Text("You recorded something that day — a sick day, a symptom "
+                     + "tag, or a side effect")
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
         }
@@ -342,29 +504,106 @@ struct SickDaysCalendarSection: View {
     /// it read them as.** The same grouping the band draws, so the two views are
     /// two renderings of one fact rather than two computations that can drift.
     @ViewBuilder private var logView: some View {
-        if spans.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(history.contains { $0.output != nil }
-                     ? "Nothing flagged in the last six months."
-                     : "Nothing judged yet.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("That is not the same as six months of good health. It means "
-                     + "no run of overnight readings sat far enough outside your own "
-                     + "range for this card to say anything.")
+        let spoken = spokenDays
+        VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
+            if spans.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(history.contains { $0.output != nil }
+                         ? "Nothing flagged in the last six months."
+                         : "Nothing judged yet.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("That is not the same as six months of good health. It means "
+                         + "no run of overnight readings sat far enough outside your own "
+                         + "range for this card to say anything.")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ForEach(spans.reversed()) { span in
+                    spanBlock(span, spoken: spoken)
+                }
+            }
+            recordedBlock
+        }
+    }
+
+    /// **The days the reader recorded as illness, listed as their own record.**
+    ///
+    /// A separate block rather than rows folded into the spells above, and the
+    /// reason is the same one that gives the calendar a separate mark:
+    /// `flaggedSpans` groups by `DayHistory.isFlagged`, which is the
+    /// *physiological* verdict, so a recorded sick day that the overnight
+    /// numbers slept through is in no span and never will be. Inventing a span
+    /// for it would put the reader's words inside a structure that means "your
+    /// vitals departed", which is exactly the blend this section refuses.
+    ///
+    /// Without it the log said nothing at all about a correction the calendar
+    /// beside it had just started drawing — the two halves of one section
+    /// disagreeing, which is the shape of the bug being fixed.
+    @ViewBuilder private var recordedBlock: some View {
+        let window = replayWindow
+        let periods = model.sickDayLedger.illness(in: window, calendar: calendar)
+            .sorted { $0.firstDay > $1.firstDay }
+        if !periods.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text("What you recorded")
+                        .font(.caption.weight(.semibold))
+                    Spacer()
+                    Text("\(periods.count) spell\(periods.count == 1 ? "" : "s")")
+                        .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                }
+                ForEach(periods) { period in
+                    NavigationLink {
+                        SickDayDetailView(day: period.firstDay, history: history)
+                    } label: {
+                        recordedRow(period)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text("These are days you or your calendar said you were ill. Nothing "
+                     + "here is a reading — a quiet card over one of them is the "
+                     + "ordinary case, not a contradiction.")
                     .font(.caption2).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            VStack(alignment: .leading, spacing: Theme.sectionSpacing) {
-                ForEach(spans.reversed()) { span in
-                    spanBlock(span)
-                }
             }
         }
     }
 
-    private func spanBlock(_ span: SymptomRadarModel.FlaggedSpan) -> some View {
+    private func recordedRow(_ period: SickDayLedger.Period) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(Color.primary).frame(width: 6, height: 6)
+            Text(rangeLabel(from: period.firstDay, to: period.lastDay))
+                .font(.caption)
+            Text(period.source == .entered ? "you said" : "your calendar")
+                .font(.caption2).foregroundStyle(.tertiary)
+            Spacer()
+            Text(period.severity.map { $0 == .unstated ? "no grade" : $0.title.lowercased() }
+                 ?? "no grade")
+                .font(.caption2).foregroundStyle(.secondary)
+            Image(systemName: "chevron.right")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this day in full")
+    }
+
+    /// The span the replay covers, so the recorded list matches the squares
+    /// above it rather than reaching back past where the card can say anything.
+    private var replayWindow: DateInterval {
+        let end = calendar.date(byAdding: .day, value: 1,
+                                to: calendar.startOfDay(for: Date()))
+            ?? Date()
+        let start = history.first?.day
+            ?? calendar.date(byAdding: .day, value: -SymptomRadarModel.historyDays,
+                             to: end) ?? end
+        return DateInterval(start: min(start, end), end: end)
+    }
+
+    private func spanBlock(_ span: SymptomRadarModel.FlaggedSpan,
+                           spoken: [Date: ReportedIllness.Output]) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack {
                 Text(rangeLabel(span))
@@ -374,7 +613,8 @@ struct SickDaysCalendarSection: View {
                     .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
             }
             ForEach(span.days.reversed()) { entry in
-                logRow(entry, in: span)
+                logRow(entry, in: span,
+                       said: spoken[calendar.startOfDay(for: entry.day)] ?? .silent)
             }
             if span.carriedDays > 0 {
                 Text("\(span.carriedDays) of these were quiet on their own numbers — "
@@ -390,26 +630,34 @@ struct SickDaysCalendarSection: View {
     /// square, a log row has no other meaning for a tap, so the whole row is the
     /// target rather than a word at the end of it.
     private func logRow(_ entry: SymptomRadarModel.DayHistory,
-                        in span: SymptomRadarModel.FlaggedSpan) -> some View {
+                        in span: SymptomRadarModel.FlaggedSpan,
+                        said: ReportedIllness.Output) -> some View {
         NavigationLink {
             SickDayDetailView(day: entry.day, history: history)
         } label: {
-            logRowLabel(entry, in: span)
+            logRowLabel(entry, in: span, said: said)
         }
         .buttonStyle(.plain)
     }
 
     private func logRowLabel(_ entry: SymptomRadarModel.DayHistory,
-                             in span: SymptomRadarModel.FlaggedSpan) -> some View {
+                             in span: SymptomRadarModel.FlaggedSpan,
+                             said: ReportedIllness.Output) -> some View {
         let carried = entry.output?.status == .quiet
         return HStack(spacing: 6) {
-            Circle().fill(fill(for: entry) ?? .clear).frame(width: 7, height: 7)
+            Circle().fill(fill(for: entry, said: said) ?? .clear)
+                .frame(width: 7, height: 7)
             Text(entry.day.formatted(.dateTime.weekday(.abbreviated).day()
                                         .month(.abbreviated)))
                 .font(.caption)
             if carried {
                 Text("carried")
                     .font(.caption2).foregroundStyle(.tertiary)
+            }
+            // The same mark the square carries, for the same reason: a dot means
+            // a person said something, and the dot must mean it in both views.
+            if said.isSpeaking {
+                Circle().fill(Color.primary).frame(width: 5, height: 5)
             }
             Spacer()
             // The day's own score, always — the number the colour came from.
@@ -429,9 +677,15 @@ struct SickDaysCalendarSection: View {
     }
 
     private func rangeLabel(_ span: SymptomRadarModel.FlaggedSpan) -> String {
-        let start = span.start.formatted(.dateTime.day().month(.abbreviated))
-        guard !calendar.isDate(span.start, inSameDayAs: span.end) else { return start }
-        return "\(start) – \(span.end.formatted(.dateTime.day().month(.abbreviated)))"
+        rangeLabel(from: span.start, to: span.end)
+    }
+
+    /// Shared with the recorded-spell rows, so a two-day flagged run and a
+    /// two-day sick spell are written the same way in one list.
+    private func rangeLabel(from start: Date, to end: Date) -> String {
+        let first = start.formatted(.dateTime.day().month(.abbreviated))
+        guard !calendar.isDate(start, inSameDayAs: end) else { return first }
+        return "\(first) – \(end.formatted(.dateTime.day().month(.abbreviated)))"
     }
 
     // MARK: - Words
@@ -446,11 +700,21 @@ struct SickDaysCalendarSection: View {
 
     private func accessibilityLabel(day: Date,
                                     entry: SymptomRadarModel.DayHistory?,
-                                    span: SymptomRadarModel.FlaggedSpan?) -> String {
+                                    span: SymptomRadarModel.FlaggedSpan?,
+                                    said: ReportedIllness.Output) -> String {
         let date = day.formatted(date: .abbreviated, time: .omitted)
-        guard let output = entry?.output else { return "\(date), not judged" }
-        var parts = ["\(date), \(phrase(for: output.status)), "
-                     + "score \(Int(output.score.rounded()))"]
+        // Said before judged, and said even where nothing was judged: the mark
+        // on the square is the reader's own record, and a label that dropped it
+        // would put VoiceOver back where the colour was before this fix.
+        let spoken = said.components.map(\.detail)
+        guard let output = entry?.output else {
+            return ([date, "not judged"] + spoken).joined(separator: ", ")
+        }
+        let verdict = SymptomRadarModel.verdict(today: output, accumulation: .none,
+                                                reported: said)
+        var parts = ["\(date), \(phrase(for: verdict.status)), "
+                     + "score \(Int(verdict.score.rounded()))"]
+        parts += spoken
         if span != nil { parts.append("inside a flagged run") }
         return parts.joined(separator: ", ")
     }

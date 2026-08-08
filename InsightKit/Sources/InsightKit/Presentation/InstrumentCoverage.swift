@@ -221,8 +221,40 @@ public extension InstrumentCoverage {
         var windowCounts: [String: Int] = [:]
         var windowMetrics: [String: Set<MetricType>] = [:]
 
+        /// ⚠️ **`origin` and `deviceFamily` are string searches, and this loop
+        /// runs once per reading.** Both lowercase the display name and then
+        /// ask Foundation's `String.contains` — a locale-aware `range(of:)`
+        /// that allocates — up to eight times. The old loop called `origin`
+        /// *twice* and `deviceFamily` once for every one of the reader's
+        /// 379,693 samples.
+        ///
+        /// Measured with `sample(1)` against the reader's own record on
+        /// 2026-08-09, during the launch stall they reported as *"even load
+        /// screen hangs"*: this one loop was **2,529 of the 2,702 main-thread
+        /// samples** spent inside `InstrumentCoverageSection.body`, which was
+        /// itself 31% of the whole launch. Not the insight pass, not SwiftData
+        /// — two computed properties, called a million times between them,
+        /// inside a SwiftUI view body.
+        ///
+        /// There are a dozen or so distinct sources behind those samples, so
+        /// memoising per source collapses a million string searches into a
+        /// dozen. `MultiSource.breakdown` already does exactly this, with the
+        /// same `[MetricSource: String]` shape and the same comment — this is
+        /// the second half of a fix that only got applied to one of two
+        /// symmetrical call sites, which is a shape this repo has now named
+        /// three times.
+        var familyBySource: [MetricSource: String] = [:]
+        var originBySource: [MetricSource: SourceOrigin] = [:]
+
         for sample in samples {
             let source = sample.source
+            let origin: SourceOrigin
+            if let known = originBySource[source] {
+                origin = known
+            } else {
+                origin = source.origin
+                originBySource[source] = origin
+            }
             // A figure this app worked out is not an instrument, and nothing the
             // reader handed over — a typed value, a PDF, a backup file, a
             // screenshot — can be "on the charger". Listing any of them would
@@ -231,9 +263,15 @@ public extension InstrumentCoverage {
             // silent list on a simulator, accusing the reader of not importing a
             // file last night.
             guard !nonInstrumentSourceIDs.contains(source.id),
-                  source.origin != .manual, source.origin != .document else { continue }
+                  origin != .manual, origin != .document else { continue }
 
-            let family = source.deviceFamily
+            let family: String
+            if let known = familyBySource[source] {
+                family = known
+            } else {
+                family = source.deviceFamily
+                familyBySource[source] = family
+            }
             // The shortest display name wins, deterministically. One ring can
             // arrive as "Oura" and as "Oura via Apple Health", and last-write
             // ordering made the label depend on sample order.

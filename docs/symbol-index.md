@@ -326,9 +326,9 @@ the place to look.
 - `Models/CalendarEventArtifact.swift`
   - `CalendarEventArtifact` :47
 - `Models/CalendarEventClassification.swift`
-  - `CalendarClassifierAccuracy` :492
+  - `CalendarClassifierAccuracy` :516
   - `CalendarEventClassification` :35
-  - `CalendarEventJudgement` :331
+  - `CalendarEventJudgement` :355
 - `Models/CalendarEventClassifier.swift`
   - `CalendarEventBucket` :468
   - `CalendarEventClassifier` :31
@@ -472,7 +472,7 @@ the place to look.
 - `Presentation/InstrumentCoverage.swift`
   - `InstrumentCoverage` :100
   - `InstrumentReport` :34
-  - `ListPhrase` :286
+  - `ListPhrase` :324
 - `Presentation/LaunchNarration.swift`
   - `LaunchNarration` :49
   - `LaunchPhase` :14
@@ -729,7 +729,7 @@ the place to look.
 - `Core/Diagnostics/HangDiagnosticsReporter.swift`
   - `HangDiagnosticsReporter` :46
 - `Core/Diagnostics/MainThreadWatchdog.swift`
-  - `MainThreadWatchdog` :69
+  - `MainThreadWatchdog` :74
 - `Core/Diagnostics/RefreshPhaseTimer.swift`
   - `RefreshPhaseTimer` :41
 - `Core/Documents/DocumentImportService.swift`
@@ -1092,7 +1092,7 @@ the place to look.
 - `Features/Insights/SickDayDetailView.swift`
   - `SickDayDetailView` :43
 - `Features/Insights/SickDaysCalendarSection.swift`
-  - `SickDaysCalendarSection` :53
+  - `SickDaysCalendarSection` :87
 - `Features/Insights/SickDaysSection.swift`
   - `NightsToFlagDetail` :423
   - `RadarHistoryChart` :239

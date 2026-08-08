@@ -84,7 +84,11 @@ final class AppModel {
         ageHistory.removeAll()
         ageHistoryRunning = false
         overlayCache.removeAll()
-        suggestionCache = nil
+        // `suggestions` is not cleared here. It is a stored, observed property
+        // filled by `refreshSuggestions()` off the main actor, not a cache — so
+        // the old row stays on screen for the moment it takes the new pass to
+        // land, rather than the row vanishing and the *next view body* paying
+        // to rebuild it on the main thread. See `suggestions`.
         energyCache = nil
         circadianCache = nil
         sleepNightsCache = nil
@@ -869,10 +873,44 @@ final class AppModel {
     /// leaving it to that would have left the shifts card a day stale after
     /// every tap, which is the same shape as the substance-log bug recorded in
     /// `reloadLoggedData`.
+    ///
+    /// ⚠️ **Off the main actor, and it is the largest single item that was
+    /// still on it.** `PhaseAwareBaseline.profile` asks
+    /// `VitalReader.dailySeries` for each of the eight watched metrics, and
+    /// each of those builds a `MultiSource.breakdown` — a filter, a
+    /// de-duplication and a sort of the whole sample set — with no memo open
+    /// around them. Measured on the reader's own 379,693 samples:
+    /// **79 ms optimised, 370 ms unoptimised**, and the phone runs the
+    /// unoptimised build (`deploy.yml` builds `-configuration Debug`). Once per
+    /// `recompute()`, at thirty-three call sites.
+    ///
+    /// It is a pure function of `(samples, cycleSummary)`, which is the same
+    /// property that let the insight pass leave — see `recompute()`. The
+    /// generation guard is the same one, for the same reason: a profile built
+    /// from samples that have since been replaced would put last minute's
+    /// baselines under this minute's data.
     private func refreshCyclePhaseProfile() {
-        cyclePhaseProfile = PhaseAwareBaseline.profile(samples: samples,
-                                                       summary: cycleSummary)
+        let samplesNow = samples
+        let summaryNow = cycleSummary
+        cyclePhaseGeneration &+= 1
+        let generation = cyclePhaseGeneration
+        // Superseded work is not merely discarded, it is **cancelled**. Thirty
+        // taps in thirty seconds otherwise leave thirty of these running at
+        // once, and a phone with every core busy starves the main actor just as
+        // effectively as work that never left it.
+        cyclePhaseTask?.cancel()
+        cyclePhaseTask = Task.detached(priority: .userInitiated) {
+            let built = PhaseAwareBaseline.profile(samples: samplesNow, summary: summaryNow)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.cyclePhaseGeneration == generation else { return }
+                self.cyclePhaseProfile = built
+            }
+        }
     }
+
+    @ObservationIgnored private var cyclePhaseGeneration = 0
+    @ObservationIgnored private var cyclePhaseTask: Task<Void, Never>?
 
     /// The active-compound curve for the visible window, or empty when there
     /// is no regimen. Memoised per window, since a chart re-evaluates its body
@@ -1843,48 +1881,93 @@ final class AppModel {
 
     @ObservationIgnored private var sleepOnsetCache: SleepOnsetModel.Output??
 
-    /// "Improve your health", recomputed with the results and cached.
+    /// **"Improve your health" — a stored, observed property, filled off the
+    /// main actor.**
     ///
-    /// Cached because it re-runs `VO2Trajectory` and the whole vitals scan, and
-    /// the Insights list asks for it on every redraw.
-    @ObservationIgnored private var suggestionCache: [Suggestion]?
+    /// ⚠️ **It used to be a computed property with a cache behind it, and that
+    /// is the shape of the 2026-08-08 report.** `SuggestionEngine.suggestions`
+    /// re-runs `VO2Trajectory`, `HealthWatch` and the whole vitals scan over
+    /// every sample; `DashboardView.body` reads it through
+    /// `suggestionVisibility` on the first line of the Today tab; and
+    /// `invalidateDerivedCaches()` empties the cache on **every** `recompute()`.
+    /// So the sequence was: reader logs a side effect → `recompute()` →
+    /// invalidation → next frame of Today → **the whole suggestion engine runs
+    /// inside a SwiftUI view body, on the main thread**, over 379,693 samples.
+    ///
+    /// Measured with `sample(1)` on the reader's own record on 2026-08-09:
+    /// after the `InstrumentCoverage` fix, this was the single largest
+    /// remaining item on the main thread during launch —
+    /// `DashboardView.body` → `suggestionVisibility` → here → `Suggestions` →
+    /// `VitalSignsInsight` / `HealthWatch` / `VitalReader` / `MultiSource`.
+    ///
+    /// A cache in front of an expensive computation only helps while it is
+    /// warm, and this one was cold exactly when the reader had just done
+    /// something. So it is no longer a cache: the pass runs off the actor and
+    /// **writes** here, and the views observe the property.
+    ///
+    /// The precedent is `scoreHistories` immediately below the score section —
+    /// observable, unlike the `@ObservationIgnored` derived caches, because it
+    /// is written from a background task *after* the body has returned, so
+    /// publishing the result is what makes the row appear and there is no
+    /// mid-render mutation to guard against. `docs/data-conventions.md`'s rule
+    /// is satisfied for the same reason: this is a stored, reloaded property,
+    /// not a computed read of the store from inside a view.
+    ///
+    /// The visible cost, stated: for one frame after a launch or a mutation the
+    /// suggestion row is **absent** rather than stale. That is the same
+    /// contract `results` has always had, and an absent row is the honest
+    /// rendering of "not worked out yet".
+    private(set) var suggestions: [Suggestion] = []
 
-    var suggestions: [Suggestion] {
-        if let suggestionCache { return suggestionCache }
-        let built = SuggestionEngine.suggestions(results: results, samples: samples,
-                                                 profile: profile,
-                                                 substanceEvents: substanceEvents,
-                                                 usedInputs: usedInputs,
-                                                 // `max` rather than `.first`:
-                                                 // the reminder is wrong in the
-                                                 // direction that nags if the
-                                                 // ordering ever changes, and a
-                                                 // scan can be entered for a
-                                                 // date after the newest row.
-                                                 lastBodyScan: bodyScans.map(\.capturedAt).max(),
-                                                 // P32 — the queue of flagged
-                                                 // moments nobody has answered.
-                                                 pendingEventCount: EventFeedModel.shared.pendingCount,
-                                                 // Q6 — the reader's own
-                                                 // condition on this feature was
-                                                 // a dismissible front-page row
-                                                 // while the permission is
-                                                 // absent. This is what feeds it.
-                                                 locationAccess: EventFeedModel.shared.access,
-                                                 // B7 H7 — the ledger and the
-                                                 // calendar the leave
-                                                 // recommendation reads. One
-                                                 // parameter, because a ledger
-                                                 // with no calendar cannot name
-                                                 // a date and a calendar with no
-                                                 // ledger cannot know a break is
-                                                 // overdue.
-                                                 leave: LeaveSuggestionInput(
-                                                    ledger: holidayLedger,
-                                                    events: calendarEvents,
-                                                    judgements: calendarJudgements))
-        suggestionCache = built
-        return built
+    @ObservationIgnored private var suggestionGeneration = 0
+    @ObservationIgnored private var suggestionTask: Task<Void, Never>?
+
+    /// Rebuild `suggestions` off the main actor.
+    ///
+    /// Everything the engine needs is read *here*, on the actor, and handed
+    /// over as values — `results`, `holidayLedger`, the two `EventFeedModel`
+    /// readings and `usedInputs` are all main-actor state, and reading them
+    /// inside the detached task would be both a data race and a different
+    /// answer from the one the reader is looking at.
+    private func refreshSuggestions() {
+        let resultsNow = results
+        let samplesNow = samples
+        let profileNow = profile
+        let substanceNow = substanceEvents
+        let usedNow = usedInputs
+        // `max` rather than `.first`: the reminder is wrong in the direction
+        // that nags if the ordering ever changes, and a scan can be entered for
+        // a date after the newest row.
+        let lastScan = bodyScans.map(\.capturedAt).max()
+        // P32 — the queue of flagged moments nobody has answered.
+        let pending = EventFeedModel.shared.pendingCount
+        // Q6 — the reader's own condition on this feature was a dismissible
+        // front-page row while the permission is absent. This is what feeds it.
+        let access = EventFeedModel.shared.access
+        // B7 H7 — the ledger and the calendar the leave recommendation reads.
+        // One parameter, because a ledger with no calendar cannot name a date
+        // and a calendar with no ledger cannot know a break is overdue.
+        let leave = LeaveSuggestionInput(ledger: holidayLedger,
+                                         events: calendarEvents,
+                                         judgements: calendarJudgements)
+        suggestionGeneration &+= 1
+        let generation = suggestionGeneration
+        suggestionTask?.cancel()
+        suggestionTask = Task.detached(priority: .userInitiated) {
+            let built = SuggestionEngine.suggestions(results: resultsNow, samples: samplesNow,
+                                                     profile: profileNow,
+                                                     substanceEvents: substanceNow,
+                                                     usedInputs: usedNow,
+                                                     lastBodyScan: lastScan,
+                                                     pendingEventCount: pending,
+                                                     locationAccess: access,
+                                                     leave: leave)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.suggestionGeneration == generation else { return }
+                self.suggestions = built
+            }
+        }
     }
 
     /// Which way each card's score has been going.
@@ -2207,6 +2290,11 @@ final class AppModel {
 
         recordScores(results)
         invalidateDerivedCaches()
+        // The launch path evaluates here rather than through `recompute()`, so
+        // without this the first Today frame would find `suggestions` empty and
+        // — before it was a stored property — would have built it inline, on
+        // the main thread, in front of the reader. See `suggestions`.
+        refreshSuggestions()
         // The launch screen waits on this and nothing else. Everything after it
         // — the provider sync, the ingest, the on-device summary — belongs
         // behind an app the user can already see and use.
@@ -3052,6 +3140,26 @@ final class AppModel {
     /// in, so recomputing twice does not stack two curves. It is rebuilt rather
     /// than cached because it ends at *now*, and a level that stopped updating
     /// would be the one thing on this card that silently went stale.
+    ///
+    /// ⚠️ **It must not *write* `samples` when the curve has not moved, and
+    /// until 2026-08-09 it wrote on every single call.** The old guard asked
+    /// whether a previous derivation was present, which — for a reader on a
+    /// regimen — is always true, so every one of `recompute()`'s thirty-three
+    /// call sites rebuilt a 379,693-element array and reassigned it. The cost
+    /// is not the copy. It is `samples.didSet`, which calls
+    /// `invalidateDerivedCaches()`: **every breakdown, every render memo, every
+    /// replayed score history, every derived series and every overlay was
+    /// thrown away and rebuilt because the reader logged a side effect.** That
+    /// is the "opening cards hangs" half of the 2026-08-08 report — the caches
+    /// that exist to make a card open instantly were being emptied by the tap
+    /// before it.
+    ///
+    /// So the question asked is now the honest one: *is the curve I would
+    /// inject the curve that is already in there?* Answered on the derived rows
+    /// alone — 174 of them on the reader's record, against 379k — and on
+    /// `(start, value)` rather than on the samples themselves, because
+    /// `dailySamples` mints a fresh `UUID` per call and identity would make
+    /// every comparison report a change.
     private func refreshMedicationLevelSamples(now: Date = Date()) {
         var derived: [HealthMetricSample] = []
         if let medication = activeMedication, let compound = medication.compound,
@@ -3062,20 +3170,50 @@ final class AppModel {
                 doses: medication.doses.map(\.administered), compound: compound,
                 from: start, to: now)
         }
-        let hadDerived = samples.contains { $0.type == .activeMedicationLevel }
-        guard hadDerived || !derived.isEmpty else { return }
+        let existing = samples.filter { $0.type == .activeMedicationLevel }
+        guard existing.count != derived.count || !isSameCurve(existing, derived) else { return }
         samples = samples.filter { $0.type != .activeMedicationLevel } + derived
     }
 
+    /// Whether two derivations of the medication level describe the same curve.
+    ///
+    /// Sorted by date first: the stored copy arrives from the sample cache in
+    /// whatever order it was written, while a fresh derivation is always in
+    /// date order, and comparing those positionally would report a change on
+    /// every launch.
+    private func isSameCurve(_ lhs: [HealthMetricSample],
+                             _ rhs: [HealthMetricSample]) -> Bool {
+        let a = lhs.sorted { $0.start < $1.start }
+        let b = rhs.sorted { $0.start < $1.start }
+        return zip(a, b).allSatisfy { $0.start == $1.start && $0.value == $1.value }
+    }
+
+    /// ⚠️ **Everything above the detach freezes the interface, so it is
+    /// timed.** The 2026-08-06 fix moved `evaluateAll` off the main actor and
+    /// the report came back anyway, because the *rest* of this function was
+    /// still on it — a cycle-phase rebuild, a full-history `max`, a detection
+    /// pass and a wholesale reassignment of `samples`, all measured in hundreds
+    /// of milliseconds on the reader's record and all multiplied by
+    /// thirty-three call sites.
+    ///
+    /// A number nobody records is a number nobody can defend, so the main-actor
+    /// half now reports itself whenever it crosses the same threshold
+    /// `MainThreadWatchdog` calls a stall. One line, only when it matters, and
+    /// it names the phase rather than the total — `RefreshPhaseTimer`'s lesson
+    /// from `D57`, applied one level down.
     private func recompute() {
+        var timer = RefreshPhaseTimer()
+        defer { reportIfSlow(timer) }
         // The logged data that lives in SwiftData rather than in `samples` —
         // the regimen and the side effects — reloaded first, so both the models
         // that read them and every observed view redraw with what the reader
         // just changed.
         reloadLoggedData()
+        timer.lap("reloadLoggedData (12 SwiftData fetches)")
         // Before the evaluation, so the card that reads it sees it in the same
         // pass rather than one recompute later.
         refreshMedicationLevelSamples()
+        timer.lap("medication level")
         // The substance model reads a log that isn't in `samples`, so it is
         // rebound before every evaluation. Idempotent — it replaces rather than
         // appends — and it is what puts Substance Impact in front of score
@@ -3094,12 +3232,15 @@ final class AppModel {
             // …and the four cards that score leave, after it — see the note on
             // the launch path above for why the order is not free.
             .withHolidayLedger(holidayLedger)
+        timer.lap("engine binding")
 
         // The flagged-event feed moves with the data rather than only when
         // somebody opens it — otherwise the dismissible suggestion below would
-        // be counting a queue nothing had refreshed. Cheap next to the insight
-        // pass: one filter and one grouping over the heart-rate series.
+        // be counting a queue nothing had refreshed. Detached inside — see
+        // `EventFeedModel.detect`, which used to do a full-history `max` and a
+        // detection pass right here, on the actor.
         EventFeedModel.shared.detect(samples: samples, substanceEvents: substanceEvents)
+        timer.lap("event feed hand-off")
 
         // ⚠️ **The insight pass is off the main actor, and the reader found
         // out the hard way.** *"When it says 'Syncing your devices' it hangs
@@ -3128,15 +3269,27 @@ final class AppModel {
         let samplesNow = samples
         let eventsNow = vitalEvents
         let profileNow = profile
+        timer.lap("vitalEvents")
         recomputeGeneration &+= 1
         let generation = recomputeGeneration
         // Kept so `recomputeSettled()` can await it — `performRefresh` writes
         // the daily summary from `results` and must not read the previous
         // pass's.
+        //
+        // ⚠️ **The superseded pass is cancelled, not just discarded.** The
+        // generation guard throws its *answer* away; it does nothing about the
+        // second of CPU already committed to producing it. With thirty-three
+        // call sites and a reader tapping through a correction flow, that left
+        // several full eighteen-model passes running at once over 379k samples
+        // — every core busy, and a main actor that cannot get scheduled is
+        // indistinguishable to the reader from a main actor that is blocked.
+        // This is the priority-inversion half of the 2026-08-08 report.
+        recomputeTask?.cancel()
         recomputeTask = Task.detached(priority: .userInitiated) {
             let evaluated = engineNow.evaluateAll(samples: samplesNow,
                                                   events: eventsNow,
                                                   profile: profileNow)
+            guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 self?.applyRecomputed(evaluated, generation: generation)
             }
@@ -3148,6 +3301,25 @@ final class AppModel {
     /// guard, and the same reason, as `scoreHistoryGeneration`.
     @ObservationIgnored private var recomputeGeneration = 0
     @ObservationIgnored private var recomputeTask: Task<Void, Never>?
+
+    /// Say so when `recompute()`'s main-actor half took long enough for the
+    /// reader to feel it, and name which phase it was.
+    ///
+    /// The threshold is `MainThreadWatchdog.noticeThreshold`, deliberately:
+    /// this and the watchdog are measuring the same thing from two directions,
+    /// and two instruments that disagree about what counts as a stall produce
+    /// two arguments instead of one answer. Below it, nothing is logged — a
+    /// line per `recompute()` at thirty-three call sites is how the
+    /// 1,000-entry diagnostics log gets overwritten before the reader can
+    /// export it, which is a defect this file has already caused once.
+    private func reportIfSlow(_ timer: RefreshPhaseTimer) {
+        let total = timer.total
+        guard total >= MainThreadWatchdog.noticeThreshold else { return }
+        DiagnosticsLog.shared.info(
+            "Hang",
+            String(format: "recompute() held the main actor for %.2fs", total),
+            detail: timer.summary())
+    }
 
     /// Wait for the in-flight evaluation to land.
     ///
@@ -3207,6 +3379,10 @@ final class AppModel {
         // about everything around it.** Neither half was wrong on its own
         // branch.
         refreshCyclePhaseProfile()
+        // After `results` is in, because that is what the engine reads. Off the
+        // main actor — this is the pass that was running inside
+        // `DashboardView.body`. See `suggestions`.
+        refreshSuggestions()
         prewarmBreakdowns()
         // The daily number, written where a home-screen widget will read it.
         // A few hundred bytes, and a no-op when nothing a reader could see has
@@ -3228,13 +3404,19 @@ final class AppModel {
     private func prewarmBreakdowns() {
         let snapshot = samples
         let generation = scoreHistoryGeneration
-        Task.detached(priority: .utility) {
+        // Cancelled for the same reason the insight pass is: this builds a
+        // breakdown for every one of sixty-five metric types over the whole
+        // sample set, and a superseded warm is pure heat. See `recompute()`.
+        prewarmTask?.cancel()
+        prewarmTask = Task.detached(priority: .utility) {
             let metrics = Set(snapshot.map(\.type))
+            guard !Task.isCancelled else { return }
             let built = MultiSource.withMemo(for: snapshot) {
                 Dictionary(uniqueKeysWithValues: metrics.map {
                     ($0, MultiSource.breakdown($0, from: snapshot))
                 })
             }
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard self.scoreHistoryGeneration == generation else { return }
                 // Keep anything the UI built in the meantime — it is identical
@@ -3243,6 +3425,8 @@ final class AppModel {
             }
         }
     }
+
+    @ObservationIgnored private var prewarmTask: Task<Void, Never>?
 
     /// Today's scores become tomorrow's history. `recordScore` upserts by day,
     /// so this costs one row per insight per day rather than one per call.
@@ -3626,8 +3810,10 @@ final class AppModel {
                                   contributorCount: weighted > 0 ? weighted
                                                                  : updated.contributors.count)
         }
-        // Suggestions read `results`, so one changed result invalidates them.
-        suggestionCache = nil
+        // Suggestions read `results`, so one changed result rebuilds them —
+        // off the main actor, and the previous list stays on screen until it
+        // lands. See `suggestions`.
+        refreshSuggestions()
         // And this card's own replayed history is drawn from the log, so it has
         // to be rebuilt — but only this card's.
         scoreHistories[.substanceImpact] = nil
@@ -3676,7 +3862,7 @@ final class AppModel {
                                   contributorCount: weighted > 0 ? weighted
                                                                  : updated.contributors.count)
         }
-        suggestionCache = nil
+        refreshSuggestions()
         scoreHistories[.supplementStack] = nil
         scoreHistoryTasks.remove(.supplementStack)
         scoreHistoryQueue.removeAll { $0 == .supplementStack }

@@ -47,7 +47,7 @@ final class EventFeedModel {
     /// draws — observing it would make every skipped pass invalidate a view.
     @ObservationIgnored private var lastSignature: Signature?
 
-    private struct Signature: Equatable {
+    private struct Signature: Equatable, Sendable {
         let sampleCount: Int
         let newestSample: Date?
         let substanceCount: Int
@@ -91,38 +91,80 @@ final class EventFeedModel {
     /// is the one way this feature could actively mislead. So a re-detected
     /// event inherits the place already stored, and only a genuinely new one
     /// asks `LocationCapture` for a fix.
+    /// ⚠️ **Nothing here runs on the main actor except the parts that cannot
+    /// leave it.** `recompute()` has thirty-three call sites, and until
+    /// 2026-08-09 every one of them paid, *inline*, for a full-history `max` to
+    /// build the signature and — whenever it changed — a whole detection pass.
+    /// Measured on the reader's own 379,693 samples: **36 ms + 161 ms
+    /// unoptimised**, which is what the phone runs (`deploy.yml` builds
+    /// `-configuration Debug`). Both are pure functions of `samples`, so both
+    /// are now computed off the actor and only the `UserDefaults` round trips,
+    /// the location lookup and the two published properties come back to it.
+    ///
+    /// The generation guard is `AppModel`'s, for `AppModel`'s reason: a pass
+    /// built from samples that have since been replaced must not overwrite one
+    /// built from the samples on screen.
     func detect(samples: [HealthMetricSample],
                 substanceEvents: [SubstanceEvent],
                 now: Date = Date()) {
-        // ⚠️ **`recompute()` has thirty-three call sites**, and every one of them
-        // would otherwise pay for a full detection pass and two `UserDefaults`
-        // round trips. That is the shape of the freeze the reader reported on
-        // 2026-08-06 — work that is individually reasonable, run on the main
-        // actor once per caller.
-        //
-        // The signature is deliberately cheap and deliberately *conservative*:
-        // it changes whenever a sample is added, removed or replaced, whenever
-        // the substance log moves, and whenever the day turns. It cannot detect
-        // a same-count edit that leaves the newest sample where it was — and
-        // that is fine, because `AppModel` replaces the whole array on every
-        // ingest rather than mutating it in place, so a silent same-count edit
-        // is not a state this app reaches.
-        let signature = Signature(sampleCount: samples.count,
-                                  newestSample: samples.max(by: { $0.start < $1.start })?.start,
-                                  substanceCount: substanceEvents.count,
-                                  day: Calendar.current.startOfDay(for: now))
-        guard signature != lastSignature else { return }
-        lastSignature = signature
+        detectGeneration &+= 1
+        let generation = detectGeneration
+        // Read here, passed in: the signature guard has to run *inside* the
+        // detached task — a guard evaluated on the main actor would first have
+        // to build the signature there, which is the `max` this is escaping.
+        let previous = lastSignature
+        detectTask?.cancel()
+        detectTask = Task { [weak self] in
+            let computed = await Task.detached(priority: .userInitiated) { () -> Detection? in
+                // The signature is deliberately cheap and deliberately
+                // *conservative*: it changes whenever a sample is added,
+                // removed or replaced, whenever the substance log moves, and
+                // whenever the day turns. It cannot detect a same-count edit
+                // that leaves the newest sample where it was — and that is
+                // fine, because `AppModel` replaces the whole array on every
+                // ingest rather than mutating it in place, so a silent
+                // same-count edit is not a state this app reaches.
+                let signature = Signature(
+                    sampleCount: samples.count,
+                    newestSample: samples.max(by: { $0.start < $1.start })?.start,
+                    substanceCount: substanceEvents.count,
+                    day: Calendar.current.startOfDay(for: now))
+                guard signature != previous else { return nil }
+                return Detection(
+                    signature: signature,
+                    events: FlaggedEventDetector.detect(samples: samples,
+                                                        substanceEvents: substanceEvents,
+                                                        now: now),
+                    gate: FlaggedEventDetector.referenceGate(samples: samples, now: now))
+            }.value
+            guard let self, let computed, !Task.isCancelled,
+                  self.detectGeneration == generation else { return }
+            self.apply(computed, now: now)
+        }
+    }
+
+    @ObservationIgnored private var detectGeneration = 0
+    @ObservationIgnored private var detectTask: Task<Void, Never>?
+
+    /// Everything the detached pass produced, in one `Sendable` parcel — the
+    /// same shape, and for the same reason, as `AppModel.HydratedState`.
+    private struct Detection: Sendable {
+        let signature: Signature
+        let events: [FlaggedEvent]
+        let gate: CoverageGate?
+    }
+
+    /// The half that needs the main actor: `UserDefaults`, Core Location, and
+    /// the two published properties the feed draws from.
+    private func apply(_ detection: Detection, now: Date) {
+        lastSignature = detection.signature
 
         let judgements = store.loadJudgements()
         let answered = Set(judgements.filter(\.isReviewed).map(\.eventID))
         let known = Dictionary(store.loadEvents(answeredIDs: answered, now: now)
             .map { ($0.id, $0) }) { a, _ in a }
 
-        let detected = FlaggedEventDetector.detect(samples: samples,
-                                                   substanceEvents: substanceEvents,
-                                                   now: now)
-        let placed = detected.map { event -> FlaggedEvent in
+        let placed = detection.events.map { event -> FlaggedEvent in
             if let existing = known[event.id] {
                 return event.at(existing.place)
             }
@@ -135,7 +177,7 @@ final class EventFeedModel {
                                                 answeredIDs: answered, now: now)
         store.save(events: swept)
 
-        historyGate = FlaggedEventDetector.referenceGate(samples: samples, now: now)
+        historyGate = detection.gate
         feed = EventConfirmationFeed.assemble(events: swept, judgements: judgements,
                                               historyGate: historyGate, now: now)
         hasRun = true

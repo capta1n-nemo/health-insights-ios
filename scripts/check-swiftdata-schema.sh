@@ -18,7 +18,7 @@
 # The snapshot beside this script lists the ones that shipped together and are
 # therefore already in every store.
 
-set -euo pipefail
+set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 
 snapshot="scripts/swiftdata-mandatory-attributes.txt"

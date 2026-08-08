@@ -248,6 +248,30 @@ public struct CalendarEventClassification: Sendable, Equatable, Codable, Hashabl
 
     public func decider(for key: String) -> Decider { deciders[key] ?? .rules }
 
+    /// **Whether the reader themselves put this event on the illness axis** —
+    /// as opposed to a rule reading the word "sick" in a title.
+    ///
+    /// The distinction exists because one heuristic downstream must not apply to
+    /// both. `SickDayLedger.detected` drops a *timed* sick block on the stated
+    /// grounds that "a one-hour block titled 'sick note — call GP' is an errand,
+    /// not a day in bed" — which is a sound reading of a **guess** and a wrong
+    /// reading of a **statement**. A reader who opens the review row for an
+    /// event, picks "Sick day" from the occasion menu and grades it severe has
+    /// said the day was one; silently dropping that because the block happened
+    /// to carry a start time is the app deciding it knows better than the only
+    /// person who was there.
+    ///
+    /// Grading counts as well as re-occasioning. `severity` is asked for on no
+    /// other occasion and nothing but the reader ever fills it in
+    /// (`SickSeverity`'s own note: *"Only the reader fills this in"*), so a
+    /// reader-set grade is the same act — agreeing it was a sick day, and saying
+    /// how bad.
+    public var sicknessIsTheReaders: Bool {
+        occasion == .sick
+            && (decider(for: Self.occasionKey) == .reader
+                || decider(for: Self.severityKey) == .reader)
+    }
+
     /// **How much of the reader's day this actually took**, which is what feeds
     /// a card's score rather than a raw hour count.
     ///

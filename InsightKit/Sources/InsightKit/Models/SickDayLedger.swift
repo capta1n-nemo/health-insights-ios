@@ -219,21 +219,40 @@ public struct SickDayLedger: Sendable, Equatable {
     /// classification — correction first, guess otherwise — says the reader was
     /// ill.
     ///
-    /// **Timed events are excluded even when classified `.sick`**, exactly as
+    /// **A timed event the app merely guessed at is excluded**, exactly as
     /// `HolidayLedger.detected` excludes a two-hour "OOO": a one-hour block
     /// titled "sick note — call GP" is an errand, not a day in bed, and counting
     /// it as one would reset `daysSinceLastSickDay` on every appointment.
+    ///
+    /// ⚠️ **The exclusion is a rule about guesses and stops at the reader**
+    /// (2026-08-09, from their own phone: *"I correct a day to include illness
+    /// on the calendar… the AI doesn't seem to learn from it"*). The shape test
+    /// is a proxy for "was this a day in bed", and a proxy is only wanted while
+    /// nobody has answered the question directly. Once the reader has opened the
+    /// review row and said *Sick day, severe*, the proxy was overruled by the
+    /// only person who was there — so `sicknessIsTheReaders` admits the event
+    /// whatever shape it is, and the drop that made their correction produce no
+    /// ledger period, no Data-tab row, no radar input and no export line is
+    /// closed. A rules-classified timed block is still dropped, which is what
+    /// `SickDayTests.testATimedSickBlockIsNotADetectedPeriod` has always pinned.
     ///
     /// Labels are dropped, severity is carried — the grade is a number-ish fact
     /// the reader stated, the title is words about their health.
     public static func detected(events: [CalendarEvent],
                                 judgements: [CalendarEventJudgement],
                                 calendar: Calendar = .current) -> [Period] {
-        let byID = Dictionary(uniqueKeysWithValues: judgements.map { ($0.eventID, $0.effective) })
+        // ⚠️ `uniquingKeysWith`, never `uniqueKeysWithValues`. Two judgement
+        // rows for one event id is a storage defect, and the strict initialiser
+        // answers a storage defect by killing the process on the launch path
+        // that builds this ledger. Last one wins, which is the row the store
+        // wrote most recently.
+        let byID = Dictionary(judgements.map { ($0.eventID, $0.effective) },
+                              uniquingKeysWith: { _, latest in latest })
         return events.compactMap { event in
-            guard event.kind == .allDay || event.kind == .multiDay,
-                  let classification = byID[event.id],
-                  classification.occasion == .sick else { return nil }
+            guard let classification = byID[event.id],
+                  classification.occasion == .sick,
+                  event.kind == .allDay || event.kind == .multiDay
+                      || classification.sicknessIsTheReaders else { return nil }
             let firstDay = calendar.startOfDay(for: event.start)
             // An all-day event's `end` is exclusive — midnight *after* the last
             // day — so the last inclusive day is the day holding the final

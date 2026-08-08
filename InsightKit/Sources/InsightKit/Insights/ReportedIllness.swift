@@ -114,10 +114,25 @@ public enum ReportedIllness {
     ///
     /// | What was said | Excess | What the card then says |
     /// | --- | --- | --- |
-    /// | ill, grade not stated | `someSignsExcess` (1.9) | some signs |
-    /// | mild | `someSignsExcess` | some signs |
+    /// | ill, grade not stated | just past `someSignsExcess` (1.9) | some signs |
+    /// | mild | the same | some signs |
     /// | moderate | midway | some signs, leaning |
-    /// | severe | `strongSignsExcess` (3.3) | strong signs |
+    /// | severe | `strongSignsExcess` (3.3) | the strong-signs edge — score 50 |
+    ///
+    /// ⚠️ **"Just past", not "on".** See `pastTheEdge`: an edge belongs to the
+    /// band above it, because every gate downstream is a `>=` on the score and
+    /// the curve returns an anchor's score exactly. Anchoring *on* 1.9 put a
+    /// stated illness on the quiet side of the quiet gate, which is how a day
+    /// the reader had just marked as illness kept rendering as a green square.
+    ///
+    /// ⚠️ **The severe row is the edge on purpose and is left there.** A stated
+    /// severe illness scores exactly 50 — the strong-signs anchor — and 50 is
+    /// `.someSigns` by the gates in `SymptomRadarModel.verdict`, which is a
+    /// design call somebody made deliberately and
+    /// `SickDayReportTests.testASeverelyIllDayIsNotAQuietDay` pins as *"anchored
+    /// on the strong-signs edge"*. Whether self-report should be allowed to
+    /// paint the strong band outright is a real question and a separate one; it
+    /// is not the reported bug, which was **green**.
     ///
     /// The claim being made is narrow and worth stating: **a day the reader said
     /// they were severely ill must not be a day this card calls quiet.** That is
@@ -129,19 +144,51 @@ public enum ReportedIllness {
         case .some(.moderate):
             return (HealthWatchModel.someSignsExcess + HealthWatchModel.strongSignsExcess) / 2
         case .some(.mild), .some(.unstated), .none:
-            return HealthWatchModel.someSignsExcess
+            return HealthWatchModel.someSignsExcess + pastTheEdge
         }
     }
+
+    /// **How far past a band edge a stated illness is placed, in null SDs.**
+    ///
+    /// ⚠️ **An edge is not inside the band it opens, and that is what kept a
+    /// recorded sick day green.** `HealthWatchModel.score(excess:)` is a
+    /// `ScoreCurve` through published anchors and returns an anchor's score
+    /// *exactly* at its input, so `someSignsExcess` scores exactly **85** — and
+    /// the first gate in both `HealthWatchModel.Output.status` and
+    /// `SymptomRadarModel.verdict` is `score >= 85 → quiet`. So the lowest
+    /// reported anchor, which the table above says means *some signs*, landed on
+    /// the **quiet** side of the boundary, and a reader marking a day as illness
+    /// without grading it — which is what a calendar-detected sick day gets, and
+    /// what the correction sheet offers first — produced a day the card called
+    /// nothing stirring. Reported from the reader's own phone, 2026-08-09.
+    ///
+    /// A twentieth of a null SD, and both halves of that matter. Small enough
+    /// not to be a different claim: it moves a stated mild illness from a score
+    /// of 85.0 to about 84.6, which is inside the band and nowhere near the next
+    /// edge. Large enough not to be an epsilon that a future re-anchoring of the
+    /// curve rounds back onto the gate.
+    ///
+    /// ⚠️ **It is added, never hard-coded into a new number.** The anchors are
+    /// still `HealthWatchModel`'s own, so moving a band still moves this — which
+    /// was the right instinct in the original and is the only part of it that
+    /// needed keeping.
+    public static let pastTheEdge = 0.05
 
     /// The same, for Apple's four-value symptom grade.
     ///
     /// `notPresent` is **zero and not absent**: a reader who looked at a symptom
     /// and recorded that they did not have it has said something, and what they
     /// said was "no".
+    ///
+    /// The lowest grade carries `pastTheEdge` for the same reason the sick-day
+    /// scale does, and carries it *here* rather than only there so a mild fever
+    /// tag and a mild sick day cannot end up on opposite sides of the quiet
+    /// gate. A non-specific symptom is still halved afterwards and so still
+    /// cannot flag the card alone — `nonSpecificShare`'s guarantee is untouched.
     public static func excess(for severity: SymptomSeverity) -> Double {
         switch severity {
         case .notPresent: return 0
-        case .unspecified, .mild: return HealthWatchModel.someSignsExcess
+        case .unspecified, .mild: return HealthWatchModel.someSignsExcess + pastTheEdge
         case .moderate:
             return (HealthWatchModel.someSignsExcess + HealthWatchModel.strongSignsExcess) / 2
         case .severe: return HealthWatchModel.strongSignsExcess

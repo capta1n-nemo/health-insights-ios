@@ -38,6 +38,9 @@ final class InsightPassBenchmarkTests: XCTestCase {
     private struct Export: Decodable {
         let samples: [HealthMetricSample]
         let profile: UserHealthProfile?
+        /// The raw catalogue — what `AppModel.otherSamples` holds. Optional so
+        /// an older export without it still drives the insight-pass benchmarks.
+        let unmodelled: [RawMetricSample]?
     }
 
     /// The reader's export, or `nil` when the harness is not being driven.
@@ -148,5 +151,114 @@ final class InsightPassBenchmarkTests: XCTestCase {
             XCTAssertLessThan(second, first / 10,
                               "the second memoised read is not materially cheaper than the first")
         }
+    }
+
+    /// **The half of `recompute()` that runs on the main actor** — what the
+    /// reader is actually waiting on.
+    ///
+    /// The 2026-08-06 fix detached `evaluateAll`, and the benchmark above is
+    /// about that half. The report came back anyway on 2026-08-08 (*"it hangs
+    /// when I add data manually anywhere in the app, opening cards hangs, and
+    /// correcting data hangs, and even load screen hangs"*), because the rest
+    /// of `recompute()` was still inline — and `recompute()` has thirty-three
+    /// call sites, so every reading logged, every judgement corrected and every
+    /// card opened paid the whole bill.
+    ///
+    /// What that bill was, on the reader's own 379,693 samples, **unoptimised —
+    /// which is the build their phone runs**, since `deploy.yml` builds
+    /// `-configuration Debug`:
+    ///
+    /// | phase                      | debug   | release |
+    /// |----------------------------|---------|---------|
+    /// | `refreshCyclePhaseProfile` | 370 ms  |  79 ms  |
+    /// | `EventFeedModel.detect`    | 161 ms  |  55 ms  |
+    /// | its signature `max`        |  36 ms  |   7 ms  |
+    /// | medication-level `contains`|  40 ms  |   8 ms  |
+    /// | **total**                  | **849 ms** | **239 ms** |
+    ///
+    /// All of it is a pure function of `samples`, which is the property that
+    /// let the insight pass leave, so on 2026-08-09 all of it left too. The
+    /// table below is kept because **the functions did not get cheaper — they
+    /// got moved**, and a later session that moves one back needs the number in
+    /// front of it.
+    ///
+    /// The assertion is therefore on the `perRecompute` group alone: the work a
+    /// single `recompute()` still holds the interface for. The `perSync` group
+    /// — the promotions in `otherSamples.didSet`, ~175 ms unoptimised — is
+    /// printed without a ceiling because it is **not fixed**: that `didSet`
+    /// promotes synchronously on purpose, so that nothing can read a raw
+    /// catalogue whose promoted `symptoms` and `tags` lag behind it, and
+    /// detaching it would trade a launch stall for a pass of the symptom radar
+    /// scored against yesterday's tags. It is a real remaining cost on the
+    /// launch path and it needs a decision, not a reflex.
+    func testRecomputeMainActorBenchmark() throws {
+        guard let export = try loadExport() else {
+            throw XCTSkip("Set IK_BENCH_EXPORT to a health export JSON to run this benchmark.")
+        }
+        let samples = export.samples
+        let raw = export.unmodelled ?? []
+        let now = Date()
+        let summary = CycleModel.summarise(days: [])
+
+        // Warm the lazily-built statics and fault the decode in, as above.
+        _ = samples.max(by: { $0.start < $1.start })
+
+        // Still synchronous inside `recompute()`. Everything here is paid at
+        // every one of the thirty-three call sites, so this is the group with
+        // a ceiling on it.
+        var perRecompute: [(String, Double)] = []
+        perRecompute.append(("medication-level scan",
+                             elapsed { _ = samples.filter { $0.type == .activeMedicationLevel } }))
+
+        // On the main actor too, but paid once per `otherSamples` assignment —
+        // a launch and a sync, not a tap. Reported without a ceiling because
+        // the fix is a behavioural one (`otherSamples.didSet` promotes
+        // *synchronously* on purpose, so nothing can read a catalogue its
+        // promotions lag) and has not been made.
+        var perSync: [(String, Double)] = []
+        if !raw.isEmpty {
+            perSync.append(("otherSamples ▸ tags",
+                            elapsed { _ = TagPromotion.tags(from: raw, resolved: TagMappingStore()) }))
+            perSync.append(("otherSamples ▸ symptoms",
+                            elapsed { _ = SymptomPromotion.events(from: raw) }))
+            perSync.append(("vitalEvents (cold)",
+                            elapsed { _ = VitalEventReader.events(from: raw) }))
+        }
+
+        // Detached as of 2026-08-09. Timed so a session that moves one back
+        // can see what it costs before it does.
+        var movedOff: [(String, Double)] = []
+        movedOff.append(("refreshCyclePhaseProfile",
+                         elapsed { _ = PhaseAwareBaseline.profile(samples: samples, summary: summary,
+                                                                  now: now) }))
+        movedOff.append(("EventFeed signature (max)",
+                         elapsed { _ = samples.max(by: { $0.start < $1.start }) }))
+        movedOff.append(("EventFeed detect",
+                         elapsed { _ = FlaggedEventDetector.detect(samples: samples, now: now) }))
+
+        let held = perRecompute.reduce(0) { $0 + $1.1 }
+        print("── on the main actor, every recompute() ──")
+        print("samples: \(samples.count), raw rows: \(raw.count)")
+        for (name, ms) in perRecompute.sorted(by: { $0.1 > $1.1 }) { print(row(name, ms)) }
+        print(row("HELD PER CALL", held))
+        print("── on the main actor, once per sync ──")
+        for (name, ms) in perSync.sorted(by: { $0.1 > $1.1 }) { print(row(name, ms)) }
+        print(row("HELD PER SYNC", perSync.reduce(0) { $0 + $1.1 }))
+        print("── moved off it 2026-08-09, still timed ──")
+        for (name, ms) in movedOff.sorted(by: { $0.1 > $1.1 }) { print(row(name, ms)) }
+        print(row("(off-actor total)", movedOff.reduce(0) { $0 + $1.1 }))
+        print("─────────────────────────────────────────")
+
+        // **A ceiling on the frozen interface, not on the work.** 60 Hz is
+        // 16 ms; a tap that costs a tenth of a second already reads as
+        // sluggish. This is `MainThreadWatchdog.noticeThreshold` — the point at
+        // which the app's own detector calls a stall a stall — so the
+        // assertion and the instrument agree on what "hang" means.
+        //
+        // Deliberately on the *group total*: the reader does not experience one
+        // line, they experience the tap. A regression that splits 300 ms across
+        // three new callers is the same defect as one caller costing 300 ms.
+        XCTAssertLessThan(held, 250,
+                          "recompute()'s main-actor half exceeds the watchdog's own stall threshold — see the table above")
     }
 }
