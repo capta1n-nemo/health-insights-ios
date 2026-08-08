@@ -53,7 +53,24 @@ final class LabResultRecord {
     var magnitude: Double?
     /// `LabValueShape.rawValue`. Lets a chart select only the results that share
     /// a shape without decoding every payload.
-    var shapeRaw: String
+    ///
+    /// ⚠️ **The default is load-bearing and is not a placeholder.** This repo has
+    /// no `SchemaMigrationPlan` and relies entirely on SwiftData's implicit
+    /// lightweight migration, which cannot invent a value for a new non-optional
+    /// column — so adding this without a default made `ModelContainer(for:)`
+    /// throw, and `DataStore.init` turns that into a `fatalError`. **The app
+    /// crashed on launch for anyone with an existing store**, and a fresh
+    /// simulator install could not reproduce it because there was nothing to
+    /// migrate. Shipped 2026-08-09 in `189a5e1`, found by the reader in minutes.
+    ///
+    /// `quantitative` is also the *correct* backfill rather than merely a safe
+    /// one: every row written before this column existed was stored when
+    /// `LabResult.value` was a `Double`, so a plain number is the only thing any
+    /// of them can be.
+    ///
+    /// **The rule this cost: a new stored property on a shipped `@Model` is
+    /// either optional or defaulted. There is no third option here.**
+    var shapeRaw: String = LabValueShape.quantitative.rawValue
     var unit: String
     var collectedAt: Date
     var sourceRaw: String
